@@ -18,8 +18,9 @@ var viewsFS embed.FS
 // Feature はLP・ホームページテンプレートのモジュール実装です。
 // DBテーブルを必要とせず、完全な静的配信・SSRで動作します。
 type Feature struct {
-	tmpl   *template.Template
-	logger *slog.Logger
+	tmpl           *template.Template
+	logger         *slog.Logger
+	contactFormURL string
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
@@ -28,8 +29,9 @@ func NewFeature(logger *slog.Logger) *Feature {
 		panic(fmt.Sprintf("parse site views: %v", err))
 	}
 	return &Feature{
-		tmpl:   t,
-		logger: logger,
+		tmpl:           t,
+		logger:         logger,
+		contactFormURL: "https://forms.google.com",
 	}
 }
 
@@ -44,14 +46,14 @@ func (f *Feature) Init(db *sql.DB) error {
 
 // RegisterRoutes はトップページ以外の追加ルート（もしあれば）を登録します。
 func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
-	// 現状はトップページ（HandleRoot）のみですが、/about や /terms などを増やす場合はここに記述します
 }
 
 // HandleRoot はBaseのデフォルトトップ（GET /）をこのLP画面で置き換えます。
 func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 	data := map[string]any{
-		"Title": "超軽量・安全なWebひな形",
+		"Title":          "超軽量・安全なWebひな形",
+		"ContactFormURL": f.contactFormURL,
 	}
 
 	if err := f.tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {

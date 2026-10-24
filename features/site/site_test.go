@@ -40,6 +40,11 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"<details",
 		"<summary>",
 		"/privacy",
+		"id=\"contact\"",
+		"お問い合わせ・フィードバック",
+		"https://forms.google.com",
+		"target=\"_blank\"",
+		"rel=\"noopener noreferrer\"",
 	}
 
 	for _, snippet := range expectedSnippets {
