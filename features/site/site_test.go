@@ -43,6 +43,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"id=\"contact\"",
 		"お問い合わせ・フィードバック",
 		"https://forms.google.com",
+		"新しいタブで開きます",
 		"target=\"_blank\"",
 		"rel=\"noopener noreferrer\"",
 	}

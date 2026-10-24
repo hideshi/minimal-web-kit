@@ -9,6 +9,7 @@
   --color-bg: #ffffff;
   --color-surface: #f8f9fa;
   --color-border: #b0b7bd;
+  --color-border-input: #767676; /* 白背景に対して4.5:1以上の高コントラスト境界 */
   --color-primary: #004098;
   --color-primary-hover: #002b66;
   --color-danger: #d32727;
@@ -39,6 +40,32 @@ body {
   padding: var(--space-md);
   max-width: 900px;
   margin: 0 auto;
+}
+
+/* スキップリンク（キーボード操作用） */
+.skip-link {
+  position: absolute;
+  left: -10000px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.skip-link:focus-visible {
+  position: fixed;
+  left: var(--space-md);
+  top: var(--space-md);
+  z-index: 1000;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--color-bg);
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius);
+  width: auto;
+  height: auto;
+  text-decoration: underline;
+  box-shadow: 0 0 0 4px var(--color-focus-outer);
 }
 
 :focus-visible {
@@ -156,10 +183,10 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   color: #555555;
 }
 
-/* 3カラムグリッド */
+/* 3カラムグリッド（極小画面リフロー対応） */
 .grid-3 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
   gap: var(--space-md);
   margin-top: var(--space-md);
   margin-bottom: var(--space-lg);
@@ -336,7 +363,7 @@ textarea {
   padding: var(--space-sm);
   font-family: inherit;
   font-size: 1rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-input); /* 3:1以上のコントラスト境界 */
   border-radius: var(--radius);
   background-color: var(--color-bg);
   color: var(--color-text);
@@ -417,12 +444,17 @@ a.btn:hover {
   background-color: #fff9e6;
 }
 
-/* テーブル */
+/* テーブル（横スクロールコンテナ対応） */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: var(--space-md);
-  margin-bottom: var(--space-lg);
 }
 
 th, td {

@@ -8,16 +8,18 @@
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
+  <a href="#main-content" class="skip-link">本文へ移動</a>
+
   <header>
     <div class="site-title">minimal-web-kit</div>
     <div class="site-subtitle">個人情報・外部依存を最小限に抑えたWebアプリのひな形</div>
-    <nav>
+    <nav aria-label="メインナビゲーション">
       <a href="/">ホーム</a>
       <a href="/privacy">このアプリが保存するもの</a>
     </nav>
   </header>
 
-  <main>
+  <main id="main-content" tabindex="-1">
     {{template "content" .}}
   </main>
 

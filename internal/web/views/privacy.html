@@ -6,24 +6,26 @@
 </div>
 
 <h2>永続化されているデータ項目</h2>
-<table>
-  <thead>
-    <tr>
-      <th>データ種別</th>
-      <th>保存項目</th>
-      <th>保存の目的</th>
-      <th>保持期間</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>セッション</td>
-      <td>トークンのSHA-256ハッシュ、所有者ID、作成日時、最終アクセス日時</td>
-      <td>同一ブラウザからの正当なアクセス確認</td>
-      <td>最終アクセスから30日</td>
-    </tr>
-  </tbody>
-</table>
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">データ種別</th>
+        <th scope="col">保存項目</th>
+        <th scope="col">保存の目的</th>
+        <th scope="col">保持期間</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>セッション</td>
+        <td>トークンのSHA-256ハッシュ、所有者ID、作成日時、最終アクセス日時</td>
+        <td>同一ブラウザからの正当なアクセス確認</td>
+        <td>最終アクセスから30日</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
 
 <h2>データの自己管理</h2>
 <p>あなた自身のセッション情報は、いつでも即座に完全破棄することができます。</p>
