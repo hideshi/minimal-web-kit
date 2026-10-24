@@ -1,0 +1,21 @@
+.PHONY: all build run test lint verify clean
+
+BIN_NAME := minimal-web-kit
+
+all: test build
+
+build:
+	CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o bin/$(BIN_NAME) ./cmd/server
+
+run:
+	go run ./cmd/server
+
+test:
+	go test -race -v ./...
+
+verify:
+	go mod verify
+	go vet ./...
+
+clean:
+	rm -rf bin/ data/

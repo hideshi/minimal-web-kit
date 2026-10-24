@@ -1,0 +1,258 @@
+/* style.css: デジタル庁デザインにインスパイアされたアクセシブル・ミニマルCSS
+   外部依存ゼロ・単一ファイルで完結し、JIS X 8341-3 / WCAG 2.1 AA レベルの視認性を確保します。 */
+
+:root {
+  --font-base: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", Meiryo, sans-serif;
+  --line-height: 1.7;
+
+  --color-text: #1a1a1a;
+  --color-bg: #ffffff;
+  --color-surface: #f8f9fa;
+  --color-border: #b0b7bd;
+  --color-primary: #004098;
+  --color-primary-hover: #002b66;
+  --color-danger: #d32727;
+  --color-danger-hover: #a11414;
+  --color-focus-inner: #000000;
+  --color-focus-outer: #ffd700;
+
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2.5rem;
+  --radius: 4px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-base);
+  line-height: var(--line-height);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  padding: var(--space-md);
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-focus-inner);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--color-focus-outer);
+}
+
+header {
+  border-bottom: 2px solid var(--color-text);
+  padding-bottom: var(--space-md);
+  margin-bottom: var(--space-xl);
+}
+
+.site-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+}
+
+.site-subtitle {
+  font-size: 0.95rem;
+  color: #4a5568;
+}
+
+nav {
+  margin-top: var(--space-sm);
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+h1 { font-size: 1.6rem; margin-bottom: var(--space-md); }
+h2 { font-size: 1.3rem; margin-top: var(--space-lg); margin-bottom: var(--space-sm); }
+h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-xs); }
+
+form {
+  margin-bottom: var(--space-lg);
+}
+
+.form-group {
+  margin-bottom: var(--space-md);
+}
+
+label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+}
+
+.field-hint {
+  font-size: 0.85rem;
+  color: #4a5568;
+  margin-bottom: var(--space-xs);
+}
+
+input[type="text"],
+textarea {
+  width: 100%;
+  padding: var(--space-sm);
+  font-family: inherit;
+  font-size: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+button, .btn {
+  display: inline-block;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: var(--space-sm) var(--space-lg);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn-secondary:hover {
+  background-color: #e9ecef;
+}
+
+.btn-danger {
+  background-color: var(--color-danger);
+  color: #ffffff;
+}
+
+.btn-danger:hover {
+  background-color: var(--color-danger-hover);
+}
+
+.memo-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.memo-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  background-color: var(--color-surface);
+}
+
+.memo-card-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+}
+
+.memo-card-date {
+  font-size: 0.85rem;
+  color: #555555;
+  margin-bottom: var(--space-sm);
+}
+
+.memo-card-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: var(--space-md);
+}
+
+.memo-card-actions {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.alert {
+  padding: var(--space-md);
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  margin-bottom: var(--space-md);
+}
+
+.alert-info {
+  border-left: 6px solid var(--color-primary);
+}
+
+.alert-warning {
+  border-left: 6px solid #e08e00;
+  background-color: #fff9e6;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+th, td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+}
+
+th {
+  background-color: var(--color-surface);
+  font-weight: 700;
+}
+
+footer {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  color: #555555;
+}
+
+/* ユーティリティクラス */
+.inline-form {
+  margin-bottom: 0;
+  display: inline-block;
+}
+
+.action-bar {
+  margin-top: var(--space-lg);
+  display: flex;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  align-items: center;
+}

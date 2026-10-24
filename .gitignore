@@ -1,0 +1,30 @@
+# .gitignore
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+minimal-web-kit
+
+# Test and coverage
+*.out
+*.test
+coverage.txt
+
+# Databases and local state
+data/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# IDE and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

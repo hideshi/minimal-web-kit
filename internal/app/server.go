@@ -1,0 +1,103 @@
+package app
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
+
+	"minimal-web-kit/internal/store"
+	"minimal-web-kit/internal/web"
+)
+
+type Server struct {
+	cfg    *Config
+	store  store.Store
+	logger *slog.Logger
+}
+
+func NewServer(cfg *Config, s store.Store, logger *slog.Logger) *Server {
+	return &Server{
+		cfg:    cfg,
+		store:  s,
+		logger: logger,
+	}
+}
+
+func (s *Server) Run() error {
+	sm := web.NewSessionManager(s.store, s.cfg.SecureCookie)
+	handler, err := web.NewHandler(s.store, sm, s.logger)
+	if err != nil {
+		return fmt.Errorf("init handler: %w", err)
+	}
+
+	httpServer := &http.Server{
+		Addr:         s.cfg.Addr,
+		Handler:      handler.Routes(),
+		ReadTimeout:  s.cfg.ReadTimeout,
+		WriteTimeout: s.cfg.WriteTimeout,
+		IdleTimeout:  s.cfg.IdleTimeout,
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	var wg sync.WaitGroup
+
+	// 放置セッションGCゴルーチンの起動
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(s.cfg.GCInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				count, err := s.store.PurgeExpiredSessions(context.Background(), s.cfg.GCSessionAge)
+				if err != nil {
+					s.logger.Error("gc expired sessions failed", slog.Any("error", err))
+				} else if count > 0 {
+					s.logger.Info("gc expired sessions purged", slog.Int64("count", count))
+				}
+			}
+		}
+	}()
+
+	// HTTPサーバーの非同期リッスン
+	serverErr := make(chan error, 1)
+	go func() {
+		s.logger.Info("server starting", slog.String("addr", s.cfg.Addr))
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+	}()
+
+	// 終了シグナル待機
+	select {
+	case err := <-serverErr:
+		return fmt.Errorf("server error: %w", err)
+	case <-ctx.Done():
+		s.logger.Info("shutdown signal received, closing gracefully...")
+	}
+
+	// グレースフルシャットダウン（最大10秒待機）
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		s.logger.Error("server shutdown error", slog.Any("error", err))
+	}
+
+	wg.Wait()
+	s.logger.Info("server stopped successfully")
+	return nil
+}

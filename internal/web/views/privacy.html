@@ -1,0 +1,44 @@
+{{define "content"}}
+<h1>このアプリが保存するもの (DATA.md の可視化)</h1>
+
+<div class="alert alert-warning">
+  <p><strong>個人情報ゼロ方針:</strong> 当システムは、氏名・メールアドレス・パスワード等の個人を特定可能な情報を一切取得・保存しません。接続元IPアドレスやUser-Agentもログに記録しません。</p>
+</div>
+
+<h2>永続化されているデータ項目</h2>
+<table>
+  <thead>
+    <tr>
+      <th>データ種別</th>
+      <th>保存項目</th>
+      <th>保存の目的</th>
+      <th>保持期間</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>セッション</td>
+      <td>トークンのSHA-256ハッシュ、所有者ID、最終アクセス日時</td>
+      <td>同一ブラウザからの正当なアクセス確認</td>
+      <td>最終アクセスから30日</td>
+    </tr>
+    <tr>
+      <td>メモ</td>
+      <td>メモID、所有者ID、タイトル、本文、作成・更新日時</td>
+      <td>利用者のメモ閲覧・編集機能の提供</td>
+      <td>削除時または放置セッションGC時</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>データの自己管理</h2>
+<p>あなた自身のデータは、いつでもエクスポートおよび即座に完全破棄することができます。</p>
+
+<div class="action-bar">
+  <a href="/export" class="btn btn-secondary">全メモのエクスポート (JSON)</a>
+  <form action="/account/delete-all" method="POST" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn btn-danger" onclick="return confirm('警告: あなたの全メモおよびセッション情報が即座に物理削除されます。この操作は元に戻せません。よろしいですか？');">全データの即時削除</button>
+  </form>
+</div>
+{{end}}
