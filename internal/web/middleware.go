@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -42,7 +41,6 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 					reqID := w.Header().Get("X-Request-ID")
 					logger.Error("panic recovered",
 						slog.String("request_id", reqID),
-						slog.Any("error", rvr),
 					)
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
@@ -78,7 +76,7 @@ func MaxBytes(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
-// AccessLog は個人データ（IP、User-Agent、Cookie、クエリ文字列）を伏せた安全な構造化アクセスログを出力します。
+// AccessLog はURL・入力値を含めず、固定分類と応答状況のみの構造化アクセスログを出力します。
 func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -90,22 +88,18 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			duration := time.Since(start)
 			reqID := w.Header().Get("X-Request-ID")
 
-			// パスの安全な記録（制御文字や改行を除去、最大256文字）
-			cleanPath := strings.Map(func(r rune) rune {
-				if r < 32 || r == 127 {
-					return -1
-				}
-				return r
-			}, r.URL.Path)
-			if len(cleanPath) > 256 {
-				cleanPath = cleanPath[:256] + "..."
+			// URLや任意のメソッド名に含まれる機密値を保存しない。
+			method := r.Method
+			switch method {
+			case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+				http.MethodPatch, http.MethodDelete, http.MethodOptions, http.MethodConnect, http.MethodTrace:
+			default:
+				method = "OTHER"
 			}
 
-			// ログ契約: IP、User-Agent、Cookie、クエリパラメータは一切出力しない
 			logger.Info("http request",
 				slog.String("request_id", reqID),
-				slog.String("method", r.Method),
-				slog.String("path", cleanPath),
+				slog.String("method", method),
 				slog.Int("status", sw.statusCode),
 				slog.Duration("duration", duration),
 			)

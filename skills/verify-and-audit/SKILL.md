@@ -20,7 +20,7 @@ go test -race -v ./...
 - **`TestDataSchema_MatchesDataLedger`**: `DATA.md` に記載されたテーブル・列定義と、インメモリDB上の実スキーマ（`PRAGMA table_info`）のテーブル名・列名が双方向で一致しているか。型・NULL制約・外部キー・Feature初期化経路の完全検査ではない。
 - **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=`、`<style>`、`<script>`、および `on*` イベントハンドラが含まれていないか。
 - **`TestCSS_SingleFileAndNoImportant`**: CSSファイルが単一であり、`!important` が含まれていないか。
-- **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データ・パス・panic等を網羅した保証ではない。
+- **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection` で検査する。
 
 ## 2. 人手による差分チェック観点
 自動テストに加え、`git diff` で以下の観点を確認します。
@@ -36,7 +36,7 @@ go test -race -v ./...
 ## 3. 約束に応じた追加検証
 - `make verify` と `make build` を実行する。GoはPATH外にある場合も確認し、未導入や失敗なら検証済みと報告しない。Goバージョンは `go.mod` に従い、CGO無効・アセット埋め込みのビルド結果とサイズを確認する。
 - 新しい個人情報・機密情報を扱う変更では、承認、DATA.md、プライバシー説明、保持期間、削除手段を照合する。既存テストのPASSだけで追加項目が安全と判断しない。
-- 機密値をパス、クエリ、ヘッダー、本文、panic、エラーへ投入する経路を確認し、変更箇所に応じた漏洩カナリアを追加する。既存のAccessLogは生パス、Recovererはpanic値を記録するため、現状の全経路非漏洩は保証できない。
+- 機密値をパス、クエリ、ヘッダー、本文、panic、エラーへ投入する経路を確認し、変更箇所に応じた漏洩カナリアを追加する。AccessLogのURL・任意メソッド名の除外、Recovererのpanic値の除外、生エラーの非出力を維持する。追加機能やリバースプロキシ等のログは別途検証する。
 - 動的機能を追加したら、別Ownerからの読み書き・削除の拒否、未認証の管理操作、CSRF不正・欠落、期限切れCookieを検証する。SQLiteは複数接続で制約と削除を確認する。
 - 公開ページと404はRoutes経由で新規Cookieと保存行の増加がないか確認する。Site有効時とBaseの差、既存Cookieを送った場合も区別する。
 

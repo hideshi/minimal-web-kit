@@ -46,7 +46,7 @@ func (s *Server) Run() error {
 
 	// 起動時GC: 停止中に期限切れとなった放置セッションを一掃
 	if count, err := s.store.PurgeExpiredSessions(context.Background(), s.cfg.GCSessionAge); err != nil {
-		s.logger.Error("startup gc expired sessions failed", slog.Any("error", err))
+		s.logger.Error("startup gc expired sessions failed")
 	} else if count > 0 {
 		s.logger.Info("startup gc expired sessions purged", slog.Int64("count", count))
 	}
@@ -104,7 +104,7 @@ func (s *Server) Run() error {
 			case <-ticker.C:
 				count, err := s.store.PurgeExpiredSessions(context.Background(), s.cfg.GCSessionAge)
 				if err != nil {
-					s.logger.Error("gc expired sessions failed", slog.Any("error", err))
+					s.logger.Error("gc expired sessions failed")
 				} else if count > 0 {
 					s.logger.Info("gc expired sessions purged", slog.Int64("count", count))
 				}
@@ -132,7 +132,7 @@ func (s *Server) Run() error {
 	defer cancel()
 
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		s.logger.Error("server shutdown error", slog.Any("error", err))
+		s.logger.Error("server shutdown error")
 	}
 
 	wg.Wait()

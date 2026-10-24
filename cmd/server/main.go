@@ -18,7 +18,7 @@ func main() {
 
 	s, err := store.NewSQLiteStore(cfg.DBPath)
 	if err != nil {
-		logger.Error("failed to initialize sqlite store", slog.Any("error", err))
+		logger.Error("failed to initialize sqlite store")
 		os.Exit(1)
 	}
 	defer s.Close()
@@ -28,7 +28,7 @@ func main() {
 
 	srv := app.NewServer(cfg, s, featuresRegistry, logger)
 	if err := srv.Run(); err != nil {
-		logger.Error("server exited with error", slog.Any("error", err))
+		logger.Error("server exited with error")
 		os.Exit(1)
 	}
 }

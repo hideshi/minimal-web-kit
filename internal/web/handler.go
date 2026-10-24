@@ -105,7 +105,7 @@ func (h *Handler) Render(w http.ResponseWriter, page string, data any) {
 
 	var buf bytes.Buffer
 	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
-		h.logger.Error("template render failed", slog.String("page", page), slog.Any("error", err))
+		h.logger.Error("template render failed", slog.String("page", page))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -151,7 +151,7 @@ func (h *Handler) handleDeleteAll(w http.ResponseWriter, r *http.Request) {
 	ownerID := GetOwnerID(r.Context())
 	if ownerID != "" {
 		if err := h.store.DeleteAllData(r.Context(), ownerID); err != nil {
-			h.logger.Error("delete user data failed", slog.Any("error", err))
+			h.logger.Error("delete user data failed")
 			http.Error(w, "データ削除に失敗しました", http.StatusInternalServerError)
 			return
 		}

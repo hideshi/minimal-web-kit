@@ -62,7 +62,7 @@ func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := f.tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
-		f.logger.Error("render site template failed", slog.Any("error", err))
+		f.logger.Error("render site template failed")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
