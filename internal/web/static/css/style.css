@@ -192,6 +192,21 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   margin-bottom: var(--space-lg);
 }
 
+/* 4つのユースケースは広い画面で2列、狭い画面で1列 */
+.grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+@media (min-width: 40rem) {
+  .grid-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* 汎用カード */
 .card {
   border: 1px solid var(--color-border);

@@ -38,7 +38,7 @@
       <span class="card-badge">ACCESSIBLE UI</span>
       <h3 class="card-title">アクセシブルなUIデザイン</h3>
       <p class="card-content">
-        外部CSSフレームワークを使わず、単一の自前CSSで完結。JIS X 8341-3 / WCAG 2.1 AA レベルの高コントラスト、明瞭なフォーカスインジケータ、キーボード操作に対応した端正なデザインです。
+        外部CSSフレームワークを使わず、単一の自前CSSで完結。JIS X 8341-3 / WCAG 2.1 AA を意識した高コントラスト、明瞭なフォーカスインジケータ、セマンティックなHTMLを採用しています。適合性は、作成したページごとに実画面での検証が必要です。
       </p>
     </article>
   </div>
@@ -50,7 +50,7 @@
     <p class="section-lead">個人情報の取得を必要最小限に抑える設計とGo標準＋SQLiteの最小構成を土台に、用途に応じたWebシステムを構築できます。</p>
   </div>
 
-  <div class="grid-3">
+  <div class="grid-2">
     <article class="card">
       <span class="card-badge">SITE TEMPLATE</span>
       <h3 class="card-title">企業サイト &amp; サービスLP</h3>
@@ -61,9 +61,9 @@
 
     <article class="card">
       <span class="card-badge">CMS TEMPLATE</span>
-      <h3 class="card-title">コンテンツ管理 &amp; 自前CMS</h3>
+      <h3 class="card-title">コンテンツ管理 &amp; 自前CMS（拡張例）</h3>
       <p class="card-content">
-        お知らせや製品情報、記事を安全に更新・管理。外部サービスに依存せず、組み込みSQLiteと無記名ランダムトークンによる安全な管理者セッションで運用できます。
+        お知らせや製品情報、記事を更新するCMSへ拡張できます。SQLiteとセッション基盤を利用し、管理者の認証・権限管理や編集機能は用途に応じて実装します。CMSテンプレートは現時点では同梱していません。
       </p>
     </article>
 
@@ -86,7 +86,7 @@
 
   <div class="card text-center">
     <div class="card-content">
-      <p><strong>選べるスターター ＆ 自在な拡張基盤:</strong> SiteやCMSなどのスターターから始めることも、サンプルのないクリーン基盤からあなた独自のWebアプリケーションをゼロから組み立てることも自由自在。強固なセキュリティ規約と自動テストが、あなたの開発を安全に支え続けます。</p>
+      <p><strong>選べるスターター ＆ 自在な拡張基盤:</strong> 同梱のSiteテンプレートから始めることも、サンプルのないクリーン基盤からあなた独自のWebアプリケーションをゼロから組み立てることも自由自在。強固なセキュリティ規約と自動テストが、あなたの開発を安全に支え続けます。</p>
     </div>
   </div>
 </section>
@@ -114,9 +114,9 @@
     </li>
     <li class="step-item">
       <div class="step-number">STEP 3</div>
-      <h3 class="step-title">make build で即座にデプロイ</h3>
+      <h3 class="step-title">make build で配布用バイナリを作成</h3>
       <p class="step-content">
-        静的アセットやマイグレーションを単一実行ファイルに埋め込み。LinuxサーバーやVPS、コンテナへファイル1つを配置するだけで本番公開完了です。
+        静的アセットやマイグレーションを単一実行ファイルに埋め込み。対象OS・CPU向けにビルドして配置できます。公開前にHTTPS、待受アドレス、Cookieの保護設定、保存先の権限・バックアップ方針を確認します。
       </p>
     </li>
   </ol>
@@ -139,7 +139,7 @@
     <details class="faq-item">
       <summary>データベースのセットアップや管理は必要ですか？</summary>
       <div class="faq-answer">
-        <p>このLPテンプレート自体はデータベースを一切使用せず、Cookieも発行せずに動作します。動的なセッション管理やデータ保存が必要になった場合も、組み込みの純Go版SQLite（CGO不要）が設定ゼロで自動起動します。</p>
+        <p>LPの表示処理はDBにデータを保存せず、新規のセッションCookieも発行しません。ただし、同梱サーバーは起動時にSQLiteを初期化します。別のDBサーバーの構築は不要ですが、保存先の権限・容量・バックアップの管理は必要です。</p>
       </div>
     </details>
 
