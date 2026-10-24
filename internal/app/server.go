@@ -50,8 +50,19 @@ func (s *Server) Run() error {
 		return fmt.Errorf("init handler: %w", err)
 	}
 
+	// ルートパス（GET /）の差し替え判定
+	var rootHandler http.HandlerFunc
+	if s.features != nil {
+		for _, f := range s.features.All() {
+			if cr, ok := f.(features.CustomRootFeature); ok {
+				rootHandler = cr.HandleRoot
+				break
+			}
+		}
+	}
+
 	// ルーティング構築
-	httpHandler := handler.Routes(func(mux *http.ServeMux, sm *web.SessionManager) {
+	httpHandler := handler.Routes(rootHandler, func(mux *http.ServeMux, sm *web.SessionManager) {
 		if s.features != nil {
 			for _, f := range s.features.All() {
 				f.RegisterRoutes(mux, sm)

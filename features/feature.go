@@ -14,6 +14,12 @@ type Feature interface {
 	RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager)
 }
 
+// CustomRootFeature は、Baseのデフォルトトップ画面（GET /）を独自のトップ画面（LPやHPなど）に差し替える機能モジュールが実装します。
+type CustomRootFeature interface {
+	Feature
+	HandleRoot(w http.ResponseWriter, r *http.Request)
+}
+
 // Registry は有効化されている全機能のリストを保持します。
 type Registry struct {
 	features []Feature

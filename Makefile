@@ -1,4 +1,4 @@
-.PHONY: all build run test lint verify clean add-memo remove-memo
+.PHONY: all build run test lint verify clean add-site remove-site
 
 BIN_NAME := minimal-web-kit
 
@@ -21,8 +21,8 @@ clean:
 	rm -rf bin/ data/
 
 # 機能モジュールの着脱コマンド（自作機能には一切影響しません）
-add-memo:
-	go run ./cmd/kit add-memo
+add-site:
+	go run ./cmd/kit add-site
 
-remove-memo:
-	go run ./cmd/kit remove-memo
+remove-site:
+	go run ./cmd/kit remove-site

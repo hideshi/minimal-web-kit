@@ -43,11 +43,17 @@ func NewHandler(s store.SessionStore, sm *SessionManager, logger *slog.Logger) (
 }
 
 // Routes はCoreのルーティングを構築し、登録されたFeatureのルートを合成します。
-func (h *Handler) Routes(registerFeatures func(mux *http.ServeMux, sm *SessionManager)) http.Handler {
+func (h *Handler) Routes(rootHandler http.HandlerFunc, registerFeatures func(mux *http.ServeMux, sm *SessionManager)) http.Handler {
 	appMux := http.NewServeMux()
 
+	// ルートパス（GET /）：Featureが独自トップ画面を提供する場合はそれを使い、なければBaseデフォルト画面
+	if rootHandler != nil {
+		appMux.HandleFunc("GET /{$}", rootHandler)
+	} else {
+		appMux.HandleFunc("GET /{$}", h.handleIndex)
+	}
+
 	// Coreルート
-	appMux.HandleFunc("GET /{$}", h.handleIndex)
 	appMux.HandleFunc("GET /privacy", h.handlePrivacy)
 	appMux.HandleFunc("GET /account/delete-confirm", h.handleDeleteConfirm)
 	appMux.HandleFunc("POST /account/delete-all", h.handleDeleteAll)

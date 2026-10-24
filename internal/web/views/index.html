@@ -9,20 +9,20 @@
 <p>この環境には不要な個別機能（サンプル）は一切入っていません。ここからあなたの作りたいWebアプリケーションの画面と機能を開発してください。</p>
 
 <h2>セキュリティと規約</h2>
-<ul class="memo-list">
-  <li class="memo-card">
-    <div class="memo-card-title">ゼロ外部依存 & シングルバイナリ</div>
-    <div class="memo-card-content">Go 1.25+ 標準（net/http, html/template, embed.FS, log/slog）を中心に構成。外部ビルド（Node.js/npm）は使用していません。</div>
-  </li>
-  <li class="memo-card">
-    <div class="memo-card-title">個人情報非取得 & ログ保護</div>
-    <div class="memo-card-content">氏名・メールアドレス等は取得せず、IPアドレスやUser-Agentもログに記録しません。DATA.md に保存データ一覧が定義されています。</div>
-  </li>
-  <li class="memo-card">
-    <div class="memo-card-title">デジタル庁インスパイアのUI</div>
-    <div class="memo-card-content">外部依存のない自前CSS 1本で、高コントラスト・明瞭なフォーカスインジケータ（キーボード操作対応）を実現しています。</div>
-  </li>
-</ul>
+<div class="grid-3">
+  <div class="card">
+    <div class="card-title">ゼロ外部依存 &amp; シングルバイナリ</div>
+    <div class="card-content">Go 1.25+ 標準（net/http, html/template, embed.FS, log/slog）を中心に構成。外部ビルド（Node.js/npm）は使用していません。</div>
+  </div>
+  <div class="card">
+    <div class="card-title">個人情報非取得 &amp; ログ保護</div>
+    <div class="card-content">氏名・メールアドレス等は取得せず、IPアドレスやUser-Agentもログに記録しません。DATA.md に保存データ一覧が定義されています。</div>
+  </div>
+  <div class="card">
+    <div class="card-title">デジタル庁インスパイアのUI</div>
+    <div class="card-content">外部依存のない自前CSS 1本で、高コントラスト・明瞭なフォーカスインジケータ（キーボード操作対応）を実現しています。</div>
+  </div>
+</div>
 
 <div class="action-bar">
   <a href="/privacy" class="btn btn-secondary">保存データ台帳を見る</a>

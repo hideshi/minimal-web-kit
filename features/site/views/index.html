@@ -1,0 +1,116 @@
+{{define "content"}}
+<section class="hero">
+  <span class="card-badge">PRODUCTION READY</span>
+  <h1 class="hero-title">ムダを削ぎ落とし、最短で公開する。</h1>
+  <p class="hero-lead">
+    外部依存ライブラリゼロ、Node.js/npm不要。Go 1.25+ 標準機能とデジタル庁インスパイアのアクセシブルUIで、安全・堅牢なWebサイトとサービスを今すぐ立ち上げられます。
+  </p>
+  <div class="hero-cta">
+    <a href="#features" class="btn btn-primary">特長を見る</a>
+    <a href="#how-it-works" class="btn btn-secondary">クイックスタート</a>
+  </div>
+</section>
+
+<section id="features" class="section">
+  <div class="section-header">
+    <h2>3つのコアバリュー</h2>
+    <p class="section-lead">フレームワークの複雑さに煩わされず、本質的な機能作りに集中できます。</p>
+  </div>
+
+  <div class="grid-3">
+    <article class="card">
+      <span class="card-badge">DEPENDENCY ZERO</span>
+      <h3 class="card-title">外部依存ゼロ &amp; 単一バイナリ</h3>
+      <p class="card-content">
+        Node.js、npm、ビルドツールは一切不要。Go標準機能（net/http, html/template, embed.FS, log/slog）を中心に構成され、数メガバイトの単一バイナリでどこでも軽快に動作します。
+      </p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">PRIVACY FIRST</span>
+      <h3 class="card-title">個人情報非取得 &amp; 漏洩防止</h3>
+      <p class="card-content">
+        氏名、メールアドレス等の個人情報は既定で取得しません。セッションは実名を持たないランダムIDのみで管理され、IPアドレスやCookieのアクセスログ記録も遮断します。
+      </p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">ACCESSIBLE UI</span>
+      <h3 class="card-title">アクセシブルなUIデザイン</h3>
+      <p class="card-content">
+        外部CSSフレームワークを使わず、単一の自前CSSで完結。JIS X 8341-3 / WCAG 2.1 AA レベルの高コントラスト、明瞭なフォーカスインジケータ、キーボード操作に対応した端正なデザインです。
+      </p>
+    </article>
+  </div>
+</section>
+
+<section id="how-it-works" class="section">
+  <div class="section-header">
+    <h2>3ステップで本番へ</h2>
+    <p class="section-lead">迷うことのないシンプルなワークフローを提供します。</p>
+  </div>
+
+  <ol class="step-list">
+    <li class="step-item">
+      <div class="step-number">STEP 1</div>
+      <h3 class="step-title">テンプレートから素早く立ち上げ</h3>
+      <p class="step-content">
+        必要な機能だけを選んでコマンド一発で組み込み。サンプルのないクリーン基盤とLPテンプレートを自在に切り替えられます。
+      </p>
+    </li>
+    <li class="step-item">
+      <div class="step-number">STEP 2</div>
+      <h3 class="step-title">HTMLとGoで直感的に拡張</h3>
+      <p class="step-content">
+        複雑なビルドパイプラインに悩まされることなく、セマンティックなHTMLと型安全なGoコードでコンテンツや自作機能を追加できます。
+      </p>
+    </li>
+    <li class="step-item">
+      <div class="step-number">STEP 3</div>
+      <h3 class="step-title">make build で即座にデプロイ</h3>
+      <p class="step-content">
+        静的アセットやマイグレーションを単一実行ファイルに埋め込み。LinuxサーバーやVPS、コンテナへファイル1つを配置するだけで本番公開完了です。
+      </p>
+    </li>
+  </ol>
+</section>
+
+<section id="faq" class="section">
+  <div class="section-header">
+    <h2>よくある質問（FAQ）</h2>
+    <p class="section-lead">導入前に知っておきたいポイントをまとめました。</p>
+  </div>
+
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary>JavaScriptやフロントエンドフレームワーク（React / Vue等）は必要ですか？</summary>
+      <div class="faq-answer">
+        <p>いいえ、一切不要です。ブラウザ標準のHTML機能とサーバーサイドレンダリング（SSR）のみで動作するため、JavaScriptが無効な環境でも高速・安全に閲覧できます。</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary>データベースのセットアップや管理は必要ですか？</summary>
+      <div class="faq-answer">
+        <p>このLPテンプレート自体はデータベース不要で動作します。動的なセッション管理やデータ保存が必要になった場合も、組み込みの純Go版SQLite（CGO不要）が設定ゼロで自動起動します。</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary>商用利用や独自サービスへの流用は可能ですか？</summary>
+      <div class="faq-answer">
+        <p>はい、オープンなWebひな形として、商用・個人利用を問わず自由に改変・公開してご利用いただけます。</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<section class="cta-banner">
+  <h2>安全で最速なWeb開発をはじめましょう</h2>
+  <p>個人情報の漏洩リスクと依存関係の肥大化から解放された、新しい開発体験を。</p>
+  <div class="cta-actions">
+    <a href="/privacy" class="btn btn-secondary">保存データ台帳を見る</a>
+    <a href="/account/delete-confirm" class="btn btn-danger">セッションの完全破棄</a>
+  </div>
+</section>
+{{end}}
