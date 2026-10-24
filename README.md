@@ -52,6 +52,28 @@ go run ./cmd/server
 make remove-site
 ```
 
+### 推奨するAI開発ツールとスキル
+Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリのルートを開き、計画・実装・検証のスキルを利用する編集方法を推奨します。ツールの導入・認証は別途必要です。
+
+| ツール | リポジトリ内のスキル探索先 |
+|---|---|
+| Claude Code | `.claude/skills/<name>/SKILL.md` |
+| Codex | `.agents/skills/<name>/SKILL.md` |
+| Cursor | `.agents/skills/<name>/SKILL.md` |
+| Antigravity | `.agents/skills/<name>/SKILL.md` |
+
+正本は `skills/<name>/SKILL.md` です。探索先のスキルディレクトリは正本への相対シンボリックリンクで、コピーの二重管理を避けています。シンボリックリンクを保持する環境でクローンしてください。Windows等でリンクが通常ファイルになった場合は、利用するツールの探索先に正本のフォルダをコピーし、更新時も同期してください。
+
+最初に `AGENTS.md` を読み込ませてください。Claude Codeには `CLAUDE.md` からの参照も用意しています。依頼例：
+
+> AGENTS.mdを読み、plan-and-selectで変更を計画し、implement-and-changeで実装、verify-and-auditで検証してください。
+
+開始後、ツールのスキル一覧で3本が認識されていることを確認してください。表示されない場合は再起動するか、`skills/<name>/SKILL.md` を明示して読ませてください。配置と形式を検査していますが、4ツールそれぞれでの実機動作は未検証です。
+
+配置仕様の参照先：[Claude Code](https://code.claude.com/docs/en/skills)、[Codex](https://learn.chatgpt.com/docs/build-skills)、[Cursor](https://cursor.com/docs/skills)、[Antigravity](https://antigravity.google/docs/skills)。
+
+Site有効時の `/privacy` は公開サイトの閲覧・お問い合わせ・ログを説明し、セッション表と破棄リンクを表示しません。Baseではセッション機能の保存項目を説明します。Siteの `/` と `/privacy` はGET/HEAD時に既存Cookieも照合しません。サーバー起動時のSQLite初期化やログ出力は別に行います。
+
 ### 自作機能（Feature）の作り方
 1. `features/<機能名>/` ディレクトリを作成し、モデル・SQL・ハンドラを配置します。
 2. `cmd/server/features.go` に登録コードを1行追記します。

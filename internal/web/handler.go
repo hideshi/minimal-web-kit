@@ -54,7 +54,9 @@ func (h *Handler) Routes(rootHandler http.HandlerFunc, registerFeatures func(mux
 	}
 
 	// Coreルート
-	appMux.HandleFunc("GET /privacy", h.handlePrivacy)
+	appMux.HandleFunc("GET /privacy", func(w http.ResponseWriter, r *http.Request) {
+		h.handlePrivacy(w, r, rootHandler != nil)
+	})
 	appMux.HandleFunc("GET /account/delete-confirm", h.handleDeleteConfirm)
 	appMux.HandleFunc("POST /account/delete-all", h.handleDeleteAll)
 
@@ -64,7 +66,16 @@ func (h *Handler) Routes(rootHandler http.HandlerFunc, registerFeatures func(mux
 	}
 
 	appHandler := CSRFProtect(h.sm)(appMux)
-	appHandler = h.sm.ResolveOwner(appHandler)
+	sessionHandler := h.sm.ResolveOwner(appHandler)
+	appHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Siteの公開ページは既存Cookieも照合せず、アクセス時刻も更新しない。
+		if rootHandler != nil && (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
+			(r.URL.Path == "/" || r.URL.Path == "/privacy") {
+			appMux.ServeHTTP(w, r)
+			return
+		}
+		sessionHandler.ServeHTTP(w, r)
+	})
 
 	rootMux := http.NewServeMux()
 
@@ -117,9 +128,10 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode bool) {
 	h.Render(w, "privacy.html", map[string]any{
 		"Title":     "プライバシーポリシー",
+		"SiteMode":  siteMode,
 		"CSRFToken": GetCSRFToken(r.Context()),
 	})
 }
