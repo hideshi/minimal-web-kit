@@ -1,4 +1,4 @@
-.PHONY: all build run test lint verify clean
+.PHONY: all build run test lint verify clean add-memo clean-base
 
 BIN_NAME := minimal-web-kit
 
@@ -19,3 +19,10 @@ verify:
 
 clean:
 	rm -rf bin/ data/
+
+# テンプレート管理コマンド
+add-memo:
+	go run ./cmd/kit add-memo
+
+clean-base:
+	go run ./cmd/kit clean-base

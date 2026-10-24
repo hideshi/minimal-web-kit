@@ -1,0 +1,34 @@
+{{define "content"}}
+<h1>minimal-web-kit へようこそ</h1>
+
+<div class="alert alert-info">
+  <p><strong>クリーン基盤が稼働中:</strong> あなたのブラウザ専用のセッション（OwnerID: {{.MaskedOwnerID}}）で安全に保護されています。実名やパスワードは不要です。</p>
+</div>
+
+<h2>準備完了</h2>
+<p>この環境には不要な個別機能（サンプル）は一切入っていません。ここからあなたの作りたいWebアプリケーションの画面と機能を開発してください。</p>
+
+<h2>セキュリティと規約</h2>
+<ul class="memo-list">
+  <li class="memo-card">
+    <div class="memo-card-title">ゼロ外部依存 & シングルバイナリ</div>
+    <div class="memo-card-content">Go 1.25+ 標準（net/http, html/template, embed.FS, log/slog）を中心に構成。外部ビルド（Node.js/npm）は使用していません。</div>
+  </li>
+  <li class="memo-card">
+    <div class="memo-card-title">個人情報非取得 & ログ保護</div>
+    <div class="memo-card-content">氏名・メールアドレス等は取得せず、IPアドレスやUser-Agentもログに記録しません。DATA.md に保存データ一覧が定義されています。</div>
+  </li>
+  <li class="memo-card">
+    <div class="memo-card-title">デジタル庁インスパイアのUI</div>
+    <div class="memo-card-content">外部依存のない自前CSS 1本で、高コントラスト・明瞭なフォーカスインジケータ（キーボード操作対応）を実現しています。</div>
+  </li>
+</ul>
+
+<div class="action-bar">
+  <a href="/privacy" class="btn btn-secondary">保存データ台帳を見る</a>
+  <form action="/account/delete-all" method="POST" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn btn-danger" onclick="return confirm('セッション情報を破棄して初期化しますか？');">セッションの完全破棄</button>
+  </form>
+</div>
+{{end}}

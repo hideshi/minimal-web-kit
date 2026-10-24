@@ -20,13 +20,11 @@ type memorySession struct {
 type MemoryStore struct {
 	mu       sync.RWMutex
 	sessions map[string]*memorySession // tokenHash -> session
-	memos    map[string]*domain.Memo   // memoID -> memo
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		sessions: make(map[string]*memorySession),
-		memos:    make(map[string]*domain.Memo),
 	}
 }
 
@@ -70,76 +68,10 @@ func (s *MemoryStore) DeleteSession(ctx context.Context, tokenHash string) error
 	return nil
 }
 
-func (s *MemoryStore) ListMemos(ctx context.Context, ownerID domain.OwnerID) ([]*domain.Memo, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var result []*domain.Memo
-	for _, m := range s.memos {
-		if m.OwnerID == ownerID {
-			copied := *m
-			result = append(result, &copied)
-		}
-	}
-	return result, nil
-}
-
-func (s *MemoryStore) GetMemo(ctx context.Context, ownerID domain.OwnerID, id string) (*domain.Memo, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	m, ok := s.memos[id]
-	if !ok || m.OwnerID != ownerID {
-		return nil, ErrNotFound
-	}
-	copied := *m
-	return &copied, nil
-}
-
-func (s *MemoryStore) CreateMemo(ctx context.Context, memo *domain.Memo) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	copied := *memo
-	s.memos[memo.ID] = &copied
-	return nil
-}
-
-func (s *MemoryStore) UpdateMemo(ctx context.Context, memo *domain.Memo) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	existing, ok := s.memos[memo.ID]
-	if !ok || existing.OwnerID != memo.OwnerID {
-		return ErrNotFound
-	}
-	existing.Title = memo.Title
-	existing.Content = memo.Content
-	existing.UpdatedAt = memo.UpdatedAt
-	return nil
-}
-
-func (s *MemoryStore) DeleteMemo(ctx context.Context, ownerID domain.OwnerID, id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	m, ok := s.memos[id]
-	if !ok || m.OwnerID != ownerID {
-		return ErrNotFound
-	}
-	delete(s.memos, id)
-	return nil
-}
-
 func (s *MemoryStore) DeleteAllData(ctx context.Context, ownerID domain.OwnerID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	for id, m := range s.memos {
-		if m.OwnerID == ownerID {
-			delete(s.memos, id)
-		}
-	}
 	for hash, sess := range s.sessions {
 		if sess.ownerID == ownerID {
 			delete(s.sessions, hash)
@@ -153,20 +85,12 @@ func (s *MemoryStore) PurgeExpiredSessions(ctx context.Context, maxAge time.Dura
 	defer s.mu.Unlock()
 
 	threshold := time.Now().Add(-maxAge)
-	expiredOwners := make(map[domain.OwnerID]bool)
 	var count int64
 
 	for hash, sess := range s.sessions {
 		if sess.lastSeenAt.Before(threshold) {
-			expiredOwners[sess.ownerID] = true
 			delete(s.sessions, hash)
 			count++
-		}
-	}
-
-	for id, m := range s.memos {
-		if expiredOwners[m.OwnerID] {
-			delete(s.memos, id)
 		}
 	}
 
