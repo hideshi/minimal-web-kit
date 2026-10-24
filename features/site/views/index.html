@@ -3,7 +3,7 @@
   <span class="card-badge">PRODUCTION READY</span>
   <h1 class="hero-title">ムダを削ぎ落とし、最短で公開する。</h1>
   <p class="hero-lead">
-    外部依存ライブラリゼロ、Node.js/npm不要。Go 1.25+ 標準機能と公的Webアクセシビリティ指針に基づくミニマルUIで、安全・堅牢なWebサイトとサービスを今すぐ立ち上げられます。
+    直接依存はSQLiteドライバのみ、Node.js/npm不要。Go標準機能と公的Webアクセシビリティ指針に基づくミニマルUIで、安全・堅牢なWebサイトとサービスを今すぐ立ち上げられます。
   </p>
   <div class="hero-cta">
     <a href="#features" class="btn btn-primary">特長を見る</a>
@@ -19,10 +19,10 @@
 
   <div class="grid-3">
     <article class="card">
-      <span class="card-badge">DEPENDENCY ZERO</span>
-      <h3 class="card-title">外部依存ゼロ &amp; 単一バイナリ</h3>
+      <span class="card-badge">MINIMAL DEPENDENCY</span>
+      <h3 class="card-title">直接依存はSQLiteのみ &amp; 約14MB</h3>
       <p class="card-content">
-        Node.js、npm、ビルドツールは一切不要。Go標準機能（net/http, html/template, embed.FS, log/slog）を中心に構成され、数メガバイトの単一バイナリでどこでも軽快に動作します。
+        Node.js、npm、ビルドツールは一切不要。Go標準機能（net/http, html/template, embed.FS, log/slog）を中心に構成され、CGO不要の約14MB単一バイナリでどこでも軽快に動作します。
       </p>
     </article>
 
@@ -30,7 +30,7 @@
       <span class="card-badge">PRIVACY FIRST</span>
       <h3 class="card-title">個人情報非取得 &amp; 漏洩防止</h3>
       <p class="card-content">
-        氏名、メールアドレス等の個人情報は既定で取得しません。セッションは実名を持たないランダムIDのみで管理され、IPアドレスやCookieのアクセスログ記録も遮断します。
+        氏名、メールアドレス等の個人情報は取得しません。公開ページではCookieすら発行せず、セッションが必要な場合も実名を持たないランダムIDのみで管理します。
       </p>
     </article>
 
@@ -92,14 +92,14 @@
     <details class="faq-item">
       <summary>データベースのセットアップや管理は必要ですか？</summary>
       <div class="faq-answer">
-        <p>このLPテンプレート自体はデータベース不要で動作します。動的なセッション管理やデータ保存が必要になった場合も、組み込みの純Go版SQLite（CGO不要）が設定ゼロで自動起動します。</p>
+        <p>このLPテンプレート自体はデータベースを一切使用せず、Cookieも発行せずに動作します。動的なセッション管理やデータ保存が必要になった場合も、組み込みの純Go版SQLite（CGO不要）が設定ゼロで自動起動します。</p>
       </div>
     </details>
 
     <details class="faq-item">
       <summary>商用利用や独自サービスへの流用は可能ですか？</summary>
       <div class="faq-answer">
-        <p>はい、オープンなWebひな形として、商用・個人利用を問わず自由に改変・公開してご利用いただけます。</p>
+        <p>はい、MIT License のオープンなWebひな形として、商用・個人利用を問わず自由に改変・公開してご利用いただけます。</p>
       </div>
     </details>
   </div>
@@ -109,8 +109,8 @@
   <h2>安全で最速なWeb開発をはじめましょう</h2>
   <p>個人情報の漏洩リスクと依存関係の肥大化から解放された、新しい開発体験を。</p>
   <div class="cta-actions">
-    <a href="/privacy" class="btn btn-secondary">保存データ台帳を見る</a>
-    <a href="/account/delete-confirm" class="btn btn-danger">セッションの完全破棄</a>
+    <a href="/privacy" class="btn btn-secondary">プライバシー方針を見る</a>
+    <a href="/account/delete-confirm" class="btn btn-danger">セッション管理</a>
   </div>
 </section>
 {{end}}

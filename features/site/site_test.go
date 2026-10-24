@@ -33,9 +33,10 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 
 	expectedSnippets := []string{
 		"ムダを削ぎ落とし、最短で公開する。",
-		"外部依存ゼロ &amp; 単一バイナリ",
+		"直接依存はSQLiteのみ &amp; 約14MB",
 		"個人情報非取得 &amp; 漏洩防止",
 		"アクセシブルなUIデザイン",
+		"公的Webアクセシビリティ指針に基づくミニマルUI",
 		"<details",
 		"<summary>",
 		"/privacy",

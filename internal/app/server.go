@@ -44,6 +44,13 @@ func (s *Server) Run() error {
 		}
 	}
 
+	// 起動時GC: 停止中に期限切れとなった放置セッションを一掃
+	if count, err := s.store.PurgeExpiredSessions(context.Background(), s.cfg.GCSessionAge); err != nil {
+		s.logger.Error("startup gc expired sessions failed", slog.Any("error", err))
+	} else if count > 0 {
+		s.logger.Info("startup gc expired sessions purged", slog.Int64("count", count))
+	}
+
 	sm := web.NewSessionManager(s.store, s.cfg.SecureCookie)
 	handler, err := web.NewHandler(s.store, sm, s.logger)
 	if err != nil {

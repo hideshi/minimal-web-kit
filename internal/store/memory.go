@@ -37,6 +37,13 @@ func (s *MemoryStore) GetSessionOwner(ctx context.Context, tokenHash string) (do
 	if !ok {
 		return "", ErrNotFound
 	}
+
+	// 30日（MaxSessionAgeSec）を超過している場合は失効
+	if time.Since(sess.lastSeenAt) > 30*24*time.Hour {
+		delete(s.sessions, tokenHash)
+		return "", ErrNotFound
+	}
+
 	sess.lastSeenAt = time.Now()
 	return sess.ownerID, nil
 }

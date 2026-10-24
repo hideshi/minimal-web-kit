@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"minimal-web-kit/internal/domain"
@@ -18,44 +19,51 @@ import (
 //go:embed migrations/001_core.sql
 var coreSQL string
 
+const (
+	// MaxSessionAgeSec はセッションの最大保持期間（30日）です。
+	MaxSessionAgeSec = 30 * 24 * 60 * 60
+)
+
 type SQLiteStore struct {
 	db *sql.DB
 }
 
 // NewSQLiteStore は指定されたパスのSQLiteデータベースを初期化して返します。
-// ファイルの権限を0600とし、foreign_keysとsecure_deleteを有効化します。
+// ファイル権限を0600とし、DSNパラメータで全接続に対してforeign_keysとsecure_deleteを確実に強制します。
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
-	dir := filepath.Dir(dbPath)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return nil, fmt.Errorf("create db dir: %w", err)
-	}
-
-	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_RDWR, 0600)
-		if err != nil {
-			return nil, fmt.Errorf("create db file with 0600: %w", err)
+	var dsn string
+	if dbPath == ":memory:" || strings.HasPrefix(dbPath, "file::memory:") {
+		dsn = "file:mem?mode=memory&cache=shared&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=secure_delete(1)"
+	} else {
+		dir := filepath.Dir(dbPath)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return nil, fmt.Errorf("create db dir: %w", err)
 		}
-		_ = f.Close()
+
+		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+			f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_RDWR, 0600)
+			if err != nil {
+				return nil, fmt.Errorf("create db file with 0600: %w", err)
+			}
+			_ = f.Close()
+		}
+		dsn = fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=secure_delete(1)", dbPath)
 	}
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite db: %w", err)
 	}
 
-	pragmas := []string{
-		"PRAGMA secure_delete = ON;",
-		"PRAGMA foreign_keys = ON;",
-		"PRAGMA journal_mode = WAL;",
-		"PRAGMA busy_timeout = 5000;",
-	}
-	for _, p := range pragmas {
-		if _, err := db.Exec(p); err != nil {
+	// WALジャーナルモードの設定
+	if !strings.Contains(dsn, "mode=memory") {
+		if _, err := db.Exec("PRAGMA journal_mode = WAL;"); err != nil {
 			_ = db.Close()
-			return nil, fmt.Errorf("exec pragma %q: %w", p, err)
+			return nil, fmt.Errorf("set WAL journal mode: %w", err)
 		}
 	}
 
+	// コアマイグレーションを実行
 	if _, err := db.Exec(coreSQL); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("run core migration: %w", err)
@@ -70,9 +78,10 @@ func (s *SQLiteStore) DB() *sql.DB {
 
 func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
 	var ownerID string
+	var lastSeenAt int64
 	err := s.db.QueryRowContext(ctx,
-		"SELECT owner_id FROM sessions WHERE token_hash = ?", tokenHash,
-	).Scan(&ownerID)
+		"SELECT owner_id, last_seen_at FROM sessions WHERE token_hash = ?", tokenHash,
+	).Scan(&ownerID, &lastSeenAt)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", ErrNotFound
@@ -81,8 +90,19 @@ func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (do
 		return "", fmt.Errorf("query session: %w", err)
 	}
 
+	// 有効期限の厳格チェック: 最終アクセスから30日を超過している場合は失効
 	now := time.Now().Unix()
-	_, _ = s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", now, tokenHash)
+	if now-lastSeenAt > MaxSessionAgeSec {
+		// 失効したセッションを削除して ErrNotFound を返す（復活を阻止）
+		_, _ = s.db.ExecContext(ctx, "DELETE FROM sessions WHERE token_hash = ?", tokenHash)
+		return "", ErrNotFound
+	}
+
+	// 最終アクセス時刻の更新
+	if _, err := s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", now, tokenHash); err != nil {
+		return "", fmt.Errorf("update session last_seen_at: %w", err)
+	}
+
 	return domain.OwnerID(ownerID), nil
 }
 
@@ -120,7 +140,7 @@ func (s *SQLiteStore) DeleteSession(ctx context.Context, tokenHash string) error
 }
 
 func (s *SQLiteStore) DeleteAllData(ctx context.Context, ownerID domain.OwnerID) error {
-	// ON DELETE CASCADE により、owners を削除するだけでセッションも全機能テーブルも自動カスケード削除される
+	// ON DELETE CASCADE により、owners を削除するだけでセッションも全機能データも自動連動削除される
 	_, err := s.db.ExecContext(ctx, "DELETE FROM owners WHERE id = ?", string(ownerID))
 	return err
 }

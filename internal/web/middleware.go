@@ -5,11 +5,9 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
-	"regexp"
+	"strings"
 	"time"
 )
-
-var validRequestIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-]{16,64}$`)
 
 type statusResponseWriter struct {
 	http.ResponseWriter
@@ -22,15 +20,14 @@ func (rw *statusResponseWriter) WriteHeader(code int) {
 }
 
 // RequestID は各リクエストにユニークな追跡IDを付与するミドルウェアです。
-// クライアント提供のヘッダーは英数字16〜64文字のみ許容し、不正な値や改行のログ注入を防ぎます。
+// クライアントからのヘッダー値に依存せず、常にサーバー側で12バイト（24文字Hex）の安全な乱数を生成し、
+// ログ注入やトークン反射を防ぎます。
 func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		reqID := r.Header.Get("X-Request-ID")
-		if !validRequestIDPattern.MatchString(reqID) {
-			b := make([]byte, 12)
-			_, _ = rand.Read(b)
-			reqID = hex.EncodeToString(b)
-		}
+		b := make([]byte, 12)
+		_, _ = rand.Read(b)
+		reqID := hex.EncodeToString(b)
+
 		w.Header().Set("X-Request-ID", reqID)
 		next.ServeHTTP(w, r)
 	})
@@ -56,10 +53,11 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 // SecurityHeaders はセキュリティヘッダーを付与するミドルウェアです。
+// JavaScriptゼロを徹底するため、CSPの script-src は 'none' を指定します。
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
+		h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
@@ -92,11 +90,22 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			duration := time.Since(start)
 			reqID := w.Header().Get("X-Request-ID")
 
+			// パスの安全な記録（制御文字や改行を除去、最大256文字）
+			cleanPath := strings.Map(func(r rune) rune {
+				if r < 32 || r == 127 {
+					return -1
+				}
+				return r
+			}, r.URL.Path)
+			if len(cleanPath) > 256 {
+				cleanPath = cleanPath[:256] + "..."
+			}
+
 			// ログ契約: IP、User-Agent、Cookie、クエリパラメータは一切出力しない
 			logger.Info("http request",
 				slog.String("request_id", reqID),
 				slog.String("method", r.Method),
-				slog.String("path", r.URL.Path),
+				slog.String("path", cleanPath),
 				slog.Int("status", sw.statusCode),
 				slog.Duration("duration", duration),
 			)
@@ -125,6 +134,12 @@ func CSRFProtect(sm *SessionManager) func(http.Handler) http.Handler {
 			cookie, err := r.Cookie(sessionCookieName)
 			if err != nil || cookie.Value == "" {
 				http.Error(w, "Forbidden: Missing session", http.StatusForbidden)
+				return
+			}
+
+			// フォーム本文の明示的解析
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, "Bad Request: Failed to parse form", http.StatusBadRequest)
 				return
 			}
 

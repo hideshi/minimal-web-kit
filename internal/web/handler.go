@@ -105,7 +105,7 @@ func (h *Handler) Render(w http.ResponseWriter, page string, data any) {
 
 func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 	ownerID := GetOwnerID(r.Context())
-	maskedOwnerID := ""
+	maskedOwnerID := "（セッション未発行・Cookie不要閲覧中）"
 	if len(ownerID) >= 8 {
 		maskedOwnerID = string(ownerID[:8]) + "..."
 	}
@@ -125,21 +125,28 @@ func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleDeleteConfirm(w http.ResponseWriter, r *http.Request) {
+	ownerID := GetOwnerID(r.Context())
+	hasSession := ownerID != ""
+
 	h.Render(w, "confirm_delete.html", map[string]any{
-		"Title":     "セッション完全破棄の確認",
-		"CSRFToken": GetCSRFToken(r.Context()),
+		"Title":      "セッション破棄の確認",
+		"HasSession": hasSession,
+		"CSRFToken":  GetCSRFToken(r.Context()),
 	})
 }
 
 func (h *Handler) handleDeleteAll(w http.ResponseWriter, r *http.Request) {
 	ownerID := GetOwnerID(r.Context())
-	if err := h.store.DeleteAllData(r.Context(), ownerID); err != nil {
-		h.logger.Error("delete all data failed", slog.String("owner_id", string(ownerID)), slog.Any("error", err))
-		http.Error(w, "データ削除に失敗しました", http.StatusInternalServerError)
-		return
+	if ownerID != "" {
+		if err := h.store.DeleteAllData(r.Context(), ownerID); err != nil {
+			h.logger.Error("delete user data failed", slog.Any("error", err))
+			http.Error(w, "データ削除に失敗しました", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	h.sm.ClearSessionCookie(w)
-	h.logger.Info("user data completely purged", slog.String("owner_id", string(ownerID)))
+	// ログ契約: 削除ログにも owner_id を残さない
+	h.logger.Info("user data purged from active database")
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }

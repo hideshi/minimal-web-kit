@@ -211,7 +211,6 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 }
 
 .step-item {
-  border-left: 4px solid var(--color-primary);
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-left: 5px solid var(--color-primary);
@@ -278,7 +277,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 .faq-answer {
   font-size: 0.95rem;
   color: #333333;
-  padding: var(--space-xs) 0 var(--space-xs) 0;
+  padding: var(--space-xs) 0;
 }
 
 /* CTAバナー */
@@ -361,6 +360,14 @@ button, .btn {
   text-decoration: none;
 }
 
+a.btn {
+  text-decoration: none;
+}
+
+a.btn:hover {
+  text-decoration: none;
+}
+
 .btn-primary {
   background-color: var(--color-primary);
   color: #ffffff;
@@ -368,6 +375,7 @@ button, .btn {
 
 .btn-primary:hover {
   background-color: var(--color-primary-hover);
+  color: #ffffff;
 }
 
 .btn-secondary {
@@ -378,6 +386,7 @@ button, .btn {
 
 .btn-secondary:hover {
   background-color: #e9ecef;
+  color: var(--color-text);
 }
 
 .btn-danger {
@@ -387,6 +396,7 @@ button, .btn {
 
 .btn-danger:hover {
   background-color: var(--color-danger-hover);
+  color: #ffffff;
 }
 
 /* アラート */

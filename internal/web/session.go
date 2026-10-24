@@ -58,73 +58,80 @@ func (sm *SessionManager) ValidateCSRFToken(sessionToken, token string) bool {
 	return hmac.Equal([]byte(expected), []byte(token))
 }
 
-// ResolveOwner はCookieからセッションを読み取り、OwnerIDとCSRFトークンをリクエストcontextに設定します。
-// クライアントが任意に指定した未知のCookieは拒否して破棄し、セッション固定化攻撃を防ぎます。
+// ResolveOwner はCookieが存在する場合にのみOwnerIDを解決し、コンテキストに設定します。
+// Cookieが存在しない場合や公開ページへのアクセスでは、DB行の作成やSet-Cookieは一切行いません。
+// 未知・不正・失効済みのCookieが送られた場合はCookieを削除し、固定化攻撃を防ぎます。
 func (sm *SessionManager) ResolveOwner(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var token string
-		var ownerID domain.OwnerID
-
 		cookie, err := r.Cookie(sessionCookieName)
-		if err == nil && cookie.Value != "" {
-			h := sha256.Sum256([]byte(cookie.Value))
-			tokenHash := hex.EncodeToString(h[:])
-
-			foundOwnerID, err := sm.store.GetSessionOwner(r.Context(), tokenHash)
-			if err == nil {
-				// 正当な既存セッション
-				token = cookie.Value
-				ownerID = foundOwnerID
-			} else if !errors.Is(err, store.ErrNotFound) {
-				http.Error(w, "Session Error", http.StatusInternalServerError)
-				return
-			}
-			// ErrNotFound の場合は、未知/不正なCookieとみなして破棄し、新規発行へ進む
+		if err != nil || cookie.Value == "" {
+			// Cookieが存在しない場合はセッションを自動作成せずそのまま通す（Cookie不要・DB不要を保証）
+			next.ServeHTTP(w, r)
+			return
 		}
 
-		if token == "" {
-			// 新規セッショントークン生成（128bit以上）
-			tokenBytes := make([]byte, 16)
-			if _, err := rand.Read(tokenBytes); err != nil {
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-			token = hex.EncodeToString(tokenBytes)
-			h := sha256.Sum256([]byte(token))
-			tokenHash := hex.EncodeToString(h[:])
+		h := sha256.Sum256([]byte(cookie.Value))
+		tokenHash := hex.EncodeToString(h[:])
 
-			// 新規OwnerID生成
-			ownerBytes := make([]byte, 16)
-			if _, err := rand.Read(ownerBytes); err != nil {
-				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-				return
-			}
-			ownerID = domain.OwnerID(hex.EncodeToString(ownerBytes))
-
-			if err := sm.store.CreateSession(r.Context(), tokenHash, ownerID); err != nil {
-				http.Error(w, "Session Create Error", http.StatusInternalServerError)
-				return
-			}
-
-			// クライアントへ安全なCookieを設定
-			c := &http.Cookie{
-				Name:     sessionCookieName,
-				Value:    token,
-				Path:     "/",
-				HttpOnly: true,
-				Secure:   sm.secureFlag,
-				SameSite: http.SameSiteLaxMode,
-				MaxAge:   30 * 24 * 60 * 60, // 30日
-			}
-			http.SetCookie(w, c)
+		ownerID, err := sm.store.GetSessionOwner(r.Context(), tokenHash)
+		if errors.Is(err, store.ErrNotFound) {
+			// 未知・失効済みCookie: ブラウザからCookieを消去し、セッションなしとして通す
+			sm.ClearSessionCookie(w)
+			next.ServeHTTP(w, r)
+			return
+		} else if err != nil {
+			http.Error(w, "Session Error", http.StatusInternalServerError)
+			return
 		}
 
-		csrfToken := sm.GenerateCSRFToken(token)
-
+		csrfToken := sm.GenerateCSRFToken(cookie.Value)
 		ctx := context.WithValue(r.Context(), ownerIDContextKey, ownerID)
 		ctx = context.WithValue(ctx, csrfTokenContextKey, csrfToken)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// EnsureSession はセッションが存在しない場合にのみ新規発行し、Cookieを設定してOwnerIDを返します。
+func (sm *SessionManager) EnsureSession(w http.ResponseWriter, r *http.Request) (domain.OwnerID, string, error) {
+	if ownerID := GetOwnerID(r.Context()); ownerID != "" {
+		cookie, _ := r.Cookie(sessionCookieName)
+		csrfToken := GetCSRFToken(r.Context())
+		if cookie != nil {
+			return ownerID, csrfToken, nil
+		}
+	}
+
+	tokenBytes := make([]byte, 16)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		return "", "", fmt.Errorf("generate token: %w", err)
+	}
+	token := hex.EncodeToString(tokenBytes)
+	h := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(h[:])
+
+	ownerBytes := make([]byte, 16)
+	if _, err := rand.Read(ownerBytes); err != nil {
+		return "", "", fmt.Errorf("generate owner: %w", err)
+	}
+	ownerID := domain.OwnerID(hex.EncodeToString(ownerBytes))
+
+	if err := sm.store.CreateSession(r.Context(), tokenHash, ownerID); err != nil {
+		return "", "", fmt.Errorf("create session in store: %w", err)
+	}
+
+	c := &http.Cookie{
+		Name:     sessionCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   sm.secureFlag,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   30 * 24 * 60 * 60, // 30日
+	}
+	http.SetCookie(w, c)
+
+	csrfToken := sm.GenerateCSRFToken(token)
+	return ownerID, csrfToken, nil
 }
 
 // GetOwnerID はコンテキストからOwnerIDを取り出します。

@@ -1,8 +1,9 @@
 {{define "content"}}
-<h1>セッション完全破棄の確認</h1>
+<h1>セッション破棄の確認</h1>
 
+{{if .HasSession}}
 <div class="alert alert-warning">
-  <p><strong>警告:</strong> この操作を実行すると、あなたのブラウザに紐づくセッション情報が即座に物理削除されます。この操作は元に戻せません。</p>
+  <p><strong>注意:</strong> この操作を実行すると、稼働データベース上のセッション情報が安全に削除され、ブラウザのCookieも消去されます。</p>
 </div>
 
 <p>本当にセッションを破棄して初期化しますか？</p>
@@ -10,8 +11,16 @@
 <div class="action-bar">
   <form action="/account/delete-all" method="POST" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-danger">はい、完全に破棄します</button>
+    <button type="submit" class="btn btn-danger">はい、破棄します</button>
   </form>
   <a href="/" class="btn btn-secondary">キャンセルして戻る</a>
 </div>
+{{else}}
+<div class="alert alert-info">
+  <p>現在、この端末には発行済みのセッション情報はありません（Cookie不要・セッション不要で閲覧中です）。</p>
+</div>
+<div class="action-bar">
+  <a href="/" class="btn btn-secondary">ホームへ戻る</a>
+</div>
+{{end}}
 {{end}}
