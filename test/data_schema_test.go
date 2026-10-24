@@ -1,13 +1,16 @@
 package test
 
 import (
+	"database/sql"
 	"os"
 	"regexp"
 	"strings"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
-// TestDataSchema_MatchesDataLedger は DATA.md の定義とマイグレーションSQLのテーブル・列定義が一致することを検証します。
+// TestDataSchema_MatchesDataLedger は DATA.md の定義とマイグレーションSQL実行後のDBテーブル・列定義が一致することを検証します。
 func TestDataSchema_MatchesDataLedger(t *testing.T) {
 	dataMd, err := os.ReadFile("../DATA.md")
 	if err != nil {
@@ -20,28 +23,63 @@ func TestDataSchema_MatchesDataLedger(t *testing.T) {
 	}
 
 	expectedSchema := parseDataMd(string(dataMd))
-	actualSchema := parseMigrationSQL(string(sqlBytes))
-
 	if len(expectedSchema) == 0 {
 		t.Fatal("no tables found in DATA.md")
 	}
 
-	for table, expectedCols := range expectedSchema {
-		actualCols, ok := actualSchema[table]
-		if !ok {
-			t.Errorf("Table %s defined in DATA.md does not exist in migration SQL", table)
+	// インメモリSQLiteにマイグレーションを流す
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open in-memory sqlite: %v", err)
+	}
+	defer db.Close()
+
+	if _, err := db.Exec(string(sqlBytes)); err != nil {
+		t.Fatalf("failed to execute migration SQL in in-memory DB: %v", err)
+	}
+
+	// PRAGMA table_info で実際のスキーマを取得
+	actualSchema := make(map[string][]string)
+	for table := range expectedSchema {
+		rows, err := db.Query("PRAGMA table_info(" + table + ")")
+		if err != nil {
+			t.Fatalf("failed to query table_info for %s: %v", table, err)
+		}
+
+		var cols []string
+		for rows.Next() {
+			var cid int
+			var name, colType string
+			var notnull, pk int
+			var dfltValue sql.NullString
+			if err := rows.Scan(&cid, &name, &colType, &notnull, &dfltValue, &pk); err != nil {
+				rows.Close()
+				t.Fatalf("failed to scan column info: %v", err)
+			}
+			cols = append(cols, name)
+		}
+		rows.Close()
+
+		if len(cols) == 0 {
+			t.Errorf("Table %s defined in DATA.md does not exist in migration SQL database", table)
 			continue
 		}
+		actualSchema[table] = cols
+	}
+
+	// 突合チェック
+	for table, expectedCols := range expectedSchema {
+		actualCols := actualSchema[table]
 
 		for _, col := range expectedCols {
 			if !contains(actualCols, col) {
-				t.Errorf("Column %s.%s defined in DATA.md does not exist in migration SQL", table, col)
+				t.Errorf("Column %s.%s defined in DATA.md does not exist in database schema", table, col)
 			}
 		}
 
 		for _, col := range actualCols {
 			if !contains(expectedCols, col) {
-				t.Errorf("Column %s.%s found in migration SQL but not documented in DATA.md. Update DATA.md first!", table, col)
+				t.Errorf("Column %s.%s found in database schema but not documented in DATA.md. Update DATA.md first!", table, col)
 			}
 		}
 	}
@@ -63,7 +101,6 @@ func parseDataMd(content string) map[string][]string {
 		}
 
 		if currentTable != "" && strings.HasPrefix(line, "|") {
-			// ヘッダー行や区切り行をスキップ
 			if strings.Contains(line, "列名") || strings.Contains(line, "---") {
 				continue
 			}
@@ -72,33 +109,6 @@ func parseDataMd(content string) map[string][]string {
 				schema[currentTable] = append(schema[currentTable], col)
 			}
 		}
-	}
-	return schema
-}
-
-func parseMigrationSQL(content string) map[string][]string {
-	schema := make(map[string][]string)
-	tableRe := regexp.MustCompile(`(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_]+)\s*\(([^;]+)\)`)
-	matches := tableRe.FindAllStringSubmatch(content, -1)
-
-	for _, m := range matches {
-		tableName := m[1]
-		body := m[2]
-		var cols []string
-
-		for _, colDef := range strings.Split(body, ",") {
-			colDef = strings.TrimSpace(colDef)
-			if colDef == "" || strings.HasPrefix(strings.ToUpper(colDef), "PRIMARY KEY") ||
-				strings.HasPrefix(strings.ToUpper(colDef), "FOREIGN KEY") ||
-				strings.HasPrefix(strings.ToUpper(colDef), "UNIQUE") {
-				continue
-			}
-			parts := strings.Fields(colDef)
-			if len(parts) >= 2 {
-				cols = append(cols, parts[0])
-			}
-		}
-		schema[tableName] = cols
 	}
 	return schema
 }

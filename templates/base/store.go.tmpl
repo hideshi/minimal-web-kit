@@ -16,7 +16,8 @@ var (
 // Handler層は生SQLやDBハンドルに直接依存せず、このインターフェースを経由します。
 type Store interface {
 	// セッション・所有者管理
-	GetOrCreateSession(ctx context.Context, tokenHash string) (domain.OwnerID, error)
+	GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error)
+	CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error
 	UpdateSessionSeen(ctx context.Context, tokenHash string) error
 	DeleteSession(ctx context.Context, tokenHash string) error
 

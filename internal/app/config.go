@@ -6,14 +6,14 @@ import (
 )
 
 type Config struct {
-	Addr           string
-	DBPath         string
-	SecureCookie   bool
-	GCSessionAge   time.Duration
-	GCInterval     time.Duration
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
-	IdleTimeout    time.Duration
+	Addr         string
+	DBPath       string
+	SecureCookie bool
+	GCSessionAge time.Duration
+	GCInterval   time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
+	IdleTimeout  time.Duration
 }
 
 func LoadConfig() *Config {

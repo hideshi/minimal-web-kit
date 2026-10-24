@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"crypto/rand"
 	"embed"
 	"encoding/hex"
@@ -13,6 +14,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
@@ -31,7 +33,7 @@ type Handler struct {
 func NewHandler(s store.Store, sm *SessionManager, logger *slog.Logger) (*Handler, error) {
 	tmplMap := make(map[string]*template.Template)
 
-	pages := []string{"index.html", "detail.html", "privacy.html"}
+	pages := []string{"index.html", "detail.html", "privacy.html", "confirm_delete.html", "confirm_memo_delete.html"}
 	for _, page := range pages {
 		t, err := template.ParseFS(contentFS, "views/layout.html", "views/"+page)
 		if err != nil {
@@ -49,36 +51,55 @@ func NewHandler(s store.Store, sm *SessionManager, logger *slog.Logger) (*Handle
 }
 
 func (h *Handler) Routes() http.Handler {
-	mux := http.NewServeMux()
+	appMux := http.NewServeMux()
+	appMux.HandleFunc("GET /{$}", h.handleIndex)
+	appMux.HandleFunc("POST /memos", h.handleCreateMemo)
+	appMux.HandleFunc("GET /memos/{id}", h.handleDetailMemo)
+	appMux.HandleFunc("POST /memos/{id}", h.handleUpdateMemo)
+	appMux.HandleFunc("GET /memos/{id}/delete-confirm", h.handleDeleteMemoConfirm)
+	appMux.HandleFunc("POST /memos/{id}/delete", h.handleDeleteMemo)
+	appMux.HandleFunc("GET /export", h.handleExport)
+	appMux.HandleFunc("GET /privacy", h.handlePrivacy)
+	appMux.HandleFunc("GET /account/delete-confirm", h.handleDeleteConfirm)
+	appMux.HandleFunc("POST /account/delete-all", h.handleDeleteAll)
 
-	// 静的アセット配信
+	appHandler := CSRFProtect(h.sm)(appMux)
+	appHandler = h.sm.ResolveOwner(appHandler)
+
+	rootMux := http.NewServeMux()
 	staticFS, err := fs.Sub(contentFS, "static")
 	if err != nil {
 		panic(err)
 	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	rootMux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	rootMux.Handle("/", appHandler)
 
-	// アプリケーションルート
-	mux.HandleFunc("GET /{$}", h.handleIndex)
-	mux.HandleFunc("POST /memos", h.handleCreateMemo)
-	mux.HandleFunc("GET /memos/{id}", h.handleDetailMemo)
-	mux.HandleFunc("POST /memos/{id}", h.handleUpdateMemo)
-	mux.HandleFunc("POST /memos/{id}/delete", h.handleDeleteMemo)
-	mux.HandleFunc("GET /export", h.handleExport)
-	mux.HandleFunc("POST /account/delete-all", h.handleDeleteAll)
-	mux.HandleFunc("GET /privacy", h.handlePrivacy)
-
-	// ミドルウェアスタックの合成
-	// 外側から: RequestID -> Recoverer -> SecurityHeaders -> MaxBytes -> AccessLog -> ResolveOwner -> CSRFProtect
-	handler := CSRFProtect(h.sm)(mux)
-	handler = h.sm.ResolveOwner(handler)
-	handler = AccessLog(h.logger)(handler)
-	handler = MaxBytes(1024 * 1024)(handler) // 1MB制限
+	handler := AccessLog(h.logger)(rootMux)
+	handler = MaxBytes(1024 * 1024)(handler)
 	handler = SecurityHeaders(handler)
 	handler = Recoverer(h.logger)(handler)
 	handler = RequestID(handler)
 
 	return handler
+}
+
+func (h *Handler) render(w http.ResponseWriter, page string, data any) {
+	tmpl, ok := h.templates[page]
+	if !ok {
+		h.logger.Error("template not found", slog.String("page", page))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {
+		h.logger.Error("template render failed", slog.String("page", page), slog.Any("error", err))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
 }
 
 func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -90,36 +111,31 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{
+	h.render(w, "index.html", map[string]any{
 		"Title":     "プライベートメモ一覧",
 		"Memos":     memos,
 		"CSRFToken": GetCSRFToken(r.Context()),
-	}
-
-	if err := h.templates["index.html"].ExecuteTemplate(w, "layout", data); err != nil {
-		h.logger.Error("render index failed", slog.Any("error", err))
-	}
+	})
 }
 
 func (h *Handler) handleCreateMemo(w http.ResponseWriter, r *http.Request) {
 	ownerID := GetOwnerID(r.Context())
-	title := strings.TrimSpace(r.FormValue("title"))
-	content := strings.TrimSpace(r.FormValue("content"))
+	title := strings.TrimSpace(r.PostFormValue("title"))
+	content := strings.TrimSpace(r.PostFormValue("content"))
 
 	if title == "" || content == "" {
 		http.Error(w, "タイトルと本文は必須です", http.StatusBadRequest)
 		return
 	}
-	if len(title) > 100 {
+	if utf8.RuneCountInString(title) > 100 {
 		http.Error(w, "タイトルは100文字以内で入力してください", http.StatusBadRequest)
 		return
 	}
-	if len(content) > 10000 {
+	if utf8.RuneCountInString(content) > 10000 {
 		http.Error(w, "本文は10,000文字以内で入力してください", http.StatusBadRequest)
 		return
 	}
 
-	// ランダムID生成
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
 		http.Error(w, "ID生成に失敗しました", http.StatusInternalServerError)
@@ -143,7 +159,6 @@ func (h *Handler) handleCreateMemo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ログ契約: 本文は伏せてIDと長さのみログ出力
 	h.logger.Info("memo created", slog.Any("memo", memo))
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
@@ -163,28 +178,24 @@ func (h *Handler) handleDetailMemo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{
+	h.render(w, "detail.html", map[string]any{
 		"Title":     "メモの編集",
 		"Memo":      memo,
 		"CSRFToken": GetCSRFToken(r.Context()),
-	}
-
-	if err := h.templates["detail.html"].ExecuteTemplate(w, "layout", data); err != nil {
-		h.logger.Error("render detail failed", slog.Any("error", err))
-	}
+	})
 }
 
 func (h *Handler) handleUpdateMemo(w http.ResponseWriter, r *http.Request) {
 	ownerID := GetOwnerID(r.Context())
 	id := r.PathValue("id")
-	title := strings.TrimSpace(r.FormValue("title"))
-	content := strings.TrimSpace(r.FormValue("content"))
+	title := strings.TrimSpace(r.PostFormValue("title"))
+	content := strings.TrimSpace(r.PostFormValue("content"))
 
 	if title == "" || content == "" {
 		http.Error(w, "タイトルと本文は必須です", http.StatusBadRequest)
 		return
 	}
-	if len(title) > 100 || len(content) > 10000 {
+	if utf8.RuneCountInString(title) > 100 || utf8.RuneCountInString(content) > 10000 {
 		http.Error(w, "文字数上限を超えています", http.StatusBadRequest)
 		return
 	}
@@ -209,6 +220,27 @@ func (h *Handler) handleUpdateMemo(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("memo updated", slog.Any("memo", memo))
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (h *Handler) handleDeleteMemoConfirm(w http.ResponseWriter, r *http.Request) {
+	ownerID := GetOwnerID(r.Context())
+	id := r.PathValue("id")
+
+	memo, err := h.store.GetMemo(r.Context(), ownerID, id)
+	if errors.Is(err, store.ErrNotFound) {
+		http.Error(w, "メモが見つかりません", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		http.Error(w, "メモの取得に失敗しました", http.StatusInternalServerError)
+		return
+	}
+
+	h.render(w, "confirm_memo_delete.html", map[string]any{
+		"Title":     "メモ削除の確認",
+		"Memo":      memo,
+		"CSRFToken": GetCSRFToken(r.Context()),
+	})
 }
 
 func (h *Handler) handleDeleteMemo(w http.ResponseWriter, r *http.Request) {
@@ -249,6 +281,20 @@ func (h *Handler) handleExport(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "privacy.html", map[string]any{
+		"Title":     "このアプリが保存するもの",
+		"CSRFToken": GetCSRFToken(r.Context()),
+	})
+}
+
+func (h *Handler) handleDeleteConfirm(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "confirm_delete.html", map[string]any{
+		"Title":     "セッション完全破棄の確認",
+		"CSRFToken": GetCSRFToken(r.Context()),
+	})
+}
+
 func (h *Handler) handleDeleteAll(w http.ResponseWriter, r *http.Request) {
 	ownerID := GetOwnerID(r.Context())
 	if err := h.store.DeleteAllData(r.Context(), ownerID); err != nil {
@@ -260,15 +306,4 @@ func (h *Handler) handleDeleteAll(w http.ResponseWriter, r *http.Request) {
 	h.sm.ClearSessionCookie(w)
 	h.logger.Info("user data completely purged", slog.String("owner_id", string(ownerID)))
 	http.Redirect(w, r, "/", http.StatusSeeOther)
-}
-
-func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request) {
-	data := map[string]any{
-		"Title":     "このアプリが保存するもの",
-		"CSRFToken": GetCSRFToken(r.Context()),
-	}
-
-	if err := h.templates["privacy.html"].ExecuteTemplate(w, "layout", data); err != nil {
-		h.logger.Error("render privacy failed", slog.Any("error", err))
-	}
 }

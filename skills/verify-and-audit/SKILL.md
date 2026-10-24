@@ -17,10 +17,10 @@ go test -race -v ./...
 
 ### 自動検証される項目:
 - **`TestArchitecture_DependencyAllowedList`**: `go.mod` の直接依存が許可リスト（`modernc.org/sqlite` のみ）と一致しているか。
-- **`TestDataSchema_MatchesDataLedger`**: `DATA.md` に記載されたテーブル・列定義と、実際のマイグレーションSQLが完全に一致しているか。
-- **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=` や `<style>`, `<script>` が含まれていないか。
+- **`TestDataSchema_MatchesDataLedger`**: `DATA.md` に記載されたテーブル・列定義と、インメモリDB上の実スキーマ（`PRAGMA table_info`）が完全に一致しているか。
+- **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=`、`<style>`、`<script>`、および `on*` イベントハンドラが含まれていないか。
 - **`TestCSS_SingleFileAndNoImportant`**: CSSファイルが単一であり、`!important` が含まれていないか。
-- **`TestCanary_LogProtection`**: メモ本文の機密データが、ログやエラー応答に一切現れていないか（カナリアテスト）。
+- **`TestCanary_LogProtection`**: セッショントークンや業務機密データが、アクセスログやエラー応答に一切現れていないか（カナリアテスト）。
 
 ## 2. 人手による差分チェック観点
 自動テストに加え、`git diff` で以下の観点を確認します。

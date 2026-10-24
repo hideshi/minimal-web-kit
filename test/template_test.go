@@ -3,11 +3,14 @@ package test
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
 
-// TestTemplate_NoInlineStylesOrScripts はHTMLテンプレートにインラインstyle属性やタグがないことを検証します。
+var inlineEventHandlerPattern = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
+
+// TestTemplate_NoInlineStylesOrScripts はHTMLテンプレートにインラインstyle属性、タグ、イベントハンドラがないことを検証します。
 func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 	files, err := filepath.Glob("../internal/web/views/*.html")
 	if err != nil {
@@ -32,6 +35,12 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 		}
 		if strings.Contains(str, "<script") {
 			t.Errorf("<script> tag found in %s. Inline scripts are prohibited for security and simplicity.", file)
+		}
+		if inlineEventHandlerPattern.MatchString(str) {
+			t.Errorf("Inline event handler (on* attribute) found in %s. Inline event handlers violate CSP script-src 'self'. Use server-side links or pages instead.", file)
+		}
+		if strings.Contains(strings.ToLower(str), "javascript:") {
+			t.Errorf("javascript: pseudo-protocol found in %s. Prohibited by CSP.", file)
 		}
 	}
 }

@@ -26,9 +26,6 @@
 
 <div class="action-bar">
   <a href="/privacy" class="btn btn-secondary">保存データ台帳を見る</a>
-  <form action="/account/delete-all" method="POST" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-danger" onclick="return confirm('セッション情報を破棄して初期化しますか？');">セッションの完全破棄</button>
-  </form>
+  <a href="/account/delete-confirm" class="btn btn-danger">セッションの完全破棄</a>
 </div>
 {{end}}

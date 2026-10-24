@@ -29,9 +29,6 @@
 <p>あなた自身のセッション情報は、いつでも即座に完全破棄することができます。</p>
 
 <div class="action-bar">
-  <form action="/account/delete-all" method="POST" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-danger" onclick="return confirm('警告: あなたのセッション情報が即座に物理削除されます。よろしいですか？');">セッション情報の即時破棄</button>
-  </form>
+  <a href="/account/delete-confirm" class="btn btn-danger">セッション情報の即時破棄</a>
 </div>
 {{end}}

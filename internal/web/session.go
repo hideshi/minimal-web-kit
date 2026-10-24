@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -50,36 +51,62 @@ func (sm *SessionManager) GenerateCSRFToken(sessionToken string) string {
 
 // ValidateCSRFToken は渡されたCSRFトークンが正当か検証します。
 func (sm *SessionManager) ValidateCSRFToken(sessionToken, token string) bool {
+	if sessionToken == "" || token == "" {
+		return false
+	}
 	expected := sm.GenerateCSRFToken(sessionToken)
 	return hmac.Equal([]byte(expected), []byte(token))
 }
 
 // ResolveOwner はCookieからセッションを読み取り、OwnerIDとCSRFトークンをリクエストcontextに設定します。
-// セッションが存在しない場合は新規に発行してCookieを設定します。
+// クライアントが任意に指定した未知のCookieは拒否して破棄し、セッション固定化攻撃を防ぎます。
 func (sm *SessionManager) ResolveOwner(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var token string
+		var ownerID domain.OwnerID
+
 		cookie, err := r.Cookie(sessionCookieName)
 		if err == nil && cookie.Value != "" {
-			token = cookie.Value
+			h := sha256.Sum256([]byte(cookie.Value))
+			tokenHash := hex.EncodeToString(h[:])
+
+			foundOwnerID, err := sm.store.GetSessionOwner(r.Context(), tokenHash)
+			if err == nil {
+				// 正当な既存セッション
+				token = cookie.Value
+				ownerID = foundOwnerID
+			} else if !errors.Is(err, store.ErrNotFound) {
+				http.Error(w, "Session Error", http.StatusInternalServerError)
+				return
+			}
+			// ErrNotFound の場合は、未知/不正なCookieとみなして破棄し、新規発行へ進む
 		}
 
-		var tokenHash string
-		if token != "" {
-			h := sha256.Sum256([]byte(token))
-			tokenHash = hex.EncodeToString(h[:])
-		} else {
+		if token == "" {
 			// 新規セッショントークン生成（128bit以上）
-			b := make([]byte, 16)
-			if _, err := rand.Read(b); err != nil {
+			tokenBytes := make([]byte, 16)
+			if _, err := rand.Read(tokenBytes); err != nil {
 				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				return
 			}
-			token = hex.EncodeToString(b)
+			token = hex.EncodeToString(tokenBytes)
 			h := sha256.Sum256([]byte(token))
-			tokenHash = hex.EncodeToString(h[:])
+			tokenHash := hex.EncodeToString(h[:])
 
-			// Cookie設定
+			// 新規OwnerID生成
+			ownerBytes := make([]byte, 16)
+			if _, err := rand.Read(ownerBytes); err != nil {
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+			ownerID = domain.OwnerID(hex.EncodeToString(ownerBytes))
+
+			if err := sm.store.CreateSession(r.Context(), tokenHash, ownerID); err != nil {
+				http.Error(w, "Session Create Error", http.StatusInternalServerError)
+				return
+			}
+
+			// クライアントへ安全なCookieを設定
 			c := &http.Cookie{
 				Name:     sessionCookieName,
 				Value:    token,
@@ -90,12 +117,6 @@ func (sm *SessionManager) ResolveOwner(next http.Handler) http.Handler {
 				MaxAge:   30 * 24 * 60 * 60, // 30日
 			}
 			http.SetCookie(w, c)
-		}
-
-		ownerID, err := sm.store.GetOrCreateSession(r.Context(), tokenHash)
-		if err != nil {
-			http.Error(w, "Session Error", http.StatusInternalServerError)
-			return
 		}
 
 		csrfToken := sm.GenerateCSRFToken(token)

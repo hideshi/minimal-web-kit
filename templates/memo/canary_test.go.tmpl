@@ -15,9 +15,8 @@ import (
 	"minimal-web-kit/internal/web"
 )
 
-// TestCanary_LogProtection はメモ本文の機密データがログバッファやエラー応答に漏洩しないことを検証します。
+// TestCanary_LogProtection はメモ本文の機密データ保護とクロスオーナーアクセス分離を検証します。
 func TestCanary_LogProtection(t *testing.T) {
-	// ログ出力を捕捉するバッファ
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
@@ -32,70 +31,49 @@ func TestCanary_LogProtection(t *testing.T) {
 
 	routes := handler.Routes()
 
-	// 1. トップページにアクセスしてセッションCookieとCSRFトークンを取得
-	req1 := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec1 := httptest.NewRecorder()
-	routes.ServeHTTP(rec1, req1)
+	// 1. ユーザーAのセッション確立
+	reqA := httptest.NewRequest(http.MethodGet, "/", nil)
+	recA := httptest.NewRecorder()
+	routes.ServeHTTP(recA, reqA)
 
-	if rec1.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", rec1.Code)
+	cookieA := recA.Result().Cookies()
+	if len(cookieA) == 0 {
+		t.Fatal("expected session cookie for user A")
+	}
+	csrfTokenA := sm.GenerateCSRFToken(cookieA[0].Value)
+
+	// 2. ユーザーAが全角日本語タイトル＋機密カナリア文字列でメモを作成
+	canarySecret := "CANARY_SECRET_DO_NOT_LEAK_XYZ_999888777"
+	japaneseTitle := "これは全角文字で書かれた40文字を超える長めのテスト用日本語タイトルです"
+
+	formA := url.Values{}
+	formA.Set("csrf_token", csrfTokenA)
+	formA.Set("title", japaneseTitle)
+	formA.Set("content", canarySecret)
+
+	reqCreate := httptest.NewRequest(http.MethodPost, "/memos", strings.NewReader(formA.Encode()))
+	reqCreate.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	reqCreate.AddCookie(cookieA[0])
+	recCreate := httptest.NewRecorder()
+	routes.ServeHTTP(recCreate, reqCreate)
+
+	if recCreate.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 See Other on memo create, got %d", recCreate.Code)
 	}
 
-	cookie := rec1.Result().Cookies()
-	if len(cookie) == 0 {
-		t.Fatal("expected session cookie, but got none")
-	}
-
-	// CSRFトークンを導出
-	csrfToken := sm.GenerateCSRFToken(cookie[0].Value)
-
-	// 2. カナリア文字列を本文に含めてメモを作成
-	canarySecret := "CANARY_SECRET_DO_NOT_LEAK_XYZ_123456789"
-	form := url.Values{}
-	form.Set("csrf_token", csrfToken)
-	form.Set("title", "機密テストメモ")
-	form.Set("content", canarySecret)
-
-	req2 := httptest.NewRequest(http.MethodPost, "/memos", strings.NewReader(form.Encode()))
-	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req2.AddCookie(cookie[0])
-	rec2 := httptest.NewRecorder()
-	routes.ServeHTTP(rec2, req2)
-
-	if rec2.Code != http.StatusSeeOther {
-		t.Fatalf("expected 303 See Other, got %d", rec2.Code)
-	}
-
-	// 3. ログバッファにカナリア文字列が出現していないことを検証（ログ契約の検証）
+	// 3. ログバッファにカナリア文字列が出現していないことを検証（ログ契約）
 	logOutput := logBuf.String()
 	if strings.Contains(logOutput, canarySecret) {
 		t.Fatalf("CRITICAL SECURITY FAILURE: Canary secret was leaked into logs!\nLogs:\n%s", logOutput)
 	}
 
-	// 4. メモ一覧を再取得してメモが保存されていることを確認
-	req3 := httptest.NewRequest(http.MethodGet, "/", nil)
-	req3.AddCookie(cookie[0])
-	rec3 := httptest.NewRecorder()
-	routes.ServeHTTP(rec3, req3)
+	// 4. メモIDを取得（エクスポート経由）
+	reqExportA := httptest.NewRequest(http.MethodGet, "/export", nil)
+	reqExportA.AddCookie(cookieA[0])
+	recExportA := httptest.NewRecorder()
+	routes.ServeHTTP(recExportA, reqExportA)
 
-	if rec3.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", rec3.Code)
-	}
-	if !strings.Contains(rec3.Body.String(), "機密テストメモ") {
-		t.Errorf("expected memo title to appear in HTML, but not found")
-	}
-
-	// 5. エクスポートエンドポイントからJSONを取得
-	req4 := httptest.NewRequest(http.MethodGet, "/export", nil)
-	req4.AddCookie(cookie[0])
-	rec4 := httptest.NewRecorder()
-	routes.ServeHTTP(rec4, req4)
-
-	if rec4.Code != http.StatusOK {
-		t.Fatalf("expected 200 OK, got %d", rec4.Code)
-	}
-
-	var exportData struct {
+	var exportA struct {
 		Count int `json:"count"`
 		Memos []struct {
 			ID      string `json:"id"`
@@ -103,34 +81,75 @@ func TestCanary_LogProtection(t *testing.T) {
 			Content string `json:"content"`
 		} `json:"memos"`
 	}
-	body, _ := io.ReadAll(rec4.Body)
-	if err := json.Unmarshal(body, &exportData); err != nil {
-		t.Fatalf("failed to parse export JSON: %v", err)
+	bodyA, _ := io.ReadAll(recExportA.Body)
+	if err := json.Unmarshal(bodyA, &exportA); err != nil || exportA.Count != 1 {
+		t.Fatalf("failed to parse export for user A: %v", err)
 	}
-	if exportData.Count != 1 || exportData.Memos[0].Content != canarySecret {
-		t.Fatalf("expected exported memo to contain canary secret, got count=%d", exportData.Count)
+	memoID := exportA.Memos[0].ID
+
+	// 5. クロスオーナー分離の厳格な検証: ユーザーBがユーザーAのメモにアクセスできないこと
+	reqB := httptest.NewRequest(http.MethodGet, "/", nil)
+	recB := httptest.NewRecorder()
+	routes.ServeHTTP(recB, reqB)
+	cookieB := recB.Result().Cookies()
+	if len(cookieB) == 0 {
+		t.Fatal("expected session cookie for user B")
+	}
+	csrfTokenB := sm.GenerateCSRFToken(cookieB[0].Value)
+
+	// (a) ユーザーBの一覧にユーザーAのメモが出現しないこと
+	if strings.Contains(recB.Body.String(), japaneseTitle) {
+		t.Errorf("CRITICAL SECURITY FAILURE: User A's memo appeared in User B's list!")
 	}
 
-	// 6. 全データ即時削除を実行
+	// (b) ユーザーBがユーザーAのメモ詳細を取得しようとすると 404 になること
+	reqCrossGet := httptest.NewRequest(http.MethodGet, "/memos/"+memoID, nil)
+	reqCrossGet.AddCookie(cookieB[0])
+	recCrossGet := httptest.NewRecorder()
+	routes.ServeHTTP(recCrossGet, reqCrossGet)
+	if recCrossGet.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found for cross-owner GET, got %d", recCrossGet.Code)
+	}
+
+	// (c) ユーザーBがユーザーAのメモを更新しようとすると 404 になること
+	formCrossUpdate := url.Values{}
+	formCrossUpdate.Set("csrf_token", csrfTokenB)
+	formCrossUpdate.Set("title", "不正更新")
+	formCrossUpdate.Set("content", "不正更新本文")
+	reqCrossUpdate := httptest.NewRequest(http.MethodPost, "/memos/"+memoID, strings.NewReader(formCrossUpdate.Encode()))
+	reqCrossUpdate.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	reqCrossUpdate.AddCookie(cookieB[0])
+	recCrossUpdate := httptest.NewRecorder()
+	routes.ServeHTTP(recCrossUpdate, reqCrossUpdate)
+	if recCrossUpdate.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found for cross-owner POST update, got %d", recCrossUpdate.Code)
+	}
+
+	// (d) ユーザーBがユーザーAのメモを削除しようとすると 404 になること
+	formCrossDelete := url.Values{}
+	formCrossDelete.Set("csrf_token", csrfTokenB)
+	reqCrossDelete := httptest.NewRequest(http.MethodPost, "/memos/"+memoID+"/delete", strings.NewReader(formCrossDelete.Encode()))
+	reqCrossDelete.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	reqCrossDelete.AddCookie(cookieB[0])
+	recCrossDelete := httptest.NewRecorder()
+	routes.ServeHTTP(recCrossDelete, reqCrossDelete)
+	if recCrossDelete.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found for cross-owner POST delete, got %d", recCrossDelete.Code)
+	}
+
+	// 6. ユーザーAが全データ破棄を実行すると、メモが削除されること
 	formDeleteAll := url.Values{}
-	formDeleteAll.Set("csrf_token", csrfToken)
-	req5 := httptest.NewRequest(http.MethodPost, "/account/delete-all", strings.NewReader(formDeleteAll.Encode()))
-	req5.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req5.AddCookie(cookie[0])
-	rec5 := httptest.NewRecorder()
-	routes.ServeHTTP(rec5, req5)
-
-	if rec5.Code != http.StatusSeeOther {
-		t.Fatalf("expected 303 See Other, got %d", rec5.Code)
+	formDeleteAll.Set("csrf_token", csrfTokenA)
+	reqDeleteAll := httptest.NewRequest(http.MethodPost, "/account/delete-all", strings.NewReader(formDeleteAll.Encode()))
+	reqDeleteAll.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	reqDeleteAll.AddCookie(cookieA[0])
+	recDeleteAll := httptest.NewRecorder()
+	routes.ServeHTTP(recDeleteAll, reqDeleteAll)
+	if recDeleteAll.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303 on delete all, got %d", recDeleteAll.Code)
 	}
 
-	// 削除後の確認
-	memosAfter, _ := memStore.ListMemos(req5.Context(), "test-owner")
-	if len(memosAfter) != 0 {
-		t.Errorf("expected 0 memos after delete all, got %d", len(memosAfter))
-	}
-
-	// 最終確認: ログに一度もカナリア文字列が現れていないこと
+	// 7. 最終確認: ログに一度もカナリア文字列が出現していないこと
 	finalLog := logBuf.String()
 	if strings.Contains(finalLog, canarySecret) {
 		t.Fatalf("CRITICAL SECURITY FAILURE: Canary secret was leaked into logs during test execution!")

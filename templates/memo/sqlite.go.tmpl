@@ -2,10 +2,8 @@ package store
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	_ "embed"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -24,15 +22,12 @@ type SQLiteStore struct {
 	db *sql.DB
 }
 
-// NewSQLiteStore は指定されたパスのSQLiteデータベースを初期化して返します。
-// ファイルの権限を0600とし、secure_deleteを有効化します。
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, fmt.Errorf("create db dir: %w", err)
 	}
 
-	// ファイルが存在しない場合は 0600 で作成
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
@@ -46,7 +41,6 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("open sqlite db: %w", err)
 	}
 
-	// PRAGMAの設定
 	pragmas := []string{
 		"PRAGMA secure_delete = ON;",
 		"PRAGMA foreign_keys = ON;",
@@ -60,7 +54,6 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		}
 	}
 
-	// マイグレーション実行
 	if _, err := db.Exec(initSQL); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("run init migration: %w", err)
@@ -69,39 +62,34 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	return &SQLiteStore{db: db}, nil
 }
 
-func (s *SQLiteStore) GetOrCreateSession(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
+func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
 	var ownerID string
 	err := s.db.QueryRowContext(ctx,
 		"SELECT owner_id FROM sessions WHERE token_hash = ?", tokenHash,
 	).Scan(&ownerID)
 
-	if err == nil {
-		now := time.Now().Unix()
-		_, _ = s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", now, tokenHash)
-		return domain.OwnerID(ownerID), nil
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
 	}
-
-	if !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return "", fmt.Errorf("query session: %w", err)
 	}
 
-	// セッション新規発行
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("rand owner id: %w", err)
-	}
-	newOwnerID := hex.EncodeToString(b)
 	now := time.Now().Unix()
+	_, _ = s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", now, tokenHash)
+	return domain.OwnerID(ownerID), nil
+}
 
-	_, err = s.db.ExecContext(ctx,
+func (s *SQLiteStore) CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error {
+	now := time.Now().Unix()
+	_, err := s.db.ExecContext(ctx,
 		"INSERT INTO sessions (token_hash, owner_id, created_at, last_seen_at) VALUES (?, ?, ?, ?)",
-		tokenHash, newOwnerID, now, now,
+		tokenHash, string(ownerID), now, now,
 	)
 	if err != nil {
-		return "", fmt.Errorf("insert session: %w", err)
+		return fmt.Errorf("insert session: %w", err)
 	}
-
-	return domain.OwnerID(newOwnerID), nil
+	return nil
 }
 
 func (s *SQLiteStore) UpdateSessionSeen(ctx context.Context, tokenHash string) error {
@@ -230,7 +218,6 @@ func (s *SQLiteStore) PurgeExpiredSessions(ctx context.Context, maxAge time.Dura
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// 期限切れのセッションの所有者IDを取得
 	rows, err := tx.QueryContext(ctx, "SELECT DISTINCT owner_id FROM sessions WHERE last_seen_at < ?", threshold)
 	if err != nil {
 		return 0, fmt.Errorf("query expired owners: %w", err)
@@ -251,7 +238,6 @@ func (s *SQLiteStore) PurgeExpiredSessions(ctx context.Context, maxAge time.Dura
 
 	var deletedCount int64
 	for _, o := range owners {
-		// 孤立したメモを物理削除
 		if _, err := tx.ExecContext(ctx, "DELETE FROM memos WHERE owner_id = ?", o); err != nil {
 			return 0, fmt.Errorf("purge memos: %w", err)
 		}

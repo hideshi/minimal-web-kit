@@ -30,10 +30,7 @@
         <div class="memo-card-content">{{.Content}}</div>
         <div class="memo-card-actions">
           <a href="/memos/{{.ID}}" class="btn btn-secondary">編集</a>
-          <form action="/memos/{{.ID}}/delete" method="POST" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-            <button type="submit" class="btn btn-danger" onclick="return confirm('このメモを物理削除しますか？');">削除</button>
-          </form>
+          <a href="/memos/{{.ID}}/delete-confirm" class="btn btn-danger">削除</a>
         </div>
       </li>
     {{end}}

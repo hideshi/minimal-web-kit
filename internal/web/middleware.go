@@ -5,8 +5,11 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 )
+
+var validRequestIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-]{16,64}$`)
 
 type statusResponseWriter struct {
 	http.ResponseWriter
@@ -19,10 +22,11 @@ func (rw *statusResponseWriter) WriteHeader(code int) {
 }
 
 // RequestID は各リクエストにユニークな追跡IDを付与するミドルウェアです。
+// クライアント提供のヘッダーは英数字16〜64文字のみ許容し、不正な値や改行のログ注入を防ぎます。
 func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqID := r.Header.Get("X-Request-ID")
-		if reqID == "" {
+		if !validRequestIDPattern.MatchString(reqID) {
 			b := make([]byte, 12)
 			_, _ = rand.Read(b)
 			reqID = hex.EncodeToString(b)
@@ -55,10 +59,11 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
+		h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Cache-Control", "no-store, max-age=0")
 		next.ServeHTTP(w, r)
 	})
 }
@@ -87,7 +92,7 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 			duration := time.Since(start)
 			reqID := w.Header().Get("X-Request-ID")
 
-			// ログ契約: IP、User-Agent、Cookie、クエリパラメータ、メモ本文は一切出力しない
+			// ログ契約: IP、User-Agent、Cookie、クエリパラメータは一切出力しない
 			logger.Info("http request",
 				slog.String("request_id", reqID),
 				slog.String("method", r.Method),
@@ -100,6 +105,7 @@ func AccessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 }
 
 // CSRFProtect は状態変更リクエスト（POST, PUT, DELETE等）に対してCSRFトークンを検証するミドルウェアです。
+// トークンはPOST本文（PostFormValue）またはヘッダーからのみ取得し、URLクエリからの混入を拒否します。
 func CSRFProtect(sm *SessionManager) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -122,8 +128,8 @@ func CSRFProtect(sm *SessionManager) func(http.Handler) http.Handler {
 				return
 			}
 
-			// フォームまたはヘッダーからCSRFトークンを取得
-			token := r.FormValue("csrf_token")
+			// POST本文からCSRFトークンを取得（PostFormValueによりクエリ文字列を除外）
+			token := r.PostFormValue("csrf_token")
 			if token == "" {
 				token = r.Header.Get("X-CSRF-Token")
 			}

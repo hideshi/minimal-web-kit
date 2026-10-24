@@ -1,0 +1,20 @@
+{{define "content"}}
+<h1>メモ削除の確認</h1>
+
+<div class="alert alert-warning">
+  <p><strong>警告:</strong> 以下のメモを物理削除します。この操作は元に戻せません。</p>
+</div>
+
+<div class="memo-card">
+  <div class="memo-card-title">{{.Memo.Title}}</div>
+  <div class="memo-card-content">{{.Memo.Content}}</div>
+</div>
+
+<div class="action-bar">
+  <form action="/memos/{{.Memo.ID}}/delete" method="POST" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn btn-danger">完全に削除する</button>
+  </form>
+  <a href="/" class="btn btn-secondary">キャンセルして戻る</a>
+</div>
+{{end}}

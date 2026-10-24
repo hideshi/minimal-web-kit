@@ -2,10 +2,8 @@ package store
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	_ "embed"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -66,38 +64,34 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	return &SQLiteStore{db: db}, nil
 }
 
-func (s *SQLiteStore) GetOrCreateSession(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
+func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
 	var ownerID string
 	err := s.db.QueryRowContext(ctx,
 		"SELECT owner_id FROM sessions WHERE token_hash = ?", tokenHash,
 	).Scan(&ownerID)
 
-	if err == nil {
-		now := time.Now().Unix()
-		_, _ = s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", now, tokenHash)
-		return domain.OwnerID(ownerID), nil
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
 	}
-
-	if !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return "", fmt.Errorf("query session: %w", err)
 	}
 
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("rand owner id: %w", err)
-	}
-	newOwnerID := hex.EncodeToString(b)
 	now := time.Now().Unix()
+	_, _ = s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", now, tokenHash)
+	return domain.OwnerID(ownerID), nil
+}
 
-	_, err = s.db.ExecContext(ctx,
+func (s *SQLiteStore) CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error {
+	now := time.Now().Unix()
+	_, err := s.db.ExecContext(ctx,
 		"INSERT INTO sessions (token_hash, owner_id, created_at, last_seen_at) VALUES (?, ?, ?, ?)",
-		tokenHash, newOwnerID, now, now,
+		tokenHash, string(ownerID), now, now,
 	)
 	if err != nil {
-		return "", fmt.Errorf("insert session: %w", err)
+		return fmt.Errorf("insert session: %w", err)
 	}
-
-	return domain.OwnerID(newOwnerID), nil
+	return nil
 }
 
 func (s *SQLiteStore) UpdateSessionSeen(ctx context.Context, tokenHash string) error {

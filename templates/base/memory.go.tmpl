@@ -2,8 +2,6 @@ package store
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"sync"
 	"time"
 
@@ -28,20 +26,21 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
-func (s *MemoryStore) GetOrCreateSession(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
+func (s *MemoryStore) GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if sess, ok := s.sessions[tokenHash]; ok {
-		sess.lastSeenAt = time.Now()
-		return sess.ownerID, nil
+	sess, ok := s.sessions[tokenHash]
+	if !ok {
+		return "", ErrNotFound
 	}
+	sess.lastSeenAt = time.Now()
+	return sess.ownerID, nil
+}
 
-	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	ownerID := domain.OwnerID(hex.EncodeToString(b))
+func (s *MemoryStore) CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	now := time.Now()
 	s.sessions[tokenHash] = &memorySession{
@@ -49,7 +48,7 @@ func (s *MemoryStore) GetOrCreateSession(ctx context.Context, tokenHash string) 
 		createdAt:  now,
 		lastSeenAt: now,
 	}
-	return ownerID, nil
+	return nil
 }
 
 func (s *MemoryStore) UpdateSessionSeen(ctx context.Context, tokenHash string) error {

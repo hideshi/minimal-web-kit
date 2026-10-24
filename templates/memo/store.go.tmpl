@@ -12,11 +12,10 @@ var (
 	ErrNotFound = errors.New("record not found")
 )
 
-// Store はデータの永続化を担当するインターフェースです。
-// Handler層は生SQLやDBハンドルに直接依存せず、このインターフェースを経由します。
 type Store interface {
 	// セッション管理
-	GetOrCreateSession(ctx context.Context, tokenHash string) (domain.OwnerID, error)
+	GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error)
+	CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error
 	UpdateSessionSeen(ctx context.Context, tokenHash string) error
 	DeleteSession(ctx context.Context, tokenHash string) error
 
@@ -27,7 +26,7 @@ type Store interface {
 	UpdateMemo(ctx context.Context, memo *domain.Memo) error
 	DeleteMemo(ctx context.Context, ownerID domain.OwnerID, id string) error
 
-	// ライフサイクル管理（データ全破棄・放置セッションGC）
+	// ライフサイクル管理
 	DeleteAllData(ctx context.Context, ownerID domain.OwnerID) error
 	PurgeExpiredSessions(ctx context.Context, maxAge time.Duration) (int64, error)
 

@@ -18,35 +18,50 @@ func TestArchitecture_DependencyAllowedList(t *testing.T) {
 	}
 
 	lines := strings.Split(string(content), "\n")
-	inRequireBlock := false
+	foundDirectDeps := make(map[string]bool)
 
+	inRequireBlock := false
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "require (") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "require (") {
 			inRequireBlock = true
 			continue
 		}
-		if inRequireBlock && line == ")" {
+		if inRequireBlock && trimmed == ")" {
 			inRequireBlock = false
 			continue
 		}
 
-		if inRequireBlock || strings.HasPrefix(line, "require ") {
-			parts := strings.Fields(line)
+		if inRequireBlock || strings.HasPrefix(trimmed, "require ") {
+			// indirect 行はスキップ
+			if strings.Contains(trimmed, "// indirect") {
+				continue
+			}
+
+			parts := strings.Fields(trimmed)
 			if len(parts) >= 2 {
 				pkg := parts[0]
-				if parts[0] == "require" {
+				if pkg == "require" {
 					pkg = parts[1]
 				}
-				// 間接依存(// indirect)は除外
-				if strings.Contains(line, "// indirect") {
-					continue
-				}
-
-				if !allowedDirectDeps[pkg] {
-					t.Errorf("Disallowed direct dependency found: %s. Direct dependencies must be explicitly approved.", pkg)
-				}
+				foundDirectDeps[pkg] = true
 			}
+		}
+	}
+
+	if len(foundDirectDeps) == 0 {
+		t.Fatal("No direct dependencies found in go.mod. Verification failed to inspect direct dependencies.")
+	}
+
+	for dep := range foundDirectDeps {
+		if !allowedDirectDeps[dep] {
+			t.Errorf("Disallowed direct dependency found: %s. Direct dependencies must be explicitly approved and added to allowed list.", dep)
+		}
+	}
+
+	for allowed := range allowedDirectDeps {
+		if !foundDirectDeps[allowed] {
+			t.Errorf("Expected direct dependency %s is missing from go.mod direct requirements.", allowed)
 		}
 	}
 }
