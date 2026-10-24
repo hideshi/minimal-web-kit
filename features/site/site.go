@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"minimal-web-kit/internal/web"
 )
@@ -28,10 +29,14 @@ func NewFeature(logger *slog.Logger) *Feature {
 	if err != nil {
 		panic(fmt.Sprintf("parse site views: %v", err))
 	}
+	contactURL := os.Getenv("CONTACT_FORM_URL")
+	if contactURL == "" {
+		contactURL = "https://forms.google.com"
+	}
 	return &Feature{
 		tmpl:           t,
 		logger:         logger,
-		contactFormURL: "https://forms.google.com",
+		contactFormURL: contactURL,
 	}
 }
 

@@ -54,3 +54,24 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		}
 	}
 }
+
+func TestSiteFeature_CustomContactFormURL(t *testing.T) {
+	customURL := "https://example.com/inquiry"
+	t.Setenv("CONTACT_FORM_URL", customURL)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	feat := site.NewFeature(logger)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+
+	feat.HandleRoot(rec, req)
+
+	body, err := io.ReadAll(rec.Result().Body)
+	if err != nil {
+		t.Fatalf("failed to read response: %v", err)
+	}
+	if !strings.Contains(string(body), customURL) {
+		t.Errorf("expected response to contain custom contact URL %q", customURL)
+	}
+}
