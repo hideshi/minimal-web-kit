@@ -496,3 +496,32 @@ footer {
   flex-wrap: wrap;
   align-items: center;
 }
+
+.action-bar-center {
+  justify-content: center;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.btn-cta {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md) var(--space-xl);
+  line-height: 1.4;
+}
+
+.btn-main-text {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.btn-sub-text {
+  font-size: 0.8rem;
+  font-weight: 400;
+  opacity: 0.95;
+  margin-top: var(--space-xs);
+}
