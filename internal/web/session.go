@@ -25,12 +25,12 @@ const (
 
 // SessionManager は匿名Cookieセッションの管理とOwnerIDの解決を担当します。
 type SessionManager struct {
-	store      store.Store
+	store      store.SessionStore
 	secureFlag bool
 	secretKey  []byte
 }
 
-func NewSessionManager(s store.Store, secure bool) *SessionManager {
+func NewSessionManager(s store.SessionStore, secure bool) *SessionManager {
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		panic(fmt.Sprintf("init secret key: %v", err))

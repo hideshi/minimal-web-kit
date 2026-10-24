@@ -15,15 +15,15 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-//go:embed migrations/001_init.sql
-var initSQL string
+//go:embed migrations/001_core.sql
+var coreSQL string
 
 type SQLiteStore struct {
 	db *sql.DB
 }
 
 // NewSQLiteStore は指定されたパスのSQLiteデータベースを初期化して返します。
-// ファイルの権限を0600とし、secure_deleteを有効化します。
+// ファイルの権限を0600とし、foreign_keysとsecure_deleteを有効化します。
 func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 	dir := filepath.Dir(dbPath)
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -56,12 +56,16 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		}
 	}
 
-	if _, err := db.Exec(initSQL); err != nil {
+	if _, err := db.Exec(coreSQL); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("run init migration: %w", err)
+		return nil, fmt.Errorf("run core migration: %w", err)
 	}
 
 	return &SQLiteStore{db: db}, nil
+}
+
+func (s *SQLiteStore) DB() *sql.DB {
+	return s.db
 }
 
 func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
@@ -83,21 +87,31 @@ func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (do
 }
 
 func (s *SQLiteStore) CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
 	now := time.Now().Unix()
-	_, err := s.db.ExecContext(ctx,
+
+	// 1. owners テーブルにレコードを作成（存在しなければ）
+	if _, err := tx.ExecContext(ctx,
+		"INSERT OR IGNORE INTO owners (id, created_at) VALUES (?, ?)",
+		string(ownerID), now,
+	); err != nil {
+		return fmt.Errorf("insert owner: %w", err)
+	}
+
+	// 2. sessions テーブルにレコードを作成
+	if _, err := tx.ExecContext(ctx,
 		"INSERT INTO sessions (token_hash, owner_id, created_at, last_seen_at) VALUES (?, ?, ?, ?)",
 		tokenHash, string(ownerID), now, now,
-	)
-	if err != nil {
+	); err != nil {
 		return fmt.Errorf("insert session: %w", err)
 	}
-	return nil
-}
 
-func (s *SQLiteStore) UpdateSessionSeen(ctx context.Context, tokenHash string) error {
-	now := time.Now().Unix()
-	_, err := s.db.ExecContext(ctx, "UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?", now, tokenHash)
-	return err
+	return tx.Commit()
 }
 
 func (s *SQLiteStore) DeleteSession(ctx context.Context, tokenHash string) error {
@@ -106,13 +120,18 @@ func (s *SQLiteStore) DeleteSession(ctx context.Context, tokenHash string) error
 }
 
 func (s *SQLiteStore) DeleteAllData(ctx context.Context, ownerID domain.OwnerID) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM sessions WHERE owner_id = ?", string(ownerID))
+	// ON DELETE CASCADE により、owners を削除するだけでセッションも全機能テーブルも自動カスケード削除される
+	_, err := s.db.ExecContext(ctx, "DELETE FROM owners WHERE id = ?", string(ownerID))
 	return err
 }
 
 func (s *SQLiteStore) PurgeExpiredSessions(ctx context.Context, maxAge time.Duration) (int64, error) {
 	threshold := time.Now().Add(-maxAge).Unix()
-	res, err := s.db.ExecContext(ctx, "DELETE FROM sessions WHERE last_seen_at < ?", threshold)
+	// 放置セッションを持つ owner を削除（CASCADEにより紐づく全データも削除される）
+	res, err := s.db.ExecContext(ctx,
+		"DELETE FROM owners WHERE id IN (SELECT owner_id FROM sessions WHERE last_seen_at < ?)",
+		threshold,
+	)
 	if err != nil {
 		return 0, err
 	}

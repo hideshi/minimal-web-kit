@@ -10,12 +10,16 @@ import (
 
 var inlineEventHandlerPattern = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
 
-// TestTemplate_NoInlineStylesOrScripts はHTMLテンプレートにインラインstyle属性、タグ、イベントハンドラがないことを検証します。
+// TestTemplate_NoInlineStylesOrScripts は全HTMLテンプレートにインラインstyle属性、タグ、イベントハンドラがないことを検証します。
 func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
-	files, err := filepath.Glob("../internal/web/views/*.html")
+	coreFiles, err := filepath.Glob("../internal/web/views/*.html")
 	if err != nil {
-		t.Fatalf("failed to find templates: %v", err)
+		t.Fatalf("failed to find core templates: %v", err)
 	}
+
+	featureFiles, _ := filepath.Glob("../features/*/views/*.html")
+	files := append(coreFiles, featureFiles...)
+
 	if len(files) == 0 {
 		t.Fatal("no template files found")
 	}

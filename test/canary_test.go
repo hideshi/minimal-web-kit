@@ -27,7 +27,7 @@ func TestCanary_LogProtection(t *testing.T) {
 		t.Fatalf("failed to create handler: %v", err)
 	}
 
-	routes := handler.Routes()
+	routes := handler.Routes(nil)
 
 	// 1. 静的アセットアクセスでセッションが作成されないことを検証
 	staticReq := httptest.NewRequest(http.MethodGet, "/static/css/style.css", nil)

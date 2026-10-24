@@ -3,6 +3,7 @@ package test
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -10,16 +11,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TestDataSchema_MatchesDataLedger は DATA.md の定義とマイグレーションSQL実行後のDBテーブル・列定義が一致することを検証します。
+// TestDataSchema_MatchesDataLedger は DATA.md の定義とマイグレーションSQL実行後の実DBスキーマが一致することを検証します。
 func TestDataSchema_MatchesDataLedger(t *testing.T) {
 	dataMd, err := os.ReadFile("../DATA.md")
 	if err != nil {
 		t.Fatalf("failed to read DATA.md: %v", err)
-	}
-
-	sqlBytes, err := os.ReadFile("../internal/store/migrations/001_init.sql")
-	if err != nil {
-		t.Fatalf("failed to read migration SQL: %v", err)
 	}
 
 	expectedSchema := parseDataMd(string(dataMd))
@@ -27,18 +23,46 @@ func TestDataSchema_MatchesDataLedger(t *testing.T) {
 		t.Fatal("no tables found in DATA.md")
 	}
 
-	// インメモリSQLiteにマイグレーションを流す
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open in-memory sqlite: %v", err)
 	}
 	defer db.Close()
 
-	if _, err := db.Exec(string(sqlBytes)); err != nil {
-		t.Fatalf("failed to execute migration SQL in in-memory DB: %v", err)
+	if _, err := db.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		t.Fatalf("failed to enable foreign keys: %v", err)
 	}
 
-	// PRAGMA table_info で実際のスキーマを取得
+	// 1. Coreマイグレーションを実行
+	coreSQL, err := os.ReadFile("../internal/store/migrations/001_core.sql")
+	if err != nil {
+		t.Fatalf("failed to read core migration: %v", err)
+	}
+	if _, err := db.Exec(string(coreSQL)); err != nil {
+		t.Fatalf("failed to execute core migration: %v", err)
+	}
+
+	// 2. 有効化されている各Featureのマイグレーションを実行（もし存在すれば）
+	featureMigrations, _ := filepath.Glob("../features/*/migration.sql")
+	// cmd/server/features.go で登録されているか確認
+	featuresGoBytes, _ := os.ReadFile("../cmd/server/features.go")
+	featuresGo := string(featuresGoBytes)
+
+	for _, migFile := range featureMigrations {
+		featureName := filepath.Base(filepath.Dir(migFile))
+		// features.go で有効化されている機能のみマイグレーションを実行
+		if strings.Contains(featuresGo, featureName+".") {
+			migBytes, err := os.ReadFile(migFile)
+			if err != nil {
+				t.Fatalf("failed to read feature migration %s: %v", migFile, err)
+			}
+			if _, err := db.Exec(string(migBytes)); err != nil {
+				t.Fatalf("failed to execute feature migration %s: %v", migFile, err)
+			}
+		}
+	}
+
+	// 3. PRAGMA table_info で実際の全テーブルと列を取得
 	actualSchema := make(map[string][]string)
 	for table := range expectedSchema {
 		rows, err := db.Query("PRAGMA table_info(" + table + ")")
@@ -67,7 +91,7 @@ func TestDataSchema_MatchesDataLedger(t *testing.T) {
 		actualSchema[table] = cols
 	}
 
-	// 突合チェック
+	// 4. DATA.md と実DBスキーマの双方向突合チェック
 	for table, expectedCols := range expectedSchema {
 		actualCols := actualSchema[table]
 

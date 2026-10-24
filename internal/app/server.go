@@ -12,34 +12,56 @@ import (
 	"syscall"
 	"time"
 
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 )
 
 type Server struct {
-	cfg    *Config
-	store  store.Store
-	logger *slog.Logger
+	cfg      *Config
+	store    store.SessionStore
+	features *features.Registry
+	logger   *slog.Logger
 }
 
-func NewServer(cfg *Config, s store.Store, logger *slog.Logger) *Server {
+func NewServer(cfg *Config, s store.SessionStore, reg *features.Registry, logger *slog.Logger) *Server {
 	return &Server{
-		cfg:    cfg,
-		store:  s,
-		logger: logger,
+		cfg:      cfg,
+		store:    s,
+		features: reg,
+		logger:   logger,
 	}
 }
 
 func (s *Server) Run() error {
+	// 各機能の初期化（DBマイグレーション等）
+	if s.features != nil && s.store.DB() != nil {
+		for _, f := range s.features.All() {
+			if err := f.Init(s.store.DB()); err != nil {
+				return fmt.Errorf("init feature %s: %w", f.Name(), err)
+			}
+			s.logger.Info("feature initialized", slog.String("feature", f.Name()))
+		}
+	}
+
 	sm := web.NewSessionManager(s.store, s.cfg.SecureCookie)
 	handler, err := web.NewHandler(s.store, sm, s.logger)
 	if err != nil {
 		return fmt.Errorf("init handler: %w", err)
 	}
 
+	// ルーティング構築
+	httpHandler := handler.Routes(func(mux *http.ServeMux, sm *web.SessionManager) {
+		if s.features != nil {
+			for _, f := range s.features.All() {
+				f.RegisterRoutes(mux, sm)
+			}
+		}
+	})
+
 	httpServer := &http.Server{
 		Addr:         s.cfg.Addr,
-		Handler:      handler.Routes(),
+		Handler:      httpHandler,
 		ReadTimeout:  s.cfg.ReadTimeout,
 		WriteTimeout: s.cfg.WriteTimeout,
 		IdleTimeout:  s.cfg.IdleTimeout,
@@ -81,7 +103,6 @@ func (s *Server) Run() error {
 		}
 	}()
 
-	// 終了シグナル待機
 	select {
 	case err := <-serverErr:
 		return fmt.Errorf("server error: %w", err)
@@ -89,7 +110,6 @@ func (s *Server) Run() error {
 		s.logger.Info("shutdown signal received, closing gracefully...")
 	}
 
-	// グレースフルシャットダウン（最大10秒待機）
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

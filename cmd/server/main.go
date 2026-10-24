@@ -9,7 +9,6 @@ import (
 )
 
 func main() {
-	// JSON構造化ロガー（slog）の初期化
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}))
@@ -17,7 +16,6 @@ func main() {
 
 	cfg := app.LoadConfig()
 
-	// SQLite永続化ストアの初期化
 	s, err := store.NewSQLiteStore(cfg.DBPath)
 	if err != nil {
 		logger.Error("failed to initialize sqlite store", slog.Any("error", err))
@@ -25,7 +23,10 @@ func main() {
 	}
 	defer s.Close()
 
-	srv := app.NewServer(cfg, s, logger)
+	// 有効化された機能モジュール（Feature）の登録
+	featuresRegistry := setupFeatures(s.DB(), logger)
+
+	srv := app.NewServer(cfg, s, featuresRegistry, logger)
 	if err := srv.Run(); err != nil {
 		logger.Error("server exited with error", slog.Any("error", err))
 		os.Exit(1)
