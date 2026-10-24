@@ -119,7 +119,7 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request) {
 	h.Render(w, "privacy.html", map[string]any{
-		"Title":     "このアプリが保存するもの",
+		"Title":     "プライバシーポリシー",
 		"CSRFToken": GetCSRFToken(r.Context()),
 	})
 }
