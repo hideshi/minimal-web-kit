@@ -344,3 +344,56 @@ func TestAdminStore_DeleteCredentialKeepsOneActive(t *testing.T) {
 		t.Fatalf("missing credential: %v", err)
 	}
 }
+
+func TestAdminPosts_PublishedAt(t *testing.T) {
+	fx := newPublicFixture(t, "")
+	_, cookie := fx.loggedIn(t)
+	ctx := context.Background()
+
+	// 作成時に過去の公開日時を指定すると、公開してもその日時のまま
+	past := time.Date(2024, 4, 1, 9, 30, 0, 0, time.Local)
+	rec := fx.postForm(t, "/admin/posts", withCSRF(fx, cookie, url.Values{"title": {"過去のお知らせ"}, "published_at": {past.Format("2006-01-02T15:04")}}), "same-origin", cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("create with date: %d %s", rec.Code, rec.Body.String())
+	}
+	loc, _ := url.Parse(rec.Header().Get("Location"))
+	path := loc.Path
+	id, _ := strconv.ParseInt(strings.TrimPrefix(path, "/admin/posts/"), 10, 64)
+	if rec := fx.postForm(t, path+"/publish", withCSRF(fx, cookie, nil), "same-origin", cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("publish: %d", rec.Code)
+	}
+	if p, _ := fx.posts.Get(ctx, id); !p.PublishedAt.Equal(past) {
+		t.Fatalf("published_at = %v, want %v", p.PublishedAt, past)
+	}
+	// 編集画面に現在の公開日時が入る
+	if rec := fx.do(t, http.MethodGet, path, nil, cookie); !strings.Contains(rec.Body.String(), `value="2024-04-01T09:30"`) {
+		t.Fatal("the edit form must show the current published_at")
+	}
+
+	// 秒つきの形式も受け付ける。空欄なら変更しない
+	newer := time.Date(2025, 5, 6, 7, 8, 9, 0, time.Local)
+	if rec := fx.postForm(t, path, withCSRF(fx, cookie, url.Values{"title": {"過去のお知らせ"}, "published_at": {newer.Format("2006-01-02T15:04:05")}}), "same-origin", cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("update date: %d", rec.Code)
+	}
+	if rec := fx.postForm(t, path, withCSRF(fx, cookie, url.Values{"title": {"過去のお知らせ"}}), "same-origin", cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("update without date: %d", rec.Code)
+	}
+	if p, _ := fx.posts.Get(ctx, id); !p.PublishedAt.Equal(newer) {
+		t.Fatalf("published_at = %v, want %v", p.PublishedAt, newer)
+	}
+
+	// 未来の日時・不正な形式は400で、入力を残したフォームを返し、保存しない
+	future := time.Now().Add(48 * time.Hour).Format("2006-01-02T15:04")
+	for value, msg := range map[string]string{future: "現在より前の日時", "2025/05/06 07:08": "形式が正しくありません", "<script>": "形式が正しくありません"} {
+		rec := fx.postForm(t, path, withCSRF(fx, cookie, url.Values{"title": {"書き換え後"}, "published_at": {value}}), "same-origin", cookie)
+		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), msg) || !strings.Contains(rec.Body.String(), "書き換え後") {
+			t.Errorf("published_at %q: %d", value, rec.Code)
+		}
+		if strings.Contains(rec.Body.String(), "<script>") {
+			t.Error("the rejected value must be escaped")
+		}
+	}
+	if p, _ := fx.posts.Get(ctx, id); p.Title != "過去のお知らせ" || !p.PublishedAt.Equal(newer) {
+		t.Fatal("rejected input must not be saved")
+	}
+}

@@ -4,29 +4,34 @@
 {{if .Notice}}<p class="alert alert-info" role="status">{{.Notice}}</p>{{end}}
 {{if .Error}}<p class="alert alert-warning" role="alert">{{.Error}}</p>{{end}}
 
-{{if and .Post .Post.ID}}
+{{if .Post.ID}}
 <p class="news-meta">
   状態: {{if .Post.Published}}公開中（<a href="/news/{{.Post.ID}}">公開ページを見る</a>）{{else}}下書き（公開ページには表示されません）{{end}}
-  {{if not .Post.PublishedAt.IsZero}}／公開日: <time datetime="{{.Post.PublishedAt.Format "2006-01-02"}}">{{.Post.PublishedAt.Format "2006年1月2日"}}</time>{{end}}
+  {{if not .Post.PublishedAt.IsZero}}／公開日時: <time datetime="{{.Post.PublishedAt.Format "2006-01-02T15:04"}}">{{.Post.PublishedAt.Format "2006年1月2日 15:04"}}</time>{{end}}
 </p>
 {{end}}
 
-<form method="post" action="{{if and .Post .Post.ID}}/admin/posts/{{.Post.ID}}{{else}}/admin/posts{{end}}" class="card">
+<form method="post" action="{{if .Post.ID}}/admin/posts/{{.Post.ID}}{{else}}/admin/posts{{end}}" class="card">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   <div class="form-group">
     <label for="post-title">タイトル</label>
     <p class="field-hint" id="post-title-hint">1〜200文字。改行は使えません。</p>
-    <input type="text" id="post-title" name="title" maxlength="200" required aria-describedby="post-title-hint" value="{{if .Post}}{{.Post.Title}}{{end}}">
+    <input type="text" id="post-title" name="title" maxlength="200" required aria-describedby="post-title-hint" value="{{.Form.Title}}">
   </div>
   <div class="form-group">
     <label for="post-body">本文</label>
     <p class="field-hint" id="post-body-hint">5万文字以内のプレーンテキスト。空行で段落を分けます。HTMLは文字としてそのまま表示されます。個人情報は書かないでください。</p>
-    <textarea id="post-body" name="body" rows="14" aria-describedby="post-body-hint">{{if .Post}}{{.Post.Body}}{{end}}</textarea>
+    <textarea id="post-body" name="body" rows="14" aria-describedby="post-body-hint">{{.Form.Body}}</textarea>
   </div>
-  <button type="submit" class="btn btn-primary">{{if and .Post .Post.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
+  <div class="form-group">
+    <label for="post-published-at">公開日時（任意）</label>
+    <p class="field-hint" id="post-published-at-hint">公開ページの表示と並び順に使います。空欄のままなら、初めて公開した日時が入ります。現在より後の日時は指定できません。時刻はサーバーのタイムゾーンです。</p>
+    <input type="datetime-local" id="post-published-at" name="published_at" aria-describedby="post-published-at-hint" value="{{.Form.PublishedAt}}">
+  </div>
+  <button type="submit" class="btn btn-primary">{{if .Post.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
 </form>
 
-{{if and .Post .Post.ID}}
+{{if .Post.ID}}
 <h2>公開と削除</h2>
 <div class="action-bar">
   {{if .Post.Published}}

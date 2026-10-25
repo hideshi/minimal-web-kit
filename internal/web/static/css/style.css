@@ -373,6 +373,7 @@ label {
 }
 
 input[type="text"],
+input[type="datetime-local"],
 textarea {
   width: 100%;
   padding: var(--space-sm);
@@ -382,6 +383,11 @@ textarea {
   border-radius: var(--radius);
   background-color: var(--color-bg);
   color: var(--color-text);
+}
+
+input[type="datetime-local"] {
+  width: auto;
+  max-width: 100%;
 }
 
 textarea {
@@ -400,6 +406,8 @@ button, .btn {
   cursor: pointer;
   text-align: center;
   text-decoration: none;
+  /* buttonは既定で行の高さを継承しないため、リンクのボタン（a.btn）と高さを揃える */
+  line-height: inherit;
 }
 
 a.btn {

@@ -92,7 +92,14 @@ func TestPostStore_PublishLifecycle(t *testing.T) {
 	if !again.PublishedAt.Equal(first.PublishedAt) {
 		t.Fatal("republishing must keep the original published_at")
 	}
-	newDate := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	// 公開ページは公開日時で絞り込まないため、未来の日時は受け付けない
+	if err := posts.SetPublishedAt(ctx, id, clock.Add(time.Minute)); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("future published_at must be rejected: %v", err)
+	}
+	if err := posts.UpdateWithDate(ctx, id, "お知らせ", "", clock.Add(time.Minute)); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("future published_at must be rejected on update: %v", err)
+	}
+	newDate := time.Date(2023, 1, 2, 3, 4, 5, 0, time.UTC)
 	if err := posts.SetPublishedAt(ctx, id, newDate); err != nil {
 		t.Fatal(err)
 	}

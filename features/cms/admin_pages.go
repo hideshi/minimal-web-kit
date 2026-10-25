@@ -90,14 +90,52 @@ func (f *Feature) handleNewPostPage(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	data["Post"] = Post{}
+	data["Form"] = postForm{}
 	f.renderAdmin(w, "admin_post_form.html", data, false)
 }
 
+// datetimeInputLayout は <input type="datetime-local"> の値の形式です（サーバーのタイムゾーンで解釈する）。
+const datetimeInputLayout = "2006-01-02T15:04"
+
+// postForm は記事のフォームの入力です。誤りがあれば、入力をそのまま戻して修正を求めます。
+type postForm struct {
+	Title, Body, PublishedAt string
+}
+
+func readPostForm(r *http.Request) postForm {
+	return postForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), PublishedAt: r.PostForm.Get("published_at")}
+}
+
+// parsePublishedAt は公開日時の入力を解析します。空ならゼロ値（変更しない）を返します。
+func (f *Feature) parsePublishedAt(raw string) (time.Time, string) {
+	if raw == "" {
+		return time.Time{}, ""
+	}
+	// ブラウザによっては秒まで送るため、両方の形式を受け付ける
+	t, err := time.ParseInLocation(datetimeInputLayout, raw, time.Local)
+	if err != nil {
+		t, err = time.ParseInLocation(datetimeInputLayout+":05", raw, time.Local)
+	}
+	if err != nil || t.Year() < 1970 {
+		return time.Time{}, "公開日時の形式が正しくありません。"
+	}
+	if t.After(f.now()) {
+		return time.Time{}, "公開日時には、現在より前の日時を指定してください。"
+	}
+	return t, ""
+}
+
 func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, session string) {
-	title, body := r.PostForm.Get("title"), r.PostForm.Get("body")
-	id, err := f.posts.Create(r.Context(), title, body)
+	form := readPostForm(r)
+	publishedAt, msg := f.parsePublishedAt(form.PublishedAt)
+	if msg != "" {
+		f.renderPostFormError(w, r, "お知らせの作成", Post{}, form, msg)
+		return
+	}
+	id, err := f.posts.CreateWithDate(r.Context(), form.Title, form.Body, publishedAt)
 	if errors.Is(err, ErrInvalidInput) {
-		f.renderPostFormError(w, r, "お知らせの作成", Post{Title: title, Body: body})
+		f.renderPostFormError(w, r, "お知らせの作成", Post{}, form, postInputError)
 		return
 	}
 	if err != nil {
@@ -109,15 +147,28 @@ func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, sessi
 	http.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10)+"?notice=created", http.StatusSeeOther)
 }
 
+const postInputError = "タイトルは1〜200文字（改行なし）、本文は5万文字以内で入力してください。制御文字は使えません。"
+
 // renderPostFormError は入力をそのまま戻して、修正を求めるフォームを返します。
-func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, title string, p Post) {
+// p は保存済みの記事（作成時はゼロ値）で、状態の表示に使います。
+func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, title string, p Post, form postForm, msg string) {
 	data, _, ok := f.adminPage(w, r, title, "posts")
 	if !ok {
 		return
 	}
 	data["Post"] = p
-	data["Error"] = "タイトルは1〜200文字（改行なし）、本文は5万文字以内で入力してください。制御文字は使えません。"
+	data["Form"] = form
+	data["Error"] = msg
 	f.renderAdminStatus(w, http.StatusBadRequest, "admin_post_form.html", data, false)
+}
+
+// formFromPost は保存済みの記事から、フォームの初期値を作ります。
+func formFromPost(p Post) postForm {
+	form := postForm{Title: p.Title, Body: p.Body}
+	if !p.PublishedAt.IsZero() {
+		form.PublishedAt = p.PublishedAt.In(time.Local).Format(datetimeInputLayout)
+	}
+	return form
 }
 
 func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +191,7 @@ func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data["Post"] = adminLocalTime(p)
+	data["Form"] = formFromPost(p)
 	setNotice(data, r)
 	f.renderAdmin(w, "admin_post_form.html", data, false)
 }
@@ -149,16 +201,20 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, sessi
 	if !ok {
 		return
 	}
-	title, body := r.PostForm.Get("title"), r.PostForm.Get("body")
-	err := f.posts.Update(r.Context(), id, title, body)
+	form := readPostForm(r)
+	publishedAt, msg := f.parsePublishedAt(form.PublishedAt)
+	err := ErrInvalidInput
+	if msg == "" {
+		err = f.posts.UpdateWithDate(r.Context(), id, form.Title, form.Body, publishedAt)
+		msg = postInputError
+	}
 	if errors.Is(err, ErrInvalidInput) {
 		p, gerr := f.posts.Get(r.Context(), id)
 		if gerr != nil {
 			http.NotFound(w, r)
 			return
 		}
-		p.Title, p.Body = title, body
-		f.renderPostFormError(w, r, "お知らせの編集", adminLocalTime(p))
+		f.renderPostFormError(w, r, "お知らせの編集", adminLocalTime(p), form, msg)
 		return
 	}
 	f.afterPostChange(w, r, id, err, "cms post updated", "saved")

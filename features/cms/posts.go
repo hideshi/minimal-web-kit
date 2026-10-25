@@ -83,14 +83,23 @@ func normalizePost(title, body string) (string, string, error) {
 
 // Create は下書きとして記事を作成し、IDを返します。
 func (s *PostStore) Create(ctx context.Context, title, body string) (int64, error) {
+	return s.CreateWithDate(ctx, title, body, time.Time{})
+}
+
+// CreateWithDate は公開日時を指定して下書きを作成します。publishedAt がゼロ値なら、初めて公開したときに設定します。
+func (s *PostStore) CreateWithDate(ctx context.Context, title, body string, publishedAt time.Time) (int64, error) {
 	title, body, err := normalizePost(title, body)
+	if err != nil {
+		return 0, err
+	}
+	at, err := s.publishedAtArg(publishedAt)
 	if err != nil {
 		return 0, err
 	}
 	now := s.now().Unix()
 	res, err := s.db.ExecContext(ctx,
-		"INSERT INTO cms_posts (title, body, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-		title, body, statusDraft, now, now)
+		"INSERT INTO cms_posts (title, body, status, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+		title, body, statusDraft, at, now, now)
 	if err != nil {
 		return 0, err
 	}
@@ -99,13 +108,34 @@ func (s *PostStore) Create(ctx context.Context, title, body string) (int64, erro
 
 // Update は記事のタイトルと本文を更新します。公開状態は変えません。
 func (s *PostStore) Update(ctx context.Context, id int64, title, body string) error {
+	return s.UpdateWithDate(ctx, id, title, body, time.Time{})
+}
+
+// UpdateWithDate はタイトル・本文と公開日時を1つの文で更新します。publishedAt がゼロ値なら公開日時は変えません。
+func (s *PostStore) UpdateWithDate(ctx context.Context, id int64, title, body string, publishedAt time.Time) error {
 	title, body, err := normalizePost(title, body)
 	if err != nil {
 		return err
 	}
+	at, err := s.publishedAtArg(publishedAt)
+	if err != nil {
+		return err
+	}
 	return s.execOne(ctx,
-		"UPDATE cms_posts SET title = ?, body = ?, updated_at = ? WHERE id = ?",
-		title, body, s.now().Unix(), id)
+		"UPDATE cms_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ? WHERE id = ?",
+		title, body, at, s.now().Unix(), id)
+}
+
+// publishedAtArg は公開日時をSQLの引数に変換します。ゼロ値はNULL、未来の日時は ErrInvalidInput です。
+// 公開ページは公開日時で絞り込まないため、未来の日時を許すと、未来の日付のお知らせがすぐに表示されてしまいます。
+func (s *PostStore) publishedAtArg(t time.Time) (any, error) {
+	if t.IsZero() {
+		return nil, nil
+	}
+	if t.Unix() <= 0 || t.After(s.now()) {
+		return nil, ErrInvalidInput
+	}
+	return t.Unix(), nil
 }
 
 // Publish は記事を公開します。初めて公開する場合だけ公開日時を設定し、再公開では維持します。
@@ -128,9 +158,13 @@ func (s *PostStore) SetPublishedAt(ctx context.Context, id int64, at time.Time) 
 	if at.IsZero() {
 		return ErrInvalidInput
 	}
+	arg, err := s.publishedAtArg(at)
+	if err != nil {
+		return err
+	}
 	return s.execOne(ctx,
 		"UPDATE cms_posts SET published_at = ?, updated_at = ? WHERE id = ?",
-		at.Unix(), s.now().Unix(), id)
+		arg, s.now().Unix(), id)
 }
 
 // Delete は記事を物理削除します。
