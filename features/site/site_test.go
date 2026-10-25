@@ -42,7 +42,9 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"個人情報の取得最小化 &amp; 漏洩リスクへの対策",
 		"アクセシブルなUIデザイン",
 		"公的Webアクセシビリティ指針に基づくミニマルUI",
-		`href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">GitHubでコードを見る（新しいタブで開きます）</a>`,
+		`href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary">GitHubでキットを入手する（新しいタブで開きます）</a>`,
+		`<span class="btn-main-text">GitHubでキットを入手する</span>`,
+		`rel="noopener noreferrer">GitHub（新しいタブ）</a>`,
 		"<details",
 		"<summary>",
 		"/privacy",
@@ -60,6 +62,14 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"新しいタブで開きます",
 		"target=\"_blank\"",
 		"rel=\"noopener noreferrer\"",
+	}
+
+	// GitHubへのリンクは、すべて新しいタブで開き、opener・referrerを渡さないこと
+	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit"`); got != 3 {
+		t.Errorf("expected 3 GitHub CTAs (hero, how-it-works, nav), got %d", got)
+	}
+	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer"`); got != 3 {
+		t.Errorf("all GitHub CTAs must open in a new tab with noopener noreferrer, got %d", got)
 	}
 
 	for _, snippet := range expectedSnippets {
