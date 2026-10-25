@@ -132,8 +132,11 @@ func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 		t.Fatalf("unexpected cookie attributes: %+v", cookie)
 	}
 
-	// ダッシュボードはJSを許可しない
-	rec = fx.do(t, http.MethodGet, "/admin", nil, cookie)
+	// /admin は記事の管理画面へ。記事の管理画面はJSを許可しない
+	if rec := fx.do(t, http.MethodGet, "/admin", nil, cookie); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/posts" {
+		t.Fatalf("admin home: %d %s", rec.Code, rec.Header().Get("Location"))
+	}
+	rec = fx.do(t, http.MethodGet, "/admin/posts", nil, cookie)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "script-src 'none'") {
 		t.Fatalf("dashboard: %d %s", rec.Code, rec.Header().Get("Content-Security-Policy"))
 	}
@@ -168,7 +171,7 @@ func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 	if rec := logout(url.Values{"csrf_token": {csrf}}, "same-origin"); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatalf("logout: %d", rec.Code)
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin", nil, cookie); rec.Code != http.StatusSeeOther {
+	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, cookie); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatal("session must be invalid after logout")
 	}
 }
@@ -178,7 +181,7 @@ func TestAdmin_RequiresSessionAndSameOrigin(t *testing.T) {
 	if rec := fx.do(t, http.MethodGet, "/admin", nil); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatalf("unauthenticated dashboard: %d", rec.Code)
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin", nil, &http.Cookie{Name: adminCookieName, Value: "forged"}); rec.Code != http.StatusSeeOther {
+	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, &http.Cookie{Name: adminCookieName, Value: "forged"}); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatal("forged cookie must be rejected")
 	}
 	for name, headers := range map[string]map[string]string{
@@ -254,7 +257,7 @@ func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	if !strings.Contains(fx.logs.String(), "cms passkey disabled") {
 		t.Fatal("disabling must be logged")
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin", nil, first); rec.Code != http.StatusSeeOther {
+	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, first); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatal("all admin sessions must be revoked")
 	}
 	if _, err := fx.feature.admin.getCredential(ctx, a.credID); err == nil {

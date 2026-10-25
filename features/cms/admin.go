@@ -49,7 +49,11 @@ var errorMessages = map[string]string{
 
 func parseAdminTemplates() map[string]*template.Template {
 	pages := map[string]*template.Template{}
-	for _, page := range []string{"admin_setup.html", "admin_login.html", "admin_dashboard.html"} {
+	for _, page := range []string{
+		"admin_setup.html", "admin_login.html",
+		"admin_posts.html", "admin_post_form.html", "admin_post_delete.html",
+		"admin_passkeys.html", "admin_passkey_delete.html",
+	} {
 		pages[page] = template.Must(template.ParseFS(viewsFS, "views/admin_layout.html", "views/"+page))
 	}
 	return pages
@@ -60,6 +64,10 @@ func (f *Feature) requestID(w http.ResponseWriter) slog.Attr {
 }
 
 func (f *Feature) renderAdmin(w http.ResponseWriter, page string, data map[string]any, withScript bool) {
+	f.renderAdminStatus(w, http.StatusOK, page, data, withScript)
+}
+
+func (f *Feature) renderAdminStatus(w http.ResponseWriter, status int, page string, data map[string]any, withScript bool) {
 	var buf bytes.Buffer
 	if err := f.adminPages[page].ExecuteTemplate(&buf, "layout", data); err != nil {
 		f.logger.Error("cms render admin failed", f.requestID(w))
@@ -70,6 +78,7 @@ func (f *Feature) renderAdmin(w http.ResponseWriter, page string, data map[strin
 		w.Header().Set("Content-Security-Policy", authPageCSP)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	_, _ = buf.WriteTo(w)
 }
 
@@ -138,22 +147,58 @@ func (f *Feature) clearAdminCookie(w http.ResponseWriter) {
 
 // --- 画面 ---
 
-func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
-	session := f.adminSession(r)
+// adminPage は、ログイン中の管理画面に共通のデータを用意します。
+// 未ログインならログイン画面へリダイレクトし、ok=false を返します。
+func (f *Feature) adminPage(w http.ResponseWriter, r *http.Request, title, nav string) (data map[string]any, session string, ok bool) {
+	session = f.adminSession(r)
 	if session == "" {
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
-		return
+		return nil, "", false
 	}
-	var disabled int
-	if err := f.db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM cms_credentials WHERE disabled_at IS NOT NULL").Scan(&disabled); err != nil {
+	disabled, err := f.admin.countDisabledCredentials(r.Context())
+	if err != nil {
 		f.logger.Error("cms count disabled passkeys failed", f.requestID(w))
 	}
-	f.renderAdmin(w, "admin_dashboard.html", map[string]any{
-		"Title":            "管理画面",
+	return map[string]any{
+		"Title":            title,
+		"Nav":              nav,
 		"LoggedIn":         true,
 		"CSRFToken":        f.csrfToken(session),
 		"DisabledPasskeys": disabled > 0,
-	}, false)
+	}, session, true
+}
+
+// adminForm は、管理画面のフォーム送信（POST）に、同一オリジン・管理者セッション・CSRFトークンの確認を掛けます。
+func (f *Feature) adminForm(next func(w http.ResponseWriter, r *http.Request, session string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if !f.sameOrigin(r) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		session := f.adminSession(r)
+		if session == "" {
+			// 期限切れ等。送信内容は保存せず、ログインし直してもらう
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		if !f.validCSRF(session, r.PostForm.Get("csrf_token")) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r, session)
+	}
+}
+
+func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
+	if f.adminSession(r) == "" {
+		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/admin/posts", http.StatusSeeOther)
 }
 
 func (f *Feature) handleSetupPage(w http.ResponseWriter, r *http.Request) {
@@ -171,12 +216,7 @@ func (f *Feature) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	}, true)
 }
 
-func (f *Feature) handleLogout(w http.ResponseWriter, r *http.Request) {
-	session := f.adminSession(r)
-	if !f.sameOrigin(r) || session == "" || !f.validCSRF(session, r.PostFormValue("csrf_token")) {
-		http.Error(w, "Forbidden", http.StatusForbidden)
-		return
-	}
+func (f *Feature) handleLogout(w http.ResponseWriter, r *http.Request, session string) {
 	if err := f.admin.deleteSession(r.Context(), session); err != nil {
 		f.logger.Error("cms logout failed", f.requestID(w))
 	}
@@ -373,7 +413,7 @@ func (f *Feature) handleRegisterFinish(w http.ResponseWriter, r *http.Request, b
 	f.logger.Info("cms passkey registered", f.requestID(w))
 	next := "/admin/login?registered=1"
 	if session != "" {
-		next = "/admin"
+		next = "/admin/passkeys?notice=added"
 	}
 	f.writeJSON(w, http.StatusOK, map[string]string{"next": next})
 }
@@ -491,10 +531,12 @@ func (f *Feature) registerAdminRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("GET /admin", f.handleAdminHome)
 	mux.HandleFunc("GET /admin/setup", f.handleSetupPage)
 	mux.HandleFunc("GET /admin/login", f.handleLoginPage)
-	mux.HandleFunc("POST /admin/logout", f.handleLogout)
+	mux.HandleFunc("POST /admin/logout", f.adminForm(f.handleLogout))
 	mux.HandleFunc("GET /admin/static/webauthn.js", f.handleStaticJS)
 	mux.HandleFunc("POST /admin/webauthn/register/begin", f.jsonEndpoint(f.handleRegisterBegin))
 	mux.HandleFunc("POST /admin/webauthn/register/finish", f.jsonEndpoint(f.handleRegisterFinish))
 	mux.HandleFunc("POST /admin/webauthn/login/begin", f.jsonEndpoint(f.handleLoginBegin))
 	mux.HandleFunc("POST /admin/webauthn/login/finish", f.jsonEndpoint(f.handleLoginFinish))
+	f.registerPostAdminRoutes(mux)
+	f.registerPasskeyAdminRoutes(mux)
 }

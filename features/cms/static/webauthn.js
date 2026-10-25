@@ -33,11 +33,15 @@
     return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
 
-  async function post(url, body) {
+  async function post(url, body, csrfToken) {
+    var headers = { "Content-Type": "application/json" };
+    if (csrfToken) {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
     var res = await fetch(url, {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify(body)
     });
     var data = {};
@@ -67,6 +71,36 @@
     return;
   }
 
+  // 登録: 初回・復旧は登録トークン、ログイン中の追加はCSRFトークンで認可される
+  async function register(token, csrfToken, label) {
+    show("認証器の操作を待っています…");
+    var options = await post("/admin/webauthn/register/begin", { token: token }, csrfToken);
+    options.challenge = toBuffer(options.challenge);
+    options.user.id = toBuffer(options.user.id);
+    options.excludeCredentials = options.excludeCredentials.map(function (c) {
+      return { type: c.type, id: toBuffer(c.id) };
+    });
+    var credential = await navigator.credentials.create({ publicKey: options });
+    var response = credential.response;
+    if (typeof response.getPublicKey !== "function" || typeof response.getAuthenticatorData !== "function") {
+      throw new Error("このブラウザは必要な機能に対応していません。最新のブラウザで開いてください。");
+    }
+    var publicKey = response.getPublicKey();
+    if (!publicKey) {
+      throw new Error("この認証器の鍵の種類には対応していません。別の認証器を使ってください。");
+    }
+    var result = await post("/admin/webauthn/register/finish", {
+      token: token,
+      label: label,
+      rawId: toB64url(credential.rawId),
+      clientDataJSON: toB64url(response.clientDataJSON),
+      authenticatorData: toB64url(response.getAuthenticatorData()),
+      publicKey: toB64url(publicKey),
+      publicKeyAlgorithm: response.getPublicKeyAlgorithm()
+    }, csrfToken);
+    location.href = result.next;
+  }
+
   // 登録画面: トークンはURLの#以降から読み、すぐにアドレスバーと履歴から消す
   var setupForm = document.getElementById("setup-form");
   if (setupForm) {
@@ -80,34 +114,22 @@
     setupForm.hidden = false;
     setupForm.addEventListener("submit", async function (event) {
       event.preventDefault();
-      var label = document.getElementById("passkey-label").value;
       try {
-        show("認証器の操作を待っています…");
-        var options = await post("/admin/webauthn/register/begin", { token: token });
-        options.challenge = toBuffer(options.challenge);
-        options.user.id = toBuffer(options.user.id);
-        options.excludeCredentials = options.excludeCredentials.map(function (c) {
-          return { type: c.type, id: toBuffer(c.id) };
-        });
-        var credential = await navigator.credentials.create({ publicKey: options });
-        var response = credential.response;
-        if (typeof response.getPublicKey !== "function" || typeof response.getAuthenticatorData !== "function") {
-          throw new Error("このブラウザは必要な機能に対応していません。最新のブラウザで開いてください。");
-        }
-        var publicKey = response.getPublicKey();
-        if (!publicKey) {
-          throw new Error("この認証器の鍵の種類には対応していません。別の認証器を使ってください。");
-        }
-        var result = await post("/admin/webauthn/register/finish", {
-          token: token,
-          label: label,
-          rawId: toB64url(credential.rawId),
-          clientDataJSON: toB64url(response.clientDataJSON),
-          authenticatorData: toB64url(response.getAuthenticatorData()),
-          publicKey: toB64url(publicKey),
-          publicKeyAlgorithm: response.getPublicKeyAlgorithm()
-        });
-        location.href = result.next;
+        await register(token, "", document.getElementById("passkey-label").value);
+      } catch (err) {
+        show(browserError(err));
+      }
+    });
+  }
+
+  // パスキー管理画面: ログイン中にパスキーを追加する
+  var addForm = document.getElementById("passkey-add-form");
+  if (addForm) {
+    addForm.hidden = false;
+    addForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      try {
+        await register("", addForm.elements.csrf_token.value, document.getElementById("passkey-label").value);
       } catch (err) {
         show(browserError(err));
       }

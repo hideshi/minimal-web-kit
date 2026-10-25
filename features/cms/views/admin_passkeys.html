@@ -1,0 +1,61 @@
+{{define "script"}}<script src="/admin/static/webauthn.js" defer></script>{{end}}
+{{define "content"}}
+<h1>パスキーの管理</h1>
+
+{{if .Notice}}<p class="alert alert-info" role="status">{{.Notice}}</p>{{end}}
+{{if .Error}}<p class="alert alert-warning" role="alert">{{.Error}}</p>{{end}}
+{{if lt .ActiveCount 2}}<p class="alert alert-warning">有効なパスキーが1つだけです。認証器を失うとログインできなくなるため、別の認証器も追加しておくことをおすすめします。</p>{{end}}
+
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">登録済みのパスキー</caption>
+    <thead>
+      <tr>
+        <th scope="col">端末名</th>
+        <th scope="col">状態</th>
+        <th scope="col">登録日時</th>
+        <th scope="col">最終使用日時</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Credentials}}
+      <tr>
+        <td>
+          <form method="post" action="/admin/passkeys/{{.Param}}/label" class="label-form">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <label for="label-{{.Param}}" class="visually-hidden">端末名</label>
+            <input type="text" id="label-{{.Param}}" name="label" maxlength="50" required value="{{.Label}}">
+            <button type="submit" class="btn btn-secondary">名前を変更</button>
+          </form>
+        </td>
+        <td>{{if .Disabled}}無効（複製の疑い）<br><time datetime="{{.DisabledAt.Format "2006-01-02T15:04"}}">{{.DisabledAt.Format "2006年1月2日 15:04"}}</time>{{else}}有効{{end}}</td>
+        <td><time datetime="{{.CreatedAt.Format "2006-01-02T15:04"}}">{{.CreatedAt.Format "2006年1月2日 15:04"}}</time></td>
+        <td>{{if .LastUsedAt.IsZero}}未使用{{else}}<time datetime="{{.LastUsedAt.Format "2006-01-02T15:04"}}">{{.LastUsedAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
+        <td><a href="/admin/passkeys/{{.Param}}/delete">削除</a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+
+<h2>パスキーを追加する</h2>
+
+<p>この端末だけに保存される認証器（Windows Helloの指紋・顔・PIN、またはセキュリティキー）を追加します。同期されるパスキーは追加できません。</p>
+
+<noscript>
+  <p class="alert alert-warning">パスキーの追加にはJavaScriptが必要です。ブラウザの設定でJavaScriptを有効にしてください。</p>
+</noscript>
+
+<form id="passkey-add-form" class="card" hidden>
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <div class="form-group">
+    <label for="passkey-label">端末名</label>
+    <p class="field-hint" id="passkey-label-hint">あとで見分けるための名前です（例: 予備のセキュリティキー）。個人名は入れないでください。50文字以内。</p>
+    <input type="text" id="passkey-label" name="label" maxlength="50" required aria-describedby="passkey-label-hint">
+  </div>
+  <button type="submit" class="btn btn-primary">パスキーを追加する</button>
+</form>
+
+<p id="webauthn-status" role="status" aria-live="polite"></p>
+{{end}}

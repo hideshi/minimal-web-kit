@@ -567,3 +567,47 @@ footer {
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
 }
+
+/* CMS: 管理画面 */
+.admin-main > p,
+.admin-main > .card {
+  margin-bottom: var(--space-md);
+}
+
+.admin-caption {
+  text-align: left;
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+}
+
+nav a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration-thickness: 3px;
+}
+
+.label-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: 0;
+}
+
+.label-form input[type="text"] {
+  flex: 1 1 12rem;
+  width: auto;
+}
+
+/* 画面には表示せず、支援技術には読み上げさせる */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* hidden属性を、.card や .btn の display 指定より優先する（同じ詳細度のため、ファイルの最後に置く） */
+[hidden] {
+  display: none;
+}

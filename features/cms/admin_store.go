@@ -28,6 +28,8 @@ var (
 	ErrSignCountConflict = errors.New("cms: sign count update conflict")
 	// ErrAlreadySetUp はパスキーが登録済みのため、初回登録の手順を使えないことを示します。
 	ErrAlreadySetUp = errors.New("cms: passkeys already registered; use cms-recover")
+	// ErrLastCredential は、最後の有効なパスキーは削除できないことを示します。
+	ErrLastCredential = errors.New("cms: cannot delete the last active passkey")
 )
 
 const maxLabelRunes = 50
@@ -270,6 +272,124 @@ func (s *adminStore) disableCredential(ctx context.Context, id []byte) error {
 		return err
 	}
 	return tx.Commit()
+}
+
+// credentialInfo はパスキー管理画面に表示する項目です。公開鍵は含めません。
+type credentialInfo struct {
+	ID         []byte
+	Label      string
+	CreatedAt  time.Time
+	LastUsedAt time.Time // 未使用ならゼロ値
+	DisabledAt time.Time // 有効ならゼロ値
+}
+
+// Param は経路の {id} に使う、credential IDのbase64url表現です。
+func (c credentialInfo) Param() string { return b64(c.ID) }
+
+func (c credentialInfo) Disabled() bool { return !c.DisabledAt.IsZero() }
+
+func scanCredentialInfo(row rowScanner) (credentialInfo, error) {
+	var c credentialInfo
+	var createdAt int64
+	var lastUsedAt, disabledAt sql.NullInt64
+	if err := row.Scan(&c.ID, &c.Label, &createdAt, &lastUsedAt, &disabledAt); err != nil {
+		return credentialInfo{}, err
+	}
+	c.CreatedAt = time.Unix(createdAt, 0).In(time.Local)
+	if lastUsedAt.Valid {
+		c.LastUsedAt = time.Unix(lastUsedAt.Int64, 0).In(time.Local)
+	}
+	if disabledAt.Valid {
+		c.DisabledAt = time.Unix(disabledAt.Int64, 0).In(time.Local)
+	}
+	return c, nil
+}
+
+const credentialInfoColumns = "id, label, created_at, last_used_at, disabled_at"
+
+// listCredentials は登録済みのパスキーを、無効化済みも含めて登録順に返します。
+func (s *adminStore) listCredentials(ctx context.Context) ([]credentialInfo, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT "+credentialInfoColumns+" FROM cms_credentials ORDER BY created_at, id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []credentialInfo
+	for rows.Next() {
+		c, err := scanCredentialInfo(rows)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, c)
+	}
+	return list, rows.Err()
+}
+
+func (s *adminStore) getCredentialInfo(ctx context.Context, id []byte) (credentialInfo, error) {
+	c, err := scanCredentialInfo(s.db.QueryRowContext(ctx, "SELECT "+credentialInfoColumns+" FROM cms_credentials WHERE id = ?", id))
+	if errors.Is(err, sql.ErrNoRows) {
+		return credentialInfo{}, ErrNotFound
+	}
+	return c, err
+}
+
+// renameCredential はパスキーの端末名を変更します。
+func (s *adminStore) renameCredential(ctx context.Context, id []byte, label string) error {
+	label, err := normalizeLabel(label)
+	if err != nil {
+		return err
+	}
+	res, err := s.db.ExecContext(ctx, "UPDATE cms_credentials SET label = ? WHERE id = ?", label, id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// deleteCredential はパスキーを削除し、現在のセッション以外の管理者セッションをすべて削除します。
+// 紛失した端末でログイン中のセッションを残さないためです。最後の有効なパスキーは削除できません。
+// 残数の確認と削除は1つの文で行い、並行して削除しても有効なパスキーが0件にならないようにします。
+func (s *adminStore) deleteCredential(ctx context.Context, id []byte, keepSession string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx,
+		`DELETE FROM cms_credentials WHERE id = ? AND (disabled_at IS NOT NULL OR
+			(SELECT COUNT(*) FROM cms_credentials WHERE disabled_at IS NULL AND id != ?) > 0)`,
+		id, id)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		var exists int
+		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM cms_credentials WHERE id = ?", id).Scan(&exists); err != nil {
+			return err
+		}
+		if exists == 0 {
+			return ErrNotFound
+		}
+		return ErrLastCredential
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM cms_admin_sessions WHERE token_hash != ?", hashToken(keepSession)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// countDisabledCredentials は無効化済みのパスキーの数を返します（管理画面上部の警告用）。
+func (s *adminStore) countDisabledCredentials(ctx context.Context) (int, error) {
+	var n int
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM cms_credentials WHERE disabled_at IS NOT NULL").Scan(&n)
+	return n, err
 }
 
 func (s *adminStore) webAuthnUserID(ctx context.Context) ([]byte, error) {

@@ -19,6 +19,10 @@
         <div class="site-subtitle">管理画面</div>
       </div>
       <nav aria-label="管理画面のナビゲーション">
+        {{if .LoggedIn}}
+        <a href="/admin/posts"{{if eq .Nav "posts"}} aria-current="page"{{end}}>お知らせの管理</a>
+        <a href="/admin/passkeys"{{if eq .Nav "passkeys"}} aria-current="page"{{end}}>パスキーの管理</a>
+        {{end}}
         <a href="/news">公開中のお知らせ</a>
         {{if .LoggedIn}}
         <form method="post" action="/admin/logout" class="inline-form">
@@ -30,7 +34,10 @@
     </div>
   </header>
 
-  <main id="main-content" tabindex="-1">
+  <main id="main-content" class="admin-main" tabindex="-1">
+    {{if .DisabledPasskeys}}
+    <p class="alert alert-warning">複製の疑いで無効化されたパスキーがあります。<a href="/admin/passkeys">パスキーの管理</a>で確認してください。心当たりがない場合は、サーバーで make cms-recover を実行し、パスキーを登録し直してください。</p>
+    {{end}}
     {{template "content" .}}
   </main>
 </body>
