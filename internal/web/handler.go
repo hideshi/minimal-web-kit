@@ -42,8 +42,44 @@ func NewHandler(s store.SessionStore, sm *SessionManager, logger *slog.Logger) (
 	}, nil
 }
 
+// IsolatedMux は、CoreのCSRF検査とセッション解決を通さない独立経路を登録するためのものです。
+// 独立経路の認証・CSRF・Origin検査は、登録した機能自身が実装します。
+type IsolatedMux struct {
+	routes []isolatedRoute
+}
+
+type isolatedRoute struct {
+	pattern string
+	handler http.Handler
+}
+
+func (m *IsolatedMux) Handle(pattern string, handler http.Handler) {
+	m.routes = append(m.routes, isolatedRoute{pattern: pattern, handler: handler})
+}
+
+func (m *IsolatedMux) HandleFunc(pattern string, handler http.HandlerFunc) {
+	m.Handle(pattern, handler)
+}
+
 // Routes はCoreのルーティングを構築し、登録されたFeatureのルートを合成します。
 func (h *Handler) Routes(rootHandler http.HandlerFunc, registerFeatures func(mux *http.ServeMux, sm *SessionManager)) http.Handler {
+	handler, err := h.RoutesWithIsolated(rootHandler, registerFeatures, nil)
+	if err != nil {
+		panic(err)
+	}
+	return handler
+}
+
+// RoutesWithIsolated は Routes に加えて、独立経路を合成します。
+// 独立経路はCoreの経路より優先されます。CoreやFeatureの経路と同じパターンを登録した場合はエラーを返します。
+func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatures func(mux *http.ServeMux, sm *SessionManager), registerIsolated func(mux *IsolatedMux)) (handler http.Handler, err error) {
+	defer func() {
+		// ServeMuxはパターンの衝突をpanicで通知するため、起動時エラーに変換する
+		if rvr := recover(); rvr != nil {
+			handler, err = nil, fmt.Errorf("register routes: %v", rvr)
+		}
+	}()
+
 	appMux := http.NewServeMux()
 
 	// ルートパス（GET /）：Featureが独自トップ画面を提供する場合はそれを使い、なければBaseデフォルト画面
@@ -86,13 +122,23 @@ func (h *Handler) Routes(rootHandler http.HandlerFunc, registerFeatures func(mux
 	rootMux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	rootMux.Handle("/", appHandler)
 
-	handler := AccessLog(h.logger)(rootMux)
+	if registerIsolated != nil {
+		isolated := &IsolatedMux{}
+		registerIsolated(isolated)
+		for _, route := range isolated.routes {
+			// Core・Featureの経路との衝突を検出するため、到達しない形でappMuxにも登録する
+			appMux.Handle(route.pattern, http.NotFoundHandler())
+			rootMux.Handle(route.pattern, route.handler)
+		}
+	}
+
+	handler = AccessLog(h.logger)(rootMux)
 	handler = MaxBytes(1024 * 1024)(handler)
 	handler = SecurityHeaders(handler)
 	handler = Recoverer(h.logger)(handler)
 	handler = RequestID(handler)
 
-	return handler
+	return handler, nil
 }
 
 func (h *Handler) Render(w http.ResponseWriter, page string, data any) {

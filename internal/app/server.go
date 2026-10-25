@@ -50,6 +50,7 @@ func (s *Server) Run() error {
 	} else if count > 0 {
 		s.logger.Info("startup gc expired sessions purged", slog.Int64("count", count))
 	}
+	s.purgeFeatures("startup")
 
 	sm := web.NewSessionManager(s.store, s.cfg.SecureCookie)
 	handler, err := web.NewHandler(s.store, sm, s.logger)
@@ -69,13 +70,24 @@ func (s *Server) Run() error {
 	}
 
 	// ルーティング構築
-	httpHandler := handler.Routes(rootHandler, func(mux *http.ServeMux, sm *web.SessionManager) {
+	httpHandler, err := handler.RoutesWithIsolated(rootHandler, func(mux *http.ServeMux, sm *web.SessionManager) {
 		if s.features != nil {
 			for _, f := range s.features.All() {
 				f.RegisterRoutes(mux, sm)
 			}
 		}
+	}, func(mux *web.IsolatedMux) {
+		if s.features != nil {
+			for _, f := range s.features.All() {
+				if iso, ok := f.(features.IsolatedRoutesFeature); ok {
+					iso.RegisterIsolatedRoutes(mux)
+				}
+			}
+		}
 	})
+	if err != nil {
+		return fmt.Errorf("init routes: %w", err)
+	}
 
 	httpServer := &http.Server{
 		Addr:         s.cfg.Addr,
@@ -108,6 +120,7 @@ func (s *Server) Run() error {
 				} else if count > 0 {
 					s.logger.Info("gc expired sessions purged", slog.Int64("count", count))
 				}
+				s.purgeFeatures("periodic")
 			}
 		}
 	}()
@@ -138,4 +151,19 @@ func (s *Server) Run() error {
 	wg.Wait()
 	s.logger.Info("server stopped successfully")
 	return nil
+}
+
+// purgeFeatures は PurgeFeature を実装する各機能の期限切れデータ削除を呼び出します。
+// エラーの内容は記録せず、機能名と固定のメッセージのみを記録します。
+func (s *Server) purgeFeatures(trigger string) {
+	if s.features == nil || s.store.DB() == nil {
+		return
+	}
+	for _, f := range s.features.All() {
+		if p, ok := f.(features.PurgeFeature); ok {
+			if err := p.Purge(context.Background()); err != nil {
+				s.logger.Error("feature purge failed", slog.String("feature", f.Name()), slog.String("trigger", trigger))
+			}
+		}
+	}
 }

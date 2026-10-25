@@ -1,6 +1,7 @@
 package features
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 
@@ -18,6 +19,20 @@ type Feature interface {
 type CustomRootFeature interface {
 	Feature
 	HandleRoot(w http.ResponseWriter, r *http.Request)
+}
+
+// IsolatedRoutesFeature は、CoreのCSRF検査とセッション解決（匿名セッションCookieの照合）を通さない経路を持つ機能が実装します。
+// Cookieを照合しない公開ページや、独自の認証・CSRF保護を持つ管理画面に使います。
+// 独立経路の認証・CSRF・Origin検査は、機能自身が実装する責任を負います。
+type IsolatedRoutesFeature interface {
+	Feature
+	RegisterIsolatedRoutes(mux *web.IsolatedMux)
+}
+
+// PurgeFeature は、期限切れデータの削除をCoreの起動時と定期のGCから呼ばれる機能が実装します。
+type PurgeFeature interface {
+	Feature
+	Purge(ctx context.Context) error
 }
 
 // Registry は有効化されている全機能のリストを保持します。
