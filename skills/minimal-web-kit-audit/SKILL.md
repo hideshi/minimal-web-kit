@@ -19,7 +19,7 @@ go test -race -v ./...
 
 ### 自動検証される項目:
 - **`TestArchitecture_DependencyAllowedList`**: `go.mod` の直接依存が許可リスト（`modernc.org/sqlite` のみ）と一致しているか。
-- **`TestDataSchema_MatchesDataLedger`**: `docs/data-inventory.md` に記載されたテーブル・列定義と、インメモリDB上の実スキーマ（`PRAGMA table_info`）のテーブル名・列名が双方向で一致しているか。型・NULL制約・外部キー・Feature初期化経路の完全検査ではない。
+- **`TestDataSchema_MatchesDataLedger`**: `docs/data-inventory.md` に記載されたテーブル・列定義と、インメモリDB上の実スキーマ（`PRAGMA table_info`）のテーブル名・列名が双方向で一致しているか。Featureは有効化の状態にかかわらず全 `features/*/migration.sql` を適用する。型・NULL制約・外部キーや、`migration.sql` 以外で作るテーブルは検査しない。
 - **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=`、`<style>`、`<script>`、および `on*` イベントハンドラが含まれていないか。
 - **`TestCSS_SingleFileAndNoImportant`**: CSSファイルが単一であり、`!important` が含まれていないか。
 - **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection` で検査する。

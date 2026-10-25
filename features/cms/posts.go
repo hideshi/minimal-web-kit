@@ -1,0 +1,226 @@
+package cms
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"strings"
+	"time"
+	"unicode"
+	"unicode/utf8"
+)
+
+const (
+	maxTitleRunes = 200
+	maxBodyRunes  = 50000
+
+	statusDraft     = "draft"
+	statusPublished = "published"
+)
+
+var (
+	// ErrNotFound は記事が存在しない（公開側では、公開中でない）ことを示します。
+	ErrNotFound = errors.New("cms: not found")
+	// ErrInvalidInput は入力が制約を満たさないことを示します。
+	ErrInvalidInput = errors.New("cms: invalid input")
+)
+
+// Post はお知らせ1件です。PublishedAt は一度も公開していなければゼロ値です。
+type Post struct {
+	ID          int64
+	Title       string
+	Body        string
+	Published   bool
+	PublishedAt time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// PostStore はお知らせの読み書きを担当します。HTML表示・JSON API・管理画面で共通に使います。
+type PostStore struct {
+	db  *sql.DB
+	now func() time.Time
+}
+
+func NewPostStore(db *sql.DB) *PostStore {
+	return &PostStore{db: db, now: time.Now}
+}
+
+// normalizeText は改行をLFに揃え、UTF-8・制御文字・文字数を検証します。
+func normalizeText(s string, maxRunes int, required bool) (string, error) {
+	if !utf8.ValidString(s) {
+		return "", ErrInvalidInput
+	}
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	for _, r := range s {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return "", ErrInvalidInput
+		}
+	}
+	if required && strings.TrimSpace(s) == "" {
+		return "", ErrInvalidInput
+	}
+	if utf8.RuneCountInString(s) > maxRunes {
+		return "", ErrInvalidInput
+	}
+	return s, nil
+}
+
+func normalizePost(title, body string) (string, string, error) {
+	title, err := normalizeText(strings.TrimSpace(title), maxTitleRunes, true)
+	if err != nil {
+		return "", "", err
+	}
+	if strings.Contains(title, "\n") {
+		return "", "", ErrInvalidInput
+	}
+	body, err = normalizeText(body, maxBodyRunes, false)
+	if err != nil {
+		return "", "", err
+	}
+	return title, body, nil
+}
+
+// Create は下書きとして記事を作成し、IDを返します。
+func (s *PostStore) Create(ctx context.Context, title, body string) (int64, error) {
+	title, body, err := normalizePost(title, body)
+	if err != nil {
+		return 0, err
+	}
+	now := s.now().Unix()
+	res, err := s.db.ExecContext(ctx,
+		"INSERT INTO cms_posts (title, body, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+		title, body, statusDraft, now, now)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+// Update は記事のタイトルと本文を更新します。公開状態は変えません。
+func (s *PostStore) Update(ctx context.Context, id int64, title, body string) error {
+	title, body, err := normalizePost(title, body)
+	if err != nil {
+		return err
+	}
+	return s.execOne(ctx,
+		"UPDATE cms_posts SET title = ?, body = ?, updated_at = ? WHERE id = ?",
+		title, body, s.now().Unix(), id)
+}
+
+// Publish は記事を公開します。初めて公開する場合だけ公開日時を設定し、再公開では維持します。
+func (s *PostStore) Publish(ctx context.Context, id int64) error {
+	now := s.now().Unix()
+	return s.execOne(ctx,
+		"UPDATE cms_posts SET status = ?, published_at = COALESCE(published_at, ?), updated_at = ? WHERE id = ?",
+		statusPublished, now, now, id)
+}
+
+// Unpublish は記事を下書きに戻します。公開日時は維持します。
+func (s *PostStore) Unpublish(ctx context.Context, id int64) error {
+	return s.execOne(ctx,
+		"UPDATE cms_posts SET status = ?, updated_at = ? WHERE id = ?",
+		statusDraft, s.now().Unix(), id)
+}
+
+// SetPublishedAt は公開日時を明示的に変更します。
+func (s *PostStore) SetPublishedAt(ctx context.Context, id int64, at time.Time) error {
+	if at.IsZero() {
+		return ErrInvalidInput
+	}
+	return s.execOne(ctx,
+		"UPDATE cms_posts SET published_at = ?, updated_at = ? WHERE id = ?",
+		at.Unix(), s.now().Unix(), id)
+}
+
+// Delete は記事を物理削除します。
+func (s *PostStore) Delete(ctx context.Context, id int64) error {
+	return s.execOne(ctx, "DELETE FROM cms_posts WHERE id = ?", id)
+}
+
+// Get は公開状態にかかわらず記事を返します（管理画面用）。
+func (s *PostStore) Get(ctx context.Context, id int64) (Post, error) {
+	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ?", id)
+}
+
+// GetPublished は公開中の記事だけを返します（公開ページ・API用）。
+func (s *PostStore) GetPublished(ctx context.Context, id int64) (Post, error) {
+	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ? AND status = ?", id, statusPublished)
+}
+
+// ListPublished は公開中の記事を新しい順に返します。
+func (s *PostStore) ListPublished(ctx context.Context, limit, offset int) ([]Post, error) {
+	return s.list(ctx,
+		"SELECT "+postColumns+" FROM cms_posts WHERE status = ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
+		statusPublished, limit, offset)
+}
+
+// ListAll は全記事を更新の新しい順に返します（管理画面用）。
+func (s *PostStore) ListAll(ctx context.Context, limit, offset int) ([]Post, error) {
+	return s.list(ctx,
+		"SELECT "+postColumns+" FROM cms_posts ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+		limit, offset)
+}
+
+const postColumns = "id, title, body, status, published_at, created_at, updated_at"
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanPost(row rowScanner) (Post, error) {
+	var p Post
+	var status string
+	var publishedAt sql.NullInt64
+	var createdAt, updatedAt int64
+	if err := row.Scan(&p.ID, &p.Title, &p.Body, &status, &publishedAt, &createdAt, &updatedAt); err != nil {
+		return Post{}, err
+	}
+	p.Published = status == statusPublished
+	if publishedAt.Valid {
+		p.PublishedAt = time.Unix(publishedAt.Int64, 0).UTC()
+	}
+	p.CreatedAt = time.Unix(createdAt, 0).UTC()
+	p.UpdatedAt = time.Unix(updatedAt, 0).UTC()
+	return p, nil
+}
+
+func (s *PostStore) getOne(ctx context.Context, query string, args ...any) (Post, error) {
+	p, err := scanPost(s.db.QueryRowContext(ctx, query, args...))
+	if errors.Is(err, sql.ErrNoRows) {
+		return Post{}, ErrNotFound
+	}
+	return p, err
+}
+
+func (s *PostStore) list(ctx context.Context, query string, args ...any) ([]Post, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var posts []Post
+	for rows.Next() {
+		p, err := scanPost(rows)
+		if err != nil {
+			return nil, err
+		}
+		posts = append(posts, p)
+	}
+	return posts, rows.Err()
+}
+
+func (s *PostStore) execOne(ctx context.Context, query string, args ...any) error {
+	res, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

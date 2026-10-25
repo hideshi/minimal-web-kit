@@ -38,21 +38,16 @@ func TestDataSchema_MatchesDataLedger(t *testing.T) {
 		t.Fatalf("failed to execute core migration: %v", err)
 	}
 
-	// 2. 有効化されている各Featureのマイグレーションを実行（もし存在すれば）
+	// 2. 同梱・自作を問わず、全Featureのマイグレーションを実行する。
+	// 台帳は有効化の状態にかかわらず、各Featureが作りうる全テーブルを記載する。
 	featureMigrations, _ := filepath.Glob("../features/*/migration.sql")
-	featuresGoBytes, _ := os.ReadFile("../cmd/server/features.go")
-	featuresGo := string(featuresGoBytes)
-
 	for _, migFile := range featureMigrations {
-		featureName := filepath.Base(filepath.Dir(migFile))
-		if strings.Contains(featuresGo, featureName+".") {
-			migBytes, err := os.ReadFile(migFile)
-			if err != nil {
-				t.Fatalf("failed to read feature migration %s: %v", migFile, err)
-			}
-			if _, err := db.Exec(string(migBytes)); err != nil {
-				t.Fatalf("failed to execute feature migration %s: %v", migFile, err)
-			}
+		migBytes, err := os.ReadFile(migFile)
+		if err != nil {
+			t.Fatalf("failed to read feature migration %s: %v", migFile, err)
+		}
+		if _, err := db.Exec(string(migBytes)); err != nil {
+			t.Fatalf("failed to execute feature migration %s: %v", migFile, err)
 		}
 	}
 

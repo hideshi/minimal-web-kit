@@ -38,6 +38,7 @@ func (s *Server) Run() error {
 	if s.features != nil && s.store.DB() != nil {
 		for _, f := range s.features.All() {
 			if err := f.Init(s.store.DB()); err != nil {
+				s.logger.Error("feature init failed", slog.String("feature", f.Name()))
 				return fmt.Errorf("init feature %s: %w", f.Name(), err)
 			}
 			s.logger.Info("feature initialized", slog.String("feature", f.Name()))
