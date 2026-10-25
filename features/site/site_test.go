@@ -59,6 +59,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"選べるスターター ＆ 自在な拡張基盤",
 		"完全セッションレス",
 		"STANDARD LIBRARY FIRST",
+		"プライバシーポリシー・免責事項",
 		"公開ページはCookieなしで閲覧できます。",
 		"お問い合わせ窓口は現在準備中です。",
 		"新しいタブで開きます",
@@ -192,6 +193,9 @@ func TestSitePublicRoutes_SessionlessAndPrivacy(t *testing.T) {
 					if !strings.Contains(body, "お問い合わせ") || !strings.Contains(body, "アクセスログ") {
 						t.Fatal("Site privacy omits contact or logging information")
 					}
+					if !strings.Contains(body, `<h2 id="disclaimer">免責事項</h2>`) || !strings.Contains(body, "MIT License") {
+						t.Fatal("Site privacy omits the disclaimer")
+					}
 				}
 			}
 		}
@@ -205,6 +209,10 @@ func TestSitePublicRoutes_SessionlessAndPrivacy(t *testing.T) {
 	h.Routes(nil, nil).ServeHTTP(rec, httptest.NewRequest("GET", "/privacy", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "<table>") || !strings.Contains(rec.Body.String(), "/account/delete-confirm") {
 		t.Fatal("Base privacy lost session disclosure")
+	}
+	// 免責事項はSite（このキットを紹介するサイト）の例で、Baseには出さない
+	if strings.Contains(rec.Body.String(), "免責事項") {
+		t.Fatal("Base privacy must not include the site disclaimer")
 	}
 }
 
