@@ -1,6 +1,7 @@
 package main
 
 import (
+	"go/format"
 	"os"
 	"path/filepath"
 	"strings"
@@ -200,5 +201,44 @@ func TestToggleCMSRejectsCustomDirectory(t *testing.T) {
 	}
 	if read(t, "cmd/server/features.go") != before {
 		t.Fatal("refused operation changed registration")
+	}
+}
+
+// gofmt済みの登録ファイルは、どの順で有効化・無効化してもgofmt済みのまま保つこと。
+func TestToggleKeepsGofmtFormatting(t *testing.T) {
+	formatted, err := format.Source([]byte(baseRegistration))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture(t, string(formatted))
+	steps := []func() error{addCMS, addSite, removeCMS, addCMS, removeSite}
+	for i, step := range steps {
+		if err := step(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+		content := read(t, "cmd/server/features.go")
+		if again, err := format.Source([]byte(content)); err != nil || string(again) != content {
+			t.Fatalf("step %d left the file unformatted:\n%s", i, content)
+		}
+	}
+	if !strings.Contains(read(t, "cmd/server/features.go"), "custom code must remain unchanged") {
+		t.Fatal("custom code must be kept")
+	}
+	if err := removeCMS(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "cmd/server/features.go") != string(formatted) {
+		t.Fatal("disabling everything must restore the original file")
+	}
+}
+
+// gofmtされていない登録ファイルは、利用者のコードの見た目を変えないこと。
+func TestToggleDoesNotReformatUnformattedFile(t *testing.T) {
+	fixture(t, baseRegistration)
+	if err := addSite(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read(t, "cmd/server/features.go"), "\n r := features.NewRegistry()") {
+		t.Fatal("unformatted user code must not be reformatted")
 	}
 }

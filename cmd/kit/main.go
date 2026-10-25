@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -238,7 +239,15 @@ func toggleBundle(b bundle, enable bool) error {
 	if _, err := parser.ParseFile(token.NewFileSet(), path, content, 0); err != nil {
 		return fmt.Errorf("invalid updated registration: %w", err)
 	}
-	return replaceRegistration(path, original, []byte(content))
+	updated := []byte(content)
+	// 元のファイルがgofmt済みなら、追加したimportの並び順も含めてgofmt済みに保つ。
+	// 整形されていないファイルは、利用者のコードの見た目を変えないよう、そのままにする。
+	if formatted, err := format.Source(original); err == nil && bytes.Equal(formatted, original) {
+		if updated, err = format.Source(updated); err != nil {
+			return fmt.Errorf("format updated registration: %w", err)
+		}
+	}
+	return replaceRegistration(path, original, updated)
 }
 
 // 完成した内容を同じディレクトリの一時ファイルから置換する。
