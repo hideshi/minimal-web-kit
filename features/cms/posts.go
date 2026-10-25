@@ -36,6 +36,11 @@ type Post struct {
 	UpdatedAt   time.Time
 }
 
+// ScheduledAt は、予約公開で公開日時前の記事かどうかを返します（管理画面の表示用）。
+func (p Post) ScheduledAt(now time.Time) bool {
+	return p.Published && p.PublishedAt.After(now)
+}
+
 // PostStore はお知らせの読み書きを担当します。HTML表示・JSON API・管理画面で共通に使います。
 type PostStore struct {
 	db  *sql.DB
@@ -126,19 +131,20 @@ func (s *PostStore) UpdateWithDate(ctx context.Context, id int64, title, body st
 		title, body, at, s.now().Unix(), id)
 }
 
-// publishedAtArg は公開日時をSQLの引数に変換します。ゼロ値はNULL、未来の日時は ErrInvalidInput です。
-// 公開ページは公開日時で絞り込まないため、未来の日時を許すと、未来の日付のお知らせがすぐに表示されてしまいます。
+// publishedAtArg は公開日時をSQLの引数に変換します。ゼロ値はNULLです。
+// 未来の日時は予約公開になります（公開ページ・APIは、公開日時を過ぎるまで表示しない）。
 func (s *PostStore) publishedAtArg(t time.Time) (any, error) {
 	if t.IsZero() {
 		return nil, nil
 	}
-	if t.Unix() <= 0 || t.After(s.now()) {
+	if t.Unix() <= 0 {
 		return nil, ErrInvalidInput
 	}
 	return t.Unix(), nil
 }
 
 // Publish は記事を公開します。初めて公開する場合だけ公開日時を設定し、再公開では維持します。
+// 公開日時が未来なら予約公開となり、その日時を過ぎてから公開ページ・APIに表示されます。
 func (s *PostStore) Publish(ctx context.Context, id int64) error {
 	now := s.now().Unix()
 	return s.execOne(ctx,
@@ -177,16 +183,16 @@ func (s *PostStore) Get(ctx context.Context, id int64) (Post, error) {
 	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ?", id)
 }
 
-// GetPublished は公開中の記事だけを返します（公開ページ・API用）。
+// GetPublished は公開中の記事だけを返します（公開ページ・API用）。予約公開で公開日時前の記事は含みません。
 func (s *PostStore) GetPublished(ctx context.Context, id int64) (Post, error) {
-	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ? AND status = ?", id, statusPublished)
+	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ? AND status = ? AND published_at <= ?", id, statusPublished, s.now().Unix())
 }
 
-// ListPublished は公開中の記事を新しい順に返します。
+// ListPublished は公開中の記事を新しい順に返します。予約公開で公開日時前の記事は含みません。
 func (s *PostStore) ListPublished(ctx context.Context, limit, offset int) ([]Post, error) {
 	return s.list(ctx,
-		"SELECT "+postColumns+" FROM cms_posts WHERE status = ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
-		statusPublished, limit, offset)
+		"SELECT "+postColumns+" FROM cms_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
+		statusPublished, s.now().Unix(), limit, offset)
 }
 
 // ListAll は全記事を更新の新しい順に返します（管理画面用）。

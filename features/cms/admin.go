@@ -165,6 +165,7 @@ func (f *Feature) adminPage(w http.ResponseWriter, r *http.Request, title, nav s
 		"LoggedIn":         true,
 		"CSRFToken":        f.csrfToken(session),
 		"DisabledPasskeys": disabled > 0,
+		"Now":              f.now(),
 	}, session, true
 }
 

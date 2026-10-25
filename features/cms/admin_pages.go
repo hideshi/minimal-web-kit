@@ -120,9 +120,6 @@ func (f *Feature) parsePublishedAt(raw string) (time.Time, string) {
 	if err != nil || t.Year() < 1970 {
 		return time.Time{}, "公開日時の形式が正しくありません。"
 	}
-	if t.After(f.now()) {
-		return time.Time{}, "公開日時には、現在より前の日時を指定してください。"
-	}
 	return t, ""
 }
 

@@ -382,9 +382,8 @@ func TestAdminPosts_PublishedAt(t *testing.T) {
 		t.Fatalf("published_at = %v, want %v", p.PublishedAt, newer)
 	}
 
-	// 未来の日時・不正な形式は400で、入力を残したフォームを返し、保存しない
-	future := time.Now().Add(48 * time.Hour).Format("2006-01-02T15:04")
-	for value, msg := range map[string]string{future: "現在より前の日時", "2025/05/06 07:08": "形式が正しくありません", "<script>": "形式が正しくありません"} {
+	// 不正な形式は400で、入力を残したフォームを返し、保存しない
+	for value, msg := range map[string]string{"2025/05/06 07:08": "形式が正しくありません", "<script>": "形式が正しくありません", "1960-01-01T00:00": "形式が正しくありません"} {
 		rec := fx.postForm(t, path, withCSRF(fx, cookie, url.Values{"title": {"書き換え後"}, "published_at": {value}}), "same-origin", cookie)
 		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), msg) || !strings.Contains(rec.Body.String(), "書き換え後") {
 			t.Errorf("published_at %q: %d", value, rec.Code)
@@ -395,5 +394,63 @@ func TestAdminPosts_PublishedAt(t *testing.T) {
 	}
 	if p, _ := fx.posts.Get(ctx, id); p.Title != "過去のお知らせ" || !p.PublishedAt.Equal(newer) {
 		t.Fatal("rejected input must not be saved")
+	}
+}
+
+func TestAdminPosts_ScheduledPublishing(t *testing.T) {
+	fx := newPublicFixture(t, "")
+	_, cookie := fx.loggedIn(t)
+	ctx := context.Background()
+	clock := time.Now()
+	fx.posts.now = func() time.Time { return clock }
+	fx.feature.now = func() time.Time { return clock }
+
+	future := clock.Add(48 * time.Hour).Truncate(time.Minute)
+	rec := fx.postForm(t, "/admin/posts", withCSRF(fx, cookie, url.Values{"title": {"予約のお知らせ"}, "published_at": {future.Format("2006-01-02T15:04")}}), "same-origin", cookie)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("create scheduled: %d %s", rec.Code, rec.Body.String())
+	}
+	path := rec.Header().Get("Location")
+	path = path[:strings.Index(path, "?")]
+	id, _ := strconv.ParseInt(strings.TrimPrefix(path, "/admin/posts/"), 10, 64)
+	public := "/news/" + strconv.FormatInt(id, 10)
+
+	if rec := fx.do(t, http.MethodGet, path, nil, cookie); !strings.Contains(rec.Body.String(), "公開を予約する") {
+		t.Fatal("the publish button must say it schedules")
+	}
+	if rec := fx.postForm(t, path+"/publish", withCSRF(fx, cookie, nil), "same-origin", cookie); rec.Code != http.StatusSeeOther {
+		t.Fatalf("schedule: %d", rec.Code)
+	}
+	if p, _ := fx.posts.Get(ctx, id); !p.Published || !p.PublishedAt.Equal(future) {
+		t.Fatalf("publishing must keep the scheduled time: %+v", p)
+	}
+
+	// 公開日時までは、公開ページ・一覧・APIのどれにも出ない
+	for _, target := range []string{public, "/api/news/" + strconv.FormatInt(id, 10)} {
+		if rec := fx.do(t, http.MethodGet, target, nil); rec.Code != http.StatusNotFound {
+			t.Errorf("%s before schedule: %d", target, rec.Code)
+		}
+	}
+	for _, target := range []string{"/news", "/api/news"} {
+		if rec := fx.do(t, http.MethodGet, target, nil); strings.Contains(rec.Body.String(), "予約のお知らせ") {
+			t.Errorf("%s must not list the scheduled post", target)
+		}
+	}
+	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, cookie); !strings.Contains(rec.Body.String(), "公開予約") {
+		t.Fatal("the admin list must show the scheduled state")
+	}
+
+	// 公開日時を過ぎると表示される
+	clock = future.Add(time.Second)
+	if rec := fx.do(t, http.MethodGet, public, nil); rec.Code != http.StatusOK {
+		t.Fatalf("after schedule: %d", rec.Code)
+	}
+	for _, target := range []string{"/news", "/api/news"} {
+		if rec := fx.do(t, http.MethodGet, target, nil); !strings.Contains(rec.Body.String(), "予約のお知らせ") {
+			t.Errorf("%s must list the post after the schedule", target)
+		}
+	}
+	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, cookie); strings.Contains(rec.Body.String(), "公開予約") || !strings.Contains(rec.Body.String(), "公開中") {
+		t.Fatal("the admin list must show the post as published")
 	}
 }

@@ -6,7 +6,7 @@
 
 {{if .Post.ID}}
 <p class="news-meta">
-  状態: {{if .Post.Published}}公開中（<a href="/news/{{.Post.ID}}">公開ページを見る</a>）{{else}}下書き（公開ページには表示されません）{{end}}
+  状態: {{if .Post.ScheduledAt .Now}}公開予約（公開日時になるまで、公開ページには表示されません）{{else if .Post.Published}}公開中（<a href="/news/{{.Post.ID}}">公開ページを見る</a>）{{else}}下書き（公開ページには表示されません）{{end}}
   {{if not .Post.PublishedAt.IsZero}}／公開日時: <time datetime="{{.Post.PublishedAt.Format "2006-01-02T15:04"}}">{{.Post.PublishedAt.Format "2006年1月2日 15:04"}}</time>{{end}}
 </p>
 {{end}}
@@ -25,7 +25,7 @@
   </div>
   <div class="form-group">
     <label for="post-published-at">公開日時（任意）</label>
-    <p class="field-hint" id="post-published-at-hint">公開ページの表示と並び順に使います。空欄のままなら、初めて公開した日時が入ります。現在より後の日時は指定できません。時刻はサーバーのタイムゾーンです。</p>
+    <p class="field-hint" id="post-published-at-hint">公開ページの表示と並び順に使います。空欄のままなら、初めて公開した日時が入ります。未来の日時を指定して「公開を予約する」を押すと、その日時になってから公開ページとAPIに表示されます。時刻はサーバーのタイムゾーンです。</p>
     <input type="datetime-local" id="post-published-at" name="published_at" aria-describedby="post-published-at-hint" value="{{.Form.PublishedAt}}">
   </div>
   <button type="submit" class="btn btn-primary">{{if .Post.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
@@ -37,12 +37,12 @@
   {{if .Post.Published}}
   <form method="post" action="/admin/posts/{{.Post.ID}}/unpublish" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-secondary">非公開（下書き）に戻す</button>
+    <button type="submit" class="btn btn-secondary">{{if .Post.ScheduledAt .Now}}予約を取り消す（下書きに戻す）{{else}}非公開（下書き）に戻す{{end}}</button>
   </form>
   {{else}}
   <form method="post" action="/admin/posts/{{.Post.ID}}/publish" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-primary">公開する</button>
+    <button type="submit" class="btn btn-primary">{{if .Post.PublishedAt.After .Now}}公開を予約する{{else}}公開する{{end}}</button>
   </form>
   {{end}}
   <a href="/admin/posts/{{.Post.ID}}/delete" class="btn btn-danger">削除する</a>

@@ -84,7 +84,7 @@ WebAuthnで認証器に渡す管理者の識別子。1行のみ。
 | `title` | TEXT | NO | 記事のタイトル | 同上 | 200字以内 |
 | `body` | TEXT | NO | 記事の本文 | 同上 | プレーンテキスト、5万字以内。個人情報を書かない運用とする |
 | `status` | TEXT | NO | 公開・下書きの区別 | 同上 | `draft` / `published` |
-| `published_at` | INTEGER | YES | 公開日時の表示・並び順 | 同上 | 初回公開時に設定。再公開では維持 |
+| `published_at` | INTEGER | YES | 公開日時の表示・並び順・予約公開の判定 | 同上 | 管理画面で指定するか、初回公開時に設定。再公開では維持。未来の日時なら、その日時まで公開側に出さない |
 | `created_at` | INTEGER | NO | 作成時刻の記録 | 同上 | UNIXエポック秒 |
 | `updated_at` | INTEGER | NO | 更新時刻の表示・管理画面の並び順 | 同上 | UNIXエポック秒 |
 
