@@ -74,7 +74,7 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
 func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 	data := map[string]any{
-		"Title":          "超軽量・安全なWebひな形",
+		"Title":          "個人情報と依存を最小限に抑えるWeb開発基盤",
 		"ContactFormURL": f.contactFormURL,
 	}
 
