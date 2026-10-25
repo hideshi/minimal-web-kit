@@ -62,9 +62,9 @@
 
     <article class="card">
       <span class="card-badge">CMS TEMPLATE</span>
-      <h3 class="card-title">コンテンツ管理 &amp; 自前CMS（拡張例）</h3>
+      <h3 class="card-title">お知らせ管理 &amp; 簡易CMS</h3>
       <p class="card-content">
-        お知らせや製品情報、記事を更新するCMSへ拡張できます。SQLiteとセッション基盤を利用し、管理者の認証・権限管理や編集機能は用途に応じて実装します。CMSテンプレートは現時点では同梱していません。
+        お知らせを作成・公開・予約公開できるCMSテンプレートを同梱しています。管理画面はパスワードを使わず、Windows Helloやセキュリティキーのパスキーでログインします。公開ページとJSON APIの両方で配信でき、管理者は1人を想定しています。
       </p>
     </article>
 
@@ -141,7 +141,7 @@
     <details class="faq-item">
       <summary>JavaScriptやフロントエンドフレームワーク（React / Vue等）は必要ですか？</summary>
       <div class="faq-answer">
-        <p>いいえ、一切不要です。ブラウザ標準のHTML機能とサーバーサイドレンダリング（SSR）のみで動作するため、JavaScriptが無効な環境でも高速・安全に閲覧できます。</p>
+        <p>いいえ、不要です。公開ページはブラウザ標準のHTML機能とサーバーサイドレンダリング（SSR）のみで動作するため、JavaScriptが無効な環境でも閲覧できます。唯一の例外は、CMSの管理画面でパスキーを扱う登録・ログイン等の画面で、自サイトの小さなJavaScriptを1本だけ読み込みます。</p>
       </div>
     </details>
 
