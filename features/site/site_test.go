@@ -254,3 +254,86 @@ func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
 		t.Fatal("core pages must show the feature link")
 	}
 }
+
+func TestSiteFeature_SEOAndOGP(t *testing.T) {
+	t.Setenv("SITE_URL", "https://example.workers.dev/")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := store.NewMemoryStore()
+	sm := web.NewSessionManager(s, false)
+	h, err := web.NewHandler(s, sm, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feat := site.NewFeature(logger)
+	routes, err := h.RoutesWithIsolated(feat.HandleRoot, nil, feat.RegisterIsolatedRoutes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(path string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		return rec
+	}
+
+	body := get("/").Body.String()
+	for _, want := range []string{
+		`<meta name="description" content="個人情報の取得と依存関係を最小限に抑える`,
+		`<link rel="canonical" href="https://example.workers.dev/">`,
+		`<meta property="og:url" content="https://example.workers.dev/">`,
+		`<meta property="og:image" content="https://example.workers.dev/static/img/ogp.png">`,
+		`<meta name="twitter:card" content="summary_large_image">`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+
+	if rec := get("/static/img/ogp.png"); rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("ogp image: %d %s", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	robots := get("/robots.txt")
+	if robots.Code != http.StatusOK || !strings.Contains(robots.Body.String(), "Sitemap: https://example.workers.dev/sitemap.xml") {
+		t.Fatalf("robots.txt: %d %s", robots.Code, robots.Body.String())
+	}
+	sitemap := get("/sitemap.xml")
+	if sitemap.Code != http.StatusOK || !strings.Contains(sitemap.Body.String(), "<loc>https://example.workers.dev/privacy</loc>") {
+		t.Fatalf("sitemap.xml: %d %s", sitemap.Code, sitemap.Body.String())
+	}
+	for _, path := range []string{"/robots.txt", "/sitemap.xml"} {
+		if rec := get(path); len(rec.Header().Values("Set-Cookie")) != 0 || rec.Header().Get("Content-Security-Policy") == "" {
+			t.Errorf("%s must not set cookies and must carry security headers", path)
+		}
+	}
+
+	rec := httptest.NewRecorder()
+	feat.HandleNotFound(rec, httptest.NewRequest(http.MethodGet, "/missing", nil))
+	if rec.Code != http.StatusNotFound || !strings.Contains(rec.Body.String(), "ページが見つかりません") || !strings.Contains(rec.Body.String(), `<meta name="robots" content="noindex">`) || strings.Contains(rec.Body.String(), "canonical") {
+		t.Fatalf("not found page: %d", rec.Code)
+	}
+}
+
+func TestSiteFeature_SEOWithoutSiteURL(t *testing.T) {
+	for _, value := range []string{"", "ftp://example.com", "https://example.com/path", "https://example.com/?q=1", "not a url"} {
+		t.Setenv("SITE_URL", value)
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		s := store.NewMemoryStore()
+		h, _ := web.NewHandler(s, web.NewSessionManager(s, false), logger)
+		feat := site.NewFeature(logger)
+		routes, err := h.RoutesWithIsolated(feat.HandleRoot, nil, feat.RegisterIsolatedRoutes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rec := httptest.NewRecorder()
+		routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+		body := rec.Body.String()
+		// 絶対URLが要るタグは出さず、説明文は出す
+		if strings.Contains(body, "og:image") || strings.Contains(body, "canonical") || !strings.Contains(body, `<meta name="description"`) {
+			t.Errorf("SITE_URL=%q: unexpected head", value)
+		}
+		rec = httptest.NewRecorder()
+		routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/sitemap.xml", nil))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("SITE_URL=%q: sitemap must be 404, got %d", value, rec.Code)
+		}
+	}
+}

@@ -68,9 +68,31 @@ func TestExportStatic_Site(t *testing.T) {
 		t.Fatal("_headers must not relax the CSP or add no-store")
 	}
 
-	// 再実行で上書きできる
+	// SEO用のファイルと404ページも書き出す
+	if !strings.Contains(read("robots.txt"), "User-agent: *") || !strings.Contains(read("404.html"), "ページが見つかりません") {
+		t.Fatal("robots.txt and 404.html must be exported")
+	}
+	if png, _ := os.ReadFile("../internal/web/static/img/ogp.png"); read("static/img/ogp.png") != string(png) {
+		t.Fatal("the OGP image must be exported unchanged")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sitemap.xml")); !os.IsNotExist(err) {
+		t.Fatal("sitemap.xml needs SITE_URL")
+	}
+	t.Setenv("SITE_URL", "https://example.workers.dev")
 	if err := app.ExportStatic(siteRegistry(), dir, discardLogger()); err != nil {
 		t.Fatalf("re-export: %v", err)
+	}
+	if !strings.Contains(read("sitemap.xml"), "<loc>https://example.workers.dev/</loc>") || !strings.Contains(read("index.html"), "og:image") {
+		t.Fatal("SITE_URL must enable sitemap.xml and OGP")
+	}
+
+	// 今回作らないファイル（SITE_URLを外した後のsitemap.xml）は残さない
+	t.Setenv("SITE_URL", "")
+	if err := app.ExportStatic(siteRegistry(), dir, discardLogger()); err != nil {
+		t.Fatalf("re-export: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "sitemap.xml")); !os.IsNotExist(err) {
+		t.Fatal("a stale sitemap.xml must be removed")
 	}
 }
 

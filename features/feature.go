@@ -32,6 +32,13 @@ type IsolatedRoutesFeature interface {
 	RegisterIsolatedRoutes(mux *web.IsolatedMux)
 }
 
+// NotFoundFeature は、静的ホスティング用の 404 ページを持つ機能（例: Site）が実装します。
+// export-static が 404.html として書き出します。
+type NotFoundFeature interface {
+	Feature
+	HandleNotFound(w http.ResponseWriter, r *http.Request)
+}
+
 // PurgeFeature は、期限切れデータの削除をCoreの起動時と定期のGCから呼ばれる機能が実装します。
 type PurgeFeature interface {
 	Feature

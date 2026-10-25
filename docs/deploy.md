@@ -170,7 +170,7 @@ SiteのLP（`/`）とプライバシーポリシー（`/privacy`）は、Cookie�
 
 ```sh
 # Siteだけを有効にした状態で
-CONTACT_FORM_URL=https://forms.example.com/... go run ./cmd/server export-static dist
+SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go run ./cmd/server export-static dist
 ```
 
 | 書き出すファイル | 内容 |
@@ -178,6 +178,9 @@ CONTACT_FORM_URL=https://forms.example.com/... go run ./cmd/server export-static
 | `index.html` | `/` |
 | `privacy.html` | `/privacy`（Cloudflare Workersの静的アセットは、既定の設定で `privacy.html` を `/privacy` で配信します） |
 | `static/css/style.css` | CSS |
+| `static/img/ogp.png` | SNSのカード用画像 |
+| `robots.txt`、`sitemap.xml` | 検索エンジン向け。`sitemap.xml` は `SITE_URL` を設定した場合だけ |
+| `404.html` | 存在しないパスに返すページ。Cloudflare Workersでは `wrangler.jsonc` の `assets.not_found_handling` を `"404-page"` にすると使われます |
 | `_headers` | Goのサーバーと同じセキュリティヘッダー（CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）を全経路に付ける設定 |
 
 - CMS等、セッションや管理画面を使う機能が有効な場合は、静的にできないため書き出しを拒否します。
