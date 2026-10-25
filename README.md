@@ -33,11 +33,13 @@
 ### 実行（クリーン基盤）
 ```bash
 # クローンと起動
-git clone <repository-url>
+git clone https://github.com/hideshi/minimal-web-kit.git
 cd minimal-web-kit
-go run ./cmd/server
+make run
 ```
-ブラウザで `http://127.0.0.1:8080` にアクセスしてください。
+ブラウザで `http://127.0.0.1:8080` にアクセスしてください。`make run` はフォアグラウンドで起動し、停止は `Ctrl+C` です。コードやテンプレートの変更後は停止して再実行してください。GoコマンドがPATHに含まれている必要があります。
+
+ポートを変える場合は `PORT=8081 make run` とします。同じポートでサーバーが起動中の場合は、そちらを停止するか、別のポートを指定してください。
 
 ### LP / ホームページテンプレートを試す
 製品やサービスの紹介Webサイトとしてすぐに公開できるLPテンプレートを、ワンコマンドで有効化・無効化できます：
@@ -46,7 +48,7 @@ go run ./cmd/server
 make add-site
 
 # 起動して試す（トップページがLPになります）
-go run ./cmd/server
+make run
 
 # LPテンプレートを無効化（クリーン基盤に戻ります。自作機能には影響しません）
 make remove-site
