@@ -148,8 +148,10 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── .agents/skills/         # Codex・Cursor・Antigravity向けの参照
 ├── .claude/skills/         # Claude Code向けの参照
 ├── docs/
+│   ├── cms-plan.md         # CMSテンプレートの実装計画
 │   └── data-inventory.md   # 取得・保存データ台帳
 ├── LICENSE                # MIT License
+├── SECURITY.md            # 脆弱性の報告窓口
 ├── Makefile               # 起動・ビルド・検査・Site切り替え
 ├── cmd/
 │   ├── server/            # 起動処理とFeatureの登録
@@ -164,6 +166,10 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── skills/                # 3本のAI開発スキルの正本（各150行以内）
 └── test/                  # 依存・テンプレート・台帳・ログ等の検査
 ```
+
+## 脆弱性の報告
+
+脆弱性を見つけた場合は、公開のIssueには書かず、[SECURITY.md](SECURITY.md) の手順に沿って非公開で報告してください。
 
 ## ライセンス
 
