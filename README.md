@@ -4,7 +4,7 @@
 
 ## 特徴と提供範囲
 
-- **Go標準機能を中心とした構成**：`net/http`、`html/template`、`embed.FS`、`log/slog` を使用します。直接依存は純Go版SQLiteドライバ1件で、間接依存もあります。Node.js/npmや外部CSSフレームワークは使用しません。
+- **Go標準機能を中心とした構成**：`net/http`、`html/template`、`embed.FS`、`log/slog` を使用します。直接依存は純Go版SQLiteドライバ1件で、間接依存もあります（[一覧](#依存モジュール)）。Node.js/npmや外部CSSフレームワークは使用しません。
 - **機能ごとの分離**：自作機能は `features/<機能名>/` に配置します。Site・CMSの切り替えコマンドは登録ファイルだけを変更し、機能ディレクトリ内のファイルは変更しません。
 - **取得データの最小化**：氏名や連絡先は既定で取得しません。必要な情報を追加するときは、利用目的・保存先・保持期間・削除方法を整理し、開発規約に沿って承認を得て台帳と検査を更新します。
 - **セッションとデータ保護の基盤**：ランダムトークンとDBへのSHA-256ハッシュ保存、CSRF保護、セキュリティヘッダー、期限切れセッションの削除処理を備えています。OwnerIDはデータ分離の識別子であり、管理者認証や業務上の権限管理の代わりにはなりません。
@@ -121,6 +121,25 @@ make cms-setup
 `make build` はテンプレート・CSS・JS・マイグレーションを埋め込んだ単一実行ファイルを作ります。対象OS・CPUに合わせたビルドが必要で、サイズはGoバージョン・構成・対象環境により変わります。SQLiteのデータはバイナリの外に保存されます。
 
 本番公開には、HTTPS終端、Secure Cookie、待受・公開範囲、DBと保存ディレクトリの権限、バックアップ、ログの保持・削除方針等の設定が必要です。Linuxサーバー（VPS・EC2等）へのビルド・配置・systemd・リバースプロキシ・バックアップの手順例と、Siteだけを静的ホスティング（Cloudflare等）に置く手順は [docs/deploy.md](docs/deploy.md) を参照してください。公開範囲の変更や外部通信等は `AGENTS.md` の承認境界に従ってください。
+
+## 依存モジュール
+
+直接依存は `modernc.org/sqlite`（純Go版SQLiteドライバ）だけです。このドライバを通じて、次のモジュールが実行ファイルに組み込まれます（Linuxのamd64・arm64、CGO無効で確認）。
+
+| モジュール | 用途 | ライセンス |
+|---|---|---|
+| `modernc.org/sqlite` | SQLiteドライバ（直接依存） | BSD系 |
+| `modernc.org/libc` | C言語のSQLiteをGoに変換して動かすための標準ライブラリ相当 | BSD系 |
+| `modernc.org/mathutil` | 数値計算の補助 | BSD系 |
+| `modernc.org/memory` | メモリ管理 | BSD系 |
+| `golang.org/x/sys` | OSの機能の呼び出し（Go公式） | BSD系 |
+| `github.com/google/uuid` | UUIDの生成 | BSD系 |
+| `github.com/dustin/go-humanize` | 数値の表示形式 | MIT |
+| `github.com/remyoudompheng/bigfft` | 大きな数の乗算 | BSD系 |
+
+ライセンスは各モジュールのLICENSEファイルの冒頭で分類したもので、正確な条件は各LICENSEを参照してください。`go.mod` にはこのほか、上記の環境では組み込まれない間接依存（`github.com/mattn/go-isatty`、`github.com/ncruces/go-strftime`）も記載されています。
+
+`test/architecture_test.go` の `TestArchitecture_LinkedModules` が、組み込まれるモジュールをこの一覧と照合します。SQLiteドライバの更新等で増減した場合はテストが失敗するため、追加されたモジュールの用途・ライセンス・保守状況を確認してから、テストの一覧とこの表を更新してください。
 
 ## 推奨するAI開発ツールとスキル
 

@@ -2,6 +2,8 @@ package test
 
 import (
 	"os"
+	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -62,6 +64,48 @@ func TestArchitecture_DependencyAllowedList(t *testing.T) {
 	for allowed := range allowedDirectDeps {
 		if !foundDirectDeps[allowed] {
 			t.Errorf("Expected direct dependency %s is missing from go.mod direct requirements.", allowed)
+		}
+	}
+}
+
+// linkedModules は、サーバーと切り替えCLIの実行ファイルに組み込まれる外部モジュールです（間接依存を含む）。
+// SQLiteドライバの更新等で増減したら、追加されたモジュールの用途・ライセンス・保守状況を確認し、
+// READMEの一覧と合わせてこのリストを更新します。
+var linkedModules = []string{
+	"github.com/dustin/go-humanize",
+	"github.com/google/uuid",
+	"github.com/remyoudompheng/bigfft",
+	"golang.org/x/sys",
+	"modernc.org/libc",
+	"modernc.org/mathutil",
+	"modernc.org/memory",
+	"modernc.org/sqlite",
+}
+
+// TestArchitecture_LinkedModules は、実行ファイルに組み込まれる外部モジュール（間接依存を含む）が一覧と一致することを検証します。
+// 本番の対象（Linuxのamd64・arm64）で、CGOを無効にした場合の依存を調べます。
+func TestArchitecture_LinkedModules(t *testing.T) {
+	goCmd, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatalf("go command not found: %v", err)
+	}
+	for _, arch := range []string{"amd64", "arm64"} {
+		cmd := exec.Command(goCmd, "list", "-deps", "-f", "{{if .Module}}{{.Module.Path}}{{end}}", "./cmd/server", "./cmd/kit")
+		cmd.Dir = ".."
+		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+arch, "CGO_ENABLED=0")
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("go list (%s): %v", arch, err)
+		}
+		var got []string
+		for _, m := range strings.Fields(string(out)) {
+			if m != "minimal-web-kit" && !slices.Contains(got, m) {
+				got = append(got, m)
+			}
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, linkedModules) {
+			t.Errorf("linux/%s: linked modules changed.\n got: %v\nwant: %v\nReview new modules (purpose, license, maintenance), then update linkedModules and README.", arch, got, linkedModules)
 		}
 	}
 }
