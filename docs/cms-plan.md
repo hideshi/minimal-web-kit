@@ -1,12 +1,13 @@
 # CMSテンプレート 実装計画
 
-最終更新: 2026-10-25（Fable（claude-fable-5-1）のレビューを反映）
+最終更新: 2026-10-25（Fable（claude-fable-5-1）のレビューと、challenge・ハードウェア限定・異常時の案内に関する利用者の決定を反映）
 
 ## 1. 目的と範囲
 
 - `features/cms/` に、お知らせ1種類を管理する同梱テンプレートを追加する。Siteと同じく `make add-cms` / `make remove-cms` で登録を切り替える。
 - ヘッドあり（サーバーがHTMLを返す）とヘッドレス（JSON APIで記事を返す）の両方に対応する。記事の読み書きは共通のストアを使い、HTMLとAPIはその上の表示層とする。
 - 管理者は1人。ログインはWebAuthn（パスキー）のみのパスワードレスとする。
+- 登録できるのは、同期・バックアップできない端末固定の認証器（主にハードウェアセキュリティキー）に限る（7節）。
 - 最初の版に含めないもの: 複数の編集者と権限、画像アップロード、Markdown/HTML本文、下書きのAPI、書き込みAPI、APIトークン、APIのキャッシュ。
 
 ## 2. 利用者の承認済み事項（AGENTS.mdの境界）
@@ -41,7 +42,7 @@
 | `GET /admin/setup` | 初回・復旧時のパスキー登録画面 | 登録トークン（下記6節） |
 | `GET /admin/login` | パスキーでのログイン画面 | なし |
 | `POST /admin/webauthn/register/{begin,finish}` | 登録のchallenge発行と検証 | 未使用の登録トークン、または有効な管理者セッション＋CSRF |
-| `POST /admin/webauthn/login/{begin,finish}` | 認証のchallenge発行と検証 | Origin検査＋発行回数制限 |
+| `POST /admin/webauthn/login/{begin,finish}` | 認証のchallenge発行と検証 | Origin検査（challengeはサーバーに保持しない） |
 | `GET/POST /admin/posts...` | 一覧・作成・編集・公開/非公開・削除 | 管理者セッション＋CSRF |
 | `GET/POST /admin/passkeys...` | パスキーの一覧・追加・名前変更・削除 | 管理者セッション＋CSRF |
 | `POST /admin/logout` | ログアウト | 管理者セッション＋CSRF |
@@ -79,25 +80,32 @@
 - **トークンはURLのフラグメントで渡す**（`CMS_ORIGIN/admin/setup#token=...`）。フラグメントはサーバーにもRefererにも送られない。画面のJSが読み取って登録APIのPOST本文で送り、直後に `history.replaceState` でアドレスバーと履歴から消す。追加のCookieは使わない。
 - 画面の表示（GET）ではトークンを消費しない。`register/begin` で有効性を確認し、`register/finish` の検証成功時に `UPDATE ... SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?` で原子的に消費する（更新0件なら拒否）。
 - サーバーを操作できる人を管理者とみなす。登録URLがターミナルの画面共有・スクロールバック・シェル履歴の出力に残る点は、READMEで注意する。
-- パスキーは複数登録を推奨する。追加は管理画面から、ログイン中にのみ行う。
+- ハードウェアキーは**2本以上の登録を強く推奨**する。1本を紛失すると、残りのキーが無い限り `cms-recover` までログインできない。追加は管理画面から、ログイン中にのみ行う。
 
 ## 7. WebAuthn（標準ライブラリのみ）
 
 ブラウザの `AuthenticatorAttestationResponse.getPublicKey()` と `getAuthenticatorData()` を使い、CBOR/COSEの解析を避ける。`toJSON()` や `parseCreationOptionsFromJSON()` は使わず、base64urlの変換は自前で行う。`getPublicKey()` が `null`（未対応アルゴリズム）の場合はJSでエラー表示する。
 
 **challenge**
-- 32バイト乱数＋有効期限（5分）＋用途（register/login）をHMAC-SHA256で署名した自己完結値とし、サーバーはメモリに保持しない。HMAC鍵は起動時に乱数生成する（再起動で未完了のchallengeは無効）。
-- 使用済みchallengeだけを有効期限までメモリに保持し、再利用を拒否する。
-- `begin` と `finish` を固定容量のトークンバケット（IPは記録しない）で制限し、上限時は429と固定イベント名のログのみ出す。上限に達しても、発行済みの正当なchallengeは失効しない。
+- 32バイト乱数＋有効期限（5分）＋用途（register/login）をHMAC-SHA256で署名した自己完結値とし、発行時にサーバーは何も保持しない。未認証で `begin` を大量に呼ばれても、保持枠が埋まって管理者のログインが妨げられることはない。HMAC鍵は起動時に乱数生成する（再起動で未完了のchallengeは無効）。
+- 発行回数の制限は設けない。全体での回数制限は、第三者が上限まで使い切ると管理者も拒否される別のロックアウト経路になり、接続元IPごとの制限はIPを扱わない方針に反するため。
+- 再利用（リプレイ）防止のため、**検証に成功したchallengeだけ**を有効期限までメモリに記録する。パスキーを持たない第三者は検証に成功できないため、記録は正当な操作の分しか増えない。「使用済みか確認して記録する」処理はロック内で一体に行い、同じ応答の並行送信は1件だけ成功させる。
+- 大量リクエストによるCPU負荷などの負荷攻撃は、キットの範囲外とし、リバースプロキシ等で対策する前提をREADMEに書く。
 
 **登録オプション**
-- `authenticatorSelection: { residentKey: "required", userVerification: "required" }`、`attestation: "none"`、`pubKeyCredParams` はES256（-7）・EdDSA（-8）・RS256（-257）。
+- `authenticatorSelection: { authenticatorAttachment: "cross-platform", residentKey: "required", userVerification: "required" }`、`attestation: "none"`、`pubKeyCredParams` はES256（-7）・EdDSA（-8）・RS256（-257）。`authenticatorAttachment` はブラウザへのヒントで、強制はサーバー側のBEフラグ検査で行う。
+
+**ハードウェア限定（端末固定の認証器のみ）**
+- authenticatorDataのBE（Backup Eligibility、ビット3）フラグが立っている認証器は、登録時に拒否する。iCloudキーチェーンやGoogleパスワードマネージャー等の同期型パスキーはBEが立つため登録できない。
+- 認証時もBEまたはBS（Backup State、ビット4）が立っていれば拒否する。
+- サーバーは機種を証明できない（attestationを検証しない）ため、正確には「同期・バックアップできない認証器」に限定する。ハードウェアキーのほか、一部の端末内蔵の認証器も通る。機種の証明は、CBOR解析と証明書チェーン検証が必要になるため最初の版では行わない。
+- 指紋でログインするには、指紋センサー付きのハードウェアキーが必要。指紋の無いキーは、ログインのたびにPINの入力を求める（UV必須のため）。MacのTouch IDやスマートフォンの同期型パスキーは使えない。
 - `excludeCredentials` に既存のcredential IDを入れる。
 
 **登録の検証**
 1. 登録トークン（未使用・有効期限内）または有効な管理者セッション＋CSRFがあること。
 2. `clientDataJSON` の `type` が `webauthn.create`、`challenge` が署名・期限・用途とも正しく未使用、`origin` が `CMS_ORIGIN` と完全一致。`crossOrigin` が真なら拒否。
-3. authenticatorDataの `rpIdHash` が `sha256(CMS_RP_ID)` と一致。UP・UV・ATフラグが立っている。
+3. authenticatorDataの `rpIdHash` が `sha256(CMS_RP_ID)` と一致。UP・UV・ATフラグが立っており、BEフラグが立っていない。
 4. attested credential dataのcredential IDが `rawId` と一致（ID長の2バイトを読み、CBOR部分は解析しない）。credential IDは1023バイト以下。
 5. `getPublicKey()` のSPKIを `x509.ParsePKIXPublicKey` で読み、宣言されたアルゴリズムと鍵の型が一致すること。ES256は曲線がP-256、RS256は法が2048ビット以上、EdDSAはEd25519。
 6. 既存のcredential IDとの重複を拒否。attestationは検証しない（`none`）。
@@ -106,10 +114,23 @@
 - `allowCredentials` は空、`userVerification: "required"`（ユーザー名を入力しないdiscoverable credentialでのログイン）。
 1. `type` が `webauthn.get`、challenge・origin・`crossOrigin` を登録と同様に確認。
 2. `rawId` で `cms_credentials` を検索し、存在しない・無効化済みなら拒否。`userHandle` が返された場合は `webauthn_user_id` と一致すること。
-3. `rpIdHash`、UP・UVフラグを確認。
+3. `rpIdHash`、UP・UVフラグが立ち、BE・BSフラグが立っていないことを確認。
 4. 署名対象は `authenticatorData || sha256(clientDataJSON)`。ES256は `sha256(対象)` に `ecdsa.VerifyASN1`、RS256は `sha256(対象)` に `rsa.VerifyPKCS1v15`、Ed25519は**ハッシュせずに**対象そのものに `ed25519.Verify`。
-5. 署名カウンタ: 新値と保存値の**どちらかが0でなければ**、新値 <= 保存値を拒否する。拒否時はそのパスキーを無効化（`disabled_at`）し、固定イベント名でログを出し、画面で `cms-recover` を案内する。
+5. 署名カウンタ: 新値と保存値の**どちらかが0でなければ**、新値 <= 保存値を拒否する（複製の疑い）。拒否時は、そのパスキーを無効化（`disabled_at`）し、**管理者セッションをすべて削除**する。複製したキーで先にログインした者がいても、どのセッションか見分けられないため。案内は下表のとおり。
 6. 成功したら管理者セッションを新規発行し、`last_used_at` と `sign_count` を更新する。
+
+**複製の疑いを検出したときの案内**
+
+検出はログインの途中で起きるため、画面を見ているのが正規の管理者か攻撃者か区別できない。案内の場所と内容を分ける。
+
+| 場所 | 見る人 | 内容 |
+|---|---|---|
+| ログイン画面のエラー | ログインを試みた人 | 「このパスキーではログインできません。別のパスキーでログインするか、サーバーで `make cms-recover` を実行してください。」複製の疑いとは書かない |
+| サーバーのログ | サーバーの運用者 | 固定のイベント名 `cms passkey disabled`。credential ID等は書かない |
+| 管理画面の上部 | 別のキーでログインした管理者 | 「無効化されたパスキーがあります」の警告と、パスキー管理画面へのリンク |
+| パスキー管理画面 | 同上 | 該当キーに「無効（複製の疑い）」と無効化日時を表示。削除できる |
+
+カウンタを増やさない認証器では、この検出は働かない。多くのハードウェアキーはカウンタを増やすが、全機種を保証するものではない。
 
 **ブラウザ対応**: `getPublicKey()` / `getAuthenticatorData()` の対応バージョンは、READMEに書く前にMDN等の一次資料で確認する。
 
@@ -138,7 +159,7 @@
 
 ## 10. ログ
 
-- 記録する: リクエストID、固定のイベント名（例: `cms login succeeded`、`cms login rejected`、`cms passkey disabled`、`cms post updated`、`cms rate limited`）、記事ID。
+- 記録する: リクエストID、固定のイベント名（例: `cms login succeeded`、`cms login rejected`、`cms passkey disabled`、`cms post updated`）、記事ID。
 - 記録しない: credential ID、公開鍵、userHandle、各種トークン、challenge、記事のタイトル・本文、端末名、`Origin` ヘッダー値、CORS許可元、拒否理由の詳細値。
 - カナリアテストで、トークン・challenge・credential ID・本文・端末名がログと応答本文に出ないことを確認する。
 
@@ -151,7 +172,7 @@
 ## 12. テスト
 
 - Core拡張: 独立経路がCoreのCSRF・セッション解決を通らないこと、経路衝突の起動エラー、`Purge` の呼び出し。
-- WebAuthn: テスト内で生成した鍵（ES256/Ed25519/RS256）での正常な登録・認証。challengeの署名不正・期限切れ・用途違い・再利用、origin・RP ID・`crossOrigin` の不一致、UV未設定、署名不正、カウンタ逆行（保存5→新0を含む）と無効化、credential ID不一致・重複、P-256以外の曲線・2048ビット未満のRSA、`userHandle` 不一致、レート制限。
+- WebAuthn: テスト内で生成した鍵（ES256/Ed25519/RS256）での正常な登録・認証。challengeの署名不正・期限切れ・用途違い・再利用・並行送信（1件だけ成功）、検証失敗では使用済みとして記録しないこと、`begin` を大量に呼んでも正当なログインが成功すること、origin・RP ID・`crossOrigin` の不一致、UV未設定、BEフラグ付きの登録拒否、BE・BSフラグ付きの認証拒否、署名不正、カウンタ逆行（保存5→新0を含む）での無効化と全セッション削除、credential ID不一致・重複、P-256以外の曲線・2048ビット未満のRSA、`userHandle` 不一致。
 - 登録トークン: GETで消費しないこと、1回性（並行finishで1件だけ成功）、期限、`cms-setup` の再発行で旧トークンが無効になること、`cms-recover` で既存パスキー・セッション・トークンが消えること。
 - セッション: 無操作・絶対期限の失効、ログアウト、パスキー削除時の他セッション削除、`Purge` がセッションとトークンだけを消し記事・パスキーは残ること。
 - CSRF・Origin検査、未ログインでの管理画面アクセス拒否。
@@ -171,9 +192,12 @@
 
 各段階でテスト・`make verify`・`make build` を通してからコミットする。
 
-## 14. 既知のリスク
+## 14. 守る範囲・守らない範囲
 
 - WebAuthn検証を自前で書くため、仕様の取りこぼしが認証の欠陥に直結する。12節のテストで個別に固定する。
-- 古いブラウザ・一部のパスワード管理ツールでは、discoverable credentialや `getPublicKey()` に対応せず登録できない場合がある。
+- 古いブラウザや、discoverable credential・`getPublicKey()` に対応しない認証器では登録できない。
+- 端末固定の認証器に限るため、キーを全て紛失した場合はサーバーで `cms-recover` を実行するまでログインできない。
+- 複製の検出は、署名カウンタを増やす認証器でのみ働く。
+- 大量リクエストによる負荷攻撃は、リバースプロキシ等で対策する。
 - 管理者1人の前提のため、権限分離や操作の監査証跡は持たない。
 - challengeのHMAC鍵・使用済み一覧はメモリ上のため、複数プロセス構成には対応しない（単一バイナリ・単一プロセスの前提）。
