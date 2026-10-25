@@ -27,13 +27,14 @@ func custom() {}
 func fixture(t *testing.T, registration string) {
 	t.Helper()
 	t.Chdir(t.TempDir())
-	for _, dir := range []string{"cmd/server", "features/site", "features/custom"} {
+	for _, dir := range []string{"cmd/server", "features/site", "features/cms", "features/custom"} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	write(t, "cmd/server/features.go", registration)
 	write(t, "features/site/site.go", bundledSiteMarker+"\npackage site\n")
+	write(t, "features/cms/cms.go", bundledCMSMarker+"\npackage cms\n")
 	write(t, "features/custom/custom.go", "package custom\n// keep me\n")
 }
 func write(t *testing.T, path, value string) {
@@ -149,5 +150,55 @@ func TestToggleSiteRejectsConflictsWithoutWriting(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// SiteとCMSは独立して切り替えられ、互いの登録と自作コードを変更しないこと。
+func TestToggleSiteAndCMSIndependently(t *testing.T) {
+	fixture(t, baseRegistration)
+	original := read(t, "cmd/server/features.go")
+	if err := addSite(); err != nil {
+		t.Fatal(err)
+	}
+	if err := addCMS(); err != nil {
+		t.Fatal(err)
+	}
+	if err := addCMS(); err != nil {
+		t.Fatal(err)
+	}
+	both := read(t, "cmd/server/features.go")
+	for _, want := range []string{`"minimal-web-kit/features/site"`, "r.Register(site.NewFeature(logger))", `"minimal-web-kit/features/cms"`, "r.Register(cms.NewFeature(logger))"} {
+		if strings.Count(both, want) != 1 {
+			t.Fatalf("expected exactly one %s", want)
+		}
+	}
+	if !strings.Contains(both, "// custom code must remain unchanged") {
+		t.Fatal("custom code removed")
+	}
+	if err := removeSite(); err != nil {
+		t.Fatal(err)
+	}
+	cmsOnly := read(t, "cmd/server/features.go")
+	if strings.Contains(cmsOnly, "site.") || strings.Count(cmsOnly, "r.Register(cms.NewFeature(logger))") != 1 {
+		t.Fatal("removing Site must keep the CMS registration")
+	}
+	if err := removeCMS(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "cmd/server/features.go") != original {
+		t.Fatal("registration not restored after removing both")
+	}
+}
+
+// 識別コメントのない同名のcmsディレクトリは、自作機能として扱い変更しないこと。
+func TestToggleCMSRejectsCustomDirectory(t *testing.T) {
+	fixture(t, baseRegistration)
+	write(t, "features/cms/cms.go", "package cms\n// user's own feature\n")
+	before := read(t, "cmd/server/features.go")
+	if err := addCMS(); err == nil {
+		t.Fatal("expected refusal for custom cms directory")
+	}
+	if read(t, "cmd/server/features.go") != before {
+		t.Fatal("refused operation changed registration")
 	}
 }

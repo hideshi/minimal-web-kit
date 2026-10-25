@@ -33,6 +33,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Successfully disabled LP/site template! Site registration is disabled; feature directories were not modified.")
+	case "add-cms":
+		if err := addCMS(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling cms feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled CMS template! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
+	case "remove-cms":
+		if err := removeCMS(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling cms feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully disabled CMS template! CMS registration is disabled; feature directories and stored data were not modified.")
 	default:
 		printUsage()
 	}
@@ -47,12 +59,33 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  add-site     Enable LP / homepage template module in cmd/server/features.go")
 	fmt.Println("  remove-site  Disable LP / homepage template registration")
+	fmt.Println("  add-cms      Enable CMS template module in cmd/server/features.go")
+	fmt.Println("  remove-cms   Disable CMS template registration (stored data is kept)")
 }
 
-const bundledSiteMarker = "// minimal-web-kit: bundled-site-template"
+// bundle は登録を切り替えられる同梱テンプレートです。
+// ディレクトリ features/<name>/、ソース <name>.go、識別コメント marker を持ちます。
+type bundle struct {
+	name   string
+	label  string
+	marker string
+}
 
-func addSite() error    { return toggleSite(true) }
-func removeSite() error { return toggleSite(false) }
+const (
+	bundledSiteMarker = "// minimal-web-kit: bundled-site-template"
+	bundledCMSMarker  = "// minimal-web-kit: bundled-cms-template"
+)
+
+var (
+	siteBundle = bundle{name: "site", label: "Site", marker: bundledSiteMarker}
+	cmsBundle  = bundle{name: "cms", label: "CMS", marker: bundledCMSMarker}
+)
+
+func addSite() error               { return toggleSite(true) }
+func removeSite() error            { return toggleSite(false) }
+func toggleSite(enable bool) error { return toggleBundle(siteBundle, enable) }
+func addCMS() error                { return toggleBundle(cmsBundle, true) }
+func removeCMS() error             { return toggleBundle(cmsBundle, false) }
 
 // 実体を確認できない同名ディレクトリと、シンボリックリンクは操作しない。
 func regularPath(path string, directory bool) error {
@@ -66,25 +99,27 @@ func regularPath(path string, directory bool) error {
 	return nil
 }
 
-func toggleSite(enable bool) error {
-	for _, dir := range []string{"features", "features/site", "cmd", "cmd/server"} {
-		if err := regularPath(dir, true); err != nil {
+func toggleBundle(b bundle, enable bool) error {
+	dir := "features/" + b.name
+	sourcePath := dir + "/" + b.name + ".go"
+	for _, d := range []string{"features", dir, "cmd", "cmd/server"} {
+		if err := regularPath(d, true); err != nil {
 			return err
 		}
 	}
-	if err := regularPath("features/site/site.go", false); err != nil {
+	if err := regularPath(sourcePath, false); err != nil {
 		return err
 	}
-	siteSource, err := os.ReadFile("features/site/site.go")
+	source, err := os.ReadFile(sourcePath)
 	if err != nil {
 		return err
 	}
-	if !bytes.HasPrefix(siteSource, []byte(bundledSiteMarker+"\n")) {
-		return fmt.Errorf("features/site is not identified as the bundled Site template; refusing to modify registration")
+	if !bytes.HasPrefix(source, []byte(b.marker+"\n")) {
+		return fmt.Errorf("%s is not identified as the bundled %s template; refusing to modify registration", dir, b.label)
 	}
-	siteFile, err := parser.ParseFile(token.NewFileSet(), "features/site/site.go", siteSource, 0)
-	if err != nil || siteFile.Name.Name != "site" {
-		return fmt.Errorf("bundled Site source is invalid")
+	sourceFile, err := parser.ParseFile(token.NewFileSet(), sourcePath, source, 0)
+	if err != nil || sourceFile.Name.Name != b.name {
+		return fmt.Errorf("bundled %s source is invalid", b.label)
 	}
 
 	const path = "cmd/server/features.go"
@@ -134,32 +169,33 @@ func toggleSite(enable bool) error {
 		return fmt.Errorf("missing or misplaced registration markers")
 	}
 
-	const siteImport = "minimal-web-kit/features/site"
+	importPath := "minimal-web-kit/features/" + b.name
+	registration := "r.Register(" + b.name + ".NewFeature(logger))"
 	imports := 0
 	for _, imp := range file.Imports {
 		value, err := strconv.Unquote(imp.Path.Value)
 		if err != nil {
 			return err
 		}
-		if value == siteImport {
+		if value == importPath {
 			if imp.Name != nil {
-				return fmt.Errorf("aliased Site import is not supported; edit registration manually")
+				return fmt.Errorf("aliased %s import is not supported; edit registration manually", b.label)
 			}
 			imports++
-		} else if imp.Name != nil && imp.Name.Name == "site" {
-			return fmt.Errorf("import name site is already used by another feature")
+		} else if imp.Name != nil && imp.Name.Name == b.name {
+			return fmt.Errorf("import name %s is already used by another feature", b.name)
 		}
-		if value != siteImport && imp.Name == nil && filepath.Base(value) == "site" {
-			return fmt.Errorf("import name site conflicts with another feature")
+		if value != importPath && imp.Name == nil && filepath.Base(value) == b.name {
+			return fmt.Errorf("import name %s conflicts with another feature", b.name)
 		}
 	}
-	importLine := regexp.MustCompile(`(?m)^[\t ]*"minimal-web-kit/features/site"\r?\n`)
-	registrationLine := regexp.MustCompile(`(?m)^[\t ]*r\.Register\(site\.NewFeature\(logger\)\)\r?\n`)
+	importLine := regexp.MustCompile(`(?m)^[\t ]*` + regexp.QuoteMeta(strconv.Quote(importPath)) + `\r?\n`)
+	registrationLine := regexp.MustCompile(`(?m)^[\t ]*` + regexp.QuoteMeta(registration) + `\r?\n`)
 	registrations := len(registrationLine.FindAllStringIndex(content, -1))
 	selectors := 0
 	ast.Inspect(file, func(node ast.Node) bool {
 		if selector, ok := node.(*ast.SelectorExpr); ok {
-			if id, ok := selector.X.(*ast.Ident); ok && id.Name == "site" {
+			if id, ok := selector.X.(*ast.Ident); ok && id.Name == b.name {
 				selectors++
 			}
 		}
@@ -167,12 +203,12 @@ func toggleSite(enable bool) error {
 	})
 	setupRegistrations := 0
 	for _, stmt := range setup.Body.List {
-		if strings.TrimSpace(content[fset.Position(stmt.Pos()).Offset:fset.Position(stmt.End()).Offset]) == "r.Register(site.NewFeature(logger))" {
+		if strings.TrimSpace(content[fset.Position(stmt.Pos()).Offset:fset.Position(stmt.End()).Offset]) == registration {
 			setupRegistrations++
 		}
 	}
 	if setupRegistrations != registrations || imports > 1 || registrations > 1 || imports != registrations || selectors != registrations || len(importLine.FindAllStringIndex(content, -1)) != imports {
-		return fmt.Errorf("unexpected Site registration; refusing to rewrite custom code")
+		return fmt.Errorf("unexpected %s registration; refusing to rewrite custom code", b.label)
 	}
 	if (enable && imports == 1) || (!enable && imports == 0) {
 		return nil
@@ -180,8 +216,8 @@ func toggleSite(enable bool) error {
 	if enable {
 		// 置換はコメント単独行に限定する。コード中の文字列は置換しない。
 		for marker, replacement := range map[string]string{
-			"FEATURE_IMPORTS":       `"minimal-web-kit/features/site"`,
-			"FEATURE_REGISTRATIONS": "r.Register(site.NewFeature(logger))",
+			"FEATURE_IMPORTS":       strconv.Quote(importPath),
+			"FEATURE_REGISTRATIONS": registration,
 		} {
 			pattern := regexp.MustCompile(`(?m)^[\t ]*// \[` + marker + `\]\r?$`)
 			if len(pattern.FindAllStringIndex(content, -1)) != 1 {
