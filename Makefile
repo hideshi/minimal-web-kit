@@ -20,7 +20,7 @@ verify:
 clean:
 	rm -rf bin/ data/
 
-# 機能モジュールの着脱コマンド（自作機能には一切影響しません）
+# Siteの登録切り替え（識別できない同名機能や想定外の登録状態は拒否）
 add-site:
 	go run ./cmd/kit add-site
 

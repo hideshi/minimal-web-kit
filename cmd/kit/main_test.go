@@ -1,0 +1,153 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+const baseRegistration = `package main
+import (
+ "database/sql"
+ "log/slog"
+ "minimal-web-kit/features"
+ // [FEATURE_IMPORTS]
+)
+func setupFeatures(db *sql.DB, logger *slog.Logger) *features.Registry {
+ r := features.NewRegistry()
+ // custom registration remains here
+ // [FEATURE_REGISTRATIONS]
+ return r
+}
+// custom code must remain unchanged
+func custom() {}
+`
+
+func fixture(t *testing.T, registration string) {
+	t.Helper()
+	t.Chdir(t.TempDir())
+	for _, dir := range []string{"cmd/server", "features/site", "features/custom"} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(t, "cmd/server/features.go", registration)
+	write(t, "features/site/site.go", bundledSiteMarker+"\npackage site\n")
+	write(t, "features/custom/custom.go", "package custom\n// keep me\n")
+}
+func write(t *testing.T, path, value string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(value), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+func read(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestToggleSitePreservesFilesAndIsIdempotent(t *testing.T) {
+	fixture(t, baseRegistration)
+	originalSite := read(t, "features/site/site.go")
+	originalCustom := read(t, "features/custom/custom.go")
+	if err := addSite(); err != nil {
+		t.Fatal(err)
+	}
+	enabled := read(t, "cmd/server/features.go")
+	if strings.Count(enabled, `"minimal-web-kit/features/site"`) != 1 || strings.Count(enabled, "r.Register(site.NewFeature(logger))") != 1 {
+		t.Fatal("Site registration missing or duplicated")
+	}
+	if err := addSite(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "cmd/server/features.go") != enabled {
+		t.Fatal("second add changed registration")
+	}
+	if err := removeSite(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "cmd/server/features.go") != baseRegistration {
+		t.Fatal("custom registration was changed")
+	}
+	if err := removeSite(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "features/site/site.go") != originalSite || read(t, "features/custom/custom.go") != originalCustom {
+		t.Fatal("feature files were changed")
+	}
+}
+
+func TestToggleSiteRejectsConflictsWithoutWriting(t *testing.T) {
+	for _, enable := range []bool{true, false} {
+		for _, scenario := range []string{"custom_site", "missing_site", "directory_symlink", "file_symlink", "missing_marker", "duplicate_marker", "wrong_marker_location", "malformed_go", "partial_registration", "alias_collision", "aliased_site", "multiline_registration", "registration_in_other_function"} {
+			t.Run(scenario+map[bool]string{true: "_add", false: "_remove"}[enable], func(t *testing.T) {
+				fixture(t, baseRegistration)
+				switch scenario {
+				case "custom_site":
+					write(t, "features/site/site.go", "package site\n// user's own feature\n")
+				case "missing_site":
+					if err := os.RemoveAll("features/site"); err != nil {
+						t.Fatal(err)
+					}
+				case "directory_symlink":
+					if err := os.Rename("features/site", "features/other"); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink("other", "features/site"); err != nil {
+						t.Fatal(err)
+					}
+				case "file_symlink":
+					if err := os.Rename("cmd/server/features.go", "cmd/server/other.go"); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Symlink("other.go", "cmd/server/features.go"); err != nil {
+						t.Fatal(err)
+					}
+				case "missing_marker":
+					write(t, "cmd/server/features.go", strings.Replace(baseRegistration, "// [FEATURE_IMPORTS]", "", 1))
+				case "duplicate_marker":
+					write(t, "cmd/server/features.go", baseRegistration+"\n// [FEATURE_IMPORTS]\n")
+				case "wrong_marker_location":
+					write(t, "cmd/server/features.go", strings.Replace(baseRegistration, "// [FEATURE_IMPORTS]", "", 1)+"\n// [FEATURE_IMPORTS]\n")
+				case "malformed_go":
+					write(t, "cmd/server/features.go", "package main\nfunc broken(\n")
+				case "partial_registration":
+					write(t, "cmd/server/features.go", strings.Replace(baseRegistration, "// [FEATURE_IMPORTS]", `"minimal-web-kit/features/site"`+"\n // [FEATURE_IMPORTS]", 1))
+				case "alias_collision":
+					write(t, "cmd/server/features.go", strings.Replace(baseRegistration, "// [FEATURE_IMPORTS]", `site "example.invalid/custom"`+"\n // [FEATURE_IMPORTS]", 1))
+				case "aliased_site":
+					write(t, "cmd/server/features.go", strings.Replace(baseRegistration, "// [FEATURE_IMPORTS]", `lp "minimal-web-kit/features/site"`+"\n // [FEATURE_IMPORTS]", 1))
+				case "multiline_registration":
+					if err := addSite(); err != nil {
+						t.Fatal(err)
+					}
+					write(t, "cmd/server/features.go", strings.Replace(read(t, "cmd/server/features.go"), "r.Register(site.NewFeature(logger))", "r.Register(\n site.NewFeature(logger),\n)", 1))
+				case "registration_in_other_function":
+					if err := addSite(); err != nil {
+						t.Fatal(err)
+					}
+					s := read(t, "cmd/server/features.go")
+					s = strings.Replace(s, " r.Register(site.NewFeature(logger))\n", "", 1)
+					write(t, "cmd/server/features.go", s+"\nfunc elsewhere() {\n r.Register(site.NewFeature(logger))\n}\n")
+				}
+				before := read(t, "cmd/server/features.go")
+				custom := read(t, "features/custom/custom.go")
+				if err := toggleSite(enable); err == nil {
+					t.Fatal("expected safe refusal")
+				}
+				if read(t, "cmd/server/features.go") != before || read(t, "features/custom/custom.go") != custom {
+					t.Fatal("failed operation changed files")
+				}
+				leftovers, _ := filepath.Glob("cmd/server/.features-*")
+				if len(leftovers) != 0 {
+					t.Fatal("temporary file left behind")
+				}
+			})
+		}
+	}
+}

@@ -1,3 +1,4 @@
+// minimal-web-kit: bundled-site-template
 package site
 
 import (
