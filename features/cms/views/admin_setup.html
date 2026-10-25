@@ -1,0 +1,23 @@
+{{define "script"}}<script src="/admin/static/webauthn.js" defer></script>{{end}}
+{{define "content"}}
+<h1>パスキーの登録</h1>
+
+<p>この端末だけに保存される認証器（Windows Helloの指紋・顔・PIN、またはセキュリティキー）を登録します。スマートフォンやパスワードマネージャーで同期されるパスキーは登録できません。</p>
+
+<noscript>
+  <p class="alert alert-warning">パスキーの登録にはJavaScriptが必要です。ブラウザの設定でJavaScriptを有効にしてください。</p>
+</noscript>
+
+<form id="setup-form" class="card" hidden>
+  <div class="form-group">
+    <label for="passkey-label">端末名</label>
+    <p class="field-hint" id="passkey-label-hint">あとで見分けるための名前です（例: 仕事用PCのWindows Hello）。個人名は入れないでください。50文字以内。</p>
+    <input type="text" id="passkey-label" name="label" maxlength="50" required aria-describedby="passkey-label-hint">
+  </div>
+  <button type="submit" class="btn btn-primary">パスキーを登録する</button>
+</form>
+
+<p id="webauthn-status" role="status" aria-live="polite"></p>
+
+<p>登録が終わったら、続けてログインしてください。認証器は2つ以上登録しておくことをおすすめします。</p>
+{{end}}

@@ -10,6 +10,39 @@ import (
 
 var inlineEventHandlerPattern = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
 
+// approvedScriptTag は、利用者が承認したJavaScriptの唯一の読み込み方です（AGENTS.mdの承認境界#4）。
+const approvedScriptTag = `<script src="/admin/static/webauthn.js" defer></script>`
+
+// allowedScriptTemplates は approvedScriptTag を含められる、CMSの認証画面のテンプレートです。
+var allowedScriptTemplates = map[string]bool{
+	"admin_setup.html":    true,
+	"admin_login.html":    true,
+	"admin_passkeys.html": true,
+}
+
+// TestJavaScript_OnlyApprovedFile は、リポジトリ内のJavaScriptが承認済みの1ファイルだけであることを検証します。
+func TestJavaScript_OnlyApprovedFile(t *testing.T) {
+	var found []string
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == ".git" || d.Name() == "bin" || d.Name() == "data") {
+			return filepath.SkipDir
+		}
+		if !d.IsDir() && (strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs")) {
+			found = append(found, filepath.ToSlash(path))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 || found[0] != "../features/cms/static/webauthn.js" {
+		t.Fatalf("only features/cms/static/webauthn.js is approved, found %v", found)
+	}
+}
+
 // TestTemplate_NoInlineStylesOrScripts は全HTMLテンプレートにインラインstyle属性、タグ、イベントハンドラがないことを検証します。
 func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 	coreFiles, err := filepath.Glob("../internal/web/views/*.html")
@@ -37,7 +70,12 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 		if strings.Contains(str, "<style") {
 			t.Errorf("<style> tag found in %s. Styles must be defined in style.css.", file)
 		}
-		if strings.Contains(str, "<script") {
+		// 承認済みの例外: CMSの認証画面だけ、自サイトの webauthn.js を外部ファイルとして1つ読み込める。
+		if allowedScriptTemplates[filepath.Base(file)] && strings.Contains(file, filepath.Join("features", "cms", "views")) {
+			if strings.Count(str, "<script") != 1 || strings.Count(str, approvedScriptTag) != 1 {
+				t.Errorf("%s may contain only %s", file, approvedScriptTag)
+			}
+		} else if strings.Contains(str, "<script") {
 			t.Errorf("<script> tag found in %s. Inline scripts are prohibited for security and simplicity.", file)
 		}
 		if inlineEventHandlerPattern.MatchString(str) {

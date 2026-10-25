@@ -1,4 +1,4 @@
-.PHONY: all build run test lint verify clean add-site remove-site
+.PHONY: all build run test lint verify clean add-site remove-site add-cms remove-cms cms-setup cms-recover
 
 BIN_NAME := minimal-web-kit
 
@@ -26,3 +26,18 @@ add-site:
 
 remove-site:
 	go run ./cmd/kit remove-site
+
+# CMSの登録切り替え（登録を外してもDBのデータは残る）
+add-cms:
+	go run ./cmd/kit add-cms
+
+remove-cms:
+	go run ./cmd/kit remove-cms
+
+# CMSの初回登録用URLを表示（パスキーが未登録のときだけ）
+cms-setup:
+	go run ./cmd/kit cms-setup
+
+# CMSのパスキーと管理者セッションを全削除し、登録用URLを再発行（確認あり）
+cms-recover:
+	go run ./cmd/kit cms-recover

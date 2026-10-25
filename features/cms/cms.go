@@ -34,12 +34,23 @@ type Feature struct {
 	cfg         Config
 	db          *sql.DB
 	posts       *PostStore
+	admin       *adminStore
+	challenges  *challenges
+	csrfKey     []byte
 	publicPages map[string]*template.Template
+	adminPages  map[string]*template.Template
 	now         func() time.Time
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
-	return &Feature{logger: logger, publicPages: parsePublicTemplates(), now: time.Now}
+	return &Feature{
+		logger:      logger,
+		challenges:  newChallenges(time.Now),
+		csrfKey:     newCSRFKey(),
+		publicPages: parsePublicTemplates(),
+		adminPages:  parseAdminTemplates(),
+		now:         time.Now,
+	}
 }
 
 func (f *Feature) Name() string {
@@ -60,6 +71,7 @@ func (f *Feature) Init(db *sql.DB) error {
 	f.cfg = cfg
 	f.db = db
 	f.posts = NewPostStore(db)
+	f.admin = newAdminStore(db, f.now)
 	return nil
 }
 
@@ -88,6 +100,7 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
 // RegisterIsolatedRoutes はCMSの公開ページ・API・管理画面を登録します。
 func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	f.registerPublicRoutes(mux)
+	f.registerAdminRoutes(mux)
 }
 
 // Purge は期限切れの管理者セッションと、使用済み・期限切れの登録トークンを削除します。

@@ -1,0 +1,38 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{.Title}} - minimal-web-kit CMS</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  {{block "script" .}}{{end}}
+</head>
+<body>
+  <a href="#main-content" class="skip-link">本文へ移動</a>
+
+  <header>
+    <div class="site-header-inner">
+      <div>
+        <div class="site-title">minimal-web-kit CMS</div>
+        <div class="site-subtitle">管理画面</div>
+      </div>
+      <nav aria-label="管理画面のナビゲーション">
+        <a href="/news">公開中のお知らせ</a>
+        {{if .LoggedIn}}
+        <form method="post" action="/admin/logout" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button type="submit" class="btn btn-secondary">ログアウト</button>
+        </form>
+        {{end}}
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content" tabindex="-1">
+    {{template "content" .}}
+  </main>
+</body>
+</html>
+{{end}}

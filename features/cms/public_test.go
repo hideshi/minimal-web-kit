@@ -2,6 +2,7 @@ package cms
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -34,11 +35,13 @@ func (s *lookupStore) CreateSession(ctx context.Context, hash string, owner doma
 }
 
 type publicFixture struct {
-	routes http.Handler
-	posts  *PostStore
-	core   *lookupStore
-	sm     *web.SessionManager
-	logs   *strings.Builder
+	feature *Feature
+	db      *sql.DB
+	routes  http.Handler
+	posts   *PostStore
+	core    *lookupStore
+	sm      *web.SessionManager
+	logs    *strings.Builder
 }
 
 // newPublicFixture はCoreのルーティングにCMSを組み込んだ状態を作ります。
@@ -62,7 +65,7 @@ func newPublicFixture(t *testing.T, corsOrigins string) *publicFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &publicFixture{routes: routes, posts: f.posts, core: core, sm: sm, logs: logs}
+	return &publicFixture{feature: f, db: db, routes: routes, posts: f.posts, core: core, sm: sm, logs: logs}
 }
 
 func (fx *publicFixture) do(t *testing.T, method, target string, headers map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {

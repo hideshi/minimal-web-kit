@@ -1,0 +1,18 @@
+{{define "script"}}<script src="/admin/static/webauthn.js" defer></script>{{end}}
+{{define "content"}}
+<h1>管理画面へのログイン</h1>
+
+{{if .Registered}}
+<p class="alert alert-info">パスキーを登録しました。登録したパスキーでログインしてください。</p>
+{{end}}
+
+<noscript>
+  <p class="alert alert-warning">ログインにはJavaScriptが必要です。ブラウザの設定でJavaScriptを有効にしてください。</p>
+</noscript>
+
+<p>登録済みのパスキー（Windows Helloの指紋・顔・PIN、またはセキュリティキー）でログインします。</p>
+
+<p><button type="button" id="login-button" class="btn btn-primary" hidden>パスキーでログイン</button></p>
+
+<p id="webauthn-status" role="status" aria-live="polite"></p>
+{{end}}
