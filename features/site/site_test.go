@@ -58,6 +58,8 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"マイクロSaaS",
 		"選べるスターター ＆ 自在な拡張基盤",
 		"完全セッションレス",
+		"STANDARD LIBRARY FIRST",
+		"公開ページはCookieなしで閲覧できます。",
 		"お問い合わせ窓口は現在準備中です。",
 		"新しいタブで開きます",
 		"target=\"_blank\"",
