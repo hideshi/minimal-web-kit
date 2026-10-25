@@ -163,3 +163,26 @@ sudo systemctl restart minimal-web-kit
 - CMSを有効にした場合、パスキーで登録・ログインでき、`/news` と `/api/news` が表示される。
 - DBのディレクトリが `mwk` 以外から読めない（`ls -ld /var/lib/minimal-web-kit`）。
 - プロキシ・journald・バックアップの保持期間を決めてある。
+
+## 11. Siteだけを静的ホスティングに置く
+
+SiteのLP（`/`）とプライバシーポリシー（`/privacy`）は、Cookieも保存データも使わないため、静的ファイルとして書き出して、Cloudflare Workersの静的アセット等の静的ホスティングに置けます。サーバーやDBは不要です。
+
+```sh
+# Siteだけを有効にした状態で
+CONTACT_FORM_URL=https://forms.example.com/... go run ./cmd/server export-static dist
+```
+
+| 書き出すファイル | 内容 |
+|---|---|
+| `index.html` | `/` |
+| `privacy.html` | `/privacy`（Cloudflare Workersの静的アセットは、既定の設定で `privacy.html` を `/privacy` で配信します） |
+| `static/css/style.css` | CSS |
+| `_headers` | Goのサーバーと同じセキュリティヘッダー（CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）を全経路に付ける設定 |
+
+- CMS等、セッションや管理画面を使う機能が有効な場合は、静的にできないため書き出しを拒否します。
+- 書き出し先に、この処理が作るもの以外のファイルがある場合も拒否します（上書き・削除しません）。
+- `CONTACT_FORM_URL` は書き出すときにHTMLへ埋め込まれます。文言や設定を変えたら、書き出し直して配信し直します。
+- アクセスの記録は配信サービス側に残ります。`/privacy` の文面を、実際に使うサービスに合わせて編集してください。
+- `_headers` の書式は [Cloudflare Workersの静的アセットのヘッダー](https://developers.cloudflare.com/workers/static-assets/headers/) に従います。他のサービスでは、同等の設定に置き換えてください。
+

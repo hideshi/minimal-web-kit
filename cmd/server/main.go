@@ -18,6 +18,11 @@ func main() {
 	}
 	slog.SetDefault(logger)
 
+	// 静的ファイルへの書き出しは、DBを開かずに行う
+	if len(os.Args) > 1 && os.Args[1] == "export-static" {
+		os.Exit(runExportStatic(os.Args[2:], setupFeatures(nil, logger), logger, os.Stdout, os.Stderr))
+	}
+
 	cfg := app.LoadConfig()
 
 	s, err := store.NewSQLiteStore(cfg.DBPath)

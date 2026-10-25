@@ -99,6 +99,7 @@ make cms-setup
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
 | `make add-cms` / `make remove-cms` | CMSの登録を有効化・無効化（無効化してもDBのデータは残る） |
 | `make cms-setup` | CMSの初回登録用URLを表示（パスキーが未登録のときだけ）。本番は `minimal-web-kit cms-setup` |
+| `go run ./cmd/server export-static <dir>` | Siteの公開ページ（`/`・`/privacy`）とCSS、セキュリティヘッダーの `_headers` を静的ファイルとして書き出す（Siteのみ有効な場合）。本番は `minimal-web-kit export-static <dir>` |
 | `make cms-recover` | CMSのパスキーと管理者セッションを全削除し、登録用URLを再発行（確認あり） |
 | `make` / `make all` | テスト後にビルド（サーバーは起動しない） |
 | `make clean` | `bin/` と **`data/`（既定のDBを含む）を削除** |
@@ -116,7 +117,7 @@ make cms-setup
 
 `make build` はテンプレート・CSS・JS・マイグレーションを埋め込んだ単一実行ファイルを作ります。対象OS・CPUに合わせたビルドが必要で、サイズはGoバージョン・構成・対象環境により変わります。SQLiteのデータはバイナリの外に保存されます。
 
-本番公開には、HTTPS終端、Secure Cookie、待受・公開範囲、DBと保存ディレクトリの権限、バックアップ、ログの保持・削除方針等の設定が必要です。Linuxサーバー（VPS・EC2等）へのビルド・配置・systemd・リバースプロキシ・バックアップの手順例は [docs/deploy.md](docs/deploy.md) を参照してください。公開範囲の変更や外部通信等は `AGENTS.md` の承認境界に従ってください。
+本番公開には、HTTPS終端、Secure Cookie、待受・公開範囲、DBと保存ディレクトリの権限、バックアップ、ログの保持・削除方針等の設定が必要です。Linuxサーバー（VPS・EC2等）へのビルド・配置・systemd・リバースプロキシ・バックアップの手順例と、Siteだけを静的ホスティング（Cloudflare等）に置く手順は [docs/deploy.md](docs/deploy.md) を参照してください。公開範囲の変更や外部通信等は `AGENTS.md` の承認境界に従ってください。
 
 ## 推奨するAI開発ツールとスキル
 
