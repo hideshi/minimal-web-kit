@@ -22,7 +22,7 @@ go test -race -v ./...
 - **`TestDataSchema_MatchesDataLedger`**: `docs/data-inventory.md` に記載されたテーブル・列定義と、インメモリDB上の実スキーマ（`PRAGMA table_info`）のテーブル名・列名が双方向で一致しているか。Featureは有効化の状態にかかわらず全 `features/*/migration.sql` を適用する。型・NULL制約・外部キーや、`migration.sql` 以外で作るテーブルは検査しない。
 - **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=`、`<style>`、`<script>`、および `on*` イベントハンドラが含まれていないか。
 - **`TestCSS_SingleFileAndNoImportant`**: CSSファイルが単一であり、`!important` が含まれていないか。
-- **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection` で検査する。
+- **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection`、CMSの公開ページ・API・管理画面は `TestCanary_CMSRoutesDoNotLeakInput` で検査する。
 
 ## 2. 人手による差分チェック観点
 自動テストに加え、`git diff` で以下の観点を確認します。
@@ -48,4 +48,5 @@ go test -race -v ./...
 - 色の計算や静的検査だけでJIS/WCAGの完全適合を宣言しない。対象ページ・状態・ブラウザ・実施項目・未確認項目を報告する。
 - 本番公開する場合はHTTPS終端、`SECURE_COOKIE=true`、待受・公開範囲の承認、DB/ディレクトリ権限、ログとバックアップの保持・削除方針を確認する。公開操作自体の承認は別途得る。
 - `CONTACT_FORM_URL` が実際のフォームを指すか、入力項目と利用目的・保持期間・削除窓口がポリシーに一致するかを確認する。仮URLを実用の窓口として案内しない。
-- LP・README・スキル・コードを照合し、同梱済み機能と拡張例を区別する。未実装のCMS・認証・権限管理や未確認の性能を提供済みと表現しない。
+- LP・README・スキル・コードを照合し、同梱済み機能（Site・CMS）と範囲外を区別する。未実装の権限管理・画像アップロード等や未確認の性能を提供済みと表現しない。
+- CMSを有効にした場合は、パスキーでの登録・ログイン、同期型パスキーの拒否、`/news`・`/api/news` がCookieを扱わないこと、CORSが既定で無許可であること、JSが認証画面だけで動くことを確認する。
