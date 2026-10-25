@@ -83,7 +83,7 @@ Siteを有効化しても、サーバーは起動時にSQLiteのDBファイル�
 
 `make build` はテンプレート・CSS・Coreのマイグレーションを埋め込んだ単一実行ファイルを作ります。対象OS・CPUに合わせたビルドが必要で、サイズはGoバージョン・構成・対象環境により変わります。SQLiteのデータはバイナリの外に保存されます。
 
-本番公開には、HTTPS終端、Secure Cookie、待受・公開範囲、DBと保存ディレクトリの権限、バックアップ、ログの保持・削除方針等の設定が必要です。公開範囲の変更や外部通信等は `AGENTS.md` の承認境界に従ってください。
+本番公開には、HTTPS終端、Secure Cookie、待受・公開範囲、DBと保存ディレクトリの権限、バックアップ、ログの保持・削除方針等の設定が必要です。Linuxサーバー（VPS・EC2等）へのビルド・配置・systemd・リバースプロキシ・バックアップの手順例は [docs/deploy.md](docs/deploy.md) を参照してください。公開範囲の変更や外部通信等は `AGENTS.md` の承認境界に従ってください。
 
 ## 推奨するAI開発ツールとスキル
 
@@ -149,12 +149,13 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── .claude/skills/         # Claude Code向けの参照
 ├── docs/
 │   ├── cms-plan.md         # CMSテンプレートの実装計画
+│   ├── deploy.md           # 本番デプロイの手順例（Linux）
 │   └── data-inventory.md   # 取得・保存データ台帳
 ├── LICENSE                # MIT License
 ├── SECURITY.md            # 脆弱性の報告窓口
 ├── Makefile               # 起動・ビルド・検査・Site切り替え
 ├── cmd/
-│   ├── server/            # 起動処理とFeatureの登録
+│   ├── server/            # 起動処理・Featureの登録・Featureのサブコマンド
 │   └── kit/               # Site登録の切り替えCLIとテスト
 ├── internal/
 │   ├── app/               # 設定・サーバー管理
