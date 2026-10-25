@@ -81,6 +81,7 @@
 - 画面の表示（GET）ではトークンを消費しない。`register/begin` で有効性を確認し、`register/finish` の検証成功時に `UPDATE ... SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?` で原子的に消費する（更新0件なら拒否）。
 - サーバーを操作できる人を管理者とみなす。登録URLがターミナルの画面共有・スクロールバック・シェル履歴の出力に残る点は、READMEで注意する。
 - 認証器は**2つ以上の登録を強く推奨**する。1つを失うと、残りが無い限り `cms-recover` までログインできない。追加は管理画面から、ログイン中にのみ行う。
+- 登録の直後にはセッションを発行せず、登録したパスキーで一度ログインしてもらう。attestation none では登録時に秘密鍵の所持を確認できないため、使えない鍵だけが登録されて閉め出される事故を、登録トークンが有効なうちに気づけるようにする。
 
 ## 7. WebAuthn（標準ライブラリのみ）
 
@@ -114,11 +115,16 @@
 **認証オプションと検証**
 - `allowCredentials` は空、`userVerification: "required"`（ユーザー名を入力しないdiscoverable credentialでのログイン）。
 1. `type` が `webauthn.get`、challenge・origin・`crossOrigin` を登録と同様に確認。
-2. `rawId` で `cms_credentials` を検索し、存在しない・無効化済みなら拒否。`userHandle` が返された場合は `webauthn_user_id` と一致すること。
+2. `rawId` で `cms_credentials` を検索し、存在しない・無効化済みなら拒否。`userHandle` は必須とし、`webauthn_user_id` と一致すること（`allowCredentials` 空の認証では仕様上必須。`residentKey: required` のため正当な認証器は必ず返す）。
 3. `rpIdHash`、UP・UVフラグが立ち、BE・BSフラグが立っていないことを確認。
 4. 署名対象は `authenticatorData || sha256(clientDataJSON)`。ES256は `sha256(対象)` に `ecdsa.VerifyASN1`、RS256は `sha256(対象)` に `rsa.VerifyPKCS1v15`、Ed25519は**ハッシュせずに**対象そのものに `ed25519.Verify`。
 5. 署名カウンタ: 新値と保存値の**どちらかが0でなければ**、新値 <= 保存値を拒否する（複製の疑い）。拒否時は、そのパスキーを無効化（`disabled_at`）し、**管理者セッションをすべて削除**する。複製したキーで先にログインした者がいても、どのセッションか見分けられないため。案内は下表のとおり。
-6. 成功したら管理者セッションを新規発行し、`last_used_at` と `sign_count` を更新する。
+6. 成功したら管理者セッションを新規発行し、`last_used_at` と `sign_count` を更新する。`sign_count` は `UPDATE ... WHERE id = ? AND sign_count < ?` で単調増加を保つ（並行ログインで小さい値が後から書かれないように）。
+
+**呼び出し側で保証すること**
+- credential IDの重複は、`cms_credentials.id` の主キー制約によるINSERTの失敗で拒否する（アプリ側の事前検索だけに頼らない）。
+- WebAuthnのPOSTには、Coreの1MBより小さい本文サイズ上限（64KB）を掛ける。
+- `CMS_ORIGIN` は起動時に正規化済み（既定ポート・末尾スラッシュを除去）のものを、clientDataの `origin` と完全一致で比較する。
 
 **複製の疑いを検出したときの案内**
 

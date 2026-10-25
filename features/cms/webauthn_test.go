@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"math/big"
 	"sync"
 	"testing"
 	"time"
@@ -317,7 +318,7 @@ func TestWebAuthn_LoginRejects(t *testing.T) {
 func TestWebAuthn_CounterZeroAllowedWhenBothZero(t *testing.T) {
 	ch := newChallenges(time.Now)
 	a := newFakeAuthenticator(t, algES256)
-	r := a.assert(t, ch, nil)
+	r := a.assert(t, ch, testUserID)
 	r.AuthenticatorData = authData(testRP.ID, a.flags, 0, nil)
 	r.Signature = a.sign(r.AuthenticatorData, r.ClientDataJSON)
 	if count, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); err != nil || count != 0 {
@@ -429,5 +430,198 @@ func TestWebAuthn_ChallengeEncoding(t *testing.T) {
 	}
 	if _, err := ch.check(c+"=", purposeLogin); !errors.Is(err, ErrChallengeInvalid) {
 		t.Fatal("padded challenge must be rejected")
+	}
+}
+
+// sequenceClock は呼び出しごとに次の時刻を返し、最後の時刻を繰り返します。
+func sequenceClock(times ...time.Time) func() time.Time {
+	var mu sync.Mutex
+	i := 0
+	return func() time.Time {
+		mu.Lock()
+		defer mu.Unlock()
+		t := times[min(i, len(times)-1)]
+		i++
+		return t
+	}
+}
+
+// 検証中（checkとconsumeの間）に期限を跨いだ再送は、掃き出し済みの記録をすり抜けて受理されないこと。
+func TestWebAuthn_ReplayAcrossExpiryBoundary(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+	expiry := base.Add(challengeTTL)
+	ch := newChallenges(func() time.Time { return base })
+	a := newFakeAuthenticator(t, algES256)
+	r := a.assert(t, ch, testUserID)
+
+	// 正規の応答は期限の直前に成功し、使用済みとして記録される
+	ch.now = func() time.Time { return expiry.Add(-time.Second) }
+	if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); err != nil {
+		t.Fatal(err)
+	}
+	// 再送: checkは期限内、consumeは期限ちょうど
+	ch.now = sequenceClock(expiry.Add(-time.Millisecond), expiry)
+	_, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID)
+	if !errors.Is(err, ErrChallengeInvalid) && !errors.Is(err, ErrChallengeUsed) {
+		t.Fatalf("replay across the expiry boundary must be rejected, got %v", err)
+	}
+}
+
+func TestWebAuthn_RegistrationReplayAndFailureDoNotConsume(t *testing.T) {
+	ch := newChallenges(time.Now)
+	a := newFakeAuthenticator(t, algES256)
+	r := a.register(t, ch)
+	bad := r
+	bad.PublicKey = []byte("broken")
+	if _, err := verifyRegistration(testRP, ch, bad); !errors.Is(err, ErrPublicKeyInvalid) {
+		t.Fatal(err)
+	}
+	if len(ch.used) != 0 {
+		t.Fatal("failed registration must not consume the challenge")
+	}
+	if _, err := verifyRegistration(testRP, ch, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifyRegistration(testRP, ch, r); !errors.Is(err, ErrChallengeUsed) {
+		t.Fatalf("registration replay must be rejected, got %v", err)
+	}
+}
+
+// 複製の疑いを返した応答もchallengeを消費し、再送は使用済みとして拒否されること。
+func TestWebAuthn_CloneSuspectedConsumesChallenge(t *testing.T) {
+	ch := newChallenges(time.Now)
+	a := newFakeAuthenticator(t, algES256)
+	r := a.assert(t, ch, testUserID)
+	stale := a.stored(a.count)
+	if _, err := verifyAssertion(testRP, ch, r, stale, testUserID); !errors.Is(err, ErrCloneSuspected) {
+		t.Fatal(err)
+	}
+	if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); !errors.Is(err, ErrChallengeUsed) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestWebAuthn_SignatureFormatsAreStrict(t *testing.T) {
+	t.Run("ES256 raw r||s is rejected", func(t *testing.T) {
+		ch := newChallenges(time.Now)
+		a := newFakeAuthenticator(t, algES256)
+		r := a.assert(t, ch, testUserID)
+		cdHash := sha256.Sum256(r.ClientDataJSON)
+		digest := sha256.Sum256(append(append([]byte{}, r.AuthenticatorData...), cdHash[:]...))
+		rr, ss, err := ecdsa.Sign(rand.Reader, a.signer.(*ecdsa.PrivateKey), digest[:])
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Signature = append(rr.FillBytes(make([]byte, 32)), ss.FillBytes(make([]byte, 32))...)
+		if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); !errors.Is(err, ErrSignatureInvalid) {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("Ed25519 prehashed is rejected", func(t *testing.T) {
+		ch := newChallenges(time.Now)
+		a := newFakeAuthenticator(t, algEdDSA)
+		r := a.assert(t, ch, testUserID)
+		cdHash := sha256.Sum256(r.ClientDataJSON)
+		digest := sha256.Sum256(append(append([]byte{}, r.AuthenticatorData...), cdHash[:]...))
+		r.Signature = ed25519.Sign(a.signer.(ed25519.PrivateKey), digest[:])
+		if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); !errors.Is(err, ErrSignatureInvalid) {
+			t.Fatalf("got %v", err)
+		}
+	})
+}
+
+// 認証応答に AT・ED・未定義ビットや拡張のバイト列が付いていても、署名が正しければ受理すること（L3互換）。
+func TestWebAuthn_LoginToleratesSignedExtraData(t *testing.T) {
+	ch := newChallenges(time.Now)
+	a := newFakeAuthenticator(t, algES256)
+	r := a.assert(t, ch, testUserID)
+	r.AuthenticatorData = append(authData(testRP.ID, a.flags|flagAT|0x80|0x02, a.count, a.credID), 0xa1, 0x01, 0x02)
+	r.Signature = a.sign(r.AuthenticatorData, r.ClientDataJSON)
+	if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWebAuthn_AttestedDataBoundaries(t *testing.T) {
+	base := authData(testRP.ID, flagUP|flagUV|flagAT, 0, nil)
+	for n := 37; n <= 54; n++ {
+		data := append(append([]byte{}, base...), make([]byte, n-37)...)
+		if _, err := parseAuthenticatorData(testRP, data[:n], true); !errors.Is(err, ErrAuthDataInvalid) {
+			t.Fatalf("length %d: got %v", n, err)
+		}
+	}
+	for idLen, want := range map[int]error{0: ErrCredentialIDInvalid, 1: nil, 1023: nil, 1024: ErrCredentialIDInvalid} {
+		id := make([]byte, idLen)
+		data := authData(testRP.ID, flagUP|flagUV|flagAT, 0, id)
+		if idLen == 0 {
+			data = data[:55]
+		}
+		if _, err := parseAuthenticatorData(testRP, data, true); !errors.Is(err, want) {
+			t.Fatalf("id length %d: got %v, want %v", idLen, err, want)
+		}
+	}
+	truncated := authData(testRP.ID, flagUP|flagUV|flagAT, 0, make([]byte, 16))
+	if _, err := parseAuthenticatorData(testRP, truncated[:55+15], true); !errors.Is(err, ErrCredentialIDInvalid) {
+		t.Fatalf("truncated credential id: got %v", err)
+	}
+}
+
+func TestWebAuthn_BackupFlagsMatrix(t *testing.T) {
+	for name, flags := range map[string]byte{"BE": flagBE, "BS": flagBS, "BE+BS": flagBE | flagBS} {
+		t.Run("register "+name, func(t *testing.T) {
+			ch := newChallenges(time.Now)
+			a := newFakeAuthenticator(t, algES256)
+			r := a.register(t, ch)
+			r.AuthenticatorData = authData(testRP.ID, flagUP|flagUV|flagAT|flags, 0, a.credID)
+			if _, err := verifyRegistration(testRP, ch, r); !errors.Is(err, ErrSyncedCredential) {
+				t.Fatalf("got %v", err)
+			}
+		})
+		t.Run("login "+name, func(t *testing.T) {
+			ch := newChallenges(time.Now)
+			a := newFakeAuthenticator(t, algES256)
+			r := a.assert(t, ch, testUserID)
+			r.AuthenticatorData = authData(testRP.ID, flagUP|flagUV|flags, a.count, nil)
+			r.Signature = a.sign(r.AuthenticatorData, r.ClientDataJSON)
+			if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); !errors.Is(err, ErrSyncedCredential) {
+				t.Fatalf("got %v", err)
+			}
+		})
+	}
+}
+
+func TestWebAuthn_RejectsMalformedRSAKeys(t *testing.T) {
+	k, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evenN := new(big.Int).Add(k.N, big.NewInt(1))
+	for name, pub := range map[string]*rsa.PublicKey{
+		"exponent 1":    {N: k.N, E: 1},
+		"even exponent": {N: k.N, E: 65536},
+		"even modulus":  {N: evenN, E: 65537},
+	} {
+		der, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := parsePublicKey(der, algRS256); !errors.Is(err, ErrPublicKeyInvalid) {
+			t.Fatalf("%s: got %v", name, err)
+		}
+	}
+}
+
+func TestWebAuthn_UserHandleRequiredAndStoredAlgMismatch(t *testing.T) {
+	ch := newChallenges(time.Now)
+	a := newFakeAuthenticator(t, algES256)
+	r := a.assert(t, ch, nil)
+	if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); !errors.Is(err, ErrUserHandleMismatch) {
+		t.Fatalf("missing user handle: got %v", err)
+	}
+	r = a.assert(t, ch, testUserID)
+	cred := a.stored(0)
+	cred.Alg = algEdDSA
+	if _, err := verifyAssertion(testRP, ch, r, cred, testUserID); !errors.Is(err, ErrPublicKeyInvalid) {
+		t.Fatalf("stored algorithm mismatch: got %v", err)
 	}
 }

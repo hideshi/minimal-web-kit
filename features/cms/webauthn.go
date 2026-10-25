@@ -127,8 +127,9 @@ func (c *challenges) check(encoded string, purpose challengePurpose) ([]byte, er
 	return raw, nil
 }
 
-// consume は、未使用であることの確認と使用済みの記録を、ロック内で一体に行います。
+// consume は、期限内であることと未使用であることの確認と、使用済みの記録を、ロック内で一体に行います。
 // 同じchallengeの並行送信は1件だけ成功します。検証に成功した後にだけ呼びます。
+// 期限をここでも確認するのは、check の後に期限を跨いだ再送が、掃き出し済みの記録をすり抜けないようにするためです。
 func (c *challenges) consume(raw []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -138,11 +139,15 @@ func (c *challenges) consume(raw []byte) error {
 			delete(c.used, k)
 		}
 	}
+	exp := time.Unix(int64(binary.BigEndian.Uint64(raw[1:9])), 0)
+	if !now.Before(exp) {
+		return ErrChallengeInvalid
+	}
 	key := string(raw)
 	if _, ok := c.used[key]; ok {
 		return ErrChallengeUsed
 	}
-	c.used[key] = time.Unix(int64(binary.BigEndian.Uint64(raw[1:9])), 0)
+	c.used[key] = exp
 	return nil
 }
 
@@ -223,7 +228,8 @@ func parsePublicKey(der []byte, alg int64) (crypto.PublicKey, error) {
 			return k, nil
 		}
 	case algRS256:
-		if k, ok := key.(*rsa.PublicKey); ok && k.N.BitLen() >= minRSABits {
+		// 公開指数と法の妥当性も登録時に確認し、ログインできない壊れた鍵の登録を防ぐ
+		if k, ok := key.(*rsa.PublicKey); ok && k.N.BitLen() >= minRSABits && k.E >= 3 && k.E%2 == 1 && k.N.Bit(0) == 1 {
 			return k, nil
 		}
 	}
@@ -321,7 +327,9 @@ func verifyAssertion(rp rpConfig, ch *challenges, r assertionResponse, cred stor
 	if !bytes.Equal(r.RawID, cred.ID) {
 		return 0, ErrCredentialIDInvalid
 	}
-	if len(r.UserHandle) > 0 && !bytes.Equal(r.UserHandle, userID) {
+	// allowCredentials を空にした認証（discoverable credential）では、userHandle の提示を必須にする（§7.2）。
+	// residentKey: required で登録しているため、正当な認証器は必ず返す。
+	if len(r.UserHandle) == 0 || !bytes.Equal(r.UserHandle, userID) {
 		return 0, ErrUserHandleMismatch
 	}
 	raw, err := verifyClientData(rp, ch, r.ClientDataJSON, "webauthn.get", purposeLogin)
