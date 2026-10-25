@@ -147,15 +147,34 @@ func (s *SQLiteStore) DeleteAllData(ctx context.Context, ownerID domain.OwnerID)
 
 func (s *SQLiteStore) PurgeExpiredSessions(ctx context.Context, maxAge time.Duration) (int64, error) {
 	threshold := time.Now().Add(-maxAge).Unix()
-	// 放置セッションを持つ owner を削除（CASCADEにより紐づく全データも削除される）
-	res, err := s.db.ExecContext(ctx,
-		"DELETE FROM owners WHERE id IN (SELECT owner_id FROM sessions WHERE last_seen_at < ?)",
-		threshold,
-	)
+
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
-	return res.RowsAffected()
+	defer func() { _ = tx.Rollback() }()
+
+	// 1. 期限切れのセッションだけを削除（同じ owner の有効なセッションは残す）
+	res, err := tx.ExecContext(ctx, "DELETE FROM sessions WHERE last_seen_at < ?", threshold)
+	if err != nil {
+		return 0, err
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+
+	// 2. 有効なセッションが1件も残っていない owner を削除（CASCADEにより紐づく全データも削除される）
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM owners WHERE NOT EXISTS (SELECT 1 FROM sessions WHERE sessions.owner_id = owners.id)",
+	); err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (s *SQLiteStore) Close() error {

@@ -87,19 +87,24 @@ func (s *MemoryStore) PurgeExpiredSessions(ctx context.Context, maxAge time.Dura
 	defer s.mu.Unlock()
 
 	threshold := time.Now().Add(-maxAge)
-	expiredOwners := make(map[domain.OwnerID]bool)
 	var count int64
 
+	// 期限切れのセッションだけを削除（同じ owner の有効なセッションは残す）
+	activeOwners := make(map[domain.OwnerID]bool)
 	for hash, sess := range s.sessions {
 		if sess.lastSeenAt.Before(threshold) {
-			expiredOwners[sess.ownerID] = true
 			delete(s.sessions, hash)
 			count++
+		} else {
+			activeOwners[sess.ownerID] = true
 		}
 	}
 
-	for o := range expiredOwners {
-		delete(s.owners, o)
+	// 有効なセッションが1件も残っていない owner を削除
+	for o := range s.owners {
+		if !activeOwners[o] {
+			delete(s.owners, o)
+		}
 	}
 
 	return count, nil
