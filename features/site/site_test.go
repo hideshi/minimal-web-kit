@@ -205,3 +205,42 @@ func TestSitePublicRoutes_SessionlessAndPrivacy(t *testing.T) {
 		t.Fatal("Base privacy lost session disclosure")
 	}
 }
+
+func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := store.NewMemoryStore()
+	sm := web.NewSessionManager(s, false)
+	h, err := web.NewHandler(s, sm, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feat := site.NewFeature(logger)
+	routes := h.Routes(feat.HandleRoot, nil)
+	get := func(path string) string {
+		rec := httptest.NewRecorder()
+		routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		return rec.Body.String()
+	}
+
+	// 機能のリンクが無ければ、お知らせへのリンクは出さない（404になるリンクを出さない）
+	for _, path := range []string{"/", "/privacy"} {
+		if body := get(path); strings.Contains(body, `href="/news"`) {
+			t.Fatalf("%s must not link to /news without the CMS", path)
+		}
+	}
+
+	links := []web.NavLink{{Label: "お知らせ", Href: "/news"}}
+	feat.SetNavLinks(links)
+	h.SetNavLinks(links)
+	body := get("/")
+	news, contact := strings.Index(body, `<a href="/news">お知らせ</a>`), strings.Index(body, `<a href="#contact">お問い合わせ</a>`)
+	if news < 0 || contact < 0 || news > contact {
+		t.Fatal("the site nav must show the feature link before the contact link")
+	}
+	if !strings.Contains(body, `<a href="/privacy">プライバシーポリシー</a>`) {
+		t.Fatal("the site nav must use the label プライバシーポリシー")
+	}
+	if !strings.Contains(get("/privacy"), `<a href="/news">お知らせ</a>`) {
+		t.Fatal("core pages must show the feature link")
+	}
+}

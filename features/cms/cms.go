@@ -97,6 +97,11 @@ func Migrate(db *sql.DB) error {
 func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
 }
 
+// NavLinks は、ホーム等の共通のナビゲーションに「お知らせ」を加えます。
+func (f *Feature) NavLinks() []web.NavLink {
+	return []web.NavLink{{Label: "お知らせ", Href: "/news"}}
+}
+
 // RegisterIsolatedRoutes はCMSの公開ページ・API・管理画面を登録します。
 func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	f.registerPublicRoutes(mux)

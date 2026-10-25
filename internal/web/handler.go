@@ -20,6 +20,7 @@ type Handler struct {
 	sm        *SessionManager
 	templates map[string]*template.Template
 	logger    *slog.Logger
+	navLinks  []NavLink
 }
 
 func NewHandler(s store.SessionStore, sm *SessionManager, logger *slog.Logger) (*Handler, error) {
@@ -141,7 +142,21 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 	return handler, nil
 }
 
+// NavLink は、有効な機能が共通のナビゲーションに足すリンクです（例: CMSの「お知らせ」）。
+type NavLink struct {
+	Label string
+	Href  string
+}
+
+// SetNavLinks は、Coreの画面のナビゲーションに表示する機能のリンクを設定します。起動時に1回だけ呼びます。
+func (h *Handler) SetNavLinks(links []NavLink) {
+	h.navLinks = links
+}
+
 func (h *Handler) Render(w http.ResponseWriter, page string, data any) {
+	if m, ok := data.(map[string]any); ok {
+		m["NavLinks"] = h.navLinks
+	}
 	tmpl, ok := h.templates[page]
 	if !ok {
 		h.logger.Error("template not found", slog.String("page", page))

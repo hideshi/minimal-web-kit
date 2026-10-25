@@ -24,6 +24,7 @@ type Feature struct {
 	tmpl           *template.Template
 	logger         *slog.Logger
 	contactFormURL string
+	navLinks       []web.NavLink
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
@@ -70,12 +71,18 @@ func (f *Feature) Init(db *sql.DB) error {
 func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
 }
 
+// SetNavLinks は、有効な他の機能（例: CMSの「お知らせ」）のリンクをナビゲーションに加えます。
+func (f *Feature) SetNavLinks(links []web.NavLink) {
+	f.navLinks = links
+}
+
 // HandleRoot はBaseのデフォルトトップ（GET /）をこのLP画面で置き換えます。
 func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 	data := map[string]any{
 		"Title":          "個人情報と依存を最小限に抑えるWeb開発基盤",
 		"ContactFormURL": f.contactFormURL,
+		"NavLinks":       f.navLinks,
 	}
 
 	if err := f.tmpl.ExecuteTemplate(&buf, "layout", data); err != nil {

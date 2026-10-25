@@ -15,7 +15,8 @@
     <div class="site-subtitle">個人情報・外部依存を最小限に抑えたWebアプリのひな形</div>
     <nav aria-label="メインナビゲーション">
       <a href="/">ホーム</a>
-      <a href="/privacy">プライバシーポリシー</a>
+      {{range .NavLinks}}<a href="{{.Href}}">{{.Label}}</a>
+      {{end}}      <a href="/privacy">プライバシーポリシー</a>
     </nav>
   </header>
 

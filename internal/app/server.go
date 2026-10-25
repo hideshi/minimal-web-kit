@@ -59,6 +59,21 @@ func (s *Server) Run() error {
 		return fmt.Errorf("init handler: %w", err)
 	}
 
+	// 有効な機能が宣言したナビゲーションのリンクを、Coreの画面と独自のナビを持つ機能に配る
+	if s.features != nil {
+		links, err := s.features.NavLinks()
+		if err != nil {
+			s.logger.Error("feature nav links invalid")
+			return fmt.Errorf("init nav links: %w", err)
+		}
+		handler.SetNavLinks(links)
+		for _, f := range s.features.All() {
+			if c, ok := f.(features.NavLinkConsumer); ok {
+				c.SetNavLinks(links)
+			}
+		}
+	}
+
 	// ルートパス（GET /）の差し替え判定
 	var rootHandler http.HandlerFunc
 	if s.features != nil {
