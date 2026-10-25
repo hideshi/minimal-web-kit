@@ -21,7 +21,7 @@ func runExportStatic(args []string, registry *features.Registry, logger *slog.Lo
 		fmt.Fprintf(errOut, "Error: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(out, "Exported static files to %s (index.html, privacy.html, static/css/style.css, _headers)\n", args[0])
+	fmt.Fprintf(out, "Exported static files to %s\n", args[0])
 	return 0
 }
 
