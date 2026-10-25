@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 
 	"minimal-web-kit/internal/web"
@@ -30,15 +31,30 @@ func NewFeature(logger *slog.Logger) *Feature {
 	if err != nil {
 		panic(fmt.Sprintf("parse site views: %v", err))
 	}
-	contactURL := os.Getenv("CONTACT_FORM_URL")
+	contactURL := contactFormURLFromEnv()
 	if contactURL == "" {
-		contactURL = "https://forms.google.com"
+		// 設定値は記録せず、未設定・不正の区別のみを固定メッセージで通知する
+		logger.Warn("contact form url is not configured; contact button is hidden")
 	}
 	return &Feature{
 		tmpl:           t,
 		logger:         logger,
 		contactFormURL: contactURL,
 	}
+}
+
+// contactFormURLFromEnv は CONTACT_FORM_URL を検証して返します。
+// 未設定、またはホスト付きのhttps URLでない場合は空文字を返し、ボタンを表示しません。
+func contactFormURLFromEnv() string {
+	raw := os.Getenv("CONTACT_FORM_URL")
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return ""
+	}
+	return u.String()
 }
 
 func (f *Feature) Name() string {

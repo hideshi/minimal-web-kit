@@ -55,7 +55,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"マイクロSaaS",
 		"選べるスターター ＆ 自在な拡張基盤",
 		"完全セッションレス",
-		"https://forms.google.com",
+		"お問い合わせ窓口は現在準備中です。",
 		"新しいタブで開きます",
 		"target=\"_blank\"",
 		"rel=\"noopener noreferrer\"",
@@ -84,8 +84,42 @@ func TestSiteFeature_CustomContactFormURL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read response: %v", err)
 	}
-	if !strings.Contains(string(body), customURL) {
+	if !strings.Contains(string(body), `href="`+customURL+`"`) {
 		t.Errorf("expected response to contain custom contact URL %q", customURL)
+	}
+	if strings.Contains(string(body), "準備中") {
+		t.Errorf("configured contact URL must not show the placeholder notice")
+	}
+}
+
+// 未設定・https以外のURLでは、汎用ページや危険なURLへのボタンを出さず準備中と表示すること。
+func TestSiteFeature_ContactFormURLUnsetOrInvalid(t *testing.T) {
+	for _, v := range []string{"", "http://example.com/inquiry", "javascript:alert(1)", "https://", "not a url"} {
+		t.Run(v, func(t *testing.T) {
+			t.Setenv("CONTACT_FORM_URL", v)
+			var logBuf strings.Builder
+			feat := site.NewFeature(slog.New(slog.NewTextHandler(&logBuf, nil)))
+
+			rec := httptest.NewRecorder()
+			feat.HandleRoot(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+			body, err := io.ReadAll(rec.Result().Body)
+			if err != nil {
+				t.Fatalf("failed to read response: %v", err)
+			}
+			bodyStr := string(body)
+			if strings.Contains(bodyStr, "お問い合わせフォームを開く") {
+				t.Errorf("contact button must be hidden for %q", v)
+			}
+			if !strings.Contains(bodyStr, "お問い合わせ窓口は現在準備中です。") {
+				t.Errorf("placeholder notice must be shown for %q", v)
+			}
+			if !strings.Contains(logBuf.String(), "contact form url is not configured") {
+				t.Errorf("startup warning must be logged for %q", v)
+			}
+			if v != "" && strings.Contains(logBuf.String(), v) {
+				t.Errorf("configured value must not be logged: %q", v)
+			}
+		})
 	}
 }
 
