@@ -1,11 +1,13 @@
 ---
-name: implement-and-change
-description: minimal-web-kitのアーキテクチャ規約、標準の既定解、およびCSS/HTML規約に沿って安全に機能を実装・変更する。
+name: minimal-web-kit-implementation
+description: minimal-web-kitで機能を実装・変更する際に、Go・SQLite・SSR・データ保護・HTML/CSSの規約を適用する。機能別の実装スキルと併用し、このキット固有の構造と安全策を維持する。
 ---
 
-# 実装・変更スキル (implement-and-change)
+# 実装・変更スキル (minimal-web-kit-implementation)
 
 このスキルは、ひな形の構造と標準ライブラリの既定解に従ってコードを追加・変更するための手順です。
+
+他の専門スキルと併用し、minimal-web-kit固有の判断・規約を補完します。一般的な開発手順を置き換えるものではありません。
 
 ## 1. 標準機能での既定解一覧
 AIが安易に外部ライブラリを追加しないよう、以下の標準解を優先して使用します。

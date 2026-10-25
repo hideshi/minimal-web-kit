@@ -62,11 +62,13 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
 | Cursor | `.agents/skills/<name>/SKILL.md` |
 | Antigravity | `.agents/skills/<name>/SKILL.md` |
 
+3本の名前は `minimal-web-kit-design`（設計）、`minimal-web-kit-implementation`（実装）、`minimal-web-kit-audit`（監査）です。一般的な要件定義・機能別実装・テストのスキルと併用し、このキット固有の判断と規約を補完します。
+
 正本は `skills/<name>/SKILL.md` です。探索先のスキルディレクトリは正本への相対シンボリックリンクで、コピーの二重管理を避けています。シンボリックリンクを保持する環境でクローンしてください。Windows等でリンクが通常ファイルになった場合は、利用するツールの探索先に正本のフォルダをコピーし、更新時も同期してください。
 
 最初に `AGENTS.md` を読み込ませてください。Claude Codeには `CLAUDE.md` からの参照も用意しています。依頼例：
 
-> AGENTS.mdを読み、plan-and-selectで変更を計画し、implement-and-changeで実装、verify-and-auditで検証してください。
+> AGENTS.mdを読み、minimal-web-kit-designで変更を計画し、minimal-web-kit-implementationで実装、minimal-web-kit-auditで検証してください。
 
 開始後、ツールのスキル一覧で3本が認識されていることを確認してください。表示されない場合は再起動するか、`skills/<name>/SKILL.md` を明示して読ませてください。配置と形式を検査していますが、4ツールそれぞれでの実機動作は未検証です。
 
