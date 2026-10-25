@@ -1,13 +1,13 @@
 # CMSテンプレート 実装計画
 
-最終更新: 2026-10-25（Fable（claude-fable-5-1）のレビューと、challenge・ハードウェア限定・異常時の案内に関する利用者の決定を反映）
+最終更新: 2026-10-25（Fable（claude-fable-5-1）のレビュー、challenge・端末固定の認証器・異常時の案内・Origin検査・実機確認に関する利用者の決定を反映）
 
 ## 1. 目的と範囲
 
 - `features/cms/` に、お知らせ1種類を管理する同梱テンプレートを追加する。Siteと同じく `make add-cms` / `make remove-cms` で登録を切り替える。
 - ヘッドあり（サーバーがHTMLを返す）とヘッドレス（JSON APIで記事を返す）の両方に対応する。記事の読み書きは共通のストアを使い、HTMLとAPIはその上の表示層とする。
 - 管理者は1人。ログインはWebAuthn（パスキー）のみのパスワードレスとする。
-- 登録できるのは、同期・バックアップできない端末固定の認証器（主にハードウェアセキュリティキー）に限る（7節）。
+- 登録できるのは、同期・バックアップできない端末固定の認証器（外付けのセキュリティキー、Windows Hello等）に限る（7節）。
 - 最初の版に含めないもの: 複数の編集者と権限、画像アップロード、Markdown/HTML本文、下書きのAPI、書き込みAPI、APIトークン、APIのキャッシュ。
 
 ## 2. 利用者の承認済み事項（AGENTS.mdの境界）
@@ -42,7 +42,7 @@
 | `GET /admin/setup` | 初回・復旧時のパスキー登録画面 | 登録トークン（下記6節） |
 | `GET /admin/login` | パスキーでのログイン画面 | なし |
 | `POST /admin/webauthn/register/{begin,finish}` | 登録のchallenge発行と検証 | 未使用の登録トークン、または有効な管理者セッション＋CSRF |
-| `POST /admin/webauthn/login/{begin,finish}` | 認証のchallenge発行と検証 | Origin検査（challengeはサーバーに保持しない） |
+| `POST /admin/webauthn/login/{begin,finish}` | 認証のchallenge発行と検証 | 同一オリジン検査（challengeはサーバーに保持しない） |
 | `GET/POST /admin/posts...` | 一覧・作成・編集・公開/非公開・削除 | 管理者セッション＋CSRF |
 | `GET/POST /admin/passkeys...` | パスキーの一覧・追加・名前変更・削除 | 管理者セッション＋CSRF |
 | `POST /admin/logout` | ログアウト | 管理者セッション＋CSRF |
@@ -80,7 +80,7 @@
 - **トークンはURLのフラグメントで渡す**（`CMS_ORIGIN/admin/setup#token=...`）。フラグメントはサーバーにもRefererにも送られない。画面のJSが読み取って登録APIのPOST本文で送り、直後に `history.replaceState` でアドレスバーと履歴から消す。追加のCookieは使わない。
 - 画面の表示（GET）ではトークンを消費しない。`register/begin` で有効性を確認し、`register/finish` の検証成功時に `UPDATE ... SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?` で原子的に消費する（更新0件なら拒否）。
 - サーバーを操作できる人を管理者とみなす。登録URLがターミナルの画面共有・スクロールバック・シェル履歴の出力に残る点は、READMEで注意する。
-- ハードウェアキーは**2本以上の登録を強く推奨**する。1本を紛失すると、残りのキーが無い限り `cms-recover` までログインできない。追加は管理画面から、ログイン中にのみ行う。
+- 認証器は**2つ以上の登録を強く推奨**する。1つを失うと、残りが無い限り `cms-recover` までログインできない。追加は管理画面から、ログイン中にのみ行う。
 
 ## 7. WebAuthn（標準ライブラリのみ）
 
@@ -93,13 +93,14 @@
 - 大量リクエストによるCPU負荷などの負荷攻撃は、キットの範囲外とし、リバースプロキシ等で対策する前提をREADMEに書く。
 
 **登録オプション**
-- `authenticatorSelection: { authenticatorAttachment: "cross-platform", residentKey: "required", userVerification: "required" }`、`attestation: "none"`、`pubKeyCredParams` はES256（-7）・EdDSA（-8）・RS256（-257）。`authenticatorAttachment` はブラウザへのヒントで、強制はサーバー側のBEフラグ検査で行う。
+- `authenticatorSelection: { residentKey: "required", userVerification: "required" }`、`attestation: "none"`、`pubKeyCredParams` はES256（-7）・EdDSA（-8）・RS256（-257）。`authenticatorAttachment` は指定しない（`cross-platform` を指定するとWindows Hello等の内蔵認証器が選択肢に出なくなるため）。どの認証器を通すかは、サーバー側のBEフラグ検査だけで決める。
 
-**ハードウェア限定（端末固定の認証器のみ）**
+**端末固定の認証器のみ**
 - authenticatorDataのBE（Backup Eligibility、ビット3）フラグが立っている認証器は、登録時に拒否する。iCloudキーチェーンやGoogleパスワードマネージャー等の同期型パスキーはBEが立つため登録できない。
 - 認証時もBEまたはBS（Backup State、ビット4）が立っていれば拒否する。
-- サーバーは機種を証明できない（attestationを検証しない）ため、正確には「同期・バックアップできない認証器」に限定する。ハードウェアキーのほか、一部の端末内蔵の認証器も通る。機種の証明は、CBOR解析と証明書チェーン検証が必要になるため最初の版では行わない。
-- 指紋でログインするには、指紋センサー付きのハードウェアキーが必要。指紋の無いキーは、ログインのたびにPINの入力を求める（UV必須のため）。MacのTouch IDやスマートフォンの同期型パスキーは使えない。
+- サーバーは機種を証明できない（attestationを検証しない）ため、正確には「同期・バックアップできない認証器」に限定する。外付けのセキュリティキーのほか、端末内蔵で同期しない認証器（Windows HelloのTPMに保存するパスキー等）も通る。機種の証明は、CBOR解析と証明書チェーン検証が必要になるため最初の版では行わない。
+- 指紋でログインする方法は、Windows Hello（指紋リーダー）か、指紋センサー付きのセキュリティキー。指紋の無いキーは、ログインのたびにPINの入力を求める（UV必須のため）。
+- 同期型として拒否される見込みのもの: MacのTouch ID（iCloudキーチェーン）、スマートフォンのパスキー、Googleパスワードマネージャーに保存するChrome（ChromeOS内蔵の指紋を含む）。最終的な可否は、ブラウザが返すBEフラグで決まる。
 - `excludeCredentials` に既存のcredential IDを入れる。
 
 **登録の検証**
@@ -130,14 +131,15 @@
 | 管理画面の上部 | 別のキーでログインした管理者 | 「無効化されたパスキーがあります」の警告と、パスキー管理画面へのリンク |
 | パスキー管理画面 | 同上 | 該当キーに「無効（複製の疑い）」と無効化日時を表示。削除できる |
 
-カウンタを増やさない認証器では、この検出は働かない。多くのハードウェアキーはカウンタを増やすが、全機種を保証するものではない。
+カウンタを増やさない認証器では、この検出は働かない。多くの外付けセキュリティキーはカウンタを増やすが、全機種・Windows Helloでの動作は保証しない。
 
 **ブラウザ対応**: `getPublicKey()` / `getAuthenticatorData()` の対応バージョンは、READMEに書く前にMDN等の一次資料で確認する。
 
 ## 8. セッション・CSRF・ヘッダー・CORS
 
 - 管理者Cookie: 名前 `cms_admin`、`Path=/admin`、HttpOnly、`SameSite=Strict`、`CMS_ORIGIN` がhttpsなら必ずSecure。トークンは32バイト乱数、DBにはSHA-256のみ。
-- CSRF: 管理者セッショントークンのHMACをフォームに埋め込み、全POSTで検証。加えて全POSTで `Origin` ヘッダーが `CMS_ORIGIN` と一致すること、`Sec-Fetch-Site: cross-site` でないことを確認する。
+- CSRF: 管理者セッショントークンのHMACをフォームに埋め込み、全POSTで検証。加えて全POSTで `Sec-Fetch-Site: same-origin` であることを確認し、`Origin` ヘッダーが `null` 以外の値で送られた場合は `CMS_ORIGIN` との一致も確認する。
+  - Originの一致を必須にしない理由: Coreは全ページで `Referrer-Policy: no-referrer` を送るため、Fetchの仕様上、同一オリジンのフォーム送信・fetchでも `Origin: null` になる。`Referrer-Policy` の緩和は承認境界#5に当たるため行わない。
 - ログイン成功時にセッションを新規発行（固定化対策）。ログアウト・失効時はDBから削除しCookieを消す。
 - パスキーを削除・無効化したときは、現在のセッション以外の管理者セッションをすべて削除する。
 - CSP: 認証画面のハンドラだけ、ポリシー全文を `default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';` に置き換える。インラインスクリプトは使わない。
@@ -181,18 +183,30 @@
 - CSPが認証画面だけ緩和され、他のページは `script-src 'none'` のままであること。
 - `make add-cms` / `remove-cms` の保護（Siteと同等）、台帳と実スキーマの照合、ログ・応答本文のカナリア。
 
-## 13. 進め方
+## 13. 実機での確認
+
+利用者の手元の認証器は、Windows Hello用の外付け指紋リーダー。WebAuthnは `localhost` かHTTPSでしか動かないため、Windows上でキットを動かして確認する。
+
+1. WindowsにGit・Goを入れ、リポジトリをクローンする（makeが無ければ `go run ./cmd/kit ...` と `go run ./cmd/server` を直接実行する）。
+2. CMSを有効化し、`http://localhost:8080` で起動する。
+3. `cms-setup` の登録URLを開き、Windows Helloの指紋で登録する。BEフラグが立って拒否された場合は、エラー表示とログで判別できるようにする。
+4. ログイン・ログアウト・記事の作成と公開・パスキーの追加と削除・`cms-recover` を確認する。
+
+## 14. 進め方
 
 1. 本計画とデータ台帳の更新案の確定。
 2. Core拡張（独立経路・`Purge`）、`cmd/kit` の一般化、CMSの骨組み、マイグレーション、記事ストア、台帳の更新。
 3. 公開HTML・読み取りAPI・CORS（ログイン不要で動作確認できる部分）。
-4. WebAuthnの登録・認証、管理者セッション、`cms-setup` / `cms-recover`。
+4. WebAuthnの登録・認証、管理者セッション、`cms-setup` / `cms-recover`。次の3つに分けてコミットする。
+   1. WebAuthnの検証ロジック（標準ライブラリのみ・テスト内で生成した鍵で検証）。完成時に外部モデルのレビューを受ける。
+   2. 管理者セッション・登録トークン・`cms-setup` / `cms-recover`。
+   3. 認証画面・JS・経路。Windows Helloの実機で登録・ログインを確認する。
 5. 記事の管理画面、パスキー管理。
 6. README・LP・AGENTS.md・スキル・検査の更新、監査。
 
 各段階でテスト・`make verify`・`make build` を通してからコミットする。
 
-## 14. 守る範囲・守らない範囲
+## 15. 守る範囲・守らない範囲
 
 - WebAuthn検証を自前で書くため、仕様の取りこぼしが認証の欠陥に直結する。12節のテストで個別に固定する。
 - 古いブラウザや、discoverable credential・`getPublicKey()` に対応しない認証器では登録できない。
