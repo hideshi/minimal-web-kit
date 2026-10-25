@@ -29,7 +29,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
    - 機密情報や本文を含む型には必ず `slog.LogValuer` を実装し、ログへの値流出をブロックする。
 2. **Store (`internal/store/`)**:
    - 既存の `SessionStore` とFeature固有の責務を確認し、必要なインターフェースに操作を追加する。対応するメモリ・SQLite実装の振る舞いを揃える。
-   - DBスキーマを変更する場合は `internal/store/migrations/` にSQLを追加し、同時に `docs/DATA.md` を更新する。
+   - DBスキーマを変更する場合は `internal/store/migrations/` にSQLを追加し、同時に `docs/data-inventory.md` を更新する。
 3. **Web (`internal/web/`)**:
    - `Handler` にルートとハンドラ関数を追加する。
    - Handlerは `OwnerID` を使ってデータの所有権を分離し、他人のデータにアクセスさせない。

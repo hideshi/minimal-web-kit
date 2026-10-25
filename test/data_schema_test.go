@@ -11,16 +11,16 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// TestDataSchema_MatchesDataLedger は docs/DATA.md の定義とマイグレーションSQL実行後の実DBスキーマが双方向で一致することを検証します。
+// TestDataSchema_MatchesDataLedger は docs/data-inventory.md の定義とマイグレーションSQL実行後の実DBスキーマが双方向で一致することを検証します。
 func TestDataSchema_MatchesDataLedger(t *testing.T) {
-	dataMd, err := os.ReadFile("../docs/DATA.md")
+	dataMd, err := os.ReadFile("../docs/data-inventory.md")
 	if err != nil {
-		t.Fatalf("failed to read docs/DATA.md: %v", err)
+		t.Fatalf("failed to read docs/data-inventory.md: %v", err)
 	}
 
 	expectedSchema := parseDataMd(string(dataMd))
 	if len(expectedSchema) == 0 {
-		t.Fatal("no tables found in docs/DATA.md")
+		t.Fatal("no tables found in docs/data-inventory.md")
 	}
 
 	db, err := sql.Open("sqlite", "file:mem?mode=memory&cache=shared&_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
@@ -72,17 +72,17 @@ func TestDataSchema_MatchesDataLedger(t *testing.T) {
 		actualTableNames = append(actualTableNames, name)
 	}
 
-	// 未知テーブルの検査（実DBに存在するがdocs/DATA.mdに未記載）
+	// 未知テーブルの検査（実DBに存在するがdocs/data-inventory.mdに未記載）
 	for _, actualTable := range actualTableNames {
 		if _, exists := expectedSchema[actualTable]; !exists {
-			t.Errorf("Table %s exists in database schema but is not documented in docs/DATA.md. Update docs/DATA.md first!", actualTable)
+			t.Errorf("Table %s exists in database schema but is not documented in docs/data-inventory.md. Update docs/data-inventory.md first!", actualTable)
 		}
 	}
 
-	// 未作成テーブルの検査（docs/DATA.mdに記載されているが実DBに未存在）
+	// 未作成テーブルの検査（docs/data-inventory.mdに記載されているが実DBに未存在）
 	for expectedTable := range expectedSchema {
 		if !contains(actualTableNames, expectedTable) {
-			t.Errorf("Table %s defined in docs/DATA.md does not exist in migration SQL database", expectedTable)
+			t.Errorf("Table %s defined in docs/data-inventory.md does not exist in migration SQL database", expectedTable)
 		}
 	}
 
@@ -116,13 +116,13 @@ func TestDataSchema_MatchesDataLedger(t *testing.T) {
 
 		for _, col := range expectedCols {
 			if !contains(actualCols, col) {
-				t.Errorf("Column %s.%s defined in docs/DATA.md does not exist in database schema", table, col)
+				t.Errorf("Column %s.%s defined in docs/data-inventory.md does not exist in database schema", table, col)
 			}
 		}
 
 		for _, col := range actualCols {
 			if !contains(expectedCols, col) {
-				t.Errorf("Column %s.%s found in database schema but not documented in docs/DATA.md. Update docs/DATA.md first!", table, col)
+				t.Errorf("Column %s.%s found in database schema but not documented in docs/data-inventory.md. Update docs/data-inventory.md first!", table, col)
 			}
 		}
 	}
