@@ -1,0 +1,23 @@
+{{define "content"}}
+<h1>お知らせ</h1>
+
+{{if .Posts}}
+<ul class="news-list" role="list">
+  {{range .Posts}}
+  <li class="card">
+    <h2 class="card-title"><a href="/news/{{.ID}}">{{.Title}}</a></h2>
+    <p class="news-meta">公開日: <time datetime="{{.PublishedAt.Format "2006-01-02"}}">{{.PublishedAt.Format "2006年1月2日"}}</time></p>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p>現在、公開中のお知らせはありません。</p>
+{{end}}
+
+{{if or .PrevPage .NextPage}}
+<nav class="pagination" aria-label="お知らせのページ送り">
+  {{if .PrevPage}}<a href="/news?page={{.PrevPage}}" rel="prev">新しいお知らせ</a>{{end}}
+  {{if .NextPage}}<a href="/news?page={{.NextPage}}" rel="next">過去のお知らせ</a>{{end}}
+</nav>
+{{end}}
+{{end}}

@@ -1,0 +1,13 @@
+{{define "content"}}
+<article>
+  <h1>{{.Post.Title}}</h1>
+  <p class="news-meta">公開日: <time datetime="{{.Post.PublishedAt.Format "2006-01-02"}}">{{.Post.PublishedAt.Format "2006年1月2日"}}</time></p>
+  <div class="news-body">
+    {{range .Paragraphs}}
+    <p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>
+    {{end}}
+  </div>
+</article>
+
+<p><a href="/news">お知らせ一覧へ戻る</a></p>
+{{end}}

@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
@@ -29,15 +30,16 @@ const (
 // Feature はお知らせを管理するCMSテンプレートです。
 // 公開ページ・APIと管理画面は、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
-	logger *slog.Logger
-	cfg    Config
-	db     *sql.DB
-	posts  *PostStore
-	now    func() time.Time
+	logger      *slog.Logger
+	cfg         Config
+	db          *sql.DB
+	posts       *PostStore
+	publicPages map[string]*template.Template
+	now         func() time.Time
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
-	return &Feature{logger: logger, now: time.Now}
+	return &Feature{logger: logger, publicPages: parsePublicTemplates(), now: time.Now}
 }
 
 func (f *Feature) Name() string {
@@ -85,6 +87,7 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
 
 // RegisterIsolatedRoutes はCMSの公開ページ・API・管理画面を登録します。
 func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
+	f.registerPublicRoutes(mux)
 }
 
 // Purge は期限切れの管理者セッションと、使用済み・期限切れの登録トークンを削除します。
