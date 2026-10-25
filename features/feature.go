@@ -3,6 +3,7 @@ package features
 import (
 	"context"
 	"database/sql"
+	"io"
 	"net/http"
 
 	"minimal-web-kit/internal/web"
@@ -33,6 +34,21 @@ type IsolatedRoutesFeature interface {
 type PurgeFeature interface {
 	Feature
 	Purge(ctx context.Context) error
+}
+
+// Command は、サーバーの実行ファイルのサブコマンドです（例: minimal-web-kit cms-setup）。
+// 本番サーバーにGoを入れずに、運用の操作を実行できるようにします。
+// サブコマンドの実行時は Init を呼ばないため、必要なマイグレーションや設定の検証はRunの中で行います。
+type Command struct {
+	Name    string
+	Summary string
+	Run     func(ctx context.Context, db *sql.DB, args []string, in io.Reader, out io.Writer) error
+}
+
+// CommandFeature は、サーバーの実行ファイルにサブコマンドを追加する機能が実装します。
+type CommandFeature interface {
+	Feature
+	Commands() []Command
 }
 
 // Registry は有効化されている全機能のリストを保持します。

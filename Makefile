@@ -36,8 +36,8 @@ remove-cms:
 
 # CMSの初回登録用URLを表示（パスキーが未登録のときだけ）
 cms-setup:
-	go run ./cmd/kit cms-setup
+	go run ./cmd/server cms-setup
 
 # CMSのパスキーと管理者セッションを全削除し、登録用URLを再発行（確認あり）
 cms-recover:
-	go run ./cmd/kit cms-recover
+	go run ./cmd/server cms-recover

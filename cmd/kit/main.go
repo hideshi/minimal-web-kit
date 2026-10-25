@@ -1,25 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
-	"context"
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
-	"time"
-
-	"minimal-web-kit/features/cms"
-	"minimal-web-kit/internal/store"
 )
 
 func main() {
@@ -54,16 +45,6 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Successfully disabled CMS template! CMS registration is disabled; feature directories and stored data were not modified.")
-	case "cms-setup":
-		if err := cmsSetup(os.Stdout); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
-	case "cms-recover":
-		if err := cmsRecover(os.Stdin, os.Stdout, slices.Contains(os.Args[2:], "-yes")); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
-		}
 	default:
 		printUsage()
 	}
@@ -80,73 +61,9 @@ func printUsage() {
 	fmt.Println("  remove-site  Disable LP / homepage template registration")
 	fmt.Println("  add-cms      Enable CMS template module in cmd/server/features.go")
 	fmt.Println("  remove-cms   Disable CMS template registration (stored data is kept)")
-	fmt.Println("  cms-setup    Print a one-time URL to register the first CMS passkey")
-	fmt.Println("  cms-recover  Delete all CMS passkeys and admin sessions, then print a new registration URL")
-}
-
-// openCMSDB はサーバーと同じ DB_PATH（既定は data/app.db）のSQLiteを開きます。
-func openCMSDB() (*store.SQLiteStore, cms.Config, error) {
-	cfg, err := cms.LoadConfig(os.Getenv)
-	if err != nil {
-		return nil, cms.Config{}, err
-	}
-	dbPath := os.Getenv("DB_PATH")
-	if dbPath == "" {
-		dbPath = "data/app.db"
-	}
-	s, err := store.NewSQLiteStore(dbPath)
-	if err != nil {
-		return nil, cms.Config{}, err
-	}
-	return s, cfg, nil
-}
-
-func printSetupURL(out io.Writer, origin, token string) {
-	fmt.Fprintln(out, "Open this URL within 15 minutes and register a passkey (synced passkeys are rejected):")
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  "+cms.SetupURL(origin, token))
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "The URL can be used only once. Do not share it, paste it into chats, or leave it on a shared screen.")
-}
-
-// cmsSetup は、パスキーが未登録の場合だけ、初回登録用のURLを表示します。
-func cmsSetup(out io.Writer) error {
-	s, cfg, err := openCMSDB()
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	token, err := cms.Setup(context.Background(), s.DB(), time.Now())
-	if errors.Is(err, cms.ErrAlreadySetUp) {
-		return fmt.Errorf("passkeys are already registered; add passkeys from the admin screen, or run cms-recover if you lost them")
-	} else if err != nil {
-		return err
-	}
-	printSetupURL(out, cfg.Origin, token)
-	return nil
-}
-
-// cmsRecover は確認のうえで、パスキー・管理者セッション・登録トークンを削除し、新しい登録URLを表示します。
-func cmsRecover(in io.Reader, out io.Writer, yes bool) error {
-	if !yes {
-		fmt.Fprint(out, "This deletes ALL registered CMS passkeys and admin sessions. Posts are kept.\nType 'recover' to continue: ")
-		line, _ := bufio.NewReader(in).ReadString('\n')
-		if strings.TrimSpace(line) != "recover" {
-			return fmt.Errorf("aborted; nothing was changed")
-		}
-	}
-	s, cfg, err := openCMSDB()
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	token, err := cms.Recover(context.Background(), s.DB(), time.Now())
-	if err != nil {
-		return err
-	}
-	fmt.Fprintln(out, "All passkeys and admin sessions were deleted.")
-	printSetupURL(out, cfg.Origin, token)
-	return nil
+	fmt.Println()
+	fmt.Println("CMS passkey setup and recovery are subcommands of the server binary:")
+	fmt.Println("  go run ./cmd/server cms-setup   (or: ./bin/minimal-web-kit cms-setup)")
 }
 
 // bundle は登録を切り替えられる同梱テンプレートです。

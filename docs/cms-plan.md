@@ -76,7 +76,7 @@
 
 - `make cms-setup`: パスキーが未登録の場合だけ、既存の未使用トークンを無効化してから、1回限り・15分有効の登録URLをターミナルに表示する。トークンはハッシュのみDBに保存する。
 - `make cms-recover`: 既存のパスキー・管理者セッション・未使用の登録トークンをすべて削除し、`webauthn_user_id` を再生成して登録URLを再発行する。端末の紛失・盗難時に使う。
-- 両コマンドは `cmd/kit` のサブコマンドとし、CMS未初期化のDBにはマイグレーションを先に適用する。`DB_PATH` の既定値は相対パス `data/app.db` のため、リポジトリ直下で実行する（サーバーと同じ `DB_PATH` を指定する）。サーバー稼働中でもWALとbusy_timeoutで動作する。
+- 両コマンドはサーバーの実行ファイルのサブコマンド（`minimal-web-kit cms-setup`、開発時は `go run ./cmd/server cms-setup`）とし、本番サーバーにGoが無くても実行できるようにする。CMS未初期化のDBにはマイグレーションを先に適用する。`DB_PATH` の既定値は相対パス `data/app.db` のため、リポジトリ直下で実行する（サーバーと同じ `DB_PATH` を指定する）。サーバー稼働中でもWALとbusy_timeoutで動作する。
 - **トークンはURLのフラグメントで渡す**（`CMS_ORIGIN/admin/setup#token=...`）。フラグメントはサーバーにもRefererにも送られない。画面のJSが読み取って登録APIのPOST本文で送り、直後に `history.replaceState` でアドレスバーと履歴から消す。追加のCookieは使わない。
 - 画面の表示（GET）ではトークンを消費しない。`register/begin` で有効性を確認し、`register/finish` の検証成功時に `UPDATE ... SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?` で原子的に消費する（更新0件なら拒否）。
 - サーバーを操作できる人を管理者とみなす。登録URLがターミナルの画面共有・スクロールバック・シェル履歴の出力に残る点は、READMEで注意する。
