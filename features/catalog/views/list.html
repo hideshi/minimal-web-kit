@@ -13,7 +13,7 @@
   <fieldset><legend>タグ（すべてに一致・20個まで）</legend>{{range .Tags}}<label class="catalog-check"><input type="checkbox" name="tag" value="{{.ID}}"{{if .Selected}} checked{{end}}> {{.Name}}</label>{{else}}<p>公開中のタグはありません。</p>{{end}}</fieldset>
   <div class="action-bar"><button type="submit" class="btn btn-primary">絞り込む</button><a href="/catalog">条件をリセットする</a></div>
 </form>
-<p id="catalog-status" role="status" aria-live="polite" aria-atomic="true"></p>
+<p id="catalog-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></p>
 <p id="catalog-loading" class="catalog-loading" aria-hidden="true">読み込み中…</p>
 <div id="catalog-failure" hidden><p role="alert">読み込めませんでした。表示中の結果は更新されていません。</p><a id="catalog-retry" href="/catalog">ページ全体を読み直す</a></div>
 <section id="catalog-results" aria-labelledby="catalog-results-heading">{{template "results" .}}</section>
