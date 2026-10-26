@@ -4,13 +4,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
 
 var inlineEventHandlerPattern = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
 
-// approvedScriptTag は、利用者が承認したJavaScriptの唯一の読み込み方です（AGENTS.mdの承認境界#4）。
+// approvedScriptTag は、利用者が承認したWebAuthn用JavaScriptの読み込み方です（AGENTS.mdの承認境界#4）。
 const approvedScriptTag = `<script src="/admin/static/webauthn.js" defer></script>`
 
 // allowedScriptTemplates は approvedScriptTag を含められる、管理者認証の画面のテンプレートです。
@@ -20,7 +21,7 @@ var allowedScriptTemplates = map[string]bool{
 	"admin_passkeys.html": true,
 }
 
-// TestJavaScript_OnlyApprovedFile は、リポジトリ内のJavaScriptが承認済みの1ファイルだけであることを検証します。
+// TestJavaScript_OnlyApprovedFile は、リポジトリ内のJavaScriptが承認済みのファイルだけであることを検証します。
 func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 	var found []string
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
@@ -38,8 +39,10 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(found) != 1 || found[0] != "../features/auth/static/webauthn.js" {
-		t.Fatalf("only features/auth/static/webauthn.js is approved, found %v", found)
+	slices.Sort(found)
+	approved := []string{"../features/auth/static/webauthn.js", "../features/catalog/static/catalog.js", "../features/catalog/static/htmx.min.js"}
+	if !slices.Equal(found, approved) {
+		t.Fatalf("only explicitly approved auth/catalog JavaScript is allowed, found %v", found)
 	}
 }
 
@@ -74,6 +77,16 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 		if allowedScriptTemplates[filepath.Base(file)] && strings.Contains(file, filepath.Join("features", "auth", "views")) {
 			if strings.Count(str, "<script") != 1 || strings.Count(str, approvedScriptTag) != 1 {
 				t.Errorf("%s may contain only %s", file, approvedScriptTag)
+			}
+		} else if filepath.ToSlash(file) == "../features/catalog/views/list.html" {
+			for _, tag := range []string{`<script src="/catalog/static/htmx.min.js" defer></script>`, `<script src="/catalog/static/catalog.js" defer></script>`} {
+				if strings.Count(str, tag) != 1 {
+					t.Errorf("missing approved catalog script: %s", tag)
+				}
+				str = strings.ReplaceAll(str, tag, "")
+			}
+			if strings.Contains(str, "<script") {
+				t.Errorf("unapproved catalog script in %s", file)
 			}
 		} else if strings.Contains(str, "<script") {
 			t.Errorf("<script> tag found in %s. Inline scripts are prohibited for security and simplicity.", file)

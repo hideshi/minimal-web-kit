@@ -381,8 +381,10 @@ label {
 }
 
 input[type="text"],
+input[type="search"],
 input[type="datetime-local"],
-textarea {
+textarea,
+.catalog-select {
   width: 100%;
   padding: var(--space-sm);
   font-family: inherit;
@@ -639,6 +641,14 @@ nav a[aria-current="page"] {
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* カタログの検索状態。hiddenの表示規則より優先する指定を作らない。 */
+.catalog-items { list-style: none; padding: 0; }
+.catalog-items > li + li { margin-top: 1rem; }
+.catalog-check { display: flex; align-items: baseline; gap: 0.5em; margin-block: 0.5em; }
+.catalog-check input { width: auto; }
+.catalog-loading { visibility: hidden; }
+.catalog-busy .catalog-loading { visibility: visible; }
 
 /* hidden属性を、.card や .btn の display 指定より優先する（同じ詳細度のため、ファイルの最後に置く） */
 [hidden] {

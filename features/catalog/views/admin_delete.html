@@ -1,0 +1,5 @@
+{{define "content"}}
+<h1>カタログ項目の削除</h1><p>次の項目を削除します。元に戻せません。公開ページからも消えます。</p><p class="card">{{.Item.Title}}</p>
+<form method="post" action="/admin/catalog/{{.Item.ID}}/delete"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-danger">削除する</button></form>
+<p><a href="/admin/catalog/{{.Item.ID}}">削除せずに戻る</a></p>
+{{end}}

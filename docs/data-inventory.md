@@ -151,3 +151,46 @@
 ### お知らせ機能のデータの削除
 - 記事: 管理画面から削除すると、稼働DBから物理削除します（`secure_delete` 有効）。
 - テーブルごと削除する場合は、サーバー停止後にDBのバックアップを取ったうえで、利用者自身が実施します。WAL・バックアップに残った過去のデータは、この削除の対象外です。
+
+---
+
+## 6. カタログ機能のデータ（`make add-catalog` で有効化した場合のみ）
+
+`features/catalog/migration.sql` の4表。管理者認証と組み合わせ、管理者・メンバーが編集できます。サイト全体の共有内容で、作者IDは保存せず、CoreのセッションGC・アカウント削除・機能無効化では消しません。個人情報は入力しない運用とし、項目・カテゴリ・タグを明示削除するまで保持します。
+
+### テーブル: `catalog_items`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | 項目の識別 | 明示削除まで | AUTOINCREMENT、再利用しない |
+| `title` | TEXT | NO | 公開タイトル | 同上 | 1〜200字、改行・制御文字不可 |
+| `body` | TEXT | NO | 公開本文 | 同上 | 5万字以内、プレーンテキスト |
+| `status` | TEXT | NO | 下書き・公開の区別 | 同上 | draft / published |
+| `category_id` | INTEGER | YES | 単一分類 | 同上 | カテゴリ削除時はNULL |
+| `created_at` | INTEGER | NO | 作成日時 | 同上 | UNIX秒 |
+| `updated_at` | INTEGER | NO | 更新表示・sitemapのlastmod | 同上 | UNIX秒。分類名・関連変更も反映 |
+
+### テーブル: `catalog_categories`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | 分類の識別 | 明示削除まで | AUTOINCREMENT |
+| `name` | TEXT | NO | 単一分類の表示 | 同上 | 1〜50字、前後空白除去、同名不可。大小文字・全半角は区別 |
+
+### テーブル: `catalog_tags`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | タグの識別 | 明示削除まで | AUTOINCREMENT |
+| `name` | TEXT | NO | 複数分類の表示 | 同上 | 名前の条件はカテゴリと同じ |
+
+### テーブル: `catalog_item_tags`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `item_id` | INTEGER | NO | 項目との関連 | 項目またはタグの削除まで | catalog_itemsへのCASCADE |
+| `tag_id` | INTEGER | NO | タグとの関連 | 同上 | catalog_tagsへのCASCADE。item_idとの複合主キー |
+
+公開側はCookieの照合・発行・削除をせず、検索語・閲覧履歴・IPをDBやログに保存しません。検索条件はURLとブラウザ履歴に残り得ます。htmxの履歴HTMLはlocalStorageに保存しません。検索はSQLiteのLIKE（ASCIIは大小文字を区別しない、全Unicodeの同一視はしない）を使用します。
+公開項目に付く分類名も公開情報になります。下書き専用の分類は候補に出しません。
+削除は稼働DBの物理削除まで。WALやバックアップに残ったデータは別途運用上の保持・削除方針を決めてください。画像・検索履歴・新規Cookieの保存はありません。

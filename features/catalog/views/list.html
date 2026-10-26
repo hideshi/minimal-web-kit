@@ -1,0 +1,30 @@
+{{define "page_head"}}
+<meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"selfRequestsOnly":true,"historyCacheSize":0,"historyRestoreAsHxRequest":false,"refreshOnHistoryMiss":true,"attributesToSettle":["class"],"scrollIntoViewOnBoost":false}'>
+<script src="/catalog/static/htmx.min.js" defer></script>
+<script src="/catalog/static/catalog.js" defer></script>
+{{end}}
+{{define "content"}}
+<h1>カタログ</h1>
+<div id="catalog-browser" hx-sync="#catalog-browser:replace">
+<form id="catalog-filter" method="get" action="/catalog" hx-get="/catalog" hx-target="#catalog-results" hx-push-url="true" class="card" aria-describedby="catalog-search-hint">
+  <p id="catalog-search-hint">公開中の項目を絞り込みます。検索条件はURLとブラウザ履歴に残るので、秘密の情報は入力しないでください。</p>
+  <div class="form-group"><label for="catalog-q">キーワード</label><input id="catalog-q" type="search" name="q" value="{{.Filter.Query}}" maxlength="200"></div>
+  <div class="form-group"><label for="catalog-category">カテゴリ</label><select class="catalog-select" id="catalog-category" name="category"><option value="">すべて</option>{{range .Categories}}<option value="{{.ID}}"{{if eq .ID $.FilterCategory}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
+  <fieldset><legend>タグ（すべてに一致・20個まで）</legend>{{range .Tags}}<label class="catalog-check"><input type="checkbox" name="tag" value="{{.ID}}"{{if .Selected}} checked{{end}}> {{.Name}}</label>{{else}}<p>公開中のタグはありません。</p>{{end}}</fieldset>
+  <div class="action-bar"><button type="submit" class="btn btn-primary">絞り込む</button><a href="/catalog">条件をリセットする</a></div>
+</form>
+<p id="catalog-status" role="status" aria-live="polite" aria-atomic="true"></p>
+<p id="catalog-loading" class="catalog-loading" aria-hidden="true">読み込み中…</p>
+<div id="catalog-failure" hidden><p role="alert">読み込めませんでした。表示中の結果は更新されていません。</p><a id="catalog-retry" href="/catalog">ページ全体を読み直す</a></div>
+<section id="catalog-results" aria-labelledby="catalog-results-heading">{{template "results" .}}</section>
+</div>
+{{end}}
+{{define "results"}}
+<h2 id="catalog-results-heading" tabindex="-1">検索結果</h2>
+<p id="catalog-summary">このページに{{len .Items}}件{{if .NextURL}}・次のページがあります{{end}}（{{.Page.Number}}ページ目）</p>
+<ul class="catalog-items">{{range .Items}}<li class="card"><h3><a href="/catalog/{{.ID}}">{{.Title}}</a></h3>{{if .Category}}<p>{{.Category}}</p>{{end}}</li>{{else}}<li>条件に一致する項目はありません。</li>{{end}}</ul>
+{{if or .PrevURL .NextURL}}<nav class="pagination" aria-label="カタログのページ送り">
+{{if .PrevURL}}<a href="{{.PrevURL}}" hx-get="{{.PrevURL}}" hx-target="#catalog-results" hx-push-url="true" data-catalog-page rel="prev">前のページ</a>{{end}}
+{{if .NextURL}}<a href="{{.NextURL}}" hx-get="{{.NextURL}}" hx-target="#catalog-results" hx-push-url="true" data-catalog-page rel="next">次のページ</a>{{end}}
+</nav>{{end}}
+{{end}}

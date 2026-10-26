@@ -25,7 +25,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 
 ## 2. 機能（Feature）の作り方
 新しく書く前に `docs/components.md` の部品（入力の検査、独立経路の守り、ページ送り、完了メッセージ、画面部品）で作れないかを確かめる。テンプレートは `web.ParseWithComponents` で解析し、部品を使う。
-1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/site`・`features/news`・`features/auth` は同梱機能の予約名で、自作機能には使わない。
+1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/site`・`features/news`・`features/auth`・`features/catalog` は同梱機能の予約名で、自作機能には使わない。
 2. **スキーマ**: テーブルは `features/<名前>/migration.sql` に書き、`Init` から同じファイルを適用する。同時に `docs/data-inventory.md` を更新する（台帳テストは全 `features/*/migration.sql` を照合する）。`internal/store/migrations/` はCoreのスキーマだけに使う。
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。
 4. **任意のインターフェース**（`features/feature.go`）: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`、サイト全体のヘッダー・フッターは `LayoutFeature`（提供側）と `LayoutConsumer`（公開ページを持つ側）、運用コマンドは `CommandFeature`（`minimal-web-kit <コマンド>`）。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。
@@ -48,7 +48,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 ## 4. UIを拡張するとき
 - 見出しをh要素で表し、lang、ランドマーク、スキップリンク、入力ラベル、表見出しと外部リンクの説明を維持する。
 - 通常・hover・focusの文字色と背景色、入力境界とフォーカスの識別を確認する。カード数に応じた列数と狭い画面での1列表示を設計し、固定幅・固定高さで文字を切らない。
-- JavaScriptを使わず、標準のリンク・button・details/summaryで操作を提供する。唯一の例外は管理者認証の画面の `webauthn.js` で、例外の拡大は承認境界4・5に当たる。開閉・モーダル・メニューは `<details>`・`<dialog>`・`popover` で作り、承認を得てhtmx等を使う場合は `docs/ui-guidelines.md` の決まり（CSP、CSRF、変化の通知、フォーカス、JSなしでの動作）に従う。外部フォームURLは実際の窓口に設定し、新規タブの通知と `noopener noreferrer` を維持する。
+- JavaScriptを使わず、標準のリンク・button・details/summaryで操作を提供する。承認済みの例外は管理者認証の画面の `webauthn.js` とカタログ公開一覧の `htmx.min.js`・`catalog.js` で、例外の拡大は承認境界4・5に当たる。開閉・モーダル・メニューは `<details>`・`<dialog>`・`popover` で作り、承認を得てhtmx等を使う場合は `docs/ui-guidelines.md` の決まり（CSP、CSRF、変化の通知、フォーカス、JSなしでの動作）に従う。外部フォームURLは実際の窓口に設定し、新規タブの通知と `noopener noreferrer` を維持する。
 - `hidden` 属性が `.card`・`.btn` 等の `display` 指定に負けないよう、`style.css` 末尾の `[hidden]` 規則を保つ。`<button>` と `a.btn` を並べる画面では、高さが揃うかを確認する。
 - ナビ・見出し・ボタンの用語は既存の画面に揃える（例: 「ホーム」「プライバシーポリシー」）。
 

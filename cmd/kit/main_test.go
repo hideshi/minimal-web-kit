@@ -257,3 +257,48 @@ func TestToggleDoesNotReformatUnformattedFile(t *testing.T) {
 		t.Fatal("unformatted user code must not be reformatted")
 	}
 }
+
+func TestCatalogToggleDependenciesAndPreservation(t *testing.T) {
+	fixture(t, baseRegistration)
+	if err := os.MkdirAll("features/catalog", 0755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, "features/catalog/catalog.go", bundledCatalogMarker+"\npackage catalog\n")
+	original := read(t, "cmd/server/features.go")
+	if err := addCatalog(); err != nil {
+		t.Fatal(err)
+	}
+	enabled := read(t, "cmd/server/features.go")
+	if !strings.Contains(enabled, "r.Register(catalog.NewFeature(logger))") || !strings.Contains(enabled, "r.Register(auth.NewFeature(logger))") {
+		t.Fatal("missing dependency")
+	}
+	if err := addCatalog(); err != nil || read(t, "cmd/server/features.go") != enabled {
+		t.Fatal("not idempotent", err)
+	}
+	if err := removeAuth(); err == nil || !strings.Contains(err.Error(), "remove-catalog") || read(t, "cmd/server/features.go") != enabled {
+		t.Fatal("Auth removal was not refused")
+	}
+	if err := addNews(); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeCatalog(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read(t, "cmd/server/features.go"), "r.Register(news.NewFeature(logger))") {
+		t.Fatal("removed News")
+	}
+	if err := removeNews(); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeAuth(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "cmd/server/features.go") != original {
+		t.Fatal("registration not restored")
+	}
+	// Refusing a user-owned directory must not first enable Auth.
+	write(t, "features/catalog/catalog.go", "package catalog\n")
+	if err := addCatalog(); err == nil || read(t, "cmd/server/features.go") != original {
+		t.Fatal("custom catalog modified registration")
+	}
+}

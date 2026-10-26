@@ -1,4 +1,4 @@
-.PHONY: all build run test lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover
+.PHONY: all build run test lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog
 
 BIN_NAME := minimal-web-kit
 
@@ -27,7 +27,7 @@ add-site:
 remove-site:
 	go run ./cmd/kit remove-site
 
-# 管理者認証（パスキー）の登録切り替え（お知らせ機能が有効な間は外せない。登録を外してもDBのデータは残る）
+# 管理者認証（パスキー）の登録切り替え（お知らせ・カタログが有効な間は外せない。登録を外してもDBのデータは残る）
 add-auth:
 	go run ./cmd/kit add-auth
 
@@ -48,3 +48,10 @@ auth-setup:
 # パスキーとセッションを削除し、管理者の登録用URLを再発行（確認あり）。例: make auth-recover ARGS="-account 1"
 auth-recover:
 	go run ./cmd/server auth-recover $(ARGS)
+
+# カタログ（管理者認証も有効化。無効化してもデータは保持）
+add-catalog:
+	go run ./cmd/kit add-catalog
+
+remove-catalog:
+	go run ./cmd/kit remove-catalog

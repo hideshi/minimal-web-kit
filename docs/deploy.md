@@ -192,3 +192,9 @@ SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go r
 - アクセスの記録は配信サービス側に残ります。`/privacy` の文面を、実際に使うサービスに合わせて編集してください。
 - `_headers` の書式は [Cloudflare Workersの静的アセットのヘッダー](https://developers.cloudflare.com/workers/static-assets/headers/) に従います。他のサービスでは、同等の設定に置き換えてください。
 
+
+## カタログを使う場合
+
+`make add-catalog` はAuthも有効にします。`/admin/catalog` は管理者・メンバーの両方が使えます。AuthのOrigin・RP ID・Secure Cookieは既存の管理者認証の設定を適用してください。カタログはSQLiteを使うため静的書き出しはできません。
+公開一覧だけ同梱htmxとcatalog.jsを自サイトから配信し、CSPのscript-srcをselfにします。CDNや外部APIへの通信はありません。プロキシでCSPを上書きする場合はこの画面だけの例外と、他画面のnoneを維持してください。カタログのHTMLはno-storeを維持し、通常/断片/履歴復元のVaryを削除しないでください。
+データは明示削除まで保持し、機能を外しても残ります。バックアップとWALの保持・削除は運営者が決めてください。取得・保存内容はデータ台帳6節にあります。

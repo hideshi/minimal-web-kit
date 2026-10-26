@@ -46,6 +46,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Successfully disabled admin authentication feature! Stored passkeys were not modified.")
+	case "add-catalog":
+		if err := addCatalog(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling catalog feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled Catalog with admin authentication.")
+	case "remove-catalog":
+		if err := removeCatalog(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling catalog feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Catalog registration disabled; stored data is kept.")
 	case "add-news":
 		if err := addNews(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling news feature: %v\n", err)
@@ -73,7 +85,9 @@ func printUsage() {
 	fmt.Println("  add-site     Enable the Site (LP template) feature in cmd/server/features.go")
 	fmt.Println("  remove-site  Disable the Site (LP template) feature registration")
 	fmt.Println("  add-auth     Enable the admin authentication (passkey) feature")
-	fmt.Println("  remove-auth  Disable admin authentication (refused while news is enabled; stored passkeys are kept)")
+	fmt.Println("  remove-auth  Disable admin authentication (refused while news or catalog is enabled; stored passkeys are kept)")
+	fmt.Println("  add-catalog  Enable Catalog with admin authentication")
+	fmt.Println("  remove-catalog Disable Catalog registration (stored data is kept)")
 	fmt.Println("  add-news     Enable the news feature, together with admin authentication")
 	fmt.Println("  remove-news  Disable the news feature registration (stored data is kept)")
 	fmt.Println()
@@ -90,15 +104,17 @@ type bundle struct {
 }
 
 const (
-	bundledSiteMarker = "// minimal-web-kit: bundled-feature site"
-	bundledNewsMarker = "// minimal-web-kit: bundled-feature news"
-	bundledAuthMarker = "// minimal-web-kit: bundled-feature auth"
+	bundledSiteMarker    = "// minimal-web-kit: bundled-feature site"
+	bundledNewsMarker    = "// minimal-web-kit: bundled-feature news"
+	bundledCatalogMarker = "// minimal-web-kit: bundled-feature catalog"
+	bundledAuthMarker    = "// minimal-web-kit: bundled-feature auth"
 )
 
 var (
-	siteBundle = bundle{name: "site", label: "Site", marker: bundledSiteMarker}
-	newsBundle = bundle{name: "news", label: "News", marker: bundledNewsMarker}
-	authBundle = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
+	siteBundle    = bundle{name: "site", label: "Site", marker: bundledSiteMarker}
+	newsBundle    = bundle{name: "news", label: "News", marker: bundledNewsMarker}
+	catalogBundle = bundle{name: "catalog", label: "Catalog", marker: bundledCatalogMarker}
+	authBundle    = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -117,7 +133,19 @@ func addNews() error {
 	return toggleBundle(newsBundle, true)
 }
 
-// removeAuth は、管理者認証を使う機能（お知らせ機能）が有効な間は拒否します。
+// addCatalog は、カタログと管理者認証の登録を有効にします。
+func addCatalog() error {
+	if err := verifyBundle(catalogBundle); err != nil {
+		return err
+	}
+	if err := toggleBundle(authBundle, true); err != nil {
+		return err
+	}
+	return toggleBundle(catalogBundle, true)
+}
+func removeCatalog() error { return toggleBundle(catalogBundle, false) }
+
+// removeAuth は、NewsまたはCatalogが有効な間は拒否します。
 func removeAuth() error {
 	registration, err := os.ReadFile("cmd/server/features.go")
 	if err != nil {
@@ -125,6 +153,9 @@ func removeAuth() error {
 	}
 	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+newsBundle.name)) {
 		return fmt.Errorf("news uses admin authentication; run remove-news first")
+	}
+	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+catalogBundle.name)) {
+		return fmt.Errorf("catalog uses admin authentication; run remove-catalog first")
 	}
 	return toggleBundle(authBundle, false)
 }
