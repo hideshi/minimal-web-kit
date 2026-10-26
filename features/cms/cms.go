@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"minimal-web-kit/internal/web"
+	"minimal-web-kit/internal/web/guard"
 )
 
 //go:embed migration.sql
@@ -36,7 +37,7 @@ type Feature struct {
 	posts       *PostStore
 	admin       *adminStore
 	challenges  *challenges
-	csrfKey     []byte
+	csrf        *guard.CSRF
 	publicPages map[string]*template.Template
 	adminPages  map[string]*template.Template
 	now         func() time.Time
@@ -46,7 +47,7 @@ func NewFeature(logger *slog.Logger) *Feature {
 	return &Feature{
 		logger:      logger,
 		challenges:  newChallenges(time.Now),
-		csrfKey:     newCSRFKey(),
+		csrf:        guard.NewCSRF(),
 		publicPages: parsePublicTemplates(),
 		adminPages:  parseAdminTemplates(),
 		now:         time.Now,

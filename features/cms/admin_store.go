@@ -10,6 +10,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"minimal-web-kit/internal/web/form"
 )
 
 // 管理者セッション・登録トークン・パスキーの保存を担当します。
@@ -151,8 +153,8 @@ func (s *adminStore) checkSetupToken(ctx context.Context, token string) error {
 // --- パスキー ---
 
 func normalizeLabel(label string) (string, error) {
-	label, err := normalizeText(strings.TrimSpace(label), maxLabelRunes, true)
-	if err != nil || strings.Contains(label, "\n") {
+	label, err := form.Line(label, maxLabelRunes, true)
+	if err != nil {
 		return "", ErrInvalidInput
 	}
 	return label, nil

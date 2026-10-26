@@ -2,12 +2,8 @@ package cms
 
 import (
 	"bytes"
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
 	"embed"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"html/template"
@@ -17,6 +13,7 @@ import (
 	"time"
 
 	"minimal-web-kit/internal/web"
+	"minimal-web-kit/internal/web/guard"
 )
 
 //go:embed static/webauthn.js
@@ -88,25 +85,17 @@ func (f *Feature) writeError(w http.ResponseWriter, status int, code string) {
 
 // --- 同一オリジン・CSRF・セッション ---
 
-// sameOrigin は、管理画面へのPOSTが同じオリジンから送られたことを確認します。
-// Coreが Referrer-Policy: no-referrer を送るため、同一オリジンでも Origin は null になり得ます。
-// そのため Sec-Fetch-Site を必須とし、Origin が null 以外で届いた場合は一致も確認します。
+// sameOrigin は、管理画面へのPOSTが同じオリジンから送られたことを確認します（guard.SameOrigin）。
 func (f *Feature) sameOrigin(r *http.Request) bool {
-	if r.Header.Get("Sec-Fetch-Site") != "same-origin" {
-		return false
-	}
-	origin := r.Header.Get("Origin")
-	return origin == "" || origin == "null" || origin == f.cfg.Origin
+	return guard.SameOrigin(r, f.cfg.Origin)
 }
 
 func (f *Feature) csrfToken(sessionToken string) string {
-	m := hmac.New(sha256.New, f.csrfKey)
-	m.Write([]byte(sessionToken))
-	return hex.EncodeToString(m.Sum(nil))
+	return f.csrf.Token(sessionToken)
 }
 
 func (f *Feature) validCSRF(sessionToken, token string) bool {
-	return sessionToken != "" && token != "" && hmac.Equal([]byte(f.csrfToken(sessionToken)), []byte(token))
+	return f.csrf.Valid(sessionToken, token)
 }
 
 // adminSession は有効な管理者セッションのトークンを返します。無ければ空文字を返します。
@@ -518,14 +507,6 @@ func verificationReason(err error) string {
 
 func (f *Feature) rp() rpConfig {
 	return rpConfig{ID: f.cfg.RPID, Origin: f.cfg.Origin}
-}
-
-func newCSRFKey() []byte {
-	key := make([]byte, 32)
-	if _, err := rand.Read(key); err != nil {
-		panic("cms: generate csrf key: " + err.Error())
-	}
-	return key
 }
 
 func (f *Feature) registerAdminRoutes(mux *web.IsolatedMux) {

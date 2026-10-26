@@ -32,7 +32,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 6. **画面とCSS**: テンプレートは機能の `views/` に置き、`html/template` で描画する。インライン `style`・`<style>`・`<script>` を書かず、意匠は `style.css` のクラスかセマンティックなHTMLで表す。フォーカス表示（`:focus-visible`）とコントラストを維持する。
 
 ## 3. データ保護とセッションの拡張
-- 取得する入力は形式・UTF-8・長さ・本文サイズをサーバー側で検証し、解析エラーを扱う。`template.HTML` 等による自動エスケープの回避は行わない。
+- 取得する入力は形式・UTF-8・長さ・本文サイズをサーバー側で検証し、解析エラーを扱う。文章と1行の値は `internal/web/form`（`form.Text`・`form.Line`）で検査する。`template.HTML` 等による自動エスケープの回避は行わない。
 - Featureの検索・更新・削除は、リクエストの識別子だけを信用せずOwnerIDで絞る。共有・管理者操作は別途権限を検証する。
 - 管理機能には明示的な認証を実装する。無記名セッションを持つだけで管理者にしない。状態変更をGETで実装せず、CSRF保護と認可を両方適用する。
 - SQLiteの接続別PRAGMAを全接続に適用し、外部キーのCASCADE、期限切れ照会、GC、削除後の再アクセスを確認する。
@@ -40,7 +40,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 - 公開ページでは `EnsureSession` を呼ばない。ハンドラ単体でなく、Routes経由でCookie発行と保存件数を確認する。サーバー起動時のDB初期化とページ表示時の保存は区別する。
 - ログには生の入力・URLパス・クエリ・ヘッダー・panic値・DBエラーを安易に渡さず、固定の分類とサーバー生成IDを使う。`LogValuer` だけで文字列や外部ライブラリのエラーは保護できない。
 - 削除の説明は稼働DB上のレコード削除の範囲に限定し、WAL・バックアップ・外部フォームの保持を別途説明する。
-- 独立経路の状態変更（POST）では、`Sec-Fetch-Site: same-origin` を必須にする。`Origin` は、Coreの `Referrer-Policy: no-referrer` により同一オリジンでも `null` になるため、`null` か自サイトとの一致を認める。加えて、セッションに結びつけたCSRFトークンと `SameSite=Strict` のCookieを使う。
+- 独立経路の状態変更（POST）では、`internal/web/guard` の `guard.SameOrigin` と `guard.CSRF` を使い、自前で書き直さない。`Sec-Fetch-Site: same-origin` を必須にする。`Origin` は、Coreの `Referrer-Policy: no-referrer` により同一オリジンでも `null` になるため、`null` か自サイトとの一致を認める。加えて、セッションに結びつけたCSRFトークンと `SameSite=Strict` のCookieを使う。
 - 日時はUNIX秒で保存し、表示はサーバーのタイムゾーン（`TZ`）で行い、`<time datetime>` を添える。
 
 ## 4. UIを拡張するとき

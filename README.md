@@ -173,10 +173,10 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
 1. `features/<機能名>/` に機能を作成し、`features.Feature` の `Name`、`Init`、`RegisterRoutes` を実装します。必要なら `CustomRootFeature` の `HandleRoot` も実装します。複数のトップページ提供機能を登録すると、先に登録したものが使われます。
 2. `cmd/server/features.go` にパッケージのimportと `r.Register(...)` を追記します。自作機能用の生成コマンドはありません。
 3. DBを利用する機能は `Init` で必要な初期化を実装します。保存データの追加前に承認を得て、[取得・保存データ台帳](docs/data-inventory.md)と検査を更新します。
-4. 動的機能では必要な操作に限ってセッションを発行し、OwnerIDによる分離、入力検証、CSRF保護、用途に応じた認証・認可を実装します。追加Featureの保護が自動的に完成するわけではありません。
+4. 入力の検査には部品の `internal/web/form`（`form.Text`・`form.Line`）を使います。動的機能では必要な操作に限ってセッションを発行し、OwnerIDによる分離、入力検証、CSRF保護、用途に応じた認証・認可を実装します。追加Featureの保護が自動的に完成するわけではありません。
 5. データの寿命に合わせて、`owners` に紐づけるかを決めます。下記の「OwnerIDに紐づくデータの寿命」を確認してください。
 6. 必要に応じて、次の任意のインターフェースを実装します（`features/feature.go`）。
-   - `IsolatedRoutesFeature`：CoreのCSRF検査とセッション照合を通さない経路（Cookieを使わない公開ページ、独自認証の管理画面）。認証・CSRF・Origin検査は機能自身が実装します。
+   - `IsolatedRoutesFeature`：CoreのCSRF検査とセッション照合を通さない経路（Cookieを使わない公開ページ、独自認証の管理画面）。認証・CSRF・Origin検査は機能自身が行い、部品の `internal/web/guard`（`SameOrigin`・`CSRF`）を使います。
    - `PurgeFeature`：期限切れデータの削除。起動時と1時間ごとに呼ばれます。
    - `NavLinkFeature`：ナビゲーションへのリンク（例: CMSの「お知らせ」）。機能を外せばリンクも消えます。
    - `CommandFeature`：サーバーの実行ファイルのサブコマンド（例: `minimal-web-kit cms-setup`）。
@@ -224,6 +224,8 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 │   ├── domain/            # OwnerID等のCoreドメイン型
 │   ├── store/             # メモリ・SQLite・Coreマイグレーション
 │   └── web/               # SSR・セッション・CSRF・ログ・CSS
+│       ├── form/          # 部品: 入力の検査（文章・1行の値）
+│       └── guard/         # 部品: 独立経路の同一オリジン確認とCSRF
 ├── features/
 │   ├── site/              # LP・ホームページテンプレート
 │   └── cms/               # お知らせのCMSテンプレート（パスキー認証・公開ページ・API）

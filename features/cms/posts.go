@@ -4,10 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
+
+	"minimal-web-kit/internal/web/form"
 )
 
 const (
@@ -51,37 +50,15 @@ func NewPostStore(db *sql.DB) *PostStore {
 	return &PostStore{db: db, now: time.Now}
 }
 
-// normalizeText は改行をLFに揃え、UTF-8・制御文字・文字数を検証します。
-func normalizeText(s string, maxRunes int, required bool) (string, error) {
-	if !utf8.ValidString(s) {
-		return "", ErrInvalidInput
-	}
-	s = strings.ReplaceAll(s, "\r\n", "\n")
-	for _, r := range s {
-		if unicode.IsControl(r) && r != '\n' && r != '\t' {
-			return "", ErrInvalidInput
-		}
-	}
-	if required && strings.TrimSpace(s) == "" {
-		return "", ErrInvalidInput
-	}
-	if utf8.RuneCountInString(s) > maxRunes {
-		return "", ErrInvalidInput
-	}
-	return s, nil
-}
-
+// normalizePost はタイトル（1行）と本文を検査します。理由は区別せず ErrInvalidInput を返します。
 func normalizePost(title, body string) (string, string, error) {
-	title, err := normalizeText(strings.TrimSpace(title), maxTitleRunes, true)
+	title, err := form.Line(title, maxTitleRunes, true)
 	if err != nil {
-		return "", "", err
-	}
-	if strings.Contains(title, "\n") {
 		return "", "", ErrInvalidInput
 	}
-	body, err = normalizeText(body, maxBodyRunes, false)
+	body, err = form.Text(body, maxBodyRunes, false)
 	if err != nil {
-		return "", "", err
+		return "", "", ErrInvalidInput
 	}
 	return title, body, nil
 }
