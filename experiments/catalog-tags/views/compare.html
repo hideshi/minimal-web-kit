@@ -1,0 +1,42 @@
+{{define "layout"}}
+<!DOCTYPE html><html lang="ja"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>タグ選択の比較 — {{if .Alpine}}Alpine.js{{else}}標準HTML{{end}}</title>
+<link rel="stylesheet" href="/static/css/style.css">
+{{if .Alpine}}
+<script src="/compare/static/tags.js" defer></script>
+<script src="/compare/static/alpine-csp.min.js" defer></script>
+{{end}}
+</head><body>
+<a href="#main-content" class="skip-link">本文へ移動</a>
+<header><p class="site-title">タグ選択の比較試作</p><p>架空のタグのみ。実際のカタログ・アカウントには触れません。</p></header>
+<main id="main-content" tabindex="-1">
+<h1>{{if .Alpine}}Alpine.js版{{else}}標準HTML版{{end}} — {{.Count}}件</h1>
+<nav aria-label="比較する方式"><a href="/compare?mode=html&amp;count={{.Count}}">標準HTML版</a> ／ <a href="/compare?mode=alpine&amp;count={{.Count}}">Alpine.js版</a></nav>
+<nav aria-label="タグの件数"><a href="/compare?mode={{.Mode}}&amp;count=10">10件</a> ／ <a href="/compare?mode={{.Mode}}&amp;count=50">50件</a> ／ <a href="/compare?mode={{.Mode}}&amp;count=200">200件</a></nav>
+<p>方式や件数を切り替えると入力を初期化します。この試作は選択結果をCookieやストレージへ保存しません。</p>
+<details><summary>同じ条件で試す操作</summary><ol><li>「設計レビュー」「実装」「運用改善」を選びます。</li><li>「実装」を解除し、「テスト」に変更します。</li><li>選択内容を確認し、キーボードだけでも繰り返します。</li></ol><p>標準HTML版ではブラウザのページ内検索も利用できます。自動操作の速さではなく、探しやすさや誤操作を比べてください。</p></details>
+{{template "error" .Error}}{{template "notice" .Notice}}
+{{if .Notice}}<section aria-label="確認結果"><h2>確認したタグ</h2><ul>{{range .Selected}}<li>{{.Name}}（ID: {{.ID}}）</li>{{else}}<li>既存タグは選択されていません。</li>{{end}}</ul>{{if .NewTags}}<p>新規タグ名:</p><pre class="compare-new-tags">{{.NewTags}}</pre>{{end}}</section>{{end}}
+<form method="post" action="/compare/result"{{if .Alpine}} data-tag-picker x-ignore x-data="tagPicker"{{end}}>
+<input type="hidden" name="mode" value="{{.Mode}}"><input type="hidden" name="count" value="{{.Count}}">
+{{if .Alpine}}
+<section hidden x-bind:hidden="notReady" aria-labelledby="picker-tools-title" class="card">
+<h2 id="picker-tools-title">タグを探す</h2>
+<label for="tag-search">タグ名で絞り込み</label><input type="search" id="tag-search" x-ref="search" x-model.debounce.150ms="query" aria-controls="tag-list" autocomplete="off">
+<p role="status" aria-live="polite" aria-atomic="true" x-text="summary"></p>
+<h3>選択済み</h3>
+<ul><template x-for="tag in chosen" x-bind:key="tag.id"><li><button type="button" x-bind:value="tag.id" x-bind:aria-label="removeLabel(tag.name)" x-on:click="remove" x-text="tag.name"></button></li></template></ul>
+<p>上のボタンで個別に解除できます。検索しても選択は保持します。20個に達すると未選択の項目を選べなくなります。</p>
+</section>
+{{end}}
+<fieldset id="tag-list" aria-describedby="tag-limit"><legend>タグ（20個まで）</legend>
+<p id="tag-limit">新規タグを含め合計20個まで。上限は確認時にも検査します。</p>
+{{range .Tags}}<label class="catalog-check" data-name="{{.Name}}"{{if $.Alpine}} x-bind:hidden="notMatches($el.dataset.name)"{{end}}><input id="tag-{{.ID}}" type="checkbox" name="tag" value="{{.ID}}"{{if .Selected}} checked{{end}}{{if $.Alpine}} x-bind:checked="isSelected($el.value)" x-bind:disabled="blocked($el.value)" x-on:change="toggle"{{end}}> {{.Name}}</label>{{end}}
+</fieldset>
+<div class="form-group"><label for="new-tags">新規タグとして追加する名前（任意）</label><p id="new-tags-hint">1行に1つ、50文字以内。個人情報は入力しないでください。確認だけで、保存・追加はしません。</p><textarea id="new-tags" name="new_tags" rows="3" aria-describedby="new-tags-hint">{{.NewTags}}</textarea></div>
+<button type="submit" class="btn btn-primary">選択内容を確認する（保存しません）</button>
+</form>
+</main><footer><p>比較専用の試作です。本体への採否は操作性と保守負担を比較して決めます。</p></footer>
+</body></html>
+{{end}}

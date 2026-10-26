@@ -650,6 +650,9 @@ nav a[aria-current="page"] {
 .catalog-loading { visibility: hidden; }
 .catalog-busy .catalog-loading { visibility: visible; }
 
+/* 比較試作で入力した新規タグ名を、狭い画面でも折り返す。 */
+.compare-new-tags { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* hidden属性を、.card や .btn の display 指定より優先する（同じ詳細度のため、ファイルの最後に置く） */
 [hidden] {
   display: none;

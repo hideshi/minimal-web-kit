@@ -40,7 +40,7 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	slices.Sort(found)
-	approved := []string{"../features/auth/static/webauthn.js", "../features/catalog/static/catalog.js", "../features/catalog/static/htmx.min.js"}
+	approved := []string{"../experiments/catalog-tags/static/alpine-csp.min.js", "../experiments/catalog-tags/static/tags.js", "../features/auth/static/webauthn.js", "../features/catalog/static/catalog.js", "../features/catalog/static/htmx.min.js"}
 	if !slices.Equal(found, approved) {
 		t.Fatalf("only explicitly approved auth/catalog JavaScript is allowed, found %v", found)
 	}
@@ -55,6 +55,8 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 
 	featureFiles, _ := filepath.Glob("../features/*/views/*.html")
 	files := append(coreFiles, featureFiles...)
+	experimentFiles, _ := filepath.Glob("../experiments/*/views/*.html")
+	files = append(files, experimentFiles...)
 
 	if len(files) == 0 {
 		t.Fatal("no template files found")
@@ -87,6 +89,16 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 			}
 			if strings.Contains(str, "<script") {
 				t.Errorf("unapproved catalog script in %s", file)
+			}
+		} else if filepath.ToSlash(file) == "../experiments/catalog-tags/views/compare.html" {
+			for _, tag := range []string{`<script src="/compare/static/tags.js" defer></script>`, `<script src="/compare/static/alpine-csp.min.js" defer></script>`} {
+				if strings.Count(str, tag) != 1 {
+					t.Errorf("missing approved comparison script: %s", tag)
+				}
+				str = strings.ReplaceAll(str, tag, "")
+			}
+			if strings.Contains(str, "<script") {
+				t.Errorf("unapproved comparison script in %s", file)
 			}
 		} else if strings.Contains(str, "<script") {
 			t.Errorf("<script> tag found in %s. Inline scripts are prohibited for security and simplicity.", file)

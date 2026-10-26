@@ -57,4 +57,6 @@
 
 公開一覧のGET検索・ページ送りだけに、固定版htmxとcatalog.jsを使う。script-srcはこの画面だけself。設定はheadのmetaに置き、allowEval/allowScriptTags/includeIndicatorStylesはfalse、selfRequestsOnlyはtrue、historyCacheSizeは0。historyRestoreAsHxRequestはfalse、refreshOnHistoryMissはtrueとして、履歴復元はページ全体の取得に戻す。管理画面・詳細では読み込まない。
 検索後はフォームにフォーカスを残し、ページ送り後は結果見出しへ移す。固定したrole=status領域を更新する。失敗時は元の結果を残し、通常GETでの再試行を提供する。新しい検索で古い要求を取り消す。管理操作は通常のフォームのcsrf_tokenを使う（Admin.Formは現状ヘッダーのトークンを検証しない）。
-Alpine.jsを使うタグ選択は別の比較試作で、まだ同梱しない。標準HTML版と同じデータ・タスクで入力の手間、分かりやすさ、キーボード・読み上げ、実装・保守負担を比較して採否を決める。
+Alpine.jsを使うタグ選択は `cmd/catalog-ui-compare` の比較専用画面だけで試作する。本体には採用しない。標準HTML版と同じデータ・タスクで入力の手間、分かりやすさ、キーボード・読み上げ、実装・保守負担を比較して採否を決める。
+
+比較試作は標準チェックボックスを使い、Alpine版でだけ検索・選択済み表示・個別解除を足す。x-show/x-cloakやインラインstyleは使わず、hidden属性を切り替える。JS読込失敗時には検索欄を隠し、標準の一覧とPOST確認を残す。
