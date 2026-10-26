@@ -26,8 +26,8 @@
 <label for="tag-search">タグ名で絞り込み</label><input type="search" id="tag-search" x-ref="search" x-model.debounce.150ms="query" aria-controls="tag-list" autocomplete="off">
 <p role="status" aria-live="polite" aria-atomic="true" x-text="summary"></p>
 <h3>選択済み</h3>
-<ul><template x-for="tag in chosen" x-bind:key="tag.id"><li><button type="button" x-bind:value="tag.id" x-bind:aria-label="removeLabel(tag.name)" x-on:click="remove" x-text="tag.name"></button></li></template></ul>
-<p>上のボタンで個別に解除できます。検索しても選択は保持します。20個に達すると未選択の項目を選べなくなります。</p>
+<ul class="compare-chips"><template x-for="tag in chosen" x-bind:key="tag.id"><li><button type="button" class="btn-secondary compare-chip" x-bind:value="tag.id" x-bind:aria-label="removeLabel(tag.name)" x-on:click="remove"><span x-text="tag.name"></span><span aria-hidden="true">×</span></button></li></template></ul>
+<p>×の付いたボタンで個別に解除できます。検索しても選択は保持します。20個に達すると未選択の項目を選べなくなります。</p>
 </section>
 {{end}}
 <fieldset id="tag-list" aria-describedby="tag-limit"><legend>タグ（20個まで）</legend>
