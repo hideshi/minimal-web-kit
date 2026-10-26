@@ -50,3 +50,19 @@ func TestLine(t *testing.T) {
 		t.Fatal("surrounding spaces must not count")
 	}
 }
+
+func TestInt(t *testing.T) {
+	for _, tc := range []struct {
+		raw  string
+		want int
+		ok   bool
+	}{
+		{"", 20, true}, {"1", 1, true}, {"50", 50, true},
+		{"0", 0, false}, {"51", 0, false}, {"-1", 0, false}, {"abc", 0, false}, {"1.5", 0, false}, {" 1", 0, false},
+	} {
+		got, ok := Int(tc.raw, 20, 1, 50)
+		if ok != tc.ok || (ok && got != tc.want) {
+			t.Errorf("%q: got %d, %v", tc.raw, got, ok)
+		}
+	}
+}

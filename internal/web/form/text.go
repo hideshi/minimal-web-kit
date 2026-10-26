@@ -4,6 +4,7 @@ package form
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -40,4 +41,30 @@ func Line(s string, maxRunes int, required bool) (string, error) {
 		return "", ErrInvalid
 	}
 	return s, nil
+}
+
+// Int はクエリ等の整数を解析します。未指定（空文字）なら def を返し、数値でない・範囲外なら ok=false を返します。
+func Int(raw string, def, min, max int) (n int, ok bool) {
+	if raw == "" {
+		return def, true
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < min || n > max {
+		return 0, false
+	}
+	return n, true
+}
+
+// Field は、共通の画面部品 "field"（入力欄）に渡す値です。ラベル・説明・エラーを入力欄に関連付けて描画します。
+type Field struct {
+	ID        string // 入力欄のid。説明は ID+"-hint"、エラーは ID+"-error" になる
+	Name      string
+	Label     string
+	Hint      string // 入力の条件等の説明（任意）
+	Error     string // この欄のエラー（任意）。表示すると aria-invalid="true" になる
+	Value     string
+	Type      string // 既定は "text"（例: "datetime-local"、"email"）
+	MaxLength int    // 0なら指定しない
+	Rows      int    // 1以上なら複数行（textarea）
+	Required  bool
 }

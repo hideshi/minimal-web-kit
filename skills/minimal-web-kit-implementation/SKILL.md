@@ -24,6 +24,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 | マイグレーション | 埋め込みSQLファイル (001_init.sql等) | migrate, goose |
 
 ## 2. 機能（Feature）の作り方
+新しく書く前に `docs/components.md` の部品（入力の検査、独立経路の守り、ページ送り、完了メッセージ、画面部品）で作れないかを確かめる。テンプレートは `web.ParseWithComponents` で解析し、部品を使う。
 1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/site`・`features/cms` は同梱テンプレートの予約名で、自作機能には使わない。
 2. **スキーマ**: テーブルは `features/<名前>/migration.sql` に書き、`Init` から同じファイルを適用する。同時に `docs/data-inventory.md` を更新する（台帳テストは全 `features/*/migration.sql` を照合する）。`internal/store/migrations/` はCoreのスキーマだけに使う。
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。

@@ -14,6 +14,7 @@ import (
 
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/guard"
+	"minimal-web-kit/internal/web/notice"
 )
 
 //go:embed static/webauthn.js
@@ -51,7 +52,7 @@ func parseAdminTemplates() map[string]*template.Template {
 		"admin_posts.html", "admin_post_form.html", "admin_post_delete.html",
 		"admin_passkeys.html", "admin_passkey_delete.html",
 	} {
-		pages[page] = template.Must(template.ParseFS(viewsFS, "views/admin_layout.html", "views/"+page))
+		pages[page] = template.Must(web.ParseWithComponents(viewsFS, "views/admin_layout.html", "views/"+page))
 	}
 	return pages
 }
@@ -192,7 +193,7 @@ func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Feature) handleSetupPage(w http.ResponseWriter, r *http.Request) {
-	f.renderAdmin(w, "admin_setup.html", map[string]any{"Title": "パスキーの登録"}, true)
+	f.renderAdmin(w, "admin_setup.html", map[string]any{"Title": "パスキーの登録", "LabelField": labelField("仕事用PCのWindows Hello")}, true)
 }
 
 func (f *Feature) handleLoginPage(w http.ResponseWriter, r *http.Request) {
@@ -403,7 +404,7 @@ func (f *Feature) handleRegisterFinish(w http.ResponseWriter, r *http.Request, b
 	f.logger.Info("cms passkey registered", f.requestID(w))
 	next := "/admin/login?registered=1"
 	if session != "" {
-		next = "/admin/passkeys?notice=added"
+		next = notice.URL("/admin/passkeys", "added")
 	}
 	f.writeJSON(w, http.StatusOK, map[string]string{"next": next})
 }

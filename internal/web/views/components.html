@@ -1,0 +1,32 @@
+{{/*
+  共通の画面部品。web.ParseWithComponents で、各機能のテンプレートと一緒に読み込む。
+  使い方と注意は docs/components.md を参照。
+*/}}
+
+{{/* 完了メッセージ。引数は文字列（空なら何も出さない）。読み上げソフトに穏やかに伝える */}}
+{{define "notice"}}{{if .}}<p class="alert alert-info" role="status">{{.}}</p>{{end}}{{end}}
+
+{{/* 画面全体のエラー。引数は文字列（空なら何も出さない）。読み上げソフトにすぐ伝える */}}
+{{define "error"}}{{if .}}<p class="alert alert-warning" role="alert">{{.}}</p>{{end}}{{end}}
+
+{{/* ページ送り。引数は page.Page（Base・Label・PrevText・NextText を設定する） */}}
+{{define "pagination"}}{{if or .Prev .Next}}
+<nav class="pagination" aria-label="{{.Label}}">
+  {{if .Prev}}<a href="{{.Base}}?page={{.Prev}}" rel="prev">{{.PrevText}}</a>{{end}}
+  {{if .Next}}<a href="{{.Base}}?page={{.Next}}" rel="next">{{.NextText}}</a>{{end}}
+</nav>
+{{end}}{{end}}
+
+{{/* 入力欄。引数は form.Field。ラベル・説明・エラーを入力欄に関連付ける。Rows が1以上なら複数行 */}}
+{{define "field"}}
+<div class="form-group">
+  <label for="{{.ID}}">{{.Label}}{{if .Required}}<span class="required-mark">（必須）</span>{{end}}</label>
+  {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
+  {{if .Error}}<p class="field-error" id="{{.ID}}-error">{{.Error}}</p>{{end}}
+  {{if gt .Rows 0}}
+  <textarea id="{{.ID}}" name="{{.Name}}" rows="{{.Rows}}"{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Required}} required{{end}}{{if or .Hint .Error}} aria-describedby="{{if .Hint}}{{.ID}}-hint{{end}}{{if and .Hint .Error}} {{end}}{{if .Error}}{{.ID}}-error{{end}}"{{end}}{{if .Error}} aria-invalid="true"{{end}}>{{.Value}}</textarea>
+  {{else}}
+  <input type="{{or .Type "text"}}" id="{{.ID}}" name="{{.Name}}" value="{{.Value}}"{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Required}} required{{end}}{{if or .Hint .Error}} aria-describedby="{{if .Hint}}{{.ID}}-hint{{end}}{{if and .Hint .Error}} {{end}}{{if .Error}}{{.ID}}-error{{end}}"{{end}}{{if .Error}} aria-invalid="true"{{end}}>
+  {{end}}
+</div>
+{{end}}

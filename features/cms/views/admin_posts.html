@@ -1,7 +1,7 @@
 {{define "content"}}
 <h1>お知らせの管理</h1>
 
-{{if .Notice}}<p class="alert alert-info" role="status">{{.Notice}}</p>{{end}}
+{{template "notice" .Notice}}
 
 <p><a href="/admin/posts/new" class="btn btn-primary">お知らせを作成する</a></p>
 
@@ -31,10 +31,5 @@
 <p>お知らせはまだありません。</p>
 {{end}}
 
-{{if or .PrevPage .NextPage}}
-<nav class="pagination" aria-label="お知らせの一覧のページ送り">
-  {{if .PrevPage}}<a href="/admin/posts?page={{.PrevPage}}" rel="prev">新しい更新</a>{{end}}
-  {{if .NextPage}}<a href="/admin/posts?page={{.NextPage}}" rel="next">過去の更新</a>{{end}}
-</nav>
-{{end}}
+{{template "pagination" .Page}}
 {{end}}

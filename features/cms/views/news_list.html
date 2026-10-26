@@ -14,10 +14,5 @@
 <p>現在、公開中のお知らせはありません。</p>
 {{end}}
 
-{{if or .PrevPage .NextPage}}
-<nav class="pagination" aria-label="お知らせのページ送り">
-  {{if .PrevPage}}<a href="/news?page={{.PrevPage}}" rel="prev">新しいお知らせ</a>{{end}}
-  {{if .NextPage}}<a href="/news?page={{.NextPage}}" rel="next">過去のお知らせ</a>{{end}}
-</nav>
-{{end}}
+{{template "pagination" .Page}}
 {{end}}

@@ -11,11 +11,7 @@
 </noscript>
 
 <form id="setup-form" class="card" hidden>
-  <div class="form-group">
-    <label for="passkey-label">端末名</label>
-    <p class="field-hint" id="passkey-label-hint">あとで見分けるための名前です（例: 仕事用PCのWindows Hello）。個人名は入れないでください。50文字以内。</p>
-    <input type="text" id="passkey-label" name="label" maxlength="50" required aria-describedby="passkey-label-hint">
-  </div>
+  {{template "field" .LabelField}}
   <button type="submit" class="btn btn-primary">パスキーを登録する</button>
 </form>
 

@@ -2,8 +2,8 @@
 {{define "content"}}
 <h1>パスキーの管理</h1>
 
-{{if .Notice}}<p class="alert alert-info" role="status">{{.Notice}}</p>{{end}}
-{{if .Error}}<p class="alert alert-warning" role="alert">{{.Error}}</p>{{end}}
+{{template "notice" .Notice}}
+{{template "error" .Error}}
 {{if lt .ActiveCount 2}}<p class="alert alert-warning">有効なパスキーが1つだけです。認証器を失うとログインできなくなるため、別の認証器も追加しておくことをおすすめします。</p>{{end}}
 
 <div class="table-container">
@@ -49,11 +49,7 @@
 
 <form id="passkey-add-form" class="card" hidden>
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-  <div class="form-group">
-    <label for="passkey-label">端末名</label>
-    <p class="field-hint" id="passkey-label-hint">あとで見分けるための名前です（例: 予備のセキュリティキー）。個人名は入れないでください。50文字以内。</p>
-    <input type="text" id="passkey-label" name="label" maxlength="50" required aria-describedby="passkey-label-hint">
-  </div>
+  {{template "field" .LabelField}}
   <button type="submit" class="btn btn-primary">パスキーを追加する</button>
 </form>
 

@@ -9,12 +9,15 @@ import (
 	"time"
 
 	"minimal-web-kit/internal/web"
+	"minimal-web-kit/internal/web/form"
+	"minimal-web-kit/internal/web/notice"
+	"minimal-web-kit/internal/web/page"
 )
 
 const adminPageSize = 20
 
 // 管理画面の完了通知。クエリの値は固定の語だけを受け付け、入力値は表示しない。
-var adminNotices = map[string]string{
+var adminNotices = notice.Messages{
 	"created":     "お知らせを下書きとして保存しました。",
 	"saved":       "変更を保存しました。",
 	"published":   "お知らせを公開しました。",
@@ -29,9 +32,7 @@ var adminNotices = map[string]string{
 func postIDAttr(id int64) slog.Attr { return slog.Int64("post_id", id) }
 
 func setNotice(data map[string]any, r *http.Request) {
-	if msg, ok := adminNotices[r.URL.Query().Get("notice")]; ok {
-		data["Notice"] = msg
-	}
+	data["Notice"] = adminNotices.From(r)
 }
 
 // adminPostID は経路の {id} を解析し、不正なら404/400を返します。
@@ -47,7 +48,7 @@ func adminPostID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 // --- お知らせの管理 ---
 
 func (f *Feature) handleAdminPosts(w http.ResponseWriter, r *http.Request) {
-	page, ok := parseIntParam(r.URL.Query().Get("page"), 1, 1, maxOffset/adminPageSize)
+	pg, ok := page.Parse(r, adminPageSize, maxOffset/adminPageSize)
 	if !ok {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
@@ -56,19 +57,15 @@ func (f *Feature) handleAdminPosts(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	posts, err := f.posts.ListAll(r.Context(), adminPageSize+1, (page-1)*adminPageSize)
+	posts, err := f.posts.ListAll(r.Context(), pg.Limit(), pg.Offset())
 	if err != nil {
 		f.logger.Error("cms list posts failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	if len(posts) > adminPageSize {
-		posts = posts[:adminPageSize]
-		data["NextPage"] = page + 1
-	}
-	if page > 1 {
-		data["PrevPage"] = page - 1
-	}
+	posts = page.Trim(&pg, posts)
+	pg.Base, pg.Label, pg.PrevText, pg.NextText = "/admin/posts", "お知らせの一覧のページ送り", "新しい更新", "過去の更新"
+	data["Page"] = pg
 	for i := range posts {
 		posts[i] = adminLocalTime(posts[i])
 	}
@@ -103,6 +100,25 @@ type postForm struct {
 	Title, Body, PublishedAt string
 }
 
+// Fields は、共通の画面部品 "field" で描く入力欄を返します。
+func (pf postForm) Fields() []form.Field {
+	return []form.Field{
+		{ID: "post-title", Name: "title", Label: "タイトル", Value: pf.Title, MaxLength: maxTitleRunes, Required: true,
+			Hint: "1〜200文字。改行は使えません。"},
+		// 本文は maxlength を付けない（ブラウザはUTF-16で数えるため、絵文字等でサーバーの文字数と食い違う）
+		{ID: "post-body", Name: "body", Label: "本文", Value: pf.Body, Rows: 14,
+			Hint: "5万文字以内のプレーンテキスト。空行で段落を分けます。HTMLは文字としてそのまま表示されます。個人情報は書かないでください。"},
+		{ID: "post-published-at", Name: "published_at", Label: "公開日時（任意）", Value: pf.PublishedAt, Type: "datetime-local",
+			Hint: "公開ページの表示と並び順に使います。空欄のままなら、初めて公開した日時が入ります。未来の日時を指定して「公開を予約する」を押すと、その日時になってから公開ページとAPIに表示されます。時刻はサーバーのタイムゾーンです。"},
+	}
+}
+
+// labelField は、パスキーの端末名の入力欄です。登録画面のJSは id="passkey-label" を読みます。
+func labelField(example string) form.Field {
+	return form.Field{ID: "passkey-label", Name: "label", Label: "端末名", MaxLength: maxLabelRunes, Required: true,
+		Hint: "あとで見分けるための名前です（例: " + example + "）。個人名は入れないでください。50文字以内。"}
+}
+
 func readPostForm(r *http.Request) postForm {
 	return postForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), PublishedAt: r.PostForm.Get("published_at")}
 }
@@ -124,15 +140,15 @@ func (f *Feature) parsePublishedAt(raw string) (time.Time, string) {
 }
 
 func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, session string) {
-	form := readPostForm(r)
-	publishedAt, msg := f.parsePublishedAt(form.PublishedAt)
+	pf := readPostForm(r)
+	publishedAt, msg := f.parsePublishedAt(pf.PublishedAt)
 	if msg != "" {
-		f.renderPostFormError(w, r, "お知らせの作成", Post{}, form, msg)
+		f.renderPostFormError(w, r, "お知らせの作成", Post{}, pf, msg)
 		return
 	}
-	id, err := f.posts.CreateWithDate(r.Context(), form.Title, form.Body, publishedAt)
+	id, err := f.posts.CreateWithDate(r.Context(), pf.Title, pf.Body, publishedAt)
 	if errors.Is(err, ErrInvalidInput) {
-		f.renderPostFormError(w, r, "お知らせの作成", Post{}, form, postInputError)
+		f.renderPostFormError(w, r, "お知らせの作成", Post{}, pf, postInputError)
 		return
 	}
 	if err != nil {
@@ -141,31 +157,31 @@ func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, sessi
 		return
 	}
 	f.logger.Info("cms post created", f.requestID(w), postIDAttr(id))
-	http.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10)+"?notice=created", http.StatusSeeOther)
+	notice.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10), "created")
 }
 
 const postInputError = "タイトルは1〜200文字（改行なし）、本文は5万文字以内で入力してください。制御文字は使えません。"
 
 // renderPostFormError は入力をそのまま戻して、修正を求めるフォームを返します。
 // p は保存済みの記事（作成時はゼロ値）で、状態の表示に使います。
-func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, title string, p Post, form postForm, msg string) {
+func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, title string, p Post, pf postForm, msg string) {
 	data, _, ok := f.adminPage(w, r, title, "posts")
 	if !ok {
 		return
 	}
 	data["Post"] = p
-	data["Form"] = form
+	data["Form"] = pf
 	data["Error"] = msg
 	f.renderAdminStatus(w, http.StatusBadRequest, "admin_post_form.html", data, false)
 }
 
 // formFromPost は保存済みの記事から、フォームの初期値を作ります。
 func formFromPost(p Post) postForm {
-	form := postForm{Title: p.Title, Body: p.Body}
+	pf := postForm{Title: p.Title, Body: p.Body}
 	if !p.PublishedAt.IsZero() {
-		form.PublishedAt = p.PublishedAt.In(time.Local).Format(datetimeInputLayout)
+		pf.PublishedAt = p.PublishedAt.In(time.Local).Format(datetimeInputLayout)
 	}
-	return form
+	return pf
 }
 
 func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request) {
@@ -198,11 +214,11 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, sessi
 	if !ok {
 		return
 	}
-	form := readPostForm(r)
-	publishedAt, msg := f.parsePublishedAt(form.PublishedAt)
+	pf := readPostForm(r)
+	publishedAt, msg := f.parsePublishedAt(pf.PublishedAt)
 	err := ErrInvalidInput
 	if msg == "" {
-		err = f.posts.UpdateWithDate(r.Context(), id, form.Title, form.Body, publishedAt)
+		err = f.posts.UpdateWithDate(r.Context(), id, pf.Title, pf.Body, publishedAt)
 		msg = postInputError
 	}
 	if errors.Is(err, ErrInvalidInput) {
@@ -211,24 +227,24 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, sessi
 			http.NotFound(w, r)
 			return
 		}
-		f.renderPostFormError(w, r, "お知らせの編集", adminLocalTime(p), form, msg)
+		f.renderPostFormError(w, r, "お知らせの編集", adminLocalTime(p), pf, msg)
 		return
 	}
 	f.afterPostChange(w, r, id, err, "cms post updated", "saved")
 }
 
 // postAction は公開・非公開の切り替えなど、入力を伴わない操作のハンドラを作ります。
-func (f *Feature) postAction(action func(*PostStore, *http.Request, int64) error, event, notice string) func(http.ResponseWriter, *http.Request, string) {
+func (f *Feature) postAction(action func(*PostStore, *http.Request, int64) error, event, key string) func(http.ResponseWriter, *http.Request, string) {
 	return func(w http.ResponseWriter, r *http.Request, session string) {
 		id, ok := adminPostID(w, r)
 		if !ok {
 			return
 		}
-		f.afterPostChange(w, r, id, action(f.posts, r, id), event, notice)
+		f.afterPostChange(w, r, id, action(f.posts, r, id), event, key)
 	}
 }
 
-func (f *Feature) afterPostChange(w http.ResponseWriter, r *http.Request, id int64, err error, event, notice string) {
+func (f *Feature) afterPostChange(w http.ResponseWriter, r *http.Request, id int64, err error, event, key string) {
 	if errors.Is(err, ErrNotFound) {
 		http.NotFound(w, r)
 		return
@@ -239,7 +255,7 @@ func (f *Feature) afterPostChange(w http.ResponseWriter, r *http.Request, id int
 		return
 	}
 	f.logger.Info(event, f.requestID(w), postIDAttr(id))
-	http.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10)+"?notice="+notice, http.StatusSeeOther)
+	notice.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10), key)
 }
 
 func (f *Feature) handleDeletePostPage(w http.ResponseWriter, r *http.Request) {
@@ -276,7 +292,7 @@ func (f *Feature) handleDeletePost(w http.ResponseWriter, r *http.Request, sessi
 		return
 	}
 	f.logger.Info("cms post deleted", f.requestID(w), postIDAttr(id))
-	http.Redirect(w, r, "/admin/posts?notice=deleted", http.StatusSeeOther)
+	notice.Redirect(w, r, "/admin/posts", "deleted")
 }
 
 func (f *Feature) registerPostAdminRoutes(mux *web.IsolatedMux) {
@@ -325,6 +341,7 @@ func (f *Feature) renderPasskeys(w http.ResponseWriter, r *http.Request, status 
 			active++
 		}
 	}
+	data["LabelField"] = labelField("予備のセキュリティキー")
 	data["Credentials"] = creds
 	data["ActiveCount"] = active
 	data["Error"] = errMsg
@@ -352,7 +369,7 @@ func (f *Feature) handleRenamePasskey(w http.ResponseWriter, r *http.Request, se
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	default:
 		f.logger.Info("cms passkey renamed", f.requestID(w))
-		http.Redirect(w, r, "/admin/passkeys?notice=renamed", http.StatusSeeOther)
+		notice.Redirect(w, r, "/admin/passkeys", "renamed")
 	}
 }
 
@@ -390,7 +407,7 @@ func (f *Feature) handleDeletePasskey(w http.ResponseWriter, r *http.Request, se
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	default:
 		f.logger.Info("cms passkey deleted", f.requestID(w))
-		http.Redirect(w, r, "/admin/passkeys?notice=removed", http.StatusSeeOther)
+		notice.Redirect(w, r, "/admin/passkeys", "removed")
 	}
 }
 

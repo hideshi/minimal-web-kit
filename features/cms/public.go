@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"minimal-web-kit/internal/web"
+	"minimal-web-kit/internal/web/form"
+	"minimal-web-kit/internal/web/page"
 )
 
 //go:embed views/*.html
@@ -28,8 +30,8 @@ const (
 
 func parsePublicTemplates() map[string]*template.Template {
 	pages := map[string]*template.Template{}
-	for _, page := range []string{"news_list.html", "news_show.html"} {
-		pages[page] = template.Must(template.ParseFS(viewsFS, "views/layout.html", "views/"+page))
+	for _, name := range []string{"news_list.html", "news_show.html"} {
+		pages[name] = template.Must(web.ParseWithComponents(viewsFS, "views/layout.html", "views/"+name))
 	}
 	return pages
 }
@@ -44,18 +46,6 @@ func (f *Feature) render(w http.ResponseWriter, page string, data map[string]any
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = buf.WriteTo(w)
-}
-
-// parseIntParam は数値パラメータを解析します。未指定なら def を返し、不正・範囲外なら ok=false を返します。
-func parseIntParam(raw string, def, min, max int) (int, bool) {
-	if raw == "" {
-		return def, true
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil || n < min || n > max {
-		return 0, false
-	}
-	return n, true
 }
 
 // parsePostID は経路の {id} を解析します。数値でなければ400、範囲外なら404とします。
@@ -90,26 +80,20 @@ func localTime(p Post) Post {
 }
 
 func (f *Feature) handleNewsList(w http.ResponseWriter, r *http.Request) {
-	page, ok := parseIntParam(r.URL.Query().Get("page"), 1, 1, maxOffset/newsPageSize)
+	pg, ok := page.Parse(r, newsPageSize, maxOffset/newsPageSize)
 	if !ok {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	// 次のページの有無を知るため1件多く取得する
-	posts, err := f.posts.ListPublished(r.Context(), newsPageSize+1, (page-1)*newsPageSize)
+	posts, err := f.posts.ListPublished(r.Context(), pg.Limit(), pg.Offset())
 	if err != nil {
 		f.logger.Error("cms list published posts failed")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	data := map[string]any{"Title": "お知らせ"}
-	if len(posts) > newsPageSize {
-		posts = posts[:newsPageSize]
-		data["NextPage"] = page + 1
-	}
-	if page > 1 {
-		data["PrevPage"] = page - 1
-	}
+	posts = page.Trim(&pg, posts)
+	pg.Base, pg.Label, pg.PrevText, pg.NextText = "/news", "お知らせのページ送り", "新しいお知らせ", "過去のお知らせ"
+	data := map[string]any{"Title": "お知らせ", "Page": pg}
 	for i := range posts {
 		posts[i] = localTime(posts[i])
 	}
@@ -176,8 +160,8 @@ func apiError(code string) map[string]string {
 
 func (f *Feature) handleAPIList(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	limit, okLimit := parseIntParam(q.Get("limit"), apiDefaultLimit, 1, apiMaxLimit)
-	offset, okOffset := parseIntParam(q.Get("offset"), 0, 0, maxOffset)
+	limit, okLimit := form.Int(q.Get("limit"), apiDefaultLimit, 1, apiMaxLimit)
+	offset, okOffset := form.Int(q.Get("offset"), 0, 0, maxOffset)
 	if !okLimit || !okOffset {
 		f.writeJSON(w, http.StatusBadRequest, apiError("bad_request"))
 		return

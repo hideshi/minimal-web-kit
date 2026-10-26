@@ -28,7 +28,7 @@ func NewHandler(s store.SessionStore, sm *SessionManager, logger *slog.Logger) (
 
 	pages := []string{"index.html", "privacy.html", "confirm_delete.html"}
 	for _, page := range pages {
-		t, err := template.ParseFS(contentFS, "views/layout.html", "views/"+page)
+		t, err := ParseWithComponents(contentFS, "views/layout.html", "views/"+page)
 		if err != nil {
 			return nil, fmt.Errorf("parse template %q: %w", page, err)
 		}
@@ -151,6 +151,16 @@ type NavLink struct {
 // SetNavLinks は、Coreの画面のナビゲーションに表示する機能のリンクを設定します。起動時に1回だけ呼びます。
 func (h *Handler) SetNavLinks(links []NavLink) {
 	h.navLinks = links
+}
+
+// ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field）と、
+// 機能のテンプレートを1つにまとめて解析します。機能は自分の embed.FS とファイル名を渡します。
+func ParseWithComponents(fsys fs.FS, patterns ...string) (*template.Template, error) {
+	t, err := template.New("components").ParseFS(contentFS, "views/components.html")
+	if err != nil {
+		return nil, err
+	}
+	return t.ParseFS(fsys, patterns...)
 }
 
 func (h *Handler) Render(w http.ResponseWriter, page string, data any) {

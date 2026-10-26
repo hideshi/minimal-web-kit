@@ -576,6 +576,23 @@ footer {
   margin-bottom: var(--space-lg);
 }
 
+/* 共通の画面部品: 入力欄（views/components.html の "field"） */
+.required-mark {
+  font-weight: 400;
+  margin-left: var(--space-xs);
+}
+
+.field-error {
+  color: var(--color-danger-hover); /* 白背景に対して4.5:1以上 */
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+}
+
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
+  border: 2px solid var(--color-danger-hover);
+}
+
 /* CMS: 管理画面 */
 .admin-main > p,
 .admin-main > .card {
