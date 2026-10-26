@@ -47,8 +47,8 @@
 <p x-text="countText"></p>
 <label for="combo-input">タグを追加</label>
 <p id="combo-hint">入力すると候補を絞り込みます。↑↓で移動、Enterで選択・解除、Escで閉じます。入力が空のときBackspaceで最後のタグを外せます。</p>
-<div class="combo">
-<input type="text" id="combo-input" role="combobox" aria-autocomplete="list" aria-controls="combo-list" aria-describedby="combo-hint" autocomplete="off" x-model="query" x-bind:aria-expanded="open" x-bind:aria-activedescendant="activeId" x-on:input="onInput" x-on:keydown="onKey" x-on:focus="show" x-on:click="show" x-on:blur="close">
+<div class="combo" x-on:pointerdown.outside="closeOutside">
+<input type="text" id="combo-input" role="combobox" aria-autocomplete="list" aria-controls="combo-list" aria-describedby="combo-hint" autocomplete="off" x-model="query" x-bind:aria-expanded="open" x-bind:aria-activedescendant="activeId" x-on:input="onInput" x-on:keydown="onKey" x-on:focus="onFocus" x-on:click="show" x-on:blur="close">
 <ul id="combo-list" role="listbox" aria-label="タグの候補" aria-multiselectable="true" class="combo-list" x-ref="list" hidden x-bind:hidden="listHidden"><template x-for="tag in matches" x-bind:key="tag.id"><li role="option" class="combo-option" x-bind:id="optionId(tag.id)" x-bind:aria-selected="isSelected(tag.id)" x-bind:aria-disabled="blocked(tag.id)" x-bind:class="optionClass(tag.id)" x-bind:data-id="tag.id" x-on:mousedown.prevent x-on:click="pick"><span x-text="tag.name"></span><span aria-hidden="true" x-text="mark(tag.id)"></span></li></template></ul>
 <p class="combo-empty" hidden x-bind:hidden="hasMatch">一致するタグはありません。新しいタグは下の欄に入力してください。</p>
 </div>

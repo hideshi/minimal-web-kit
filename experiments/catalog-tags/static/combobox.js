@@ -24,6 +24,7 @@
     let active = -1;
     let open = false;
     let timer = 0;
+    let quietFocus = false;
 
     const nameOf = id => options.find(option => option.dataset.id === id).dataset.name;
     const countText = () => `${selected.length}個を選択中（${LIMIT}個まで）`;
@@ -89,7 +90,7 @@
     }
 
     function show() {
-      if (open) return;
+      if (open || document.activeElement !== input) return;
       open = true;
       active = visible.length ? 0 : -1;
       renderList();
@@ -144,7 +145,11 @@
       say(`${nameOf(id)} を外しました。${countText()}`);
     }
 
-    input.addEventListener("focus", show);
+    input.addEventListener("focus", () => {
+      // ×で外した後にフォーカスを戻すときは、候補を開かない。
+      if (quietFocus) quietFocus = false;
+      else show();
+    });
     input.addEventListener("click", show);
     input.addEventListener("blur", close);
     input.addEventListener("input", () => {
@@ -195,7 +200,13 @@
       selected = selected.filter(id => id !== button.value);
       renderSelection();
       say(`${nameOf(button.value)} を外しました。${countText()}`);
+      quietFocus = true;
       input.focus();
+      quietFocus = false;
+    });
+    // フォーカスの移動に頼らず、外側を押したときにも閉じる。
+    document.addEventListener("pointerdown", event => {
+      if (open && !ui.contains(event.target)) close();
     });
 
     renderSelection();

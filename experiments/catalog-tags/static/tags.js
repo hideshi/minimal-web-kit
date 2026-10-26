@@ -51,6 +51,7 @@ document.addEventListener("alpine:init", () => {
     tags: [],
     message: "",
     timer: 0,
+    quietFocus: false,
     init() {
       this.tags = Array.from(this.$el.querySelectorAll("input[name=tag]")).map(input => ({
         id: input.value, name: input.closest("label").dataset.name
@@ -85,12 +86,19 @@ document.addEventListener("alpine:init", () => {
       this.$nextTick(() => { this.message = text; });
     },
     show() {
-      if (this.open) return;
+      if (this.open || document.activeElement !== document.getElementById("combo-input")) return;
       this.open = true;
       this.active = this.matches.length ? 0 : -1;
       this.announceCount();
     },
     close() { this.open = false; this.active = -1; },
+    onFocus() {
+      // ×で外した後にフォーカスを戻すときは、候補を開かない。
+      if (this.quietFocus) this.quietFocus = false;
+      else this.show();
+    },
+    // フォーカスの移動に頼らず、外側を押したときにも閉じる。
+    closeOutside() { if (this.open) this.close(); },
     announceCount() {
       clearTimeout(this.timer);
       this.timer = setTimeout(() => {
@@ -176,7 +184,11 @@ document.addEventListener("alpine:init", () => {
       this.selected = this.selected.filter(id => id !== tag.id);
       this.say(`${tag.name} を外しました。${this.countText}`);
       // x-forの中からは$refsを参照できないため、IDで入力欄を探す。
-      this.$nextTick(() => document.getElementById("combo-input").focus());
+      this.$nextTick(() => {
+        this.quietFocus = true;
+        document.getElementById("combo-input").focus();
+        this.quietFocus = false;
+      });
     }
   }));
   // どちらかのJSが読めない場合は、Alpineが未登録の部品を処理しない。
