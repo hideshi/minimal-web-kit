@@ -69,6 +69,8 @@
 | AUTH-INV-15 | `auth-setup` は、有効なパスキーが1件も無いときだけ登録URLを出す | `Setup` |
 | AUTH-INV-16 | `auth-recover`・`-reset-schema`・GCは管理者認証の表だけに触れ、アカウント（`-reset-schema` を除く）と他の機能のデータは残す | `Recover`・`ResetSchema`・`Purge` |
 
+前提: AUTH-INV-1・AUTH-INV-4・AUTH-INV-7・AUTH-INV-8 は、判定と更新を1つの文（またはトランザクション）で行い、同時操作でも破れないようにしています。これは、SQLiteが書き込みを1つずつしか通さないことに頼っています。DBを替えるときは見直してください。たとえばPostgreSQLの既定の分離レベル（READ COMMITTED）では、2人の管理者が同時にお互いを降格すると、どちらの文も相手を有効な管理者と数えて通り、有効な管理者が0人になりえます。その場合は `SERIALIZABLE` にするか、対象の行をロック（`SELECT ... FOR UPDATE`）してから判定します。
+
 ## 5. ロールと権限
 
 | 操作 | 管理者 | メンバー |
