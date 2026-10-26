@@ -22,6 +22,7 @@ type Handler struct {
 	logger    *slog.Logger
 	navLinks  []NavLink
 	layout    *Layout
+	privacy   []PrivacyNotice
 }
 
 // corePages はCoreが描画する画面です。
@@ -160,6 +161,23 @@ type NavLink struct {
 	Href  string
 }
 
+// PrivacyNotice は、機能が保存する情報を、プライバシーポリシーの画面で説明するための節です。
+type PrivacyNotice struct {
+	Title string // 節の見出し（例: "管理画面のアカウントで保存する情報"）
+	Lead  string // 節の説明（任意）
+	Rows  []PrivacyRow
+}
+
+// PrivacyRow は、PrivacyNotice の表の1行です。内容は docs/data-inventory.md と揃えます。
+type PrivacyRow struct {
+	Kind, Items, Purpose, Retention string
+}
+
+// SetPrivacyNotices は、プライバシーポリシーの画面に載せる、機能が保存する情報を設定します。起動時に1回だけ呼びます。
+func (h *Handler) SetPrivacyNotices(notices []PrivacyNotice) {
+	h.privacy = notices
+}
+
 // SetNavLinks は、Coreの画面のナビゲーションに表示する機能のリンクを設定します。起動時に1回だけ呼びます。
 func (h *Handler) SetNavLinks(links []NavLink) {
 	h.navLinks = links
@@ -256,6 +274,7 @@ func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode
 		"Description":   "このサイトで保存する情報、アクセスの記録、お問い合わせで提供される情報の扱いと、免責事項について説明します。",
 		"CanonicalPath": "/privacy",
 		"SiteMode":      siteMode,
+		"Notices":       h.privacy,
 		"CSRFToken":     GetCSRFToken(r.Context()),
 	})
 }

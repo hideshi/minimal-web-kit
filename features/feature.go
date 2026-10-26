@@ -67,6 +67,14 @@ type NavLinkFeature interface {
 	NavLinks() []web.NavLink
 }
 
+// PrivacyFeature は、閲覧者以外の人（管理画面の利用者等）について情報を保存する機能が実装します。
+// 返した内容は、Coreのプライバシーポリシーの画面に表として載ります（例: 管理者認証のアカウント・パスキー）。
+// 内容は docs/data-inventory.md と揃えます。
+type PrivacyFeature interface {
+	Feature
+	PrivacyNotices() []web.PrivacyNotice
+}
+
 // NavLinkConsumer は、独自のナビゲーションを描画する機能（例: Site）が実装します。
 // 起動時に、有効な全機能のリンクを受け取ります。
 type NavLinkConsumer interface {

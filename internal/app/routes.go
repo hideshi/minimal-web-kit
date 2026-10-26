@@ -38,6 +38,17 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
+	// 機能が保存する情報（閲覧者以外の人の情報）を、プライバシーポリシーの画面に載せる
+	{
+		var notices []web.PrivacyNotice
+		for _, f := range reg.All() {
+			if p, ok := f.(features.PrivacyFeature); ok {
+				notices = append(notices, p.PrivacyNotices()...)
+			}
+		}
+		handler.SetPrivacyNotices(notices)
+	}
+
 	// 管理者認証を、管理画面を持つ機能に配る。管理画面のナビのリンクを管理者認証に集める
 	{
 		var admin features.Admin

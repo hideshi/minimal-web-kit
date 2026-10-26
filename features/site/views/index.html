@@ -61,15 +61,15 @@
       <span class="card-badge">SITE（LP TEMPLATE）</span>
       <h3 class="card-title">企業サイト &amp; サービスLP</h3>
       <p class="card-content">
-        公開ページはCookie不要・完全セッションレスで閲覧できます。閲覧のための個人情報登録を求めず、保存するデータを減らす構成です。
+        公開ページの閲覧ではCookieを発行せず、セッションも作りません。閲覧のための個人情報登録を求めず、保存するデータを減らす構成です。
       </p>
     </article>
 
     <article class="card">
-      <span class="card-badge">NEWS（SIMPLE CMS）</span>
-      <h3 class="card-title">お知らせ管理 &amp; 簡易CMS</h3>
+      <span class="card-badge">NEWS / CATALOG</span>
+      <h3 class="card-title">お知らせ・カタログ &amp; パスキーの管理画面</h3>
       <p class="card-content">
-        お知らせを作成・公開・予約公開できるお知らせ機能（News）を同梱しています。管理画面はパスワードを使わず、Windows Helloやセキュリティキーのパスキーでログインします。公開ページとJSON APIの両方で配信でき、管理者・メンバーのロールで複数人のアカウントを使えます。
+        お知らせ（予約公開・JSON API）と、カテゴリ・タグで絞り込めるカタログを同梱しています。管理画面はパスワードを使わず、Windows Helloやセキュリティキーなど端末に保存されるパスキーでログインし、管理者・メンバーのロールで複数人のアカウントを使えます（同期型のパスキーには対応していません）。
       </p>
     </article>
 
@@ -77,7 +77,7 @@
       <span class="card-badge">INTERNAL TOOLS</span>
       <h3 class="card-title">社内ツール &amp; 業務Webアプリ</h3>
       <p class="card-content">
-        申請ワークフロー、集計ダッシュボード、管理ツールなど。業務上必要な情報を見極め、取得する場合は保存項目や保持期間を明確にします。所有者IDによるデータ分離を土台に、用途に応じた認証・権限管理を設計できます。
+        申請ワークフロー、集計ダッシュボード、管理ツールなど。業務上必要な情報を見極め、取得する場合は保存項目や保持期間を明確にします。パスキーでログインする管理者認証（管理者・メンバーのロール）を土台に、業務に合わせた権限を各機能で設計できます。
       </p>
     </article>
 
@@ -92,7 +92,7 @@
 
   <div class="card">
     <div class="card-content">
-      <p><strong>選べるスターター ＆ 自在な拡張基盤:</strong> 同梱のLPテンプレート（Site）やお知らせ機能（News）から始めることも、サンプルのないクリーン基盤からあなた独自のWebアプリケーションをゼロから組み立てることも自由自在。強固なセキュリティ規約と自動テストが、あなたの開発を安全に支え続けます。</p>
+      <p><strong>選べるスターター ＆ 自在な拡張基盤:</strong> 同梱のLPテンプレート（Site）、お知らせ機能（News）、カタログ（Catalog）から始めることも、サンプルのないクリーン基盤からあなた独自のWebアプリケーションをゼロから組み立てることも自由自在。強固なセキュリティ規約と自動テストが、あなたの開発を安全に支え続けます。</p>
     </div>
   </div>
 </section>
@@ -100,7 +100,7 @@
 <section id="how-it-works" class="section">
   <div class="section-header">
     <h2>AI開発ツールと3ステップで構築</h2>
-    <p class="section-lead">編集にはClaude Code、Codex、Cursor、Antigravityのいずれかを推奨します。同梱の計画・実装・検証スキルを読み込んで進めてください。</p>
+    <p class="section-lead">編集にはClaude Code、Codex、Cursor、Antigravityのいずれかを推奨します。同梱の設計・実装・監査スキルを読み込んで進めてください。</p>
   </div>
 
   <ol class="step-list" role="list">
@@ -108,7 +108,7 @@
       <div class="step-number">STEP 1</div>
       <h3 class="step-title">同梱機能から素早く立ち上げ</h3>
       <p class="step-content">
-        必要な機能だけを選んでコマンド一発で組み込み。サンプルのないクリーン基盤に、LPテンプレート（Site）やお知らせ機能（News）を自在に組み込めます。
+        必要な機能だけを選んでコマンド一発で組み込み。サンプルのないクリーン基盤に、LPテンプレート（Site）、お知らせ機能（News）、カタログ（Catalog）を自在に組み込めます。
       </p>
     </li>
     <li class="step-item">
@@ -146,7 +146,7 @@
     <details class="faq-item">
       <summary>JavaScriptやフロントエンドフレームワーク（React / Vue等）は必要ですか？</summary>
       <div class="faq-answer">
-        <p>いいえ、不要です。画面はサーバーサイドレンダリング（SSR）で作り、JavaScriptが無効な環境でも閲覧・操作できます。JavaScriptを読み込むのは、パスキーを扱う管理者認証の画面、カタログ公開一覧の絞り込み（htmx）、カタログ項目編集のタグ選択の3か所だけで、どれも自サイトから配信するファイルです。</p>
+        <p>いいえ、不要です。画面はサーバーサイドレンダリング（SSR）で作り、公開ページはJavaScriptが無効な環境でも閲覧できます。JavaScriptを読み込むのは、パスキーを扱う管理者認証の画面（ログインにはJavaScriptが必要です）、カタログ公開一覧の絞り込み（htmx）、カタログ項目編集のタグ選択の3か所だけで、どれも自サイトから配信するファイルです。</p>
       </div>
     </details>
 

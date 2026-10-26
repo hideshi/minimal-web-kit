@@ -96,6 +96,28 @@ func TestLayout_SiteLayoutIsSharedAcrossPages(t *testing.T) {
 	}
 }
 
+// 管理者認証が有効なら、/privacy に管理画面のアカウントで保存する情報が載り、無効なら載らないこと。
+func TestPrivacy_AdminAuthNotice(t *testing.T) {
+	routes, _ := newSiteNewsRoutes(t)
+	rec := httptest.NewRecorder()
+	routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/privacy", nil))
+	for _, want := range []string{"<h2>管理画面のアカウントで保存する情報</h2>", "<td>パスキー</td>", "<td>無操作2時間または発行から12時間。ログアウト時等にも削除</td>"} {
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("privacy page with auth: missing %s", want)
+		}
+	}
+	s := store.NewMemoryStore()
+	h, err := web.NewHandler(s, web.NewSessionManager(s, false), discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec = httptest.NewRecorder()
+	h.Routes(nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/privacy", nil))
+	if strings.Contains(rec.Body.String(), "管理画面のアカウント") {
+		t.Fatal("privacy page without auth must not describe admin accounts")
+	}
+}
+
 // Siteが無効（Base）なら、/privacy はCoreのレイアウトのままであること。
 func TestLayout_BaseKeepsCoreLayout(t *testing.T) {
 	s := store.NewMemoryStore()

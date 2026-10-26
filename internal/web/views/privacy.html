@@ -43,6 +43,27 @@
 </div>
 {{end}}
 
+{{range .Notices}}
+<h2>{{.Title}}</h2>
+{{if .Lead}}<p>{{.Lead}}</p>{{end}}
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">データ種別</th>
+        <th scope="col">保存項目</th>
+        <th scope="col">保存の目的</th>
+        <th scope="col">保持期間</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}<tr><td>{{.Kind}}</td><td>{{.Items}}</td><td>{{.Purpose}}</td><td>{{.Retention}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
 <h2>お問い合わせでお預かりする情報</h2>
 <p>当サイトのお問い合わせ窓口（外部フォーム）を通じて提供されたお名前、連絡先、お問い合わせ内容等の情報は、お問い合わせへの回答および必要な対応の目的にのみ使用し、法令に基づく場合を除き第三者に提供することはありません。</p>
 
