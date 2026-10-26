@@ -78,6 +78,11 @@ func TestExportStatic_Site(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "sitemap.xml")); !os.IsNotExist(err) {
 		t.Fatal("sitemap.xml needs SITE_URL")
 	}
+	for _, f := range []string{"favicon.ico", "static/img/favicon.svg", "static/img/favicon-32.png", "static/img/apple-touch-icon.png"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			t.Errorf("%s must be exported: %v", f, err)
+		}
+	}
 	t.Setenv("SITE_URL", "https://example.workers.dev")
 	if err := app.ExportStatic(siteRegistry(), dir, discardLogger()); err != nil {
 		t.Fatalf("re-export: %v", err)

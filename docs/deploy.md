@@ -179,6 +179,7 @@ SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go r
 | `privacy.html` | `/privacy`（Cloudflare Workersの静的アセットは、既定の設定で `privacy.html` を `/privacy` で配信します） |
 | `static/css/style.css` | CSS |
 | `static/img/ogp.png` | SNSのカード用画像 |
+| `favicon.ico`、`static/img/favicon.svg` 等 | ブラウザのタブ等に出るアイコン |
 | `robots.txt`、`sitemap.xml` | 検索エンジン向け。`sitemap.xml` は `SITE_URL` を設定した場合だけ |
 | `404.html` | 存在しないパスに返すページ。Cloudflare Workersでは `wrangler.jsonc` の `assets.not_found_handling` を `"404-page"` にすると使われます |
 | `_headers` | Goのサーバーと同じセキュリティヘッダー（CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）を全経路に付ける設定 |

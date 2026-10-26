@@ -2,6 +2,7 @@ package cms
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -26,6 +27,8 @@ const (
 	apiMaxLimit     = 50
 	// 極端に大きいoffsetによる重い走査を避けるための上限
 	maxOffset = 100000
+	// sitemap.xml に載せる記事の上限（1ファイル5万URLの仕様の範囲に収める）
+	maxSitemapPosts = 49000
 )
 
 var publicPageNames = []string{"news_list.html", "news_show.html"}
@@ -92,6 +95,37 @@ func paragraphs(body string) [][]string {
 	return result
 }
 
+// excerptRunes は、記事の説明文（検索結果・SNSのカード）に使う本文の文字数です。
+const excerptRunes = 120
+
+// excerpt は、本文の冒頭から説明文を作ります。改行や連続する空白は1つの空白にまとめます。本文が空ならタイトルを使います。
+func excerpt(body, fallback string) string {
+	s := strings.Join(strings.Fields(body), " ")
+	if s == "" {
+		return fallback
+	}
+	if r := []rune(s); len(r) > excerptRunes {
+		return string(r[:excerptRunes]) + "…"
+	}
+	return s
+}
+
+// SitemapEntries は、公開中の記事と一覧を sitemap.xml に載せます（Siteが有効な場合に使われる）。
+func (f *Feature) SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error) {
+	refs, err := f.posts.PublishedRefs(ctx, maxSitemapPosts)
+	if err != nil {
+		return nil, err
+	}
+	entries := []web.SitemapEntry{{Path: "/news"}}
+	for _, ref := range refs {
+		if ref.UpdatedAt.After(entries[0].LastMod) {
+			entries[0].LastMod = ref.UpdatedAt
+		}
+		entries = append(entries, web.SitemapEntry{Path: "/news/" + strconv.FormatInt(ref.ID, 10), LastMod: ref.UpdatedAt})
+	}
+	return entries, nil
+}
+
 // localTime は表示用に、公開日時をサーバーのタイムゾーンへ変換します。
 func localTime(p Post) Post {
 	p.PublishedAt = p.PublishedAt.In(time.Local)
@@ -112,11 +146,12 @@ func (f *Feature) handleNewsList(w http.ResponseWriter, r *http.Request) {
 	}
 	posts = page.Trim(&pg, posts)
 	pg.Base, pg.Label, pg.PrevText, pg.NextText = "/news", "お知らせのページ送り", "新しいお知らせ", "過去のお知らせ"
-	data := map[string]any{"Title": "お知らせ", "Page": pg, "CanonicalPath": "/news"}
+	data := map[string]any{"Title": "お知らせ", "Page": pg, "CanonicalPath": "/news", "Description": "公開中のお知らせの一覧です。"}
 	for i := range posts {
 		posts[i] = localTime(posts[i])
 	}
 	data["Posts"] = posts
+	web.PublicCache(w, web.PublicCacheSeconds)
 	f.render(w, "news_list.html", data)
 }
 
@@ -135,8 +170,12 @@ func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	web.PublicCache(w, web.PublicCacheSeconds)
 	f.render(w, "news_show.html", map[string]any{
 		"Title":         post.Title,
+		"Description":   excerpt(post.Body, post.Title),
+		"OGType":        "article",
+		"PublishedTime": post.PublishedAt.UTC().Format(time.RFC3339),
 		"CanonicalPath": "/news/" + strconv.FormatInt(post.ID, 10),
 		"Post":          localTime(post),
 		"Paragraphs":    paragraphs(post.Body),
@@ -206,6 +245,7 @@ func (f *Feature) handleAPIList(w http.ResponseWriter, r *http.Request) {
 	for _, p := range posts {
 		resp.Items = append(resp.Items, toAPIPost(p))
 	}
+	web.PublicCache(w, web.PublicCacheSeconds)
 	f.writeJSON(w, http.StatusOK, resp)
 }
 
@@ -227,6 +267,7 @@ func (f *Feature) handleAPIShow(w http.ResponseWriter, r *http.Request) {
 		f.writeJSON(w, http.StatusInternalServerError, apiError("internal_error"))
 		return
 	}
+	web.PublicCache(w, web.PublicCacheSeconds)
 	f.writeJSON(w, http.StatusOK, toAPIPost(post))
 }
 

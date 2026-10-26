@@ -172,6 +172,34 @@ func (s *PostStore) ListPublished(ctx context.Context, limit, offset int) ([]Pos
 		statusPublished, s.now().Unix(), limit, offset)
 }
 
+// PostRef は、記事のIDと更新日時だけを持つ参照です（sitemap.xml 用）。
+type PostRef struct {
+	ID        int64
+	UpdatedAt time.Time
+}
+
+// PublishedRefs は、公開中の記事のIDと更新日時を、新しい順に最大 limit 件返します。本文は読みません。
+func (s *PostStore) PublishedRefs(ctx context.Context, limit int) ([]PostRef, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT id, updated_at FROM cms_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ?",
+		statusPublished, s.now().Unix(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var refs []PostRef
+	for rows.Next() {
+		var ref PostRef
+		var updated int64
+		if err := rows.Scan(&ref.ID, &updated); err != nil {
+			return nil, err
+		}
+		ref.UpdatedAt = time.Unix(updated, 0).UTC()
+		refs = append(refs, ref)
+	}
+	return refs, rows.Err()
+}
+
 // ListAll は全記事を更新の新しい順に返します（管理画面用）。
 func (s *PostStore) ListAll(ctx context.Context, limit, offset int) ([]Post, error) {
 	return s.list(ctx,

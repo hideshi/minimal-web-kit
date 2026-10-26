@@ -27,6 +27,10 @@ var staticPages = []struct {
 	{"/privacy", "privacy.html", false},
 	{"/static/css/style.css", "static/css/style.css", false},
 	{"/static/img/ogp.png", "static/img/ogp.png", true},
+	{"/static/img/favicon.svg", "static/img/favicon.svg", true},
+	{"/static/img/favicon-32.png", "static/img/favicon-32.png", true},
+	{"/static/img/apple-touch-icon.png", "static/img/apple-touch-icon.png", true},
+	{"/favicon.ico", "favicon.ico", true},
 	{"/robots.txt", "robots.txt", true},
 	{"/sitemap.xml", "sitemap.xml", true},
 }

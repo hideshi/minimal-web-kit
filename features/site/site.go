@@ -14,7 +14,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web"
 )
 
@@ -29,6 +31,7 @@ type Feature struct {
 	contactFormURL string
 	siteURL        string
 	navLinks       []web.NavLink
+	sitemapSources []features.SitemapFeature
 }
 
 const (
@@ -114,6 +117,8 @@ func (f *Feature) SetNavLinks(links []web.NavLink) {
 
 // HandleRoot はBaseのデフォルトトップ（GET /）をこのLP画面で置き換えます。
 func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
+	// LPはCookieも利用者ごとの内容も持たないため、キャッシュしてよい
+	web.PublicCache(w, web.PublicCacheSeconds)
 	f.render(w, http.StatusOK, "index.html", map[string]any{
 		"Title":          "個人情報と依存を最小限に抑えるWeb開発基盤",
 		"CanonicalPath":  "/",
@@ -171,8 +176,14 @@ func (f *Feature) handleRobots(w http.ResponseWriter, r *http.Request) {
 	if f.siteURL != "" {
 		b.WriteString("\nSitemap: " + f.siteURL + "/sitemap.xml\n")
 	}
+	web.PublicCache(w, web.PublicCacheSeconds)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = io.WriteString(w, b.String())
+}
+
+// SetSitemapSources は、sitemap.xml に載せるページを持つ機能（例: CMSの公開中の記事）を受け取ります。
+func (f *Feature) SetSitemapSources(sources []features.SitemapFeature) {
+	f.sitemapSources = sources
 }
 
 // handleSitemap は公開ページの一覧を返します。絶対URLが必要なため、SITE_URL が無ければ404にします。
@@ -181,18 +192,45 @@ func (f *Feature) handleSitemap(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	paths := []string{"/", "/privacy"}
+	entries := []web.SitemapEntry{{Path: "/"}, {Path: "/privacy"}}
 	for _, l := range f.navLinks {
-		paths = append(paths, l.Href)
+		entries = append(entries, web.SitemapEntry{Path: l.Href})
+	}
+	for _, src := range f.sitemapSources {
+		more, err := src.SitemapEntries(r.Context())
+		if err != nil {
+			f.logger.Error("site sitemap source failed", slog.String("feature", src.Name()))
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		entries = append(entries, more...)
+	}
+	// 同じパスは1つにまとめ、更新日時がわかるものを優先する
+	index := map[string]int{}
+	var unique []web.SitemapEntry
+	for _, e := range entries {
+		if i, ok := index[e.Path]; ok {
+			if e.LastMod.After(unique[i].LastMod) {
+				unique[i].LastMod = e.LastMod
+			}
+			continue
+		}
+		index[e.Path] = len(unique)
+		unique = append(unique, e)
 	}
 	var b strings.Builder
 	b.WriteString(xml.Header + `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` + "\n")
-	for _, p := range paths {
+	for _, e := range unique {
 		b.WriteString("  <url><loc>")
-		_ = xml.EscapeText(&b, []byte(f.siteURL+p))
-		b.WriteString("</loc></url>\n")
+		_ = xml.EscapeText(&b, []byte(f.siteURL+e.Path))
+		b.WriteString("</loc>")
+		if !e.LastMod.IsZero() {
+			b.WriteString("<lastmod>" + e.LastMod.UTC().Format(time.RFC3339) + "</lastmod>")
+		}
+		b.WriteString("</url>\n")
 	}
 	b.WriteString("</urlset>\n")
+	web.PublicCache(w, web.PublicCacheSeconds)
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 	_, _ = io.WriteString(w, b.String())
 }

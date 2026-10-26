@@ -123,7 +123,16 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 	if err != nil {
 		panic(err)
 	}
-	rootMux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	static := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	rootMux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		PublicCache(w, staticCacheSeconds)
+		static.ServeHTTP(w, r)
+	}))
+	// /favicon.ico を直接取りに来るブラウザ・クローラ向けに、PNGのアイコンを返す（404のログを増やさない）
+	rootMux.HandleFunc("GET /favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		PublicCache(w, staticCacheSeconds)
+		http.ServeFileFS(w, r, staticFS, "img/favicon-32.png")
+	})
 	rootMux.Handle("/", appHandler)
 
 	if registerIsolated != nil {
@@ -238,8 +247,13 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode bool) {
+	if siteMode {
+		// Siteの /privacy はセッションを照合せず、誰が開いても同じ内容のため、キャッシュしてよい
+		PublicCache(w, PublicCacheSeconds)
+	}
 	h.Render(w, "privacy.html", map[string]any{
 		"Title":         "プライバシーポリシー",
+		"Description":   "このサイトで保存する情報、アクセスの記録、お問い合わせで提供される情報の扱いと、免責事項について説明します。",
 		"CanonicalPath": "/privacy",
 		"SiteMode":      siteMode,
 		"CSRFToken":     GetCSRFToken(r.Context()),

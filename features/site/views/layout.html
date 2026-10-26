@@ -9,7 +9,9 @@
   {{if .NoIndex}}<meta name="robots" content="noindex">
   {{end}}{{if .SiteURL}}{{if .CanonicalPath}}<link rel="canonical" href="{{.SiteURL}}{{.CanonicalPath}}">
   <meta property="og:url" content="{{.SiteURL}}{{.CanonicalPath}}">
-  {{end}}<meta property="og:type" content="website">
+  {{end}}<meta property="og:type" content="{{or .OGType "website"}}">
+  {{if .PublishedTime}}<meta property="article:published_time" content="{{.PublishedTime}}">
+  {{end}}
   <meta property="og:site_name" content="minimal-web-kit">
   <meta property="og:locale" content="ja_JP">
   <meta property="og:title" content="{{.Title}} - minimal-web-kit">
@@ -19,7 +21,10 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="{{.OGImageAlt}}">
   <meta name="twitter:card" content="summary_large_image">
-  {{end}}<link rel="stylesheet" href="/static/css/style.css">
+  {{end}}<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/img/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
   <a href="#main-content" class="skip-link">本文へ移動</a>

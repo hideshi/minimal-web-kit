@@ -53,7 +53,9 @@ Siteを有効化しても、サーバーは起動時にSQLiteのDBファイル�
 
 本文は `features/site/views/index.html`、ヘッダー・フッターは `features/site/views/layout.html`、共通CSSは `internal/web/static/css/style.css` で編集します。GitHubへのリンク（ヒーロー、3ステップの直後、ヘッダーのナビの3か所）はこのキットの公開リポジトリを指します。別の製品サイトへ流用する際は、リンク先や紹介文も見直してください。
 
-お問い合わせボタンのURLは `CONTACT_FORM_URL` 環境変数で、`https://` で始まるURLを設定します。未設定やhttps以外の値の場合はボタンを表示せず「お問い合わせ窓口は現在準備中です。」と表示し、起動時に警告ログを出します（設定値はログに記録しません）。ボタンの補足文は「Googleフォーム」なので、別のサービスを使う場合は `index.html` の文言も変更してください。検索結果やSNSのカードに出る説明文は `features/site/site.go` の `description`、カード用の画像（1200×630px）は `internal/web/static/img/ogp.png` です。`SITE_URL` を設定すると、canonical・OGP・Xカードのタグと `sitemap.xml` が有効になります。`robots.txt` は常に返します。同梱の画像はこのキットの紹介用なので、別のサイトでは差し替えてください。
+お問い合わせボタンのURLは `CONTACT_FORM_URL` 環境変数で、`https://` で始まるURLを設定します。未設定やhttps以外の値の場合はボタンを表示せず「お問い合わせ窓口は現在準備中です。」と表示し、起動時に警告ログを出します（設定値はログに記録しません）。ボタンの補足文は「Googleフォーム」なので、別のサービスを使う場合は `index.html` の文言も変更してください。検索結果やSNSのカードに出る説明文は `features/site/site.go` の `description`、カード用の画像（1200×630px）は `internal/web/static/img/ogp.png` です。`SITE_URL` を設定すると、canonical・OGP・Xカードのタグと `sitemap.xml` が有効になります。`robots.txt` は常に返します。CMSが有効なら、お知らせの記事は本文の冒頭を説明文にし、`og:type` を `article` にして、`sitemap.xml` に更新日時付きで載せます。アイコンは `internal/web/static/img/` の `favicon.svg`・`favicon-32.png`・`apple-touch-icon.png` です。同梱の画像とアイコンはこのキットの紹介用なので、別のサイトでは差し替えてください。
+
+Cookieも利用者ごとの内容も持たない公開ページ（Siteの `/`・`/privacy`、`robots.txt`、`sitemap.xml`、CMSの `/news`・`/api/news`）は、60秒のキャッシュを許可します（`/static/` は10分）。お知らせの公開・更新が見えるまで、最大でその時間だけ遅れることがあります。セッションを扱う画面と管理画面は、これまでどおりキャッシュさせません。
 
 `/privacy` の末尾の「免責事項」（Site有効時だけ表示）は、このキットを紹介するサイトを前提にした例です。運営者と掲載内容に合わせて書き換えてください。公開前に実際のフォームURLを設定し、フォームの入力項目・利用目的・保持期間・削除窓口・外部サービスの扱いに合わせて `/privacy` の文面を編集してください。外部フォームの情報は、サイト内のセッション削除では消えません。
 

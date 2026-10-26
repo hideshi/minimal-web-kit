@@ -88,6 +88,18 @@ type LayoutConsumer interface {
 	SetLayout(layout web.Layout) error
 }
 
+// SitemapFeature は、sitemap.xml に載せるページ（例: CMSの公開中の記事）を持つ機能が実装します。
+type SitemapFeature interface {
+	Feature
+	SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error)
+}
+
+// SitemapConsumer は、sitemap.xml を返す機能（例: Site）が実装します。起動時に、SitemapFeature の一覧を受け取ります。
+type SitemapConsumer interface {
+	Feature
+	SetSitemapSources(sources []SitemapFeature)
+}
+
 // Registry は有効化されている全機能のリストを保持します。
 type Registry struct {
 	features []Feature

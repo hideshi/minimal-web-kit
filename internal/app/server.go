@@ -74,6 +74,21 @@ func (s *Server) Run() error {
 		}
 	}
 
+	// sitemap.xml に載せるページを持つ機能を、sitemap.xml を返す機能に配る
+	if s.features != nil {
+		var sources []features.SitemapFeature
+		for _, f := range s.features.All() {
+			if sf, ok := f.(features.SitemapFeature); ok {
+				sources = append(sources, sf)
+			}
+		}
+		for _, f := range s.features.All() {
+			if c, ok := f.(features.SitemapConsumer); ok {
+				c.SetSitemapSources(sources)
+			}
+		}
+	}
+
 	// サイト全体のレイアウトを、Coreの画面と公開ページを持つ機能に配る
 	if s.features != nil {
 		for _, f := range s.features.All() {
