@@ -30,3 +30,32 @@
   {{end}}
 </div>
 {{end}}
+
+{{/*
+  入力で候補を絞り込み、複数を選ぶ部品。引数は form.Combobox。/static/js/combobox.js と組み合わせ、
+  その画面の応答で web.AllowScripts を呼ぶ。JSが動かない場合はチェックボックスの一覧だけを表示する。
+*/}}
+{{define "combobox"}}
+<div class="combobox" data-combobox data-limit="{{.Limit}}">
+  <fieldset data-combobox-fallback{{if .Hint}} aria-describedby="{{.ID}}-hint"{{end}}>
+    <legend>{{.Label}}</legend>
+    {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
+    {{range .Options}}<label class="combobox-check"><input type="checkbox" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}> {{.Label}}</label>{{else}}<p>候補はまだありません。</p>{{end}}
+  </fieldset>
+  <div role="group" aria-labelledby="{{.ID}}-title" data-combobox-ui hidden>
+    <p class="combobox-title" id="{{.ID}}-title">{{.Label}}</p>
+    {{if .Hint}}<p class="field-hint">{{.Hint}}</p>{{end}}
+    <ul class="combobox-chips" aria-label="選択済みの{{.Label}}" data-chips></ul>
+    <template data-chip-template><li><button type="button" class="btn-secondary combobox-chip"><span data-chip-label></span><span aria-hidden="true">×</span></button></li></template>
+    <p data-count></p>
+    <label for="{{.ID}}-input">{{.Label}}を追加</label>
+    <p class="field-hint" id="{{.ID}}-input-hint">入力すると候補を絞り込みます。↓で候補へ移り、Enterで選択・解除、Escで閉じます。入力が空のときBackspaceで最後に選んだものを外せます。</p>
+    <div class="combobox-field">
+      <input type="text" id="{{.ID}}-input" role="combobox" aria-autocomplete="list" aria-controls="{{.ID}}-list" aria-expanded="false" aria-describedby="{{.ID}}-input-hint" autocomplete="off">
+      <ul class="combobox-list" id="{{.ID}}-list" role="listbox" aria-label="{{.Label}}の候補" aria-multiselectable="true" hidden>{{range $i, $o := .Options}}<li class="combobox-option" id="{{$.ID}}-option-{{$i}}" role="option" aria-selected="false" data-label="{{$o.Label}}"><span>{{$o.Label}}</span><span aria-hidden="true" data-mark></span></li>{{end}}</ul>
+      <p class="combobox-empty" hidden data-empty>一致する候補はありません。</p>
+    </div>
+    <p class="visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-status></p>
+  </div>
+</div>
+{{end}}

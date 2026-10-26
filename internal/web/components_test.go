@@ -1,6 +1,8 @@
 package web
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -76,5 +78,66 @@ func TestComponents_Field(t *testing.T) {
 	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "at", Name: "at", Label: "日時", Type: "datetime-local"})
 	if !strings.Contains(got, `type="datetime-local"`) {
 		t.Fatalf("type: %s", got)
+	}
+}
+
+func TestComponents_Combobox(t *testing.T) {
+	field := form.Combobox{ID: "tags", Name: "tag", Label: "タグ<b>", Hint: "20個まで", Limit: 20, Options: []form.Option{
+		{Value: "1", Label: "設計"}, {Value: "2 x", Label: "<script>", Selected: true},
+	}}
+	got := renderComponent(t, `{{template "combobox" .}}`, field)
+	for _, want := range []string{
+		`data-combobox data-limit="20"`,
+		// JSなし用: 全候補のチェックボックスと選択状態
+		`<fieldset data-combobox-fallback aria-describedby="tags-hint">`, `<legend>タグ&lt;b&gt;</legend>`,
+		`<input type="checkbox" name="tag" value="1"> 設計`, `<input type="checkbox" name="tag" value="2 x" checked> &lt;script&gt;`,
+		// JSあり用: 最初は隠し、ARIAの関連付けを持つ
+		`role="group" aria-labelledby="tags-title" data-combobox-ui hidden`,
+		`<label for="tags-input">タグ&lt;b&gt;を追加</label>`,
+		`id="tags-input" role="combobox" aria-autocomplete="list" aria-controls="tags-list" aria-expanded="false" aria-describedby="tags-input-hint"`,
+		`id="tags-list" role="listbox"`, `aria-multiselectable="true" hidden`,
+		// 候補のidは値ではなく連番
+		`id="tags-option-0" role="option" aria-selected="false" data-label="設計"`, `id="tags-option-1" role="option" aria-selected="false" data-label="&lt;script&gt;"`,
+		`role="status" aria-live="polite"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("combobox missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "<script>") || strings.Contains(got, "<b>") {
+		t.Fatalf("combobox must escape labels: %s", got)
+	}
+	empty := renderComponent(t, `{{template "combobox" .}}`, form.Combobox{ID: "x", Name: "tag", Label: "タグ"})
+	if !strings.Contains(empty, "候補はまだありません。") || strings.Contains(empty, "aria-describedby=\"x-hint\"") {
+		t.Fatalf("empty combobox: %s", empty)
+	}
+}
+
+func TestAllowScripts(t *testing.T) {
+	h := SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { AllowScripts(w) }))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	if got := w.Header().Get("Content-Security-Policy"); got != strings.Replace(defaultCSP, "script-src 'none'", "script-src 'self'", 1) || got != scriptCSP {
+		t.Fatalf("AllowScripts must change only script-src: %q", got)
+	}
+	// 機能が独自に設定したCSPは変えない。
+	w = httptest.NewRecorder()
+	w.Header().Set("Content-Security-Policy", "default-src 'none'")
+	AllowScripts(w)
+	if got := w.Header().Get("Content-Security-Policy"); got != "default-src 'none'" {
+		t.Fatalf("custom CSP changed: %q", got)
+	}
+}
+
+// TestComboboxScript_NoUnsafeAPIs は、部品のJSがHTMLの文字列化・eval・通信・保存・インラインstyleを使わないことを検査します。
+func TestComboboxScript_NoUnsafeAPIs(t *testing.T) {
+	body, err := contentFS.ReadFile("static/js/combobox.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function", "setTimeout(\"", "fetch(", "XMLHttpRequest", "WebSocket", "localStorage", "sessionStorage", "indexedDB", "document.cookie", ".style", ".submit(", "location"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("combobox.js uses %s", forbidden)
+		}
 	}
 }

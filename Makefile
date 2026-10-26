@@ -1,4 +1,4 @@
-.PHONY: all build run test lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog
+.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog
 
 BIN_NAME := minimal-web-kit
 
@@ -16,6 +16,10 @@ test:
 verify:
 	go mod verify
 	go vet ./...
+
+# 画面部品をChrome・Chromiumで操作するテスト（別モジュール。Chromeが無ければ飛ばす。CHROME_PATHで指定可）
+test-ui:
+	cd test/browser && go vet ./... && go test -count=1 ./...
 
 clean:
 	rm -rf bin/ data/

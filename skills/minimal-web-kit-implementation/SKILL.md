@@ -48,7 +48,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 ## 4. UIを拡張するとき
 - 見出しをh要素で表し、lang、ランドマーク、スキップリンク、入力ラベル、表見出しと外部リンクの説明を維持する。
 - 通常・hover・focusの文字色と背景色、入力境界とフォーカスの識別を確認する。カード数に応じた列数と狭い画面での1列表示を設計し、固定幅・固定高さで文字を切らない。
-- JavaScriptを使わず、標準のリンク・button・details/summaryで操作を提供する。承認済みの例外は管理者認証の画面の `webauthn.js` とカタログ公開一覧の `htmx.min.js`・`catalog.js` で、例外の拡大は承認境界4・5に当たる。開閉・モーダル・メニューは `<details>`・`<dialog>`・`popover` で作り、承認を得てhtmx等を使う場合は `docs/ui-guidelines.md` の決まり（CSP、CSRF、変化の通知、フォーカス、JSなしでの動作）に従う。外部フォームURLは実際の窓口に設定し、新規タブの通知と `noopener noreferrer` を維持する。
+- JavaScriptを使わず、標準のリンク・button・details/summaryで操作を提供する。承認済みの例外は管理者認証の画面の `webauthn.js`、カタログ公開一覧の `htmx.min.js`・`catalog.js`、カタログの項目の作成・編集画面のCoreの部品 `combobox.js` で、例外の拡大は承認境界4・5に当たる。開閉・モーダル・メニューは `<details>`・`<dialog>`・`popover` で作り、承認を得てhtmx等を使う場合は `docs/ui-guidelines.md` の決まり（CSP、CSRF、変化の通知、フォーカス、JSなしでの動作）に従う。外部フォームURLは実際の窓口に設定し、新規タブの通知と `noopener noreferrer` を維持する。
 - `hidden` 属性が `.card`・`.btn` 等の `display` 指定に負けないよう、`style.css` 末尾の `[hidden]` 規則を保つ。`<button>` と `a.btn` を並べる画面では、高さが揃うかを確認する。
 - ナビ・見出し・ボタンの用語は既存の画面に揃える（例: 「ホーム」「プライバシーポリシー」）。
 

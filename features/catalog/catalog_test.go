@@ -378,8 +378,13 @@ func TestAdminProtectionWorkflowAndLogCanary(t *testing.T) {
 	id := list[0].ID
 	path := "/admin/catalog/" + idString(id)
 	for _, p := range []string{"/admin/catalog", "/admin/catalog/new", path, path + "/delete", "/admin/catalog/classifications/tags"} {
-		if w := fx.send("GET", p, nil, cookie, nil); w.Code != 200 || strings.Contains(w.Body.String(), "<script") {
-			t.Fatalf("member page %s: %d", p, w.Code)
+		w := fx.send("GET", p, nil, cookie, nil)
+		// 項目の作成・編集画面だけ、タグ選択の部品のJSを読み込み、自サイトのJSを許す。
+		form := p == "/admin/catalog/new" || p == path
+		scripts := strings.Count(w.Body.String(), "<script")
+		csp := w.Header().Get("Content-Security-Policy")
+		if w.Code != 200 || form && (scripts != 1 || !strings.Contains(w.Body.String(), `<script src="/static/js/combobox.js" defer></script>`) || !strings.Contains(csp, "script-src 'self'")) || !form && (scripts != 0 || !strings.Contains(csp, "script-src 'none'")) || strings.Contains(csp, "unsafe-") {
+			t.Fatalf("member page %s: %d scripts=%d csp=%q", p, w.Code, scripts, csp)
 		}
 		if w := fx.send("GET", p, nil, nil, nil); w.Code != 303 {
 			t.Fatalf("unauthenticated GET %s: %d", p, w.Code)
@@ -411,8 +416,8 @@ func TestAdminProtectionWorkflowAndLogCanary(t *testing.T) {
 	}
 	// Invalid input is intentionally echoed only in the protected form.
 	bad := url.Values{"csrf_token": {token}, "title": {canary + "\ninvalid"}}
-	if w := fx.send("POST", path, bad, cookie, headers); w.Code != 400 || !strings.Contains(w.Body.String(), canary) {
-		t.Fatal("input error did not preserve form")
+	if w := fx.send("POST", path, bad, cookie, headers); w.Code != 400 || !strings.Contains(w.Body.String(), canary) || !strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'self'") {
+		t.Fatal("input error did not preserve form with the tag picker")
 	}
 	// Stop the account without deleting its session to exercise request-time account checks.
 	if _, err := s.db.Exec("UPDATE auth_accounts SET disabled_at=1 WHERE id=(SELECT account_id FROM auth_sessions WHERE token_hash=?)", hash(cookie.Value)); err != nil {

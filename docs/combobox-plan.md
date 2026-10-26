@@ -1,6 +1,6 @@
 # コンボボックス部品 実装計画
 
-状態: 2026-10-27、利用者が次を承認。素のJSの `combobox.js` をCoreに置く（承認境界4）、部品を使う画面だけCSPの `script-src` を `'self'` にする共通の関数とカタログ管理画面の項目編集での利用（承認境界5）、ブラウザテスト用の別モジュール `test/browser/`（chromedp、承認境界1）。外部レビュー前の計画。
+状態: 2026-10-27、利用者が次を承認。素のJSの `combobox.js` をCoreに置く（承認境界4）、部品を使う画面だけCSPの `script-src` を `'self'` にする共通の関数とカタログ管理画面の項目編集での利用（承認境界5）、ブラウザテスト用の別モジュール `test/browser/`（chromedp、承認境界1）。外部レビュー（Fable）の指摘を9節に反映し、実装した。結果は10節。
 経緯は [catalog-ui-comparison-plan.md](catalog-ui-comparison-plan.md)。試作は `experiment/catalog-tags` ブランチの `experiments/catalog-tags/static/combobox.js`。
 
 ## 1. 目的と範囲
@@ -71,3 +71,25 @@ AGENTS.md（JSの例外にCoreの `combobox.js` と項目編集画面を足す�
 - `'self'` は、その画面で自サイトのどのJSでも読める。読み込むJSはテンプレートの検査で限る。
 - HTMLを差し込まれた場合、`data-combobox` を付けた要素に部品の振る舞いが付く。部品の操作は画面内のチェックボックスの切り替えだけで、送信・通信・削除はしないため、被害は画面の表示の範囲にとどまる見込み。HTMLの差し込み自体は `html/template` のエスケープで防ぐ。
 - Chromeの版が上がると、ブラウザテストの結果が変わることがある。テストは操作の結果（属性・フォーカス・送信内容）で判定し、見た目のピクセルは比べない。
+
+## 9. 外部レビューの反映（2026-10-27）
+
+上の節より、この節を優先する。
+
+- **今いる候補の決め方**: 入力・フォーカス・クリックでは候補を開くだけで、今いる候補（`aria-activedescendant`）は決めない。↓・↑で初めて候補を指す。Enterは候補を指しているときだけ選択・解除し、指していないときは何もしない（送信はしない）。1文字ごとに先頭の候補名が読まれ、件数の通知と重なるのを避けるため（WAI-ARIA APGの手動選択の形）。
+- **1画面に複数**: 部品は `<div data-combobox data-limit>` の中に、JSなし用の `<fieldset data-combobox-fallback>` と隠したUIを包む。JSはその中だけを探す。候補の要素IDは値ではなく連番（`接頭辞-option-番号`）にする。外側を押したときの処理は、文書に1つだけ登録する。
+- **見出し**: 部品の中に見出し要素を固定しない。JSなし用は `<fieldset>`/`<legend>`、UIは `role="group"` と `aria-labelledby`、選択済みの一覧は `aria-label` を付けた `<ul>`。
+- **CSP**: 既定のCSPを定数にし、`web.AllowScripts` は現在値が既定と一致するときだけ置き換える。描画に成功してから呼ぶ（テンプレートの実行に失敗した500では `'none'` のまま）。カタログでは項目の作成・編集画面の描画の1か所で呼ぶ。`internal/web` に単体テストを1本足す。
+- **CSS**: `style.css` に部品のクラス（`combobox-*`）を足す。今いる候補は色だけでなく枠線でも示す。`[hidden]` の規則は末尾のまま。
+- **ブラウザテストの組み方**: 入れ子のモジュールの名前は `minimal-web-kit/test/browser` にし、`replace minimal-web-kit => ../..` で本体を参照する（`internal` を使うため）。管理画面は、`features.Admin` のスタブ（常に管理者として通し、固定のCSRFトークンとレイアウトを返す）で組む。認証機能の本体にテスト用の口は足さない。`go.work` は置かない。Chromeのプロファイルは `t.TempDir()` に置く。`make test-ui` では `go vet` も回す。
+- **削るもの**: 閉じた状態のEnterで開く動き。`htmx:load` での付け直し（管理画面にhtmxは無く、検証もしないため）。
+- **未確認に加えるもの**: タッチ操作・iOS VoiceOverでの候補の選択、`aria-multiselectable` の読み上げの差。
+
+## 10. 実装の結果（2026-10-27）
+
+- 部品: `internal/web/static/js/combobox.js`（外部ライブラリなし）、画面部品 `combobox`、`form.Combobox`・`form.Option`、`style.css` の `combobox-*`。カタログの項目の作成・編集画面のタグ選択で使う。
+- CSP: `web.AllowScripts` を足し、カタログの公開一覧の置き換えも同じ関数にした。描画に成功したときだけ呼ぶ。
+- ブラウザテスト: `test/browser/`（`make test-ui`、chromedp v0.21.0）。9節の決めごとに対し、管理画面はスタブではなく、既存のテスト用ヘルパー `features/auth/authtest` でDBにセッションを作り、本物の管理者認証で組んだ（認証機能に新しい口は足していない）。部品だけの画面（2つ置く）と、カタログの項目の作成・保存・再表示を確かめる。
+- chromedpの `Poll` はページ内で `new Function` を使い、キットのCSP（`unsafe-eval` なし）で止められるため使わない。`KeyEvent` はEnterを keyDown と char に分けて送り、char がフォームを送信してしまうため、特別なキーは keyDown・keyUp で、文字は `Input.insertText` で送る。
+- わざと部品を壊して、テストが落ちることを確かめた: ×の後に候補が開く、変換中のEnterで選ぶ、上限を超える、フォーカスで先頭の候補を指す。外側を押したときに閉じる処理は、フォーカスが外れたときに閉じる処理と二重の守りのため、片方を壊してもテストは落ちない。
+- 未確認: 画面読み上げソフトでの通知・操作、タッチ操作・iOS VoiceOverでの候補の選択、`aria-multiselectable` の読み上げの差。

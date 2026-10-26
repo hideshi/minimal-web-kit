@@ -4,6 +4,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 
 	"minimal-web-kit/features"
@@ -106,14 +108,24 @@ func (f *Feature) itemFormPage(w http.ResponseWriter, r *http.Request, s feature
 	data["Item"] = item
 	data["Form"] = v
 	data["Categories"] = categories
-	data["Tags"] = tagOptions(tags, v.Tags)
+	data["TagField"] = tagField(tags, v.Tags)
 	if status == 400 {
 		data["Error"] = inputError
 	} else if status == 503 {
 		data["Error"] = "一時的に保存できませんでした。時間を置いて再試行してください。"
 		w.Header().Set("Retry-After", "1")
 	}
-	f.renderAdmin(w, status, "admin_form.html", data)
+	// タグ選択の部品（combobox.js）を読み込むため、この画面だけ自サイトのJSを許す。
+	f.renderScripted(w, status, f.adminPages["admin_form.html"], "layout", data)
+}
+
+// tagField は、項目のタグ選択の部品に渡す値です。上限は新規タグを含めた合計で、保存時にも検査します。
+func tagField(tags []Classification, ids []int64) form.Combobox {
+	field := form.Combobox{ID: "item-tags", Name: "tag", Label: "タグ", Hint: "新規タグを含め合計20個まで。", Limit: 20}
+	for _, tag := range tags {
+		field.Options = append(field.Options, form.Option{Value: strconv.FormatInt(tag.ID, 10), Label: tag.Name, Selected: slices.Contains(ids, tag.ID)})
+	}
+	return field
 }
 func (f *Feature) handleNew(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	f.itemFormPage(w, r, s, Item{}, itemForm{}, 200)

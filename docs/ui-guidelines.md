@@ -8,7 +8,7 @@
 |---|---|---|---|
 | 1 | 標準のHTML・CSS（＋サーバー側の描画） | 開閉、モーダル、メニュー、ツールチップ、入力の検査、一覧・詳細・フォーム送信 | 不要 |
 | 2 | htmx | サーバーとのやり取りを、ページを読み直さずに行いたい箇所（絞り込み検索、行の編集、送信後の一部差し替え等） | 必要（承認境界4・5） |
-| 3 | Alpine.js 等 | 標準の要素で作れない部品（キーボード操作に対応したコンボボックス、並べ替え等） | 必要（承認境界4・5） |
+| 3 | 素のJS（外部ライブラリなし） | 標準の要素で作れない部品（キーボード操作に対応したコンボボックス、並べ替え等） | 必要（承認境界4・5） |
 
 - 上の段で作れるものを、下の段で作らない。迷ったら1段目で作り、使い勝手の問題が確認できてから次の段を検討する。
 - 2段目のライブラリは htmx に決めておく。導入するときは、ライブラリの1ファイルをバージョンを固定してリポジトリに置き、`/static/` から配信する（npmは使わない）。更新時は差分と変更履歴を確認する。
@@ -62,12 +62,17 @@
 
 ## 5. 3段目を使う条件
 
+3段目は外部ライブラリを使わず、素のJSで書く（Alpine.js・Stimulus等を比べた経緯は [catalog-ui-comparison-plan.md](catalog-ui-comparison-plan.md)）。部品が少数・小規模にとどまるこのキットでは、ライブラリの型より依存がないことを優先する。素のJSで書くのがつらくなったら、1節の「このキットで作らないUI」に当たらないかを見直す。
+
+- 先に [components.md](components.md) の部品（コンボボックス）で作れないかを確かめる。
 - WAI-ARIAの作成パターンに沿って、役割・状態の属性とキーボード操作を作り込む。
-- 実機のキーボード操作と画面読み上げソフトで確認する。
-- Alpine.js を使う場合は、`unsafe-eval` が要らないCSPビルドを使う（式の書き方に制限がある）。
+- HTMLはサーバーが描き、JSは属性・`textContent`・`<template>` の複製だけで画面を変える。`innerHTML`・`eval`・`new Function`・通信・ブラウザの保存領域・`style` 属性は使わない。
+- JSが動かないときは、標準のフォーム部品（チェックボックス等）だけで同じ値を送信できるようにし、強化したUIは準備ができてから表示する。
+- 読み込む画面の応答だけ `web.AllowScripts` でCSPを緩め、テンプレートの検査（`test/template_test.go`）の許可リストに足す。
+- ブラウザでの操作を `test/browser/` のテスト（`make test-ui`）に書く。画面読み上げソフトでの確認は手で行い、未確認なら未確認と書く。
 
 ## 6. カタログで承認済みの利用範囲
 
 公開一覧のGET検索・ページ送りだけに、固定版htmxとcatalog.jsを使う。script-srcはこの画面だけself。設定はheadのmetaに置き、allowEval/allowScriptTags/includeIndicatorStylesはfalse、selfRequestsOnlyはtrue、historyCacheSizeは0。historyRestoreAsHxRequestはfalse、refreshOnHistoryMissはtrueとして、履歴復元はページ全体の取得に戻す。管理画面・詳細では読み込まない。
 検索後はフォームにフォーカスを残し、ページ送り後は結果見出しへ移す。固定したrole=status領域を更新する。失敗時は元の結果を残し、通常GETでの再試行を提供する。新しい検索で古い要求を取り消す。管理操作は通常のフォームのcsrf_tokenを使う（Admin.Formは現状ヘッダーのトークンを検証しない）。
-Alpine.jsはタグ選択の比較試作（`experiment/catalog-tags` ブランチ）でだけ評価しており、本体には採用していない。比較の内容と結果は [catalog-ui-comparison-plan.md](catalog-ui-comparison-plan.md) にある。
+管理画面の項目の作成・編集画面では、タグ選択にCoreのコンボボックス部品を使う。Alpine.jsはタグ選択の比較試作（`experiment/catalog-tags` ブランチ）でだけ評価し、採用しなかった。比較の内容と結果は [catalog-ui-comparison-plan.md](catalog-ui-comparison-plan.md) にある。

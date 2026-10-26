@@ -16,7 +16,9 @@
 | | `guard.NewCSRF()`・`Token`・`Valid` | セッションに結びつけたCSRFトークンの発行・検証 |
 | `internal/web/page` | `page.Parse(r, size, maxPage)`・`Limit`・`Offset`・`page.Trim` | 一覧のページ送り。1件多く取得して次のページの有無を決める |
 | `internal/web/notice` | `notice.Messages`・`From`・`Redirect`・`URL` | 操作の完了メッセージの受け渡し（`?notice=` に固定の語だけを載せる） |
+| | `form.Combobox`・`form.Option` | 画面部品 `combobox` に渡す値（候補、上限、要素idの接頭辞） |
 | `internal/web` | `web.ParseWithComponents(fsys, files...)` | 共通の画面部品と、機能のテンプレートを一緒に解析する |
+| | `web.AllowScripts(w)` | その応答だけ、CSPの `script-src` を `'self'` にする（部品のJSを読み込む画面で、描画に成功した後に呼ぶ）。既定のCSPのときだけ変える |
 
 使い方の例（一覧のページ送りと完了メッセージ）:
 
@@ -53,6 +55,9 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `error` | 文字列 | 画面全体のエラー。`role="alert"` ですぐに伝える。空なら何も出さない |
 | `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
 | `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。必須なら「（必須）」を表示。`Rows` が1以上なら複数行 |
+| `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
+
+`combobox` を使う画面は、レイアウトの `script` ブロック等で `<script src="/static/js/combobox.js" defer></script>` を読み込み、その応答で `web.AllowScripts` を呼びます。テンプレートの検査（`test/template_test.go`）の許可リストにその画面を足す必要があります（承認境界4・5）。上限（`Limit`）は画面上の制限で、送信された値の検査はサーバー側で別に行います。
 
 ```html
 {{template "notice" .Notice}}

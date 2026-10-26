@@ -50,12 +50,27 @@ func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
+// defaultCSP は全応答の既定のCSPです。JavaScriptは読み込ませません（script-src 'none'）。
+const defaultCSP = "default-src 'self'; style-src 'self'; script-src 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+
+// scriptCSP は、承認した画面だけで使うCSPです。defaultCSP との違いは script-src 'self' だけです。
+const scriptCSP = "default-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+
+// AllowScripts は、この応答だけ自サイトのJSファイルを読み込めるようにします（インラインのJSと eval は許しません）。
+// 部品のJS等を読み込む画面で、描画に成功した後、WriteHeader より前に呼びます。
+// 既定のCSPのときだけ置き換え、機能が独自に設定したCSPは変えません。
+func AllowScripts(w http.ResponseWriter) {
+	if w.Header().Get("Content-Security-Policy") == defaultCSP {
+		w.Header().Set("Content-Security-Policy", scriptCSP)
+	}
+}
+
 // SecurityHeaders はセキュリティヘッダーを付与するミドルウェアです。
-// JavaScriptゼロを徹底するため、CSPの script-src は 'none' を指定します。
+// JavaScriptを既定で使わないため、CSPの script-src は 'none' を指定します（承認した画面だけ AllowScripts で緩めます）。
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
-		h.Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';")
+		h.Set("Content-Security-Policy", defaultCSP)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")

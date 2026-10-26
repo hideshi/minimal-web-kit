@@ -1,3 +1,4 @@
+{{define "script"}}<script src="/static/js/combobox.js" defer></script>{{end}}
 {{define "content"}}
 <h1>{{.Title}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
 {{if .Item.ID}}<p>状態: {{if .Item.Published}}公開中（<a href="/catalog/{{.Item.ID}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
@@ -5,7 +6,7 @@
 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 {{range .Form.Fields}}{{template "field" .}}{{end}}
 <div class="form-group"><label for="item-category">カテゴリ</label><select class="catalog-select" id="item-category" name="category"><option value="">未分類</option>{{range .Categories}}<option value="{{.ID}}"{{if eq (printf "%d" .ID) $.Form.Category}} selected{{end}}>{{.Name}}</option>{{end}}</select></div>
-<fieldset><legend>タグ（合計20個まで）</legend>{{range .Tags}}<label class="catalog-check"><input type="checkbox" name="tag" value="{{.ID}}"{{if .Selected}} checked{{end}}> {{.Name}}</label>{{else}}<p>タグはまだありません。</p>{{end}}</fieldset>
+{{template "combobox" .TagField}}
 <div class="form-group"><label for="item-new-tags">新規タグとして追加する名前（任意）</label><p class="field-hint" id="item-new-tags-hint">1行に1つ、各50文字以内。項目の保存と同時に追加します。同名のタグがある場合はそれを使います。個人情報は書かないでください。</p><textarea id="item-new-tags" name="new_tags" rows="3" aria-describedby="item-new-tags-hint">{{.Form.NewTags}}</textarea></div>
 <button type="submit" class="btn btn-primary">{{if .Item.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
 </form>

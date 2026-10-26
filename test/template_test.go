@@ -40,7 +40,7 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	slices.Sort(found)
-	approved := []string{"../features/auth/static/webauthn.js", "../features/catalog/static/catalog.js", "../features/catalog/static/htmx.min.js"}
+	approved := []string{"../features/auth/static/webauthn.js", "../features/catalog/static/catalog.js", "../features/catalog/static/htmx.min.js", "../internal/web/static/js/combobox.js"}
 	if !slices.Equal(found, approved) {
 		t.Fatalf("only explicitly approved auth/catalog JavaScript is allowed, found %v", found)
 	}
@@ -77,6 +77,12 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 		if allowedScriptTemplates[filepath.Base(file)] && strings.Contains(file, filepath.Join("features", "auth", "views")) {
 			if strings.Count(str, "<script") != 1 || strings.Count(str, approvedScriptTag) != 1 {
 				t.Errorf("%s may contain only %s", file, approvedScriptTag)
+			}
+		} else if filepath.ToSlash(file) == "../features/catalog/views/admin_form.html" {
+			// 承認済みの例外: 項目の作成・編集画面だけ、Coreの部品 combobox.js を1つ読み込める。
+			tag := `<script src="/static/js/combobox.js" defer></script>`
+			if strings.Count(str, "<script") != 1 || strings.Count(str, tag) != 1 {
+				t.Errorf("%s may contain only %s", file, tag)
 			}
 		} else if filepath.ToSlash(file) == "../features/catalog/views/list.html" {
 			for _, tag := range []string{`<script src="/catalog/static/htmx.min.js" defer></script>`, `<script src="/catalog/static/catalog.js" defer></script>`} {

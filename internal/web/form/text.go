@@ -68,3 +68,21 @@ type Field struct {
 	Rows      int    // 1以上なら複数行（textarea）
 	Required  bool
 }
+
+// Combobox は、共通の画面部品 "combobox"（入力で候補を絞り込み、複数を選ぶ部品）に渡す値です。
+// JSが動かない場合は、同じ名前のチェックボックスの一覧として送信します。
+type Combobox struct {
+	ID      string // 要素のidの接頭辞。1画面に複数置くときは別の値にする
+	Name    string // 送信する名前。選んだ値ごとに繰り返す
+	Label   string // 選ぶものの名前（例: "タグ"）
+	Hint    string // 上限等の説明（任意）
+	Limit   int    // 選べる数の上限。0なら上限なし。送信内容の検査はサーバー側で別に行う
+	Options []Option
+}
+
+// Option は Combobox の候補です。
+type Option struct {
+	Value    string
+	Label    string
+	Selected bool
+}

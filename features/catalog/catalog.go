@@ -89,10 +89,22 @@ func (f *Feature) SetAdmin(admin features.Admin) error {
 	return nil
 }
 func (f *Feature) render(w http.ResponseWriter, status int, t *template.Template, name string, data map[string]any) {
+	f.write(w, status, t, name, data, false)
+}
+
+// renderScripted は render と同じく描画し、成功したときだけ自サイトのJSを許すCSPにします（失敗した500は既定のまま）。
+func (f *Feature) renderScripted(w http.ResponseWriter, status int, t *template.Template, name string, data map[string]any) {
+	f.write(w, status, t, name, data, true)
+}
+
+func (f *Feature) write(w http.ResponseWriter, status int, t *template.Template, name string, data map[string]any, scripts bool) {
 	var b bytes.Buffer
 	if err := t.ExecuteTemplate(&b, name, data); err != nil {
 		f.fail(w)
 		return
+	}
+	if scripts {
+		web.AllowScripts(w)
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
@@ -230,16 +242,15 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request) {
 		data["NextURL"] = filterURL(filter, pg.Next)
 	}
 	fragment := r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true"
-	name := "layout"
 	if fragment {
-		name = "results"
-	} else {
-		if f.layout.Data != nil {
-			f.layout.Data(data)
-		}
-		w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "script-src 'none'", "script-src 'self'", 1))
+		f.render(w, 200, f.publicPages["list.html"], "results", data)
+		return
 	}
-	f.render(w, 200, f.publicPages["list.html"], name, data)
+	if f.layout.Data != nil {
+		f.layout.Data(data)
+	}
+	// 全ページの応答だけ、htmxとcatalog.jsを読み込むため自サイトのJSを許す。
+	f.renderScripted(w, 200, f.publicPages["list.html"], "layout", data)
 }
 
 type tagOption struct {
