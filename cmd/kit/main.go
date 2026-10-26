@@ -27,25 +27,25 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error enabling site feature: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully enabled LP/site template! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
+		fmt.Println("Successfully enabled Site (LP template) feature! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
 	case "remove-site":
 		if err := removeSite(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error disabling site feature: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully disabled LP/site template! Site registration is disabled; feature directories were not modified.")
+		fmt.Println("Successfully disabled Site (LP template) feature! Site registration is disabled; feature directories were not modified.")
 	case "add-cms":
 		if err := addCMS(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling cms feature: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully enabled CMS template! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
+		fmt.Println("Successfully enabled CMS (news) feature! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
 	case "remove-cms":
 		if err := removeCMS(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error disabling cms feature: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully disabled CMS template! CMS registration is disabled; feature directories and stored data were not modified.")
+		fmt.Println("Successfully disabled CMS (news) feature! CMS registration is disabled; feature directories and stored data were not modified.")
 	default:
 		printUsage()
 	}
@@ -58,16 +58,16 @@ func printUsage() {
 	fmt.Println("  go run ./cmd/kit <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
-	fmt.Println("  add-site     Enable LP / homepage template module in cmd/server/features.go")
-	fmt.Println("  remove-site  Disable LP / homepage template registration")
-	fmt.Println("  add-cms      Enable CMS template module in cmd/server/features.go")
-	fmt.Println("  remove-cms   Disable CMS template registration (stored data is kept)")
+	fmt.Println("  add-site     Enable the Site (LP template) feature in cmd/server/features.go")
+	fmt.Println("  remove-site  Disable the Site (LP template) feature registration")
+	fmt.Println("  add-cms      Enable the CMS (news) feature in cmd/server/features.go")
+	fmt.Println("  remove-cms   Disable the CMS (news) feature registration (stored data is kept)")
 	fmt.Println()
 	fmt.Println("CMS passkey setup and recovery are subcommands of the server binary:")
 	fmt.Println("  go run ./cmd/server cms-setup   (or: ./bin/minimal-web-kit cms-setup)")
 }
 
-// bundle は登録を切り替えられる同梱テンプレートです。
+// bundle は登録を切り替えられる同梱機能です。
 // ディレクトリ features/<name>/、ソース <name>.go、識別コメント marker を持ちます。
 type bundle struct {
 	name   string
@@ -76,8 +76,8 @@ type bundle struct {
 }
 
 const (
-	bundledSiteMarker = "// minimal-web-kit: bundled-site-template"
-	bundledCMSMarker  = "// minimal-web-kit: bundled-cms-template"
+	bundledSiteMarker = "// minimal-web-kit: bundled-feature site"
+	bundledCMSMarker  = "// minimal-web-kit: bundled-feature cms"
 )
 
 var (
@@ -119,7 +119,7 @@ func toggleBundle(b bundle, enable bool) error {
 		return err
 	}
 	if !bytes.HasPrefix(source, []byte(b.marker+"\n")) {
-		return fmt.Errorf("%s is not identified as the bundled %s template; refusing to modify registration", dir, b.label)
+		return fmt.Errorf("%s is not identified as the bundled %s feature; refusing to modify registration", dir, b.label)
 	}
 	sourceFile, err := parser.ParseFile(token.NewFileSet(), sourcePath, source, 0)
 	if err != nil || sourceFile.Name.Name != b.name {

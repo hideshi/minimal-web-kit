@@ -1,4 +1,4 @@
-// minimal-web-kit: bundled-cms-template
+// minimal-web-kit: bundled-feature cms
 package cms
 
 import (
@@ -28,7 +28,7 @@ const (
 	setupTokenTTL = 15 * time.Minute
 )
 
-// Feature はお知らせを管理するCMSテンプレートです。
+// Feature は同梱機能のCMS（お知らせを管理するお知らせ機能）です。
 // 公開ページ・APIと管理画面は、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
 	logger      *slog.Logger

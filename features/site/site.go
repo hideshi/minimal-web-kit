@@ -1,4 +1,4 @@
-// minimal-web-kit: bundled-site-template
+// minimal-web-kit: bundled-feature site
 package site
 
 import (
@@ -23,7 +23,7 @@ import (
 //go:embed views/*.html
 var viewsFS embed.FS
 
-// Feature はLP・ホームページテンプレートのモジュール実装です。
+// Feature は同梱機能のSite（LPテンプレート）です。
 // DBテーブルを必要とせず、完全な静的配信・SSRで動作します。
 type Feature struct {
 	pages          map[string]*template.Template
