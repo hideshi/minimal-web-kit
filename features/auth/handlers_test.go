@@ -236,6 +236,42 @@ func TestAdmin_SyncedPasskeyIsRejectedWithGuidance(t *testing.T) {
 	}
 }
 
+// AUTH_ALLOW_SYNCED_PASSKEYS=true なら同期型を登録・ログインでき、画面の案内も変わる。
+// 許可を外すと、登録済みの同期型ではログインできなくなる（ログに理由が出る）。
+// 不変条件: AUTH-INV-9
+func TestAdmin_SyncedPasskeyAllowedBySetting(t *testing.T) {
+	if rec := newFixture(t).do(t, http.MethodGet, "/admin/setup", nil); !strings.Contains(rec.Body.String(), "同期されるパスキーは登録できません") {
+		t.Fatal("default setup page must say synced passkeys are rejected")
+	}
+	t.Setenv("AUTH_ALLOW_SYNCED_PASSKEYS", "true")
+	fx := newFixture(t)
+	if rec := fx.do(t, http.MethodGet, "/admin/setup", nil); !strings.Contains(rec.Body.String(), "同期されるパスキーも使えます") {
+		t.Fatal("setup page must say synced passkeys are allowed")
+	}
+	if rec := fx.do(t, http.MethodGet, "/admin/login", nil); !strings.Contains(rec.Body.String(), "同期されるパスキー等") {
+		t.Fatal("login page must mention synced passkeys")
+	}
+	token, err := Setup(context.Background(), fx.db, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := newFakeAuthenticator(t, algES256)
+	a.flags |= flagBE | flagBS
+	if rec := fx.registerViaHTTP(t, a, token); rec.Code != http.StatusOK {
+		t.Fatalf("synced registration: %d %s", rec.Code, rec.Body.String())
+	}
+	userID := fx.userID(t, 1)
+	for range 2 {
+		if rec := fx.loginViaHTTP(t, a, userID); rec.Code != http.StatusOK {
+			t.Fatalf("synced login: %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	fx.feature.cfg.AllowSynced = false
+	if rec := fx.loginViaHTTP(t, a, userID); rec.Code == http.StatusOK || !strings.Contains(fx.logs.String(), "reason=synced_credential") {
+		t.Fatalf("synced login after disabling the setting: %d", rec.Code)
+	}
+}
+
 // 不変条件: AUTH-INV-8
 func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	fx := newFixture(t)

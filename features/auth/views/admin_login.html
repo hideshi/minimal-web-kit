@@ -10,7 +10,7 @@
   <p class="alert alert-warning">ログインにはJavaScriptが必要です。ブラウザの設定でJavaScriptを有効にしてください。</p>
 </noscript>
 
-<p>登録済みのパスキー（Windows Helloの指紋・顔・PIN、またはセキュリティキー）でログインします。</p>
+<p>登録済みのパスキー（{{if .AllowSynced}}Windows Hello、セキュリティキー、同期されるパスキー等{{else}}Windows Helloの指紋・顔・PIN、またはセキュリティキー{{end}}）でログインします。</p>
 
 <p><button type="button" id="login-button" class="btn btn-primary" hidden>パスキーでログイン</button></p>
 

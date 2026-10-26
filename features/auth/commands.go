@@ -30,10 +30,14 @@ func (f *Feature) Commands() []features.Command {
 	}
 }
 
-func printSetupURL(out io.Writer, origin, token string) {
-	fmt.Fprintln(out, "Open this URL within 15 minutes and register a passkey (synced passkeys are rejected):")
+func printSetupURL(out io.Writer, cfg Config, token string) {
+	if cfg.AllowSynced {
+		fmt.Fprintln(out, "Open this URL within 15 minutes and register a passkey (synced passkeys are allowed by AUTH_ALLOW_SYNCED_PASSKEYS):")
+	} else {
+		fmt.Fprintln(out, "Open this URL within 15 minutes and register a passkey (synced passkeys are rejected):")
+	}
 	fmt.Fprintln(out)
-	fmt.Fprintln(out, "  "+SetupURL(origin, token))
+	fmt.Fprintln(out, "  "+SetupURL(cfg.Origin, token))
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "The URL can be used only once. Do not share it, paste it into chats, or leave it on a shared screen.")
 }
@@ -57,7 +61,7 @@ func runSetup(ctx context.Context, db *sql.DB, args []string, in io.Reader, out 
 	} else if err != nil {
 		return oldSchemaError(err)
 	}
-	printSetupURL(out, cfg.Origin, token)
+	printSetupURL(out, cfg, token)
 	return nil
 }
 
@@ -101,7 +105,7 @@ func runRecover(ctx context.Context, db *sql.DB, args []string, in io.Reader, ou
 			return err
 		}
 		fmt.Fprintln(out, "The admin authentication tables were recreated.")
-		printSetupURL(out, cfg.Origin, token)
+		printSetupURL(out, cfg, token)
 		return nil
 	}
 
@@ -145,6 +149,6 @@ func runRecover(ctx context.Context, db *sql.DB, args []string, in io.Reader, ou
 		return oldSchemaError(err)
 	}
 	fmt.Fprintln(out, "Passkeys and sessions were deleted.")
-	printSetupURL(out, cfg.Origin, token)
+	printSetupURL(out, cfg, token)
 	return nil
 }

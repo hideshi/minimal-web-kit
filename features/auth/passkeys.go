@@ -59,6 +59,7 @@ func (f *Feature) renderPasskeys(w http.ResponseWriter, r *http.Request, s sessi
 	data["LabelField"] = labelField("予備のセキュリティキー")
 	data["Credentials"] = creds
 	data["ActiveCount"] = active
+	data["AllowSynced"] = f.cfg.AllowSynced
 	data["Error"] = errMsg
 	data["Notice"] = passkeyNotices.From(r)
 	f.renderAdminStatus(w, status, "admin_passkeys.html", data, true)

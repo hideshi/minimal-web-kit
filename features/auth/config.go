@@ -17,6 +17,9 @@ type Config struct {
 	Origin string
 	// SecureCookie は管理者CookieにSecure属性を付けるかです。
 	SecureCookie bool
+	// AllowSynced は、同期・バックアップできるパスキー（Googleパスワードマネージャー等）を受け入れるかです。
+	// 既定は拒否（AUTH-INV-9）。許可すると、署名カウンタによる複製の検出が効かず、同期の提供者のアカウントの守りが前提になります。
+	AllowSynced bool
 }
 
 const (
@@ -47,6 +50,15 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		return Config{}, fmt.Errorf("AUTH_RP_ID: %w", err)
 	}
 	cfg.RPID = rpID
+
+	switch getenv("AUTH_ALLOW_SYNCED_PASSKEYS") {
+	case "true":
+		cfg.AllowSynced = true
+	case "false", "":
+	default:
+		// 綴りの間違いで、気づかないまま既定（拒否）に戻らないよう止める。値は文言に含めない。
+		return Config{}, errors.New("AUTH_ALLOW_SYNCED_PASSKEYS must be true or false")
+	}
 
 	if strings.HasPrefix(cfg.Origin, "https://") && !cfg.SecureCookie {
 		return Config{}, errors.New("SECURE_COOKIE must be true when AUTH_ORIGIN uses https")

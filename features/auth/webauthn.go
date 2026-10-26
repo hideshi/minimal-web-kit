@@ -152,9 +152,11 @@ func (c *challenges) consume(raw []byte) error {
 }
 
 // rpConfig は検証に使う、RP IDと許可するオリジンです。
+// rpConfig は検証の設定です（RP ID、許可するオリジン、同期型パスキーを受け入れるか）。
 type rpConfig struct {
-	ID     string
-	Origin string
+	ID          string
+	Origin      string
+	AllowSynced bool
 }
 
 type clientData struct {
@@ -196,7 +198,13 @@ func parseAuthenticatorData(rp rpConfig, data []byte, requireAT bool) (authentic
 	if ad.flags&flagUP == 0 || ad.flags&flagUV == 0 {
 		return authenticatorData{}, ErrUserNotVerified
 	}
-	if ad.flags&(flagBE|flagBS) != 0 {
+	// BE=0でBS=1は仕様上ありえないため、設定に関係なく不正なデータとして扱う。
+	if ad.flags&flagBS != 0 && ad.flags&flagBE == 0 {
+		return authenticatorData{}, ErrAuthDataInvalid
+	}
+	// 同期型は設定で許可したときだけ受け入れる（AUTH-INV-9）。ログインのたびに見るため、許可を外すと同期型ではログインできなくなる。
+	// BEがクレデンシャルごとに不変かは照合しない（種別を保存しないため。正しい署名を作れる攻撃者を防ぐものではない）。
+	if !rp.AllowSynced && ad.flags&(flagBE|flagBS) != 0 {
 		return authenticatorData{}, ErrSyncedCredential
 	}
 	if requireAT {

@@ -47,6 +47,7 @@ func TestLoadConfig_Rejects(t *testing.T) {
 		"rp id suffix but not domain": {"AUTH_ORIGIN": "https://badexample.com", "AUTH_RP_ID": "example.com", "SECURE_COOKIE": "true"},
 		"single label rp id":          {"AUTH_ORIGIN": "https://example.com", "AUTH_RP_ID": "com", "SECURE_COOKIE": "true"},
 		"localhost rp with ip origin": {"AUTH_ORIGIN": "http://127.0.0.1:8080"},
+		"misspelled allow synced":     {"AUTH_ALLOW_SYNCED_PASSKEYS": "yes"},
 	}
 	for name, values := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -78,5 +79,21 @@ func TestInit_LogsConfigReasonWithoutValues(t *testing.T) {
 	}
 	if strings.Contains(buf.String(), "secret-host") {
 		t.Fatal("configured value leaked into log")
+	}
+}
+
+// 同期型パスキーの許可は true のときだけ。false と空は既定の拒否、それ以外は起動を止める。
+// 不変条件: AUTH-INV-9
+func TestLoadConfig_AllowSynced(t *testing.T) {
+	for value, want := range map[string]bool{"true": true, "false": false, "": false} {
+		cfg, err := LoadConfig(env(map[string]string{"AUTH_ALLOW_SYNCED_PASSKEYS": value}))
+		if err != nil || cfg.AllowSynced != want {
+			t.Fatalf("%q: AllowSynced=%v err=%v", value, cfg.AllowSynced, err)
+		}
+	}
+	for _, value := range []string{"TRUE", "1", "on", " true"} {
+		if _, err := LoadConfig(env(map[string]string{"AUTH_ALLOW_SYNCED_PASSKEYS": value})); err == nil || err.Error() != "AUTH_ALLOW_SYNCED_PASSKEYS must be true or false" {
+			t.Fatalf("%q must be rejected with a fixed message: %v", value, err)
+		}
 	}
 }

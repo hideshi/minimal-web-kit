@@ -84,7 +84,7 @@
 | `last_login_at` | INTEGER | YES | 最終ログイン日時の表示 | 同上 | UNIXエポック秒 |
 
 ### テーブル: `auth_credentials`
-登録済みのパスキー（同期・バックアップできない端末固定の認証器のみ）。
+登録済みのパスキー。既定は同期・バックアップできない端末固定の認証器のみで、`AUTH_ALLOW_SYNCED_PASSKEYS=true` のときは同期型も含む（種類は保存しない）。
 
 | 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
 |---|---|---|---|---|---|
@@ -92,7 +92,7 @@
 | `account_id` | INTEGER | NO | パスキーの持ち主のアカウント | 同上 | `auth_accounts.id`。アカウントの削除で一緒に削除 |
 | `public_key` | BLOB | NO | 署名の検証 | 同上 | 公開鍵（SPKI DER）。秘密鍵は認証器の外に出ない |
 | `alg` | INTEGER | NO | 署名アルゴリズムの識別 | 同上 | ES256(-7)・EdDSA(-8)・RS256(-257) |
-| `sign_count` | INTEGER | NO | 複製の疑いの検出 | 同上 | 署名カウンタ |
+| `sign_count` | INTEGER | NO | 複製の疑いの検出 | 同上 | 署名カウンタ。同期型では0のままのことが多く、検出は働かない |
 | `label` | TEXT | NO | 管理画面での表示 | 同上 | 端末名、50字以内。個人名を入れないよう案内する |
 | `disabled_at` | INTEGER | YES | 複製の疑いによる無効化の記録 | 同上 | UNIXエポック秒 |
 | `created_at` | INTEGER | NO | 登録日時の表示 | 同上 | UNIXエポック秒 |

@@ -40,7 +40,7 @@ var errorMessages = map[string]string{
 	"bad_request":           "リクエストの形式が正しくありません。ページを再読み込みしてやり直してください。",
 	"forbidden":             "このリクエストは受け付けられません。管理画面を開き直してください。",
 	"setup_token_invalid":   "登録用のURLが無効か、期限切れです。管理者に登録URLを発行し直してもらってください（最初の管理者は、サーバーで make auth-setup を実行し直してください）。",
-	"synced_credential":     "同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーンなど）は登録できません。Windows Helloやセキュリティキーなど、この端末だけに保存される認証器を使ってください。",
+	"synced_credential":     "このサイトでは、同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーンなど）を登録できない設定です。Windows Helloやセキュリティキーなど、この端末だけに保存される認証器を使ってください。",
 	"user_not_verified":     "指紋・顔・PINによる本人確認が必要です。認証器の設定を確認してください。",
 	"public_key_invalid":    "この認証器の鍵の種類には対応していません。別の認証器を使ってください。",
 	"credential_exists":     "この認証器は登録済みです。",
@@ -290,7 +290,7 @@ func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Feature) handleSetupPage(w http.ResponseWriter, r *http.Request) {
-	f.renderAdmin(w, "admin_setup.html", map[string]any{"Title": "パスキーの登録", "LabelField": labelField("仕事用PCのWindows Hello")}, true)
+	f.renderAdmin(w, "admin_setup.html", map[string]any{"Title": "パスキーの登録", "LabelField": labelField("仕事用PCのWindows Hello"), "AllowSynced": f.cfg.AllowSynced}, true)
 }
 
 func (f *Feature) handleLoginPage(w http.ResponseWriter, r *http.Request) {
@@ -299,8 +299,9 @@ func (f *Feature) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.renderAdmin(w, "admin_login.html", map[string]any{
-		"Title":      "管理画面へのログイン",
-		"Registered": r.URL.Query().Get("registered") == "1",
+		"AllowSynced": f.cfg.AllowSynced,
+		"Title":       "管理画面へのログイン",
+		"Registered":  r.URL.Query().Get("registered") == "1",
 	}, true)
 }
 
@@ -621,7 +622,7 @@ func verificationReason(err error) string {
 }
 
 func (f *Feature) rp() rpConfig {
-	return rpConfig{ID: f.cfg.RPID, Origin: f.cfg.Origin}
+	return rpConfig{ID: f.cfg.RPID, Origin: f.cfg.Origin, AllowSynced: f.cfg.AllowSynced}
 }
 
 func (f *Feature) registerRoutes(mux *web.IsolatedMux) {

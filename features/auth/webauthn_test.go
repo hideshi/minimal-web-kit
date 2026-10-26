@@ -13,6 +13,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"testing"
@@ -285,7 +286,7 @@ func TestWebAuthn_LoginRejects(t *testing.T) {
 		"backup state set": {func(t *testing.T, ch *challenges, a *fakeAuthenticator, r *assertionResponse, cred *storedCredential) {
 			r.AuthenticatorData = authData(testRP.ID, flagUP|flagUV|flagBS, a.count, nil)
 			r.Signature = a.sign(r.AuthenticatorData, r.ClientDataJSON)
-		}, ErrSyncedCredential},
+		}, ErrAuthDataInvalid},
 		"user handle mismatch": {func(t *testing.T, ch *challenges, a *fakeAuthenticator, r *assertionResponse, cred *storedCredential) {
 			r.UserHandle = []byte("someone-else")
 		}, ErrUserHandleMismatch},
@@ -566,28 +567,43 @@ func TestWebAuthn_AttestedDataBoundaries(t *testing.T) {
 	}
 }
 
+// 同期・バックアップできるパスキーは、AllowSynced のときだけ登録・ログインできる。既定は拒否。
+// BE=0でBS=1は、設定に関係なく不正なデータとして拒否する。
 // 不変条件: AUTH-INV-9
 func TestWebAuthn_BackupFlagsMatrix(t *testing.T) {
-	for name, flags := range map[string]byte{"BE": flagBE, "BS": flagBS, "BE+BS": flagBE | flagBS} {
-		t.Run("register "+name, func(t *testing.T) {
-			ch := newChallenges(time.Now)
-			a := newFakeAuthenticator(t, algES256)
-			r := a.register(t, ch)
-			r.AuthenticatorData = authData(testRP.ID, flagUP|flagUV|flagAT|flags, 0, a.credID)
-			if _, err := verifyRegistration(testRP, ch, r); !errors.Is(err, ErrSyncedCredential) {
-				t.Fatalf("got %v", err)
+	for _, allow := range []bool{false, true} {
+		rp := testRP
+		rp.AllowSynced = allow
+		for name, flags := range map[string]byte{"BE": flagBE, "BS": flagBS, "BE+BS": flagBE | flagBS} {
+			var want error
+			switch {
+			case flags == flagBS:
+				want = ErrAuthDataInvalid
+			case !allow:
+				want = ErrSyncedCredential
 			}
-		})
-		t.Run("login "+name, func(t *testing.T) {
-			ch := newChallenges(time.Now)
-			a := newFakeAuthenticator(t, algES256)
-			r := a.assert(t, ch, testUserID)
-			r.AuthenticatorData = authData(testRP.ID, flagUP|flagUV|flags, a.count, nil)
-			r.Signature = a.sign(r.AuthenticatorData, r.ClientDataJSON)
-			if _, err := verifyAssertion(testRP, ch, r, a.stored(0), testUserID); !errors.Is(err, ErrSyncedCredential) {
-				t.Fatalf("got %v", err)
-			}
-		})
+			label := fmt.Sprintf("allow=%v %s", allow, name)
+			t.Run("register "+label, func(t *testing.T) {
+				ch := newChallenges(time.Now)
+				a := newFakeAuthenticator(t, algES256)
+				r := a.register(t, ch)
+				r.AuthenticatorData = authData(rp.ID, flagUP|flagUV|flagAT|flags, 0, a.credID)
+				if _, err := verifyRegistration(rp, ch, r); !errors.Is(err, want) || want == nil && err != nil {
+					t.Fatalf("got %v, want %v", err, want)
+				}
+			})
+			t.Run("login "+label, func(t *testing.T) {
+				ch := newChallenges(time.Now)
+				a := newFakeAuthenticator(t, algES256)
+				r := a.assert(t, ch, testUserID)
+				// 同期型は署名カウンタに0を返すことが多い。保存値も0なら、繰り返しログインできる。
+				r.AuthenticatorData = authData(rp.ID, flagUP|flagUV|flags, 0, nil)
+				r.Signature = a.sign(r.AuthenticatorData, r.ClientDataJSON)
+				if _, err := verifyAssertion(rp, ch, r, a.stored(0), testUserID); !errors.Is(err, want) || want == nil && err != nil {
+					t.Fatalf("got %v, want %v", err, want)
+				}
+			})
+		}
 	}
 }
 
