@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -45,21 +46,25 @@ func send(h http.Handler, method, target string, values url.Values, same bool) *
 }
 func TestVariantsUseIdenticalDataAndScopedScripts(t *testing.T) {
 	h := handler(t)
-	for _, mode := range []string{"html", "alpine"} {
+	for _, mode := range []string{"html", "alpine", "combo"} {
 		for _, count := range []string{"10", "50", "200"} {
 			w := send(h, "GET", "/compare?mode="+mode+"&count="+count, nil, false)
 			if w.Code != 200 || len(w.Result().Cookies()) != 0 || !strings.Contains(w.Header().Get("Cache-Control"), "no-store") {
 				t.Fatal("page/cookie/cache", w.Code)
 			}
 			expected := 0
-			if mode == "alpine" {
+			if mode != "html" {
 				expected = 2
 			}
-			if strings.Count(w.Body.String(), "<script") != expected || strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'self'") != (mode == "alpine") {
+			if strings.Count(w.Body.String(), "<script") != expected || strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'self'") != (mode != "html") {
 				t.Fatal("script/CSP scope")
 			}
 			if !strings.Contains(w.Body.String(), "設計レビュー") || !strings.Contains(w.Body.String(), `id="tag-`+count+`"`) {
 				t.Fatal("sample tags differ")
+			}
+			// コンボボックス版も、JSが動かない場合に送信できる全件のチェックボックスを残す。
+			if (mode == "combo") != strings.Contains(w.Body.String(), `role="combobox"`) || strings.Count(w.Body.String(), `type="checkbox" name="tag"`) != countOf(count) {
+				t.Fatal("combobox markup or fallback checkboxes", mode, count)
 			}
 			if strings.Contains(w.Header().Get("Content-Security-Policy"), "unsafe-") || strings.Contains(w.Body.String(), "x-show") || strings.Contains(w.Body.String(), "x-cloak") {
 				t.Fatal("unsafe styles/policy")
@@ -84,7 +89,7 @@ func TestVariantsUseIdenticalDataAndScopedScripts(t *testing.T) {
 }
 func TestConfirmationIsValidatedAndNotPersisted(t *testing.T) {
 	h := handler(t)
-	for _, mode := range []string{"html", "alpine"} {
+	for _, mode := range []string{"html", "alpine", "combo"} {
 		values := url.Values{"mode": {mode}, "count": {"50"}, "tag": {"2", "4", "7"}, "new_tags": {"<script>alert(1)</script>"}}
 		w := send(h, "POST", "/compare/result", values, true)
 		if w.Code != 200 || len(w.Result().Cookies()) != 0 || !strings.Contains(w.Body.String(), "&lt;script&gt;") || !strings.Contains(w.Body.String(), "確認しました") {
@@ -138,4 +143,9 @@ func TestFixedAlpineBuildAndNoStorageCode(t *testing.T) {
 			t.Fatal("comparison script added persistence/network/HTML/style", forbidden)
 		}
 	}
+}
+
+func countOf(raw string) int {
+	n, _ := strconv.Atoi(raw)
+	return n
 }

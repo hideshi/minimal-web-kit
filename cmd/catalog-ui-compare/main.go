@@ -51,7 +51,8 @@ func run(logger *slog.Logger) error {
 		}
 	}()
 	fmt.Println("標準HTML: " + origin + "/compare?mode=html&count=50")
-	fmt.Println("Alpine.js: " + origin + "/compare?mode=alpine&count=50")
+	fmt.Println("Alpine.js（一覧の絞り込み）: " + origin + "/compare?mode=alpine&count=50")
+	fmt.Println("Alpine.js（コンボボックス）: " + origin + "/compare?mode=combo&count=50")
 	fmt.Println("比較専用・架空データのみ。Ctrl+Cで終了します。")
 	err = srv.Serve(listener)
 	if err == http.ErrServerClosed {

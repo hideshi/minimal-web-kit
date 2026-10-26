@@ -26,7 +26,8 @@ type Tag struct {
 	Selected bool
 }
 type Page struct {
-	Alpine        bool
+	Alpine        bool // Alpineを読み込む版（一覧の絞り込み・コンボボックス）
+	Combo         bool
 	Mode          string
 	Count         int
 	Tags          []Tag
@@ -56,7 +57,7 @@ func readPage(mode, rawCount string) (Page, bool) {
 	if mode == "" {
 		mode = "html"
 	}
-	if mode != "html" && mode != "alpine" {
+	if mode != "html" && mode != "alpine" && mode != "combo" {
 		return Page{}, false
 	}
 	if rawCount == "" {
@@ -66,7 +67,7 @@ func readPage(mode, rawCount string) (Page, bool) {
 	if err != nil || (count != 10 && count != 50 && count != 200) {
 		return Page{}, false
 	}
-	return Page{Mode: mode, Alpine: mode == "alpine", Count: count, Tags: sample(count)}, true
+	return Page{Mode: mode, Alpine: mode != "html", Combo: mode == "combo", Count: count, Tags: sample(count)}, true
 }
 
 // NewHandler はCSSの内容だけを受け取り、DB・セッション・カタログ本体には触れません。
