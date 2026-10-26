@@ -157,6 +157,7 @@ func assertRows(t *testing.T, db *sql.DB, query string, want int) {
 
 // Purgeは期限切れの管理者セッションと使用済み・期限切れトークンだけを削除し、パスキーを残すこと。
 // CoreのセッションGCとセッション破棄でも、管理者認証のデータが消えないこと。
+// 不変条件: AUTH-INV-16
 func TestPurge_KeepsPasskeysAndCoreGCIndependent(t *testing.T) {
 	ctx := context.Background()
 	s, db := newTestDB(t)

@@ -42,6 +42,7 @@ func mustFirstCredential(t *testing.T, fx *fixture) credentialInfo {
 	return creds[0]
 }
 
+// 不変条件: AUTH-INV-4, AUTH-INV-13, AUTH-INV-14
 func TestAdminPasskeys_AddRenameDelete(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()
@@ -162,6 +163,7 @@ func TestAdminPasskeys_DisabledPasskeyIsShownAndDeletable(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-3, AUTH-INV-4
 func TestAdminStore_DeleteCredentialKeepsOneActive(t *testing.T) {
 	s, _, _ := newAdminFixture(t)
 	ctx := context.Background()
@@ -205,6 +207,7 @@ func TestAdminStore_DeleteCredentialKeepsOneActive(t *testing.T) {
 }
 
 // 他の機能（見本の notes）は、管理者認証の口（Page・Form）で管理画面を守れること。
+// 不変条件: AUTH-INV-14
 func TestAdminAPI_PageAndFormProtectOtherFeatures(t *testing.T) {
 	fx := newFixture(t)
 	_, cookie := fx.loggedIn(t)

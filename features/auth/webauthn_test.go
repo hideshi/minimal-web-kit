@@ -566,6 +566,7 @@ func TestWebAuthn_AttestedDataBoundaries(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-9
 func TestWebAuthn_BackupFlagsMatrix(t *testing.T) {
 	for name, flags := range map[string]byte{"BE": flagBE, "BS": flagBS, "BE+BS": flagBE | flagBS} {
 		t.Run("register "+name, func(t *testing.T) {
@@ -611,6 +612,7 @@ func TestWebAuthn_RejectsMalformedRSAKeys(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-10
 func TestWebAuthn_UserHandleRequiredAndStoredAlgMismatch(t *testing.T) {
 	ch := newChallenges(time.Now)
 	a := newFakeAuthenticator(t, algES256)

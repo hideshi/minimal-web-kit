@@ -21,6 +21,7 @@ go test -race -v ./...
 - **`TestArchitecture_DependencyAllowedList`**: `go.mod` の直接依存が許可リスト（`modernc.org/sqlite` のみ）と一致しているか。
 - **`TestArchitecture_LinkedModules`**: 実行ファイルに組み込まれる外部モジュール（間接依存を含む）が一覧と一致しているか。増減したら用途・ライセンス・保守状況を確認し、READMEの一覧と合わせて更新する。
 - **`TestDataSchema_MatchesDataLedger`**: `docs/data-inventory.md` に記載されたテーブル・列定義と、インメモリDB上の実スキーマ（`PRAGMA table_info`）のテーブル名・列名が双方向で一致しているか。Featureは有効化の状態にかかわらず全 `features/*/migration.sql` を適用する。型・NULL制約・外部キーや、`migration.sql` 以外で作るテーブルは検査しない。
+- **`TestDomain_InvariantsAreTested`**: `docs/domain/*.md` の不変条件の番号が、それぞれ1つ以上のテスト関数の説明コメントにあるか、コードに書かれた番号がすべて定義されているか。番号の対応だけを見て、テストの中身が条件を確かめているかは検査しないため、番号を足したテストは読んで確認する。
 - **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=`、`<style>`、`<script>`、および `on*` イベントハンドラが含まれていないか。
 - **`TestCSS_SingleFileAndNoImportant`**: CSSファイルが単一であり、`!important` が含まれていないか。
 - **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection`、CMSの公開ページ・API・管理画面は `TestCanary_CMSRoutesDoNotLeakInput` で検査する。

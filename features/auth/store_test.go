@@ -59,6 +59,7 @@ func newSession(t *testing.T, s *adminStore, accountID int64) string {
 	return token
 }
 
+// 不変条件: AUTH-INV-11, AUTH-INV-12
 func TestAdminSession_IdleAndAbsoluteExpiry(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
@@ -100,6 +101,7 @@ func TestAdminSession_IdleAndAbsoluteExpiry(t *testing.T) {
 }
 
 // ロールは要求ごとにアカウントから読み、停止中のアカウントのセッションは使えないこと。
+// 不変条件: AUTH-INV-5
 func TestAdminSession_FollowsAccountState(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
@@ -116,6 +118,7 @@ func TestAdminSession_FollowsAccountState(t *testing.T) {
 	assertRows(t, db, "SELECT COUNT(*) FROM auth_sessions", 0)
 }
 
+// 不変条件: AUTH-INV-7, AUTH-INV-11, AUTH-INV-15
 func TestSetup_IssuesTokenOnlyWithoutPasskeys(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
@@ -154,6 +157,7 @@ func TestSetup_IssuesTokenOnlyWithoutPasskeys(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-7
 func TestSetupToken_SingleUseExpiryAndAtomicity(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
@@ -206,6 +210,7 @@ func TestSetupToken_SingleUseExpiryAndAtomicity(t *testing.T) {
 }
 
 // 停止中のアカウントの登録トークンは使えないこと。トークンの発行し直しは、他のアカウントのトークンに触れないこと。
+// 不変条件: AUTH-INV-3, AUTH-INV-5, AUTH-INV-7
 func TestSetupToken_ScopedToAccount(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
@@ -240,6 +245,7 @@ func TestSetupToken_ScopedToAccount(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-7
 func TestRegisterWithSetupToken_DuplicateKeepsTokenUnused(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
@@ -259,6 +265,7 @@ func TestRegisterWithSetupToken_DuplicateKeepsTokenUnused(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-3, AUTH-INV-5, AUTH-INV-8
 func TestLogin_CounterMonotonicAndSession(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
@@ -310,6 +317,7 @@ func TestLogin_CounterMonotonicAndSession(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-8
 func TestCredentials_DisableRevokesAccountSessions(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
@@ -342,6 +350,7 @@ func TestCredentials_DisableRevokesAccountSessions(t *testing.T) {
 }
 
 // 全体の復旧では、管理者認証の鍵とセッションだけを消し、アカウントと他の機能のデータ（例: CMSの記事）は残すこと。
+// 不変条件: AUTH-INV-16
 func TestRecover_ClearsAuthStateButKeepsOtherData(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
@@ -396,6 +405,7 @@ func TestRecover_ClearsAuthStateButKeepsOtherData(t *testing.T) {
 }
 
 // -only は、指定したアカウントだけを初期化し、他のアカウントの鍵とセッションは残すこと。
+// 不変条件: AUTH-INV-3, AUTH-INV-16
 func TestRecover_OnlyKeepsOtherAccounts(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
@@ -423,6 +433,7 @@ func TestRecover_OnlyKeepsOtherAccounts(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-11
 func TestSetupURL_UsesFragment(t *testing.T) {
 	u := SetupURL("http://localhost:8080", "abc")
 	if u != "http://localhost:8080/admin/setup#token=abc" || strings.Contains(u, "?") {
@@ -441,6 +452,7 @@ func TestLabel_Validation(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-16
 func TestMigrate_IdempotentAndDetectsOldSchema(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)

@@ -30,7 +30,8 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。
 4. **任意のインターフェース**（`features/feature.go`）: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`、サイト全体のヘッダー・フッターは `LayoutFeature`（提供側）と `LayoutConsumer`（公開ページを持つ側）、運用コマンドは `CommandFeature`（`minimal-web-kit <コマンド>`）。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。
 5. **型**: 機密や本文を含む型には `slog.LogValuer` を実装する。
-6. **画面とCSS**: テンプレートは機能の `views/` に置き、`html/template` で描画する。インライン `style`・`<style>`・`<script>` を書かず、意匠は `style.css` のクラスかセマンティックなHTMLで表す。フォーカス表示（`:focus-visible`）とコントラストを維持する。
+6. **不変条件**: `docs/domain/<機能>.md` の不変条件を確かめるテスト関数の説明コメントに、`// 不変条件: AUTH-INV-1, AUTH-INV-2` の形で番号を書く。原子性が要る条件はSQLの1つの文かトランザクションで守り、その関数のコメントにも番号を書く。
+7. **画面とCSS**: テンプレートは機能の `views/` に置き、`html/template` で描画する。インライン `style`・`<style>`・`<script>` を書かず、意匠は `style.css` のクラスかセマンティックなHTMLで表す。フォーカス表示（`:focus-visible`）とコントラストを維持する。
 
 ## 3. データ保護とセッションの拡張
 - 取得する入力は形式・UTF-8・長さ・本文サイズをサーバー側で検証し、解析エラーを扱う。文章と1行の値は `internal/web/form`（`form.Text`・`form.Line`）で検査する。`template.HTML` 等による自動エスケープの回避は行わない。

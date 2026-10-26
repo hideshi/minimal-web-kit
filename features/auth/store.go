@@ -108,7 +108,7 @@ type sessionAccount struct {
 }
 
 // validateSession は、無操作・絶対期限の両方で有効なこと、アカウントが存在し停止中でないことを確認し、
-// 最終アクセス日時を更新します。失効していれば削除して ErrSessionInvalid を返します。
+// 最終アクセス日時を更新します。失効していれば削除して ErrSessionInvalid を返します（AUTH-INV-5・AUTH-INV-12）。
 func (s *adminStore) validateSession(ctx context.Context, token string) (sessionAccount, error) {
 	if token == "" {
 		return sessionAccount{}, ErrSessionInvalid
@@ -284,7 +284,7 @@ func (s *adminStore) getCredential(ctx context.Context, id []byte) (loginCredent
 
 // login は、署名カウンタ・パスキーの最終使用日時・アカウントの最終ログイン日時の更新と、
 // セッションの作成を1つのトランザクションで行い、セッションのトークンを返します。
-// カウンタは単調増加のみ許し、並行ログインで小さい値が後から書かれた場合は ErrSignCountConflict を返します。
+// カウンタは単調増加のみ許し、並行ログインで小さい値が後から書かれた場合は ErrSignCountConflict を返します（AUTH-INV-8）。
 func (s *adminStore) login(ctx context.Context, credID []byte, accountID int64, count uint32) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -422,7 +422,7 @@ func (s *adminStore) renameCredential(ctx context.Context, accountID int64, id [
 
 // deleteCredential は、アカウントのパスキーを削除し、そのアカウントの管理者セッションを keepSession 以外すべて削除します。
 // 紛失した端末でログイン中のセッションを残さないためです。アカウントの最後の有効なパスキーは削除できません。
-// 残数の確認と削除は1つの文で行い、並行して削除しても有効なパスキーが0件にならないようにします。
+// 残数の確認と削除は1つの文で行い、並行して削除しても有効なパスキーが0件にならないようにします（AUTH-INV-4）。
 func (s *adminStore) deleteCredential(ctx context.Context, accountID int64, id []byte, keepSession string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

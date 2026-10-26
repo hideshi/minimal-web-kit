@@ -39,6 +39,7 @@ func TestAccounts_CreateAndValidate(t *testing.T) {
 }
 
 // 有効な管理者（停止中でなく、有効なパスキーを持つ管理者）が0人になる操作と、自分自身への操作は拒否すること。
+// 不変条件: AUTH-INV-1, AUTH-INV-2, AUTH-INV-6
 func TestAccounts_KeepsAnEffectiveAdmin(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
@@ -97,6 +98,7 @@ func TestAccounts_KeepsAnEffectiveAdmin(t *testing.T) {
 	assertRows(t, db, "SELECT COUNT(*) FROM auth_accounts", 2)
 }
 
+// 不変条件: AUTH-INV-1, AUTH-INV-5, AUTH-INV-6, AUTH-INV-7
 func TestAccounts_ReissueToken(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
@@ -142,6 +144,7 @@ var setupTokenPattern = regexp.MustCompile(`/admin/setup#token=([A-Za-z0-9_-]+)`
 
 // 管理者がアカウントを作って登録URLを渡し、メンバーがパスキーを登録してログインするまで。
 // メンバーはアカウントの管理を使えず、停止されるとログイン状態が解除されること。
+// 不変条件: AUTH-INV-2, AUTH-INV-5, AUTH-INV-7, AUTH-INV-10, AUTH-INV-13
 func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 	fx := newFixture(t)
 	_, admin := fx.loggedIn(t)
@@ -259,6 +262,7 @@ func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 }
 
 // 管理者は、他のアカウントのパスキーを削除できる（最後の有効なパスキーは除く）。
+// 不変条件: AUTH-INV-3, AUTH-INV-4
 func TestAccountsHTTP_DeleteAnotherAccountsPasskey(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()
@@ -286,6 +290,7 @@ func TestAccountsHTTP_DeleteAnotherAccountsPasskey(t *testing.T) {
 
 // 他の機能の AdminPage・AdminForm は管理者だけを通し、Page・Form は両方のロールを通すこと。
 // 停止中のアカウントのセッションは、行が残っていても、どれも通らないこと。
+// 不変条件: AUTH-INV-5
 func TestAdminAPI_RolesAndDisabledAccounts(t *testing.T) {
 	fx := newFixture(t)
 	admin := authtest.NewSessionWithRole(t, fx.db, roleAdmin)

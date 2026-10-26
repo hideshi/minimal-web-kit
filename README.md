@@ -93,7 +93,7 @@ make auth-setup
 - ロール変更・停止・削除の操作はログ（アカウント番号のみ。呼び名は記録しない）に残しますが、DBに操作の記録は持ちません。権限はロール2種類だけで、機能ごとの細かい権限はありません。
 - アカウント導入前の版のDBでは起動を止めます。`make auth-recover ARGS="-reset-schema"` で管理者認証の表だけを作り直し、パスキーを登録し直してください。他の機能のデータは残ります。
 - 自作機能の管理画面は、`features.AdminConsumer` を実装して管理者認証の口（`features.Admin`）を受け取り、`Page`（画面）・`Form`（送信）で守ります。管理画面のナビへのリンクは `features.AdminNavFeature` で足します。画面は `admin.Layout()` のレイアウトで描きます。管理者だけに許す画面は `AdminPage`・`AdminForm` で守ります（ログイン中のアカウントは `AdminSession` の `AccountID`・`Role`・`IsAdmin` で分かります）。
-- 本番では `AUTH_ORIGIN`・`AUTH_RP_ID` を公開するURLに合わせ、`SECURE_COOKIE=true` にします。手順は [docs/deploy.md](docs/deploy.md) を参照してください。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の4節にあります。
+- 本番では `AUTH_ORIGIN`・`AUTH_RP_ID` を公開するURLに合わせ、`SECURE_COOKIE=true` にします。手順は [docs/deploy.md](docs/deploy.md) を参照してください。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の4節にあります。用語・状態・不変条件・権限の正本は [docs/domain/auth.md](docs/domain/auth.md)（ドメインモデル）です。
 - CMSが有効な間は `make remove-auth` で外せません。登録を外しても、DBのデータは残ります。
 
 ### CMS（お知らせ機能）

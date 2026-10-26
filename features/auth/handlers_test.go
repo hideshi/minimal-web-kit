@@ -91,6 +91,7 @@ func adminCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 	return nil
 }
 
+// 不変条件: AUTH-INV-14
 func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()
@@ -176,6 +177,7 @@ func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-14
 func TestAdmin_RequiresSessionAndSameOrigin(t *testing.T) {
 	fx := newFixture(t)
 	if rec := fx.do(t, http.MethodGet, "/admin", nil); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
@@ -211,6 +213,7 @@ func TestAdmin_RequiresSessionAndSameOrigin(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-9
 func TestAdmin_SyncedPasskeyIsRejectedWithGuidance(t *testing.T) {
 	fx := newFixture(t)
 	token, err := Setup(context.Background(), fx.db, time.Now())
@@ -233,6 +236,7 @@ func TestAdmin_SyncedPasskeyIsRejectedWithGuidance(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-8
 func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()
@@ -265,6 +269,7 @@ func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-13
 func TestAdmin_LoginRejectsUnknownCredentialAndLogsNoSecrets(t *testing.T) {
 	fx := newFixture(t)
 	a := newFakeAuthenticator(t, algES256)

@@ -55,6 +55,7 @@ func TestCommands_SetupAndRecover(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-16
 func TestCommands_ResetSchema(t *testing.T) {
 	_, db := newTestDB(t)
 	ctx := context.Background()
@@ -77,6 +78,7 @@ func TestCommands_ResetSchema(t *testing.T) {
 	assertRows(t, db, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'auth_settings'", 0)
 }
 
+// 不変条件: AUTH-INV-15
 func TestCommands_SetupRefusesWhenRegisteredAndInvalidConfig(t *testing.T) {
 	_, db := newTestDB(t)
 	ctx := context.Background()

@@ -38,7 +38,7 @@ var (
 )
 
 // effectiveAdminElsewhere は、指定したアカウント以外に「有効な管理者」（ロールが管理者・停止中でない・有効なパスキーが1件以上）が
-// いるかを判定するSQLの条件です。引数として除外するアカウントIDを1つ取ります。
+// いるかを判定するSQLの条件です。引数として除外するアカウントIDを1つ取ります（AUTH-INV-1）。
 const effectiveAdminElsewhere = `(SELECT COUNT(*) FROM auth_accounts a
 	WHERE a.role = 'admin' AND a.disabled_at IS NULL AND a.id != ?
 	  AND EXISTS (SELECT 1 FROM auth_credentials c WHERE c.account_id = a.id AND c.disabled_at IS NULL)) > 0`
@@ -190,7 +190,7 @@ func (s *adminStore) getAccount(ctx context.Context, id int64) (accountInfo, err
 
 // changeAccount は、他のアカウントのロール変更・停止・再開・削除を行います。
 // 自分自身は変更できず、有効な管理者が0人になる操作は1つの文の条件で拒否します。
-// 変更したアカウントの管理者セッションは、同じトランザクションで削除します。
+// 変更したアカウントの管理者セッションは、同じトランザクションで削除します（AUTH-INV-2・AUTH-INV-6）。
 func (s *adminStore) changeAccount(ctx context.Context, actorID, targetID int64, query string, args ...any) error {
 	if actorID == targetID {
 		return ErrSelfChange
