@@ -183,6 +183,8 @@ make auth-setup
 
 ライセンスは各モジュールのLICENSEファイルの冒頭で分類したもので、正確な条件は各LICENSEを参照してください。`go.mod` にはこのほか、上記の環境では組み込まれない間接依存（`github.com/mattn/go-isatty`、`github.com/ncruces/go-strftime`）も記載されています。
 
+ブラウザテスト（`make test-ui`）の `test/browser/` は独立したモジュールで、`github.com/chromedp/chromedp`（MIT）と、同じ開発元の `github.com/chromedp/cdproto`（MIT）を使います。開発時のテストだけで使い、キット本体の `go.mod` と実行ファイルには含まれません。
+
 `test/architecture_test.go` の `TestArchitecture_LinkedModules` が、組み込まれるモジュールをこの一覧と照合します。SQLiteドライバの更新等で増減した場合はテストが失敗するため、追加されたモジュールの用途・ライセンス・保守状況を確認してから、テストの一覧とこの表を更新してください。
 
 ## 推奨するAI開発ツールとスキル
