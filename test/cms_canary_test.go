@@ -23,7 +23,7 @@ import (
 
 // TestCanary_CMSRoutesDoNotLeakInput は、CMSの公開ページ・API・管理画面に送った値（パス・クエリ・ヘッダー・本文）が
 // ログに出力されず、公開ページとAPIがCookieを発行しないことを検証します。
-// 不変条件: AUTH-INV-13
+// 不変条件: AUTH-INV-13, CMS-INV-11
 func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 	const canary = "CANARYcms7f3a9"
 	t.Setenv("AUTH_ORIGIN", "")

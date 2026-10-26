@@ -121,7 +121,7 @@ func (s *PostStore) publishedAtArg(t time.Time) (any, error) {
 }
 
 // Publish は記事を公開します。初めて公開する場合だけ公開日時を設定し、再公開では維持します。
-// 公開日時が未来なら予約公開となり、その日時を過ぎてから公開ページ・APIに表示されます。
+// 公開日時が未来なら予約公開となり、その日時を過ぎてから公開ページ・APIに表示されます（CMS-INV-2）。
 func (s *PostStore) Publish(ctx context.Context, id int64) error {
 	now := s.now().Unix()
 	return s.execOne(ctx,
@@ -160,12 +160,12 @@ func (s *PostStore) Get(ctx context.Context, id int64) (Post, error) {
 	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ?", id)
 }
 
-// GetPublished は公開中の記事だけを返します（公開ページ・API用）。予約公開で公開日時前の記事は含みません。
+// GetPublished は公開中の記事だけを返します（公開ページ・API用）。予約公開で公開日時前の記事は含みません（CMS-INV-1）。
 func (s *PostStore) GetPublished(ctx context.Context, id int64) (Post, error) {
 	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ? AND status = ? AND published_at <= ?", id, statusPublished, s.now().Unix())
 }
 
-// ListPublished は公開中の記事を新しい順に返します。予約公開で公開日時前の記事は含みません。
+// ListPublished は公開中の記事を新しい順に返します。予約公開で公開日時前の記事は含みません（CMS-INV-1）。
 func (s *PostStore) ListPublished(ctx context.Context, limit, offset int) ([]Post, error) {
 	return s.list(ctx,
 		"SELECT "+postColumns+" FROM cms_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
@@ -178,7 +178,7 @@ type PostRef struct {
 	UpdatedAt time.Time
 }
 
-// PublishedRefs は、公開中の記事のIDと更新日時を、新しい順に最大 limit 件返します。本文は読みません。
+// PublishedRefs は、公開中の記事のIDと更新日時を、新しい順に最大 limit 件返します。本文は読みません（CMS-INV-1）。
 func (s *PostStore) PublishedRefs(ctx context.Context, limit int) ([]PostRef, error) {
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT id, updated_at FROM cms_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ?",

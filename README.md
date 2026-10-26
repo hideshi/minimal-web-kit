@@ -108,7 +108,7 @@ make auth-setup
 
 - 本文はプレーンテキスト（HTMLは文字として表示）で、画像のアップロードはありません。
 - 公開日時に未来の日時を指定して公開すると、その日時まで公開ページとAPIに表示しません（予約公開）。時刻はサーバーのタイムゾーン（`TZ`）で扱います。
-- 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。設計の詳細と、守る範囲・守らない範囲は [docs/cms-plan.md](docs/cms-plan.md) にあります。
+- 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。用語・状態・不変条件・権限の正本は [docs/domain/cms.md](docs/domain/cms.md)（ドメインモデル）、設計の経緯は [docs/cms-plan.md](docs/cms-plan.md) にあります。
 - `make remove-cms` で登録を外しても、DBのデータは残ります。
 
 ### 切り替えコマンドの保護範囲

@@ -4,6 +4,8 @@
 >
 > 構成の注記: パスキーによる管理者のログイン（WebAuthnの検証、管理者セッション、登録トークン、`cms-setup`／`cms-recover`）は、のちに同梱機能の管理者認証（`features/auth`）として切り出した。現在のテーブル名は `auth_*`、Cookieは `admin_session`、コマンドは `auth-setup`／`auth-recover`、設定は `AUTH_ORIGIN`／`AUTH_RP_ID` である。
 
+> 正本の注記: 今の仕様の正本は [docs/domain/cms.md](domain/cms.md)（ドメインモデル）で、この計画書は経緯の記録として残す。
+
 最終更新: 2026-10-25（Fable（claude-fable-5-1）のレビュー、challenge・端末固定の認証器・異常時の案内・Origin検査・実機確認に関する利用者の決定を反映）
 
 ## 1. 目的と範囲

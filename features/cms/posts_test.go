@@ -27,6 +27,7 @@ func newTestDB(t *testing.T) (*store.SQLiteStore, *sql.DB) {
 	return s, s.DB()
 }
 
+// 不変条件: CMS-INV-10
 func TestMigrate_IdempotentAndKeepsData(t *testing.T) {
 	_, db := newTestDB(t)
 	posts := NewPostStore(db)
@@ -42,6 +43,7 @@ func TestMigrate_IdempotentAndKeepsData(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-1, CMS-INV-2, CMS-INV-3
 func TestPostStore_PublishLifecycle(t *testing.T) {
 	ctx := context.Background()
 	_, db := newTestDB(t)
@@ -130,6 +132,7 @@ func TestPostStore_PublishLifecycle(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-1
 func TestPostStore_ListPublishedOrder(t *testing.T) {
 	ctx := context.Background()
 	_, db := newTestDB(t)
@@ -177,6 +180,7 @@ func TestPostStore_ListPublishedOrder(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-4
 func TestPostStore_RejectsInvalidInput(t *testing.T) {
 	ctx := context.Background()
 	_, db := newTestDB(t)
@@ -203,6 +207,7 @@ func TestPostStore_RejectsInvalidInput(t *testing.T) {
 }
 
 // CoreのセッションGCとセッション破棄でも、CMSの記事が消えないこと。
+// 不変条件: CMS-INV-10
 func TestCoreSessionGC_KeepsPosts(t *testing.T) {
 	ctx := context.Background()
 	s, db := newTestDB(t)

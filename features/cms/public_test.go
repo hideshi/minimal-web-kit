@@ -110,6 +110,7 @@ func (fx *publicFixture) publish(t *testing.T, title, body string) int64 {
 	return id
 }
 
+// 不変条件: CMS-INV-1, CMS-INV-5
 func TestNewsPages_ListShowAndEscape(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	id := fx.publish(t, "<script>alert(1)</script>見出し", "一行目\n二行目\n\n<b>段落</b>")
@@ -172,6 +173,7 @@ func TestNewsPages_Pagination(t *testing.T) {
 }
 
 // 公開ページ・APIは、Coreの匿名セッションCookieを照合・発行・消去しないこと。
+// 不変条件: CMS-INV-6
 func TestPublicRoutes_IgnoreCoreSessions(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	id := fx.publish(t, "t", "b")
@@ -203,6 +205,7 @@ func TestPublicRoutes_IgnoreCoreSessions(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-1, CMS-INV-7
 func TestAPI_ListAndShow(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	first := fx.publish(t, "first", "body-1")
@@ -253,6 +256,7 @@ func TestAPI_ListAndShow(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-11
 func TestAPI_ErrorsDoNotReflectInput(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	draft, err := fx.posts.Create(context.Background(), "draft", "")
@@ -282,6 +286,7 @@ func TestAPI_ErrorsDoNotReflectInput(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-8
 func TestAPI_CORS(t *testing.T) {
 	const allowed = "https://www.example.com"
 	fx := newPublicFixture(t, allowed+", http://localhost:3000")
@@ -324,6 +329,7 @@ func TestAPI_CORS(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-8
 func TestAPI_NoCORSByDefault(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	rec := fx.do(t, http.MethodGet, "/api/news", map[string]string{"Origin": "http://localhost:3000"})

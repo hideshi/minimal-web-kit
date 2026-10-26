@@ -43,6 +43,7 @@ func withCSRF(fx *publicFixture, cookie *http.Cookie, form url.Values) url.Value
 	return form
 }
 
+// 不変条件: CMS-INV-4, CMS-INV-5, CMS-INV-11, CMS-INV-12
 func TestAdminPosts_CreateEditPublishDelete(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
@@ -130,6 +131,7 @@ func TestAdminPosts_CreateEditPublishDelete(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-9
 func TestAdminPages_RequireSessionCSRFAndSameOrigin(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
@@ -173,6 +175,7 @@ func TestAdminPages_RequireSessionCSRFAndSameOrigin(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-2, CMS-INV-4
 func TestAdminPosts_PublishedAt(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
@@ -225,6 +228,7 @@ func TestAdminPosts_PublishedAt(t *testing.T) {
 	}
 }
 
+// 不変条件: CMS-INV-1, CMS-INV-2
 func TestAdminPosts_ScheduledPublishing(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)

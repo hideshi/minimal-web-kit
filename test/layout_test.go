@@ -126,6 +126,7 @@ func TestLayout_ExportUsesSiteLayout(t *testing.T) {
 }
 
 // SEO: ページごとの説明文、記事の og:type、sitemap.xml の記事、公開ページのキャッシュ、favicon。
+// 不変条件: CMS-INV-1
 func TestSEO_PerPageMetaSitemapCacheAndFavicon(t *testing.T) {
 	routes, posts := newSiteCMSRoutes(t)
 	ctx := context.Background()
@@ -203,6 +204,7 @@ func TestSEO_BasePrivacyIsNotCached(t *testing.T) {
 }
 
 // CMSは管理者認証を前提にするため、管理者認証が無ければ起動時に止まること（add-auth を案内する）。
+// 不変条件: CMS-INV-9
 func TestBuildRoutes_CMSRequiresAuth(t *testing.T) {
 	t.Setenv("CMS_CORS_ORIGINS", "")
 	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))

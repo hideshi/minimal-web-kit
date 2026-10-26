@@ -11,6 +11,7 @@ func env(values map[string]string) func(string) string {
 	return func(key string) string { return values[key] }
 }
 
+// 不変条件: CMS-INV-8
 func TestLoadConfig_CORS(t *testing.T) {
 	cfg, err := LoadConfig(env(nil))
 	if err != nil || len(cfg.CORSOrigins) != 0 {
@@ -43,6 +44,7 @@ func TestLoadConfig_CORS(t *testing.T) {
 }
 
 // 設定エラーは、設定値を含まない理由とともにログに記録し、起動を止めること。
+// 不変条件: CMS-INV-11
 func TestInit_LogsConfigReasonWithoutValues(t *testing.T) {
 	t.Setenv("CMS_CORS_ORIGINS", "http://secret-host.example")
 	var buf strings.Builder
