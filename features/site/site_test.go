@@ -42,7 +42,11 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"個人情報の取得最小化 &amp; 漏洩リスクへの対策",
 		"アクセシブルなUIデザイン",
 		"公的Webアクセシビリティ指針に基づくミニマルUI",
-		`href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary">GitHubでキットを入手する（新しいタブで開きます）</a>`,
+		`<div class="hero-cta">
+    <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
+      <span class="btn-main-text">GitHubでキットを入手する</span>
+      <span class="btn-sub-text">新しいタブで開きます</span>`,
+		`<div class="hero-links">`,
 		`<span class="btn-main-text">GitHubでキットを入手する</span>`,
 		`rel="noopener noreferrer">GitHub（新しいタブ）</a>`,
 		"<details",

@@ -156,10 +156,18 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   line-height: 1.8;
 }
 
+/* 主のボタン（GitHub）を1段目に大きく、補助のボタンを2段目に並べる */
 .hero-cta {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   gap: var(--space-md);
+}
+
+.hero-links {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
 
