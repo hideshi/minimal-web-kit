@@ -36,7 +36,7 @@ type Feature struct {
 
 const (
 	// description は検索結果とSNSのカードに表示する説明文です。
-	description = "個人情報の取得と依存関係を最小限に抑える、Go製のWebサイト・業務アプリの開発基盤。直接依存はSQLiteドライバのみ、Node.js/npm不要。LP・お知らせCMSのテンプレートとAI開発スキルを同梱。"
+	description = "個人情報の取得と依存関係を最小限に抑える、Go製のWebサイト・業務アプリの開発基盤。Goの直接依存はSQLiteドライバのみ、Node.js/npm不要。LP・お知らせ機能のテンプレートとAI開発スキルを同梱。"
 	// ogImagePath はSNSのカード用画像（1200×630px）の配信パスです。
 	ogImagePath = "/static/img/ogp.png"
 	ogImageAlt  = "minimal-web-kit：個人情報と依存を最小限に抑えるWeb開発基盤"

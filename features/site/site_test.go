@@ -37,7 +37,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 
 	expectedSnippets := []string{
 		"ムダを削ぎ落とし、最短で公開する。",
-		"直接依存はSQLiteのみ &amp; 単一バイナリ",
+		"Goの直接依存はSQLiteのみ &amp; 単一バイナリ",
 		"<title>個人情報と依存を最小限に抑えるWeb開発基盤 - minimal-web-kit</title>",
 		"個人情報の取得最小化 &amp; 漏洩リスクへの対策",
 		"アクセシブルなUIデザイン",
