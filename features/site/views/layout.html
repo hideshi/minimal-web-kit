@@ -7,8 +7,8 @@
   <title>{{.Title}} - minimal-web-kit</title>
   <meta name="description" content="{{.Description}}">
   {{if .NoIndex}}<meta name="robots" content="noindex">
-  {{end}}{{if .SiteURL}}{{if .Canonical}}<link rel="canonical" href="{{.SiteURL}}/">
-  <meta property="og:url" content="{{.SiteURL}}/">
+  {{end}}{{if .SiteURL}}{{if .CanonicalPath}}<link rel="canonical" href="{{.SiteURL}}{{.CanonicalPath}}">
+  <meta property="og:url" content="{{.SiteURL}}{{.CanonicalPath}}">
   {{end}}<meta property="og:type" content="website">
   <meta property="og:site_name" content="minimal-web-kit">
   <meta property="og:locale" content="ja_JP">
@@ -31,12 +31,12 @@
         <div class="site-subtitle">個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤</div>
       </div>
       <nav aria-label="メインナビゲーション">
-        <a href="#features">特長</a>
-        <a href="#use-cases">ユースケース</a>
-        <a href="#how-it-works">仕組み</a>
-        <a href="#faq">FAQ</a>
+        <a href="/#features">特長</a>
+        <a href="/#use-cases">ユースケース</a>
+        <a href="/#how-it-works">仕組み</a>
+        <a href="/#faq">FAQ</a>
         {{range .NavLinks}}<a href="{{.Href}}">{{.Label}}</a>
-        {{end}}<a href="#contact">お問い合わせ</a>
+        {{end}}<a href="/#contact">お問い合わせ</a>
         <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer">GitHub（新しいタブ）</a>
         <a href="/privacy">プライバシーポリシー</a>
       </nav>

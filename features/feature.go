@@ -74,6 +74,20 @@ type NavLinkConsumer interface {
 	SetNavLinks(links []web.NavLink)
 }
 
+// LayoutFeature は、サイト全体のレイアウト（ヘッダー・フッター）を提供する機能（例: Site）が実装します。
+// 有効な場合、Coreの画面（/privacy 等）や LayoutConsumer の公開ページも、このレイアウトで描画します。
+type LayoutFeature interface {
+	Feature
+	Layout() web.Layout
+}
+
+// LayoutConsumer は、公開ページをサイト全体のレイアウトで描画できる機能（例: CMSの /news）が実装します。
+// 起動時に、LayoutFeature が提供するレイアウトを受け取ります（無ければ呼ばれず、自分のレイアウトを使う）。
+type LayoutConsumer interface {
+	Feature
+	SetLayout(layout web.Layout) error
+}
+
 // Registry は有効化されている全機能のリストを保持します。
 type Registry struct {
 	features []Feature

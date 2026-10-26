@@ -21,13 +21,16 @@ type Handler struct {
 	templates map[string]*template.Template
 	logger    *slog.Logger
 	navLinks  []NavLink
+	layout    *Layout
 }
+
+// corePages はCoreが描画する画面です。
+var corePages = []string{"index.html", "privacy.html", "confirm_delete.html"}
 
 func NewHandler(s store.SessionStore, sm *SessionManager, logger *slog.Logger) (*Handler, error) {
 	tmplMap := make(map[string]*template.Template)
 
-	pages := []string{"index.html", "privacy.html", "confirm_delete.html"}
-	for _, page := range pages {
+	for _, page := range corePages {
 		t, err := ParseWithComponents(contentFS, "views/layout.html", "views/"+page)
 		if err != nil {
 			return nil, fmt.Errorf("parse template %q: %w", page, err)
@@ -153,6 +156,38 @@ func (h *Handler) SetNavLinks(links []NavLink) {
 	h.navLinks = links
 }
 
+// Layout は、サイト全体のヘッダー・フッターを持つレイアウトです（例: Siteが提供する）。
+// 設定すると、Coreの画面や他の機能の公開ページも、このレイアウトの中に本文を差し込んで描画します。
+type Layout struct {
+	FS   fs.FS
+	File string // {{define "layout"}} を含むファイル。本文は {{template "content" .}} で差し込む
+	// Data は、レイアウトが必要とする値（ナビのリンク、公開URL、既定の説明文等）を data に加えます。
+	// 画面が設定済みの値は上書きしません。
+	Data func(data map[string]any)
+}
+
+// ParsePage は、共通の画面部品・レイアウト・本文のテンプレートを1つに解析します。
+func ParsePage(layout Layout, contentFS fs.FS, contentFiles ...string) (*template.Template, error) {
+	t, err := ParseWithComponents(layout.FS, layout.File)
+	if err != nil {
+		return nil, err
+	}
+	return t.ParseFS(contentFS, contentFiles...)
+}
+
+// SetLayout は、Coreの画面をサイト全体のレイアウトで描画するようにします。起動時に1回だけ呼びます。
+func (h *Handler) SetLayout(layout Layout) error {
+	for _, page := range corePages {
+		t, err := ParsePage(layout, contentFS, "views/"+page)
+		if err != nil {
+			return fmt.Errorf("parse template %q with layout: %w", page, err)
+		}
+		h.templates[page] = t
+	}
+	h.layout = &layout
+	return nil
+}
+
 // ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field）と、
 // 機能のテンプレートを1つにまとめて解析します。機能は自分の embed.FS とファイル名を渡します。
 func ParseWithComponents(fsys fs.FS, patterns ...string) (*template.Template, error) {
@@ -166,6 +201,9 @@ func ParseWithComponents(fsys fs.FS, patterns ...string) (*template.Template, er
 func (h *Handler) Render(w http.ResponseWriter, page string, data any) {
 	if m, ok := data.(map[string]any); ok {
 		m["NavLinks"] = h.navLinks
+		if h.layout != nil && h.layout.Data != nil {
+			h.layout.Data(m)
+		}
 	}
 	tmpl, ok := h.templates[page]
 	if !ok {
@@ -201,9 +239,10 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode bool) {
 	h.Render(w, "privacy.html", map[string]any{
-		"Title":     "プライバシーポリシー",
-		"SiteMode":  siteMode,
-		"CSRFToken": GetCSRFToken(r.Context()),
+		"Title":         "プライバシーポリシー",
+		"CanonicalPath": "/privacy",
+		"SiteMode":      siteMode,
+		"CSRFToken":     GetCSRFToken(r.Context()),
 	})
 }
 

@@ -181,6 +181,7 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
    - `IsolatedRoutesFeature`：CoreのCSRF検査とセッション照合を通さない経路（Cookieを使わない公開ページ、独自認証の管理画面）。認証・CSRF・Origin検査は機能自身が行い、部品の `internal/web/guard`（`SameOrigin`・`CSRF`）を使います。
    - `PurgeFeature`：期限切れデータの削除。起動時と1時間ごとに呼ばれます。
    - `NavLinkFeature`：ナビゲーションへのリンク（例: CMSの「お知らせ」）。機能を外せばリンクも消えます。
+   - `LayoutFeature`・`LayoutConsumer`：サイト全体のヘッダー・フッター。Siteが有効なら、`/privacy` 等のCoreの画面と、CMSの公開ページ（`/news`）もSiteのレイアウトで描画します。
    - `CommandFeature`：サーバーの実行ファイルのサブコマンド（例: `minimal-web-kit cms-setup`）。
 7. `make test`、`make verify`、`make build` を実行し、画面も確認します。
 

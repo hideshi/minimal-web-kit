@@ -40,6 +40,7 @@ type Feature struct {
 	csrf        *guard.CSRF
 	publicPages map[string]*template.Template
 	adminPages  map[string]*template.Template
+	layout      *web.Layout
 	now         func() time.Time
 }
 

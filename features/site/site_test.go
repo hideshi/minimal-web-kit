@@ -243,7 +243,7 @@ func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
 	feat.SetNavLinks(links)
 	h.SetNavLinks(links)
 	body := get("/")
-	news, contact := strings.Index(body, `<a href="/news">お知らせ</a>`), strings.Index(body, `<a href="#contact">お問い合わせ</a>`)
+	news, contact := strings.Index(body, `<a href="/news">お知らせ</a>`), strings.Index(body, `<a href="/#contact">お問い合わせ</a>`)
 	if news < 0 || contact < 0 || news > contact {
 		t.Fatal("the site nav must show the feature link before the contact link")
 	}

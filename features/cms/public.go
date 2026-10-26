@@ -28,16 +28,35 @@ const (
 	maxOffset = 100000
 )
 
+var publicPageNames = []string{"news_list.html", "news_show.html"}
+
 func parsePublicTemplates() map[string]*template.Template {
 	pages := map[string]*template.Template{}
-	for _, name := range []string{"news_list.html", "news_show.html"} {
+	for _, name := range publicPageNames {
 		pages[name] = template.Must(web.ParseWithComponents(viewsFS, "views/layout.html", "views/"+name))
 	}
 	return pages
 }
 
+// SetLayout は、公開ページ（/news）をサイト全体のレイアウト（例: Siteのヘッダー・フッター）で描画するようにします。
+// 管理画面は、引き続き管理画面のレイアウトで描画します。
+func (f *Feature) SetLayout(layout web.Layout) error {
+	for _, name := range publicPageNames {
+		t, err := web.ParsePage(layout, viewsFS, "views/"+name)
+		if err != nil {
+			return err
+		}
+		f.publicPages[name] = t
+	}
+	f.layout = &layout
+	return nil
+}
+
 // render はテンプレートをバッファに描画してから送信します（途中失敗で壊れたHTMLを返さないため）。
 func (f *Feature) render(w http.ResponseWriter, page string, data map[string]any) {
+	if f.layout != nil && f.layout.Data != nil {
+		f.layout.Data(data)
+	}
 	var buf bytes.Buffer
 	if err := f.publicPages[page].ExecuteTemplate(&buf, "layout", data); err != nil {
 		f.logger.Error("cms render failed")
@@ -93,7 +112,7 @@ func (f *Feature) handleNewsList(w http.ResponseWriter, r *http.Request) {
 	}
 	posts = page.Trim(&pg, posts)
 	pg.Base, pg.Label, pg.PrevText, pg.NextText = "/news", "お知らせのページ送り", "新しいお知らせ", "過去のお知らせ"
-	data := map[string]any{"Title": "お知らせ", "Page": pg}
+	data := map[string]any{"Title": "お知らせ", "Page": pg, "CanonicalPath": "/news"}
 	for i := range posts {
 		posts[i] = localTime(posts[i])
 	}
@@ -117,9 +136,10 @@ func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.render(w, "news_show.html", map[string]any{
-		"Title":      post.Title,
-		"Post":       localTime(post),
-		"Paragraphs": paragraphs(post.Body),
+		"Title":         post.Title,
+		"CanonicalPath": "/news/" + strconv.FormatInt(post.ID, 10),
+		"Post":          localTime(post),
+		"Paragraphs":    paragraphs(post.Body),
 	})
 }
 

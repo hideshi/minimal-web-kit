@@ -74,6 +74,28 @@ func (s *Server) Run() error {
 		}
 	}
 
+	// サイト全体のレイアウトを、Coreの画面と公開ページを持つ機能に配る
+	if s.features != nil {
+		for _, f := range s.features.All() {
+			lf, ok := f.(features.LayoutFeature)
+			if !ok {
+				continue
+			}
+			layout := lf.Layout()
+			if err := handler.SetLayout(layout); err != nil {
+				return fmt.Errorf("init layout: %w", err)
+			}
+			for _, c := range s.features.All() {
+				if lc, ok := c.(features.LayoutConsumer); ok {
+					if err := lc.SetLayout(layout); err != nil {
+						return fmt.Errorf("init layout for %s: %w", c.Name(), err)
+					}
+				}
+			}
+			break
+		}
+	}
+
 	// ルートパス（GET /）の差し替え判定
 	var rootHandler http.HandlerFunc
 	if s.features != nil {

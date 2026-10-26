@@ -116,8 +116,7 @@ func (f *Feature) SetNavLinks(links []web.NavLink) {
 func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	f.render(w, http.StatusOK, "index.html", map[string]any{
 		"Title":          "個人情報と依存を最小限に抑えるWeb開発基盤",
-		"Description":    description,
-		"Canonical":      true,
+		"CanonicalPath":  "/",
 		"ContactFormURL": f.contactFormURL,
 	})
 }
@@ -125,17 +124,29 @@ func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 // HandleNotFound は、静的ホスティング用の 404.html を描画します（export-static で書き出す）。
 func (f *Feature) HandleNotFound(w http.ResponseWriter, r *http.Request) {
 	f.render(w, http.StatusNotFound, "notfound.html", map[string]any{
-		"Title":       "ページが見つかりません",
-		"Description": description,
-		"NoIndex":     true,
+		"Title":   "ページが見つかりません",
+		"NoIndex": true,
 	})
 }
 
-func (f *Feature) render(w http.ResponseWriter, status int, page string, data map[string]any) {
+// Layout は、Siteのヘッダー・フッターを、Coreの画面（/privacy 等）やCMSの公開ページにも使わせます。
+func (f *Feature) Layout() web.Layout {
+	return web.Layout{FS: viewsFS, File: "views/layout.html", Data: f.layoutData}
+}
+
+// layoutData は、レイアウトが必要とする値を加えます。画面が設定済みの値は上書きしません。
+func (f *Feature) layoutData(data map[string]any) {
 	data["NavLinks"] = f.navLinks
 	data["SiteURL"] = f.siteURL
 	data["OGImagePath"] = ogImagePath
 	data["OGImageAlt"] = ogImageAlt
+	if _, ok := data["Description"]; !ok {
+		data["Description"] = description
+	}
+}
+
+func (f *Feature) render(w http.ResponseWriter, status int, page string, data map[string]any) {
+	f.layoutData(data)
 	var buf bytes.Buffer
 	if err := f.pages[page].ExecuteTemplate(&buf, "layout", data); err != nil {
 		f.logger.Error("render site template failed")

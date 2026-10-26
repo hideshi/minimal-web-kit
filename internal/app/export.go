@@ -63,6 +63,12 @@ func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error
 	if err != nil {
 		return err
 	}
+	// Siteのレイアウトで /privacy 等も描く（サーバーと同じ見た目にする）
+	if lf, ok := root.(features.LayoutFeature); ok {
+		if err := h.SetLayout(lf.Layout()); err != nil {
+			return err
+		}
+	}
 	routes, err := h.RoutesWithIsolated(root.HandleRoot, func(mux *http.ServeMux, sm *web.SessionManager) {
 		root.RegisterRoutes(mux, sm)
 	}, func(mux *web.IsolatedMux) {
