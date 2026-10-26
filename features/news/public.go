@@ -1,4 +1,4 @@
-package cms
+package news
 
 import (
 	"bytes"
@@ -62,7 +62,7 @@ func (f *Feature) render(w http.ResponseWriter, page string, data map[string]any
 	}
 	var buf bytes.Buffer
 	if err := f.publicPages[page].ExecuteTemplate(&buf, "layout", data); err != nil {
-		f.logger.Error("cms render failed")
+		f.logger.Error("news render failed")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -140,7 +140,7 @@ func (f *Feature) handleNewsList(w http.ResponseWriter, r *http.Request) {
 	}
 	posts, err := f.posts.ListPublished(r.Context(), pg.Limit(), pg.Offset())
 	if err != nil {
-		f.logger.Error("cms list published posts failed")
+		f.logger.Error("news list published posts failed")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -166,7 +166,7 @@ func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	} else if err != nil {
-		f.logger.Error("cms get published post failed")
+		f.logger.Error("news get published post failed")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -205,7 +205,7 @@ func toAPIPost(p Post) apiPost {
 func (f *Feature) writeJSON(w http.ResponseWriter, status int, v any) {
 	body, err := json.Marshal(v)
 	if err != nil {
-		f.logger.Error("cms encode json failed")
+		f.logger.Error("news encode json failed")
 		status, body = http.StatusInternalServerError, []byte(`{"error":"internal_error"}`)
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -227,7 +227,7 @@ func (f *Feature) handleAPIList(w http.ResponseWriter, r *http.Request) {
 	}
 	posts, err := f.posts.ListPublished(r.Context(), limit+1, offset)
 	if err != nil {
-		f.logger.Error("cms api list published posts failed")
+		f.logger.Error("news api list published posts failed")
 		f.writeJSON(w, http.StatusInternalServerError, apiError("internal_error"))
 		return
 	}
@@ -263,7 +263,7 @@ func (f *Feature) handleAPIShow(w http.ResponseWriter, r *http.Request) {
 		f.writeJSON(w, http.StatusNotFound, apiError("not_found"))
 		return
 	} else if err != nil {
-		f.logger.Error("cms api get published post failed")
+		f.logger.Error("news api get published post failed")
 		f.writeJSON(w, http.StatusInternalServerError, apiError("internal_error"))
 		return
 	}

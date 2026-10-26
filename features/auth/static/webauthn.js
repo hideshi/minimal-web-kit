@@ -1,4 +1,4 @@
-// webauthn.js: CMS管理画面の認証画面だけで読み込む、承認済みの唯一のJavaScriptです。
+// webauthn.js: 管理者認証の画面だけで読み込む、承認済みの唯一のJavaScriptです。
 // ブラウザのWebAuthn APIを呼び、結果をサーバーへ渡すだけで、判定はすべてサーバーが行います。
 "use strict";
 

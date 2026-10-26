@@ -1,4 +1,4 @@
-.PHONY: all build run test lint verify clean add-site remove-site add-auth remove-auth add-cms remove-cms auth-setup auth-recover
+.PHONY: all build run test lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover
 
 BIN_NAME := minimal-web-kit
 
@@ -27,19 +27,19 @@ add-site:
 remove-site:
 	go run ./cmd/kit remove-site
 
-# 管理者認証（パスキー）の登録切り替え（CMSが有効な間は外せない。登録を外してもDBのデータは残る）
+# 管理者認証（パスキー）の登録切り替え（お知らせ機能が有効な間は外せない。登録を外してもDBのデータは残る）
 add-auth:
 	go run ./cmd/kit add-auth
 
 remove-auth:
 	go run ./cmd/kit remove-auth
 
-# CMSの登録切り替え（管理者認証も一緒に有効にする。登録を外してもDBのデータは残る）
-add-cms:
-	go run ./cmd/kit add-cms
+# お知らせ機能の登録切り替え（管理者認証も一緒に有効にする。登録を外してもDBのデータは残る）
+add-news:
+	go run ./cmd/kit add-news
 
-remove-cms:
-	go run ./cmd/kit remove-cms
+remove-news:
+	go run ./cmd/kit remove-news
 
 # 最初の管理者のパスキーの登録用URLを表示（有効なパスキーが1件も無いときだけ）
 auth-setup:

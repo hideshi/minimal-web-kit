@@ -19,8 +19,8 @@ func TestMessages(t *testing.T) {
 	}
 
 	rec := httptest.NewRecorder()
-	Redirect(rec, httptest.NewRequest("POST", "/x", nil), "/admin/posts", "saved")
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/posts?notice=saved" {
+	Redirect(rec, httptest.NewRequest("POST", "/x", nil), "/admin/news", "saved")
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/news?notice=saved" {
 		t.Fatalf("redirect: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 	if got := URL("/a", "a b&c"); got != "/a?notice=a+b%26c" {

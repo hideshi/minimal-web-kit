@@ -154,7 +154,7 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 	return handler, nil
 }
 
-// NavLink は、有効な機能が共通のナビゲーションに足すリンクです（例: CMSの「お知らせ」）。
+// NavLink は、有効な機能が共通のナビゲーションに足すリンクです（例: お知らせ機能の「お知らせ」）。
 type NavLink struct {
 	Label string
 	Href  string

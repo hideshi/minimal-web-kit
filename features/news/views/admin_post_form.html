@@ -11,7 +11,7 @@
 </p>
 {{end}}
 
-<form method="post" action="{{if .Post.ID}}/admin/posts/{{.Post.ID}}{{else}}/admin/posts{{end}}" class="card">
+<form method="post" action="{{if .Post.ID}}/admin/news/{{.Post.ID}}{{else}}/admin/news{{end}}" class="card">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   {{range .Form.Fields}}{{template "field" .}}{{end}}
   <button type="submit" class="btn btn-primary">{{if .Post.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
@@ -21,20 +21,20 @@
 <h2>公開と削除</h2>
 <div class="action-bar">
   {{if .Post.Published}}
-  <form method="post" action="/admin/posts/{{.Post.ID}}/unpublish" class="inline-form">
+  <form method="post" action="/admin/news/{{.Post.ID}}/unpublish" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button type="submit" class="btn btn-secondary">{{if .Post.ScheduledAt .Now}}予約を取り消す（下書きに戻す）{{else}}非公開（下書き）に戻す{{end}}</button>
   </form>
   {{else}}
-  <form method="post" action="/admin/posts/{{.Post.ID}}/publish" class="inline-form">
+  <form method="post" action="/admin/news/{{.Post.ID}}/publish" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button type="submit" class="btn btn-primary">{{if .Post.PublishedAt.After .Now}}公開を予約する{{else}}公開する{{end}}</button>
   </form>
   {{end}}
-  <a href="/admin/posts/{{.Post.ID}}/delete" class="btn btn-danger">削除する</a>
+  <a href="/admin/news/{{.Post.ID}}/delete" class="btn btn-danger">削除する</a>
 </div>
 <p class="field-hint">公開・非公開の切り替えは、保存済みの内容に対して行います。編集中の内容は、先に保存してください。</p>
 {{end}}
 
-<p><a href="/admin/posts">お知らせの一覧へ戻る</a></p>
+<p><a href="/admin/news">お知らせの一覧へ戻る</a></p>
 {{end}}

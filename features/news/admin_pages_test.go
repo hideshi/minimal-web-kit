@@ -1,4 +1,4 @@
-package cms
+package news
 
 import (
 	"context"
@@ -39,29 +39,29 @@ func withCSRF(fx *publicFixture, cookie *http.Cookie, form url.Values) url.Value
 	if form == nil {
 		form = url.Values{}
 	}
-	form.Set("csrf_token", authtest.CSRFToken(fx.t, fx.routes, "/admin/posts", cookie))
+	form.Set("csrf_token", authtest.CSRFToken(fx.t, fx.routes, "/admin/news", cookie))
 	return form
 }
 
-// 不変条件: CMS-INV-4, CMS-INV-5, CMS-INV-11, CMS-INV-12
+// 不変条件: NEWS-INV-4, NEWS-INV-5, NEWS-INV-11, NEWS-INV-12
 func TestAdminPosts_CreateEditPublishDelete(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
 
-	rec := fx.do(t, http.MethodGet, "/admin/posts/new", nil, cookie)
+	rec := fx.do(t, http.MethodGet, "/admin/news/new", nil, cookie)
 	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "<script") || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "script-src 'none'") {
 		t.Fatalf("new post page: %d", rec.Code)
 	}
 
 	// 作成すると下書きになり、編集画面へ移る
 	title, body := "<b>秘密の見出し</b>", "本文の一行目\n\n段落"
-	rec = fx.postForm(t, "/admin/posts", withCSRF(fx, cookie, url.Values{"title": {title}, "body": {body}}), "same-origin", cookie)
-	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), "/admin/posts/") {
+	rec = fx.postForm(t, "/admin/news", withCSRF(fx, cookie, url.Values{"title": {title}, "body": {body}}), "same-origin", cookie)
+	if rec.Code != http.StatusSeeOther || !strings.HasPrefix(rec.Header().Get("Location"), "/admin/news/") {
 		t.Fatalf("create: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 	loc, _ := url.Parse(rec.Header().Get("Location"))
-	id, _ := strconv.ParseInt(strings.TrimPrefix(loc.Path, "/admin/posts/"), 10, 64)
-	path := "/admin/posts/" + strconv.FormatInt(id, 10)
+	id, _ := strconv.ParseInt(strings.TrimPrefix(loc.Path, "/admin/news/"), 10, 64)
+	path := "/admin/news/" + strconv.FormatInt(id, 10)
 	if rec := fx.do(t, http.MethodGet, "/news/"+strconv.FormatInt(id, 10), nil); rec.Code != http.StatusNotFound {
 		t.Fatal("a new post must be a draft")
 	}
@@ -74,7 +74,7 @@ func TestAdminPosts_CreateEditPublishDelete(t *testing.T) {
 	}
 
 	// 一覧に下書きとして出る
-	rec = fx.do(t, http.MethodGet, "/admin/posts?notice=bogus", nil, cookie)
+	rec = fx.do(t, http.MethodGet, "/admin/news?notice=bogus", nil, cookie)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "下書き") || strings.Contains(rec.Body.String(), "bogus") {
 		t.Fatalf("list: %d", rec.Code)
 	}
@@ -115,7 +115,7 @@ func TestAdminPosts_CreateEditPublishDelete(t *testing.T) {
 		t.Fatal("the confirmation page must not delete")
 	}
 	rec = fx.postForm(t, path+"/delete", withCSRF(fx, cookie, nil), "same-origin", cookie)
-	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/posts?notice=deleted" {
+	if rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/news?notice=deleted" {
 		t.Fatalf("delete: %d", rec.Code)
 	}
 	if rec := fx.do(t, http.MethodGet, path, nil, cookie); rec.Code != http.StatusNotFound {
@@ -131,20 +131,20 @@ func TestAdminPosts_CreateEditPublishDelete(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-9
+// 不変条件: NEWS-INV-9
 func TestAdminPages_RequireSessionCSRFAndSameOrigin(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
 	id, _ := fx.posts.Create(context.Background(), "見出し", "")
-	post := "/admin/posts/" + strconv.FormatInt(id, 10)
+	post := "/admin/news/" + strconv.FormatInt(id, 10)
 
 	// 記事の管理画面は、管理者認証の口（Page・Form）で守られていること
-	for _, path := range []string{"/admin/posts", "/admin/posts/new", post, post + "/delete"} {
+	for _, path := range []string{"/admin/news", "/admin/news/new", post, post + "/delete"} {
 		if rec := fx.do(t, http.MethodGet, path, nil); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 			t.Errorf("GET %s without session: %d", path, rec.Code)
 		}
 	}
-	posts := []string{"/admin/posts", post, post + "/publish", post + "/unpublish", post + "/delete"}
+	posts := []string{"/admin/news", post, post + "/publish", post + "/unpublish", post + "/delete"}
 	for _, path := range posts {
 		form := url.Values{"title": {"改ざん"}, "body": {""}}
 		if rec := fx.postForm(t, path, form, "same-origin", cookie); rec.Code != http.StatusForbidden {
@@ -166,8 +166,8 @@ func TestAdminPages_RequireSessionCSRFAndSameOrigin(t *testing.T) {
 
 	// 不正なID
 	for path, want := range map[string]int{
-		"/admin/posts/abc": http.StatusBadRequest,
-		"/admin/posts/999": http.StatusNotFound,
+		"/admin/news/abc": http.StatusBadRequest,
+		"/admin/news/999": http.StatusNotFound,
 	} {
 		if rec := fx.do(t, http.MethodGet, path, nil, cookie); rec.Code != want {
 			t.Errorf("GET %s: got %d, want %d", path, rec.Code, want)
@@ -175,7 +175,7 @@ func TestAdminPages_RequireSessionCSRFAndSameOrigin(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-2, CMS-INV-4
+// 不変条件: NEWS-INV-2, NEWS-INV-4
 func TestAdminPosts_PublishedAt(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
@@ -183,13 +183,13 @@ func TestAdminPosts_PublishedAt(t *testing.T) {
 
 	// 作成時に過去の公開日時を指定すると、公開してもその日時のまま
 	past := time.Date(2024, 4, 1, 9, 30, 0, 0, time.Local)
-	rec := fx.postForm(t, "/admin/posts", withCSRF(fx, cookie, url.Values{"title": {"過去のお知らせ"}, "published_at": {past.Format("2006-01-02T15:04")}}), "same-origin", cookie)
+	rec := fx.postForm(t, "/admin/news", withCSRF(fx, cookie, url.Values{"title": {"過去のお知らせ"}, "published_at": {past.Format("2006-01-02T15:04")}}), "same-origin", cookie)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("create with date: %d %s", rec.Code, rec.Body.String())
 	}
 	loc, _ := url.Parse(rec.Header().Get("Location"))
 	path := loc.Path
-	id, _ := strconv.ParseInt(strings.TrimPrefix(path, "/admin/posts/"), 10, 64)
+	id, _ := strconv.ParseInt(strings.TrimPrefix(path, "/admin/news/"), 10, 64)
 	if rec := fx.postForm(t, path+"/publish", withCSRF(fx, cookie, nil), "same-origin", cookie); rec.Code != http.StatusSeeOther {
 		t.Fatalf("publish: %d", rec.Code)
 	}
@@ -228,7 +228,7 @@ func TestAdminPosts_PublishedAt(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-1, CMS-INV-2
+// 不変条件: NEWS-INV-1, NEWS-INV-2
 func TestAdminPosts_ScheduledPublishing(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
@@ -238,13 +238,13 @@ func TestAdminPosts_ScheduledPublishing(t *testing.T) {
 	fx.feature.now = func() time.Time { return clock }
 
 	future := clock.Add(48 * time.Hour).Truncate(time.Minute)
-	rec := fx.postForm(t, "/admin/posts", withCSRF(fx, cookie, url.Values{"title": {"予約のお知らせ"}, "published_at": {future.Format("2006-01-02T15:04")}}), "same-origin", cookie)
+	rec := fx.postForm(t, "/admin/news", withCSRF(fx, cookie, url.Values{"title": {"予約のお知らせ"}, "published_at": {future.Format("2006-01-02T15:04")}}), "same-origin", cookie)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("create scheduled: %d %s", rec.Code, rec.Body.String())
 	}
 	path := rec.Header().Get("Location")
 	path = path[:strings.Index(path, "?")]
-	id, _ := strconv.ParseInt(strings.TrimPrefix(path, "/admin/posts/"), 10, 64)
+	id, _ := strconv.ParseInt(strings.TrimPrefix(path, "/admin/news/"), 10, 64)
 	public := "/news/" + strconv.FormatInt(id, 10)
 
 	if rec := fx.do(t, http.MethodGet, path, nil, cookie); !strings.Contains(rec.Body.String(), "公開を予約する") {
@@ -268,7 +268,7 @@ func TestAdminPosts_ScheduledPublishing(t *testing.T) {
 			t.Errorf("%s must not list the scheduled post", target)
 		}
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, cookie); !strings.Contains(rec.Body.String(), "公開予約") {
+	if rec := fx.do(t, http.MethodGet, "/admin/news", nil, cookie); !strings.Contains(rec.Body.String(), "公開予約") {
 		t.Fatal("the admin list must show the scheduled state")
 	}
 
@@ -282,7 +282,7 @@ func TestAdminPosts_ScheduledPublishing(t *testing.T) {
 			t.Errorf("%s must list the post after the schedule", target)
 		}
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, cookie); strings.Contains(rec.Body.String(), "公開予約") || !strings.Contains(rec.Body.String(), "公開中") {
+	if rec := fx.do(t, http.MethodGet, "/admin/news", nil, cookie); strings.Contains(rec.Body.String(), "公開予約") || !strings.Contains(rec.Body.String(), "公開中") {
 		t.Fatal("the admin list must show the post as published")
 	}
 }

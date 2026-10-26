@@ -16,19 +16,19 @@ import (
 	"minimal-web-kit/features"
 	"minimal-web-kit/features/auth"
 	"minimal-web-kit/features/auth/authtest"
-	"minimal-web-kit/features/cms"
+	"minimal-web-kit/features/news"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
 )
 
-// TestCanary_CMSRoutesDoNotLeakInput は、CMSの公開ページ・API・管理画面に送った値（パス・クエリ・ヘッダー・本文）が
+// TestCanary_NewsRoutesDoNotLeakInput は、お知らせ機能の公開ページ・API・管理画面に送った値（パス・クエリ・ヘッダー・本文）が
 // ログに出力されず、公開ページとAPIがCookieを発行しないことを検証します。
-// 不変条件: AUTH-INV-13, CMS-INV-11
-func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
-	const canary = "CANARYcms7f3a9"
+// 不変条件: AUTH-INV-13, NEWS-INV-11
+func TestCanary_NewsRoutesDoNotLeakInput(t *testing.T) {
+	const canary = "CANARYnews7f3a9"
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")
-	t.Setenv("CMS_CORS_ORIGINS", "https://allowed.example")
+	t.Setenv("NEWS_CORS_ORIGINS", "https://allowed.example")
 
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -37,16 +37,16 @@ func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
-	// 起動処理と同じ登録・初期化・つなぎ方（app.BuildRoutes）で、CMSと管理者認証を組み込む
+	// 起動処理と同じ登録・初期化・つなぎ方（app.BuildRoutes）で、お知らせ機能と管理者認証を組み込む
 	reg := features.NewRegistry()
-	reg.Register(cms.NewFeature(logger))
+	reg.Register(news.NewFeature(logger))
 	reg.Register(auth.NewFeature(logger))
 	for _, f := range reg.All() {
 		if err := f.Init(s.DB()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	posts := cms.NewPostStore(s.DB())
+	posts := news.NewPostStore(s.DB())
 	id, err := posts.Create(context.Background(), "お知らせ", "本文")
 	if err != nil {
 		t.Fatal(err)
@@ -114,10 +114,10 @@ func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 		send(http.MethodPost, target, "application/json", jsonBody)
 	}
 	form := url.Values{"csrf_token": {canary}, "title": {canary}, "body": {canary}, "label": {canary}}.Encode()
-	for _, target := range []string{"/admin/posts", "/admin/posts/1", "/admin/posts/1/delete", "/admin/logout", "/admin/passkeys/" + canary + "/delete"} {
+	for _, target := range []string{"/admin/news", "/admin/news/1", "/admin/news/1/delete", "/admin/logout", "/admin/passkeys/" + canary + "/delete"} {
 		send(http.MethodPost, target, "application/x-www-form-urlencoded", form)
 	}
-	send(http.MethodGet, "/admin/posts?notice="+canary, "", "")
+	send(http.MethodGet, "/admin/news?notice="+canary, "", "")
 	send(http.MethodGet, "/admin/setup?token="+canary, "", "")
 	for _, target := range []string{"/admin/accounts", "/admin/accounts/" + canary + "/role", "/admin/accounts/1/setup-url"} {
 		send(http.MethodPost, target, "application/x-www-form-urlencoded", url.Values{"csrf_token": {canary}, "name": {canary}, "role": {canary}}.Encode())

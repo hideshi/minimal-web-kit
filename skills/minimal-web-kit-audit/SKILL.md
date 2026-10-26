@@ -24,7 +24,7 @@ go test -race -v ./...
 - **`TestDomain_InvariantsAreTested`**: `docs/domain/*.md` の不変条件の番号が、それぞれ1つ以上のテスト関数の説明コメントにあるか、コードに書かれた番号がすべて定義されているか。番号の対応だけを見て、テストの中身が条件を確かめているかは検査しないため、番号を足したテストは読んで確認する。
 - **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=`、`<style>`、`<script>`、および `on*` イベントハンドラが含まれていないか。
 - **`TestCSS_SingleFileAndNoImportant`**: CSSファイルが単一であり、`!important` が含まれていないか。
-- **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection`、CMSの公開ページ・API・管理画面は `TestCanary_CMSRoutesDoNotLeakInput` で検査する。
+- **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection`、お知らせ機能の公開ページ・API・管理画面は `TestCanary_NewsRoutesDoNotLeakInput` で検査する。
 
 ## 2. 人手による差分チェック観点
 自動テストに加え、`git diff` で以下の観点を確認します。
@@ -44,7 +44,7 @@ go test -race -v ./...
 - 動的機能を追加したら、別Ownerからの読み書き・削除の拒否、未認証の管理操作、CSRF不正・欠落、期限切れCookieを検証する。SQLiteは複数接続で制約と削除を確認する。
 - 公開ページと404はRoutes経由で新規Cookieと保存行の増加がないか確認する。Site有効時とBaseの差、既存Cookieを送った場合も区別する。
 - 検査が空振りしていないかを確かめる。新しい検査や守りの処理を足したら、その処理をわざと外してテストが失敗することを見る。カナリアは、値が入口の形式検査で止まらず、ログを出す処理まで届いた証拠も検査に含める。
-- 有効にする機能の組み合わせ（Base／Site／管理者認証／CMS＋管理者認証／Site＋CMS）ごとに、ビルドと主な経路を確認する。手元の `cmd/server/features.go` がコミット済みの状態と違う場合は、コミット済みの状態でも確認する。
+- 有効にする機能の組み合わせ（Base／Site／管理者認証／お知らせ機能＋管理者認証／Site＋お知らせ機能）ごとに、ビルドと主な経路を確認する。手元の `cmd/server/features.go` がコミット済みの状態と違う場合は、コミット済みの状態でも確認する。
 - `export-static` で書き出す場合は、`_headers` がGoのサーバーと同じセキュリティヘッダーを持つこと、`/privacy` が実際の配信サービスでの記録を説明していることを確認する。
 
 ## 4. 実画面・公開前の確認
@@ -53,9 +53,9 @@ go test -race -v ./...
 - 色の計算や静的検査だけでJIS/WCAGの完全適合を宣言しない。対象ページ・状態・ブラウザ・実施項目・未確認項目を報告する。
 - 本番公開する場合はHTTPS終端、`SECURE_COOKIE=true`、待受・公開範囲の承認、DB/ディレクトリ権限、ログとバックアップの保持・削除方針を確認する。公開操作自体の承認は別途得る。
 - `CONTACT_FORM_URL` が実際のフォームを指すか、入力項目と利用目的・保持期間・削除窓口がポリシーに一致するかを確認する。仮URLを実用の窓口として案内しない。
-- LP・README・スキル・コードを照合し、同梱済み機能（Site・CMS・管理者認証）と範囲外を区別する。未実装の権限管理・画像アップロード等や未確認の性能を提供済みと表現しない。
-- 管理者認証を有効にした場合は、パスキーでの登録・ログイン、同期型パスキーの拒否、JSが認証画面だけで動くこと、管理画面の全経路が `Page`・`Form` で守られていることを確認する。CMSを有効にした場合は、`/news`・`/api/news` がCookieを扱わないこと、CORSが既定で無許可であることも確認する。
+- LP・README・スキル・コードを照合し、同梱済み機能（Site・お知らせ機能・管理者認証）と範囲外を区別する。未実装の権限管理・画像アップロード等や未確認の性能を提供済みと表現しない。
+- 管理者認証を有効にした場合は、パスキーでの登録・ログイン、同期型パスキーの拒否、JSが認証画面だけで動くこと、管理画面の全経路が `Page`・`Form` で守られていることを確認する。お知らせ機能を有効にした場合は、`/news`・`/api/news` がCookieを扱わないこと、CORSが既定で無許可であることも確認する。
 - 動きのあるUIが `docs/ui-guidelines.md` の順（標準の要素 → htmx → Alpine.js等）で選ばれ、JSを使う箇所でも、変化の通知・フォーカス・キーボード操作・JSなしでの重要な操作が成り立つかを確認する。
-- ナビ・見出し・ボタンの用語が、Base・Site・CMSの画面で揃っているか（表記揺れ）を確認する。
+- ナビ・見出し・ボタンの用語が、Base・Site・お知らせ機能の画面で揃っているか（表記揺れ）を確認する。
 - 機能を有効・無効にしたとき、LP・フッター・READMEの表現（「完全〜」等）が事実のままかを確認する。
 - 自動で確かめられない項目（実機の認証器、ブラウザでの見た目、支援技術）を一覧にして利用者に確認を依頼し、未確認のまま確認済みと報告しない。

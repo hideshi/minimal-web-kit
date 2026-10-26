@@ -349,7 +349,7 @@ func TestCredentials_DisableRevokesAccountSessions(t *testing.T) {
 	}
 }
 
-// 全体の復旧では、管理者認証の鍵とセッションだけを消し、アカウントと他の機能のデータ（例: CMSの記事）は残すこと。
+// 全体の復旧では、管理者認証の鍵とセッションだけを消し、アカウントと他の機能のデータ（例: お知らせの記事）は残すこと。
 // 不変条件: AUTH-INV-16
 func TestRecover_ClearsAuthStateButKeepsOtherData(t *testing.T) {
 	ctx := context.Background()

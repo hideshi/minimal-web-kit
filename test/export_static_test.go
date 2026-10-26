@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"minimal-web-kit/features"
-	"minimal-web-kit/features/cms"
+	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/web"
@@ -106,11 +106,11 @@ func TestExportStatic_RefusesUnsafeTargetsAndFeatures(t *testing.T) {
 	if err := app.ExportStatic(features.NewRegistry(), t.TempDir(), discardLogger()); err == nil || !strings.Contains(err.Error(), "add-site") {
 		t.Fatalf("Base must be refused: %v", err)
 	}
-	// CMS等の動的な機能が有効
-	withCMS := siteRegistry()
-	withCMS.Register(cms.NewFeature(discardLogger()))
-	if err := app.ExportStatic(withCMS, t.TempDir(), discardLogger()); err == nil || !strings.Contains(err.Error(), "cms") {
-		t.Fatalf("CMS must be refused: %v", err)
+	// お知らせ機能等の動的な機能が有効
+	withNews := siteRegistry()
+	withNews.Register(news.NewFeature(discardLogger()))
+	if err := app.ExportStatic(withNews, t.TempDir(), discardLogger()); err == nil || !strings.Contains(err.Error(), "news") {
+		t.Fatalf("news must be refused: %v", err)
 	}
 
 	// 書き出し先に別のファイルがあれば、消さずに拒否する

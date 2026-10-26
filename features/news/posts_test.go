@@ -1,4 +1,4 @@
-package cms
+package news
 
 import (
 	"context"
@@ -13,10 +13,10 @@ import (
 	"minimal-web-kit/internal/store"
 )
 
-// newTestDB はCoreと同じ設定のSQLiteを開き、CMSのマイグレーションを適用します。
+// newTestDB はCoreと同じ設定のSQLiteを開き、お知らせ機能のマイグレーションを適用します。
 func newTestDB(t *testing.T) (*store.SQLiteStore, *sql.DB) {
 	t.Helper()
-	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "cms.db"))
+	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "news.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func newTestDB(t *testing.T) (*store.SQLiteStore, *sql.DB) {
 	return s, s.DB()
 }
 
-// 不変条件: CMS-INV-10
+// 不変条件: NEWS-INV-10
 func TestMigrate_IdempotentAndKeepsData(t *testing.T) {
 	_, db := newTestDB(t)
 	posts := NewPostStore(db)
@@ -43,7 +43,38 @@ func TestMigrate_IdempotentAndKeepsData(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-1, CMS-INV-2, CMS-INV-3
+// 改名前の表 cms_posts は、記事とIDの採番を残したまま news_posts に変わること。
+// 不変条件: NEWS-INV-3, NEWS-INV-10
+func TestMigrate_RenamesLegacyTable(t *testing.T) {
+	_, db := newTestDB(t)
+	mustExec(t, db, "DROP TABLE news_posts")
+	mustExec(t, db, `CREATE TABLE cms_posts (
+		id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('draft', 'published')), published_at INTEGER,
+		created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+		CREATE INDEX idx_cms_posts_published ON cms_posts(status, published_at DESC, id DESC);
+		INSERT INTO cms_posts (title, body, status, created_at, updated_at) VALUES ('残す', '', 'draft', 1, 1), ('消す', '', 'draft', 1, 1);
+		DELETE FROM cms_posts WHERE id = 2`)
+	if err := Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	assertRows(t, db, "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('cms_posts', 'idx_cms_posts_published')", 0)
+	assertRows(t, db, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'idx_news_posts_published'", 1)
+	posts := NewPostStore(db)
+	if p, err := posts.Get(context.Background(), 1); err != nil || p.Title != "残す" {
+		t.Fatalf("the legacy post must be kept: %+v %v", p, err)
+	}
+	if id, err := posts.Create(context.Background(), "新しい記事", ""); err != nil || id != 3 {
+		t.Fatalf("the id sequence must be kept (deleted ids are not reused): id=%d err=%v", id, err)
+	}
+	// 両方の表があれば、判断せずに止める
+	mustExec(t, db, "CREATE TABLE cms_posts (id INTEGER)")
+	if err := Migrate(db); err == nil {
+		t.Fatal("having both tables must stop the migration")
+	}
+}
+
+// 不変条件: NEWS-INV-1, NEWS-INV-2, NEWS-INV-3
 func TestPostStore_PublishLifecycle(t *testing.T) {
 	ctx := context.Background()
 	_, db := newTestDB(t)
@@ -132,7 +163,7 @@ func TestPostStore_PublishLifecycle(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-1
+// 不変条件: NEWS-INV-1
 func TestPostStore_ListPublishedOrder(t *testing.T) {
 	ctx := context.Background()
 	_, db := newTestDB(t)
@@ -180,7 +211,7 @@ func TestPostStore_ListPublishedOrder(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-4
+// 不変条件: NEWS-INV-4
 func TestPostStore_RejectsInvalidInput(t *testing.T) {
 	ctx := context.Background()
 	_, db := newTestDB(t)
@@ -206,8 +237,8 @@ func TestPostStore_RejectsInvalidInput(t *testing.T) {
 	}
 }
 
-// CoreのセッションGCとセッション破棄でも、CMSの記事が消えないこと。
-// 不変条件: CMS-INV-10
+// CoreのセッションGCとセッション破棄でも、お知らせの記事が消えないこと。
+// 不変条件: NEWS-INV-10
 func TestCoreSessionGC_KeepsPosts(t *testing.T) {
 	ctx := context.Background()
 	s, db := newTestDB(t)
@@ -226,7 +257,7 @@ func TestCoreSessionGC_KeepsPosts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := NewPostStore(db).Get(ctx, postID); err != nil {
-		t.Fatal("Core session deletion must not delete CMS posts")
+		t.Fatal("Core session deletion must not delete news posts")
 	}
 }
 

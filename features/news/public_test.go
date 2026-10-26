@@ -1,4 +1,4 @@
-package cms
+package news
 
 import (
 	"context"
@@ -46,10 +46,10 @@ type publicFixture struct {
 	logs    *strings.Builder
 }
 
-// newPublicFixture はCoreのルーティングにCMSを組み込んだ状態を作ります。
+// newPublicFixture はCoreのルーティングにお知らせ機能を組み込んだ状態を作ります。
 func newPublicFixture(t *testing.T, corsOrigins string) *publicFixture {
 	t.Helper()
-	t.Setenv("CMS_CORS_ORIGINS", corsOrigins)
+	t.Setenv("NEWS_CORS_ORIGINS", corsOrigins)
 	sqlite, db := newTestDB(t)
 	logs := &strings.Builder{}
 	logger := slog.New(slog.NewTextHandler(logs, nil))
@@ -110,7 +110,7 @@ func (fx *publicFixture) publish(t *testing.T, title, body string) int64 {
 	return id
 }
 
-// 不変条件: CMS-INV-1, CMS-INV-5
+// 不変条件: NEWS-INV-1, NEWS-INV-5
 func TestNewsPages_ListShowAndEscape(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	id := fx.publish(t, "<script>alert(1)</script>見出し", "一行目\n二行目\n\n<b>段落</b>")
@@ -173,7 +173,7 @@ func TestNewsPages_Pagination(t *testing.T) {
 }
 
 // 公開ページ・APIは、Coreの匿名セッションCookieを照合・発行・消去しないこと。
-// 不変条件: CMS-INV-6
+// 不変条件: NEWS-INV-6
 func TestPublicRoutes_IgnoreCoreSessions(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	id := fx.publish(t, "t", "b")
@@ -201,11 +201,11 @@ func TestPublicRoutes_IgnoreCoreSessions(t *testing.T) {
 		}
 	}
 	if fx.core.lookups != 0 || fx.core.creates != 0 {
-		t.Fatalf("public CMS routes touched Core sessions: lookups=%d creates=%d", fx.core.lookups, fx.core.creates)
+		t.Fatalf("public news routes touched Core sessions: lookups=%d creates=%d", fx.core.lookups, fx.core.creates)
 	}
 }
 
-// 不変条件: CMS-INV-1, CMS-INV-7
+// 不変条件: NEWS-INV-1, NEWS-INV-7
 func TestAPI_ListAndShow(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	first := fx.publish(t, "first", "body-1")
@@ -256,7 +256,7 @@ func TestAPI_ListAndShow(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-11
+// 不変条件: NEWS-INV-11
 func TestAPI_ErrorsDoNotReflectInput(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	draft, err := fx.posts.Create(context.Background(), "draft", "")
@@ -286,7 +286,7 @@ func TestAPI_ErrorsDoNotReflectInput(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-8
+// 不変条件: NEWS-INV-8
 func TestAPI_CORS(t *testing.T) {
 	const allowed = "https://www.example.com"
 	fx := newPublicFixture(t, allowed+", http://localhost:3000")
@@ -329,7 +329,7 @@ func TestAPI_CORS(t *testing.T) {
 	}
 }
 
-// 不変条件: CMS-INV-8
+// 不変条件: NEWS-INV-8
 func TestAPI_NoCORSByDefault(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	rec := fx.do(t, http.MethodGet, "/api/news", map[string]string{"Origin": "http://localhost:3000"})

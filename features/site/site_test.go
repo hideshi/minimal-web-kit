@@ -57,7 +57,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"id=\"use-cases\"",
 		"広がるユースケース",
 		"SITE（LP TEMPLATE）",
-		"CMS（NEWS）",
+		"NEWS（SIMPLE CMS）",
 		"社内ツール &amp; 業務Webアプリ",
 		"マイクロSaaS",
 		"選べるスターター ＆ 自在な拡張基盤",
@@ -239,7 +239,7 @@ func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
 	// 機能のリンクが無ければ、お知らせへのリンクは出さない（404になるリンクを出さない）
 	for _, path := range []string{"/", "/privacy"} {
 		if body := get(path); strings.Contains(body, `href="/news"`) {
-			t.Fatalf("%s must not link to /news without the CMS", path)
+			t.Fatalf("%s must not link to /news without the news feature", path)
 		}
 	}
 

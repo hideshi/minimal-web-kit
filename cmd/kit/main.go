@@ -46,18 +46,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Successfully disabled admin authentication feature! Stored passkeys were not modified.")
-	case "add-cms":
-		if err := addCMS(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error enabling cms feature: %v\n", err)
+	case "add-news":
+		if err := addNews(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling news feature: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully enabled CMS (news) feature together with admin authentication! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
-	case "remove-cms":
-		if err := removeCMS(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error disabling cms feature: %v\n", err)
+		fmt.Println("Successfully enabled the news feature together with admin authentication! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
+	case "remove-news":
+		if err := removeNews(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling news feature: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully disabled CMS (news) feature! CMS registration is disabled; feature directories and stored data were not modified.")
+		fmt.Println("Successfully disabled the news feature! News registration is disabled; feature directories and stored data were not modified.")
 	default:
 		printUsage()
 	}
@@ -73,9 +73,9 @@ func printUsage() {
 	fmt.Println("  add-site     Enable the Site (LP template) feature in cmd/server/features.go")
 	fmt.Println("  remove-site  Disable the Site (LP template) feature registration")
 	fmt.Println("  add-auth     Enable the admin authentication (passkey) feature")
-	fmt.Println("  remove-auth  Disable admin authentication (refused while CMS is enabled; stored passkeys are kept)")
-	fmt.Println("  add-cms      Enable the CMS (news) feature, together with admin authentication")
-	fmt.Println("  remove-cms   Disable the CMS (news) feature registration (stored data is kept)")
+	fmt.Println("  remove-auth  Disable admin authentication (refused while news is enabled; stored passkeys are kept)")
+	fmt.Println("  add-news     Enable the news feature, together with admin authentication")
+	fmt.Println("  remove-news  Disable the news feature registration (stored data is kept)")
 	fmt.Println()
 	fmt.Println("Passkey setup and recovery are subcommands of the server binary:")
 	fmt.Println("  go run ./cmd/server auth-setup   (or: ./bin/minimal-web-kit auth-setup)")
@@ -91,13 +91,13 @@ type bundle struct {
 
 const (
 	bundledSiteMarker = "// minimal-web-kit: bundled-feature site"
-	bundledCMSMarker  = "// minimal-web-kit: bundled-feature cms"
+	bundledNewsMarker = "// minimal-web-kit: bundled-feature news"
 	bundledAuthMarker = "// minimal-web-kit: bundled-feature auth"
 )
 
 var (
 	siteBundle = bundle{name: "site", label: "Site", marker: bundledSiteMarker}
-	cmsBundle  = bundle{name: "cms", label: "CMS", marker: bundledCMSMarker}
+	newsBundle = bundle{name: "news", label: "News", marker: bundledNewsMarker}
 	authBundle = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
 )
 
@@ -106,29 +106,29 @@ func removeSite() error            { return toggleSite(false) }
 func toggleSite(enable bool) error { return toggleBundle(siteBundle, enable) }
 func addAuth() error               { return toggleBundle(authBundle, true) }
 
-// addCMS は、CMSが使う管理者認証も一緒に有効にします。CMSのソースを先に確認し、拒否する場合は何も変えません。
-func addCMS() error {
-	if err := verifyBundle(cmsBundle); err != nil {
+// addNews は、お知らせ機能が使う管理者認証も一緒に有効にします。お知らせ機能のソースを先に確認し、拒否する場合は何も変えません。
+func addNews() error {
+	if err := verifyBundle(newsBundle); err != nil {
 		return err
 	}
 	if err := toggleBundle(authBundle, true); err != nil {
 		return err
 	}
-	return toggleBundle(cmsBundle, true)
+	return toggleBundle(newsBundle, true)
 }
 
-// removeAuth は、管理者認証を使う機能（CMS）が有効な間は拒否します。
+// removeAuth は、管理者認証を使う機能（お知らせ機能）が有効な間は拒否します。
 func removeAuth() error {
 	registration, err := os.ReadFile("cmd/server/features.go")
 	if err != nil {
 		return err
 	}
-	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+cmsBundle.name)) {
-		return fmt.Errorf("CMS uses admin authentication; run remove-cms first")
+	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+newsBundle.name)) {
+		return fmt.Errorf("news uses admin authentication; run remove-news first")
 	}
 	return toggleBundle(authBundle, false)
 }
-func removeCMS() error { return toggleBundle(cmsBundle, false) }
+func removeNews() error { return toggleBundle(newsBundle, false) }
 
 // 実体を確認できない同名ディレクトリと、シンボリックリンクは操作しない。
 func regularPath(path string, directory bool) error {

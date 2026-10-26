@@ -25,7 +25,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 
 ## 2. 機能（Feature）の作り方
 新しく書く前に `docs/components.md` の部品（入力の検査、独立経路の守り、ページ送り、完了メッセージ、画面部品）で作れないかを確かめる。テンプレートは `web.ParseWithComponents` で解析し、部品を使う。
-1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/site`・`features/cms`・`features/auth` は同梱機能の予約名で、自作機能には使わない。
+1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/site`・`features/news`・`features/auth` は同梱機能の予約名で、自作機能には使わない。
 2. **スキーマ**: テーブルは `features/<名前>/migration.sql` に書き、`Init` から同じファイルを適用する。同時に `docs/data-inventory.md` を更新する（台帳テストは全 `features/*/migration.sql` を照合する）。`internal/store/migrations/` はCoreのスキーマだけに使う。
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。
 4. **任意のインターフェース**（`features/feature.go`）: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`、サイト全体のヘッダー・フッターは `LayoutFeature`（提供側）と `LayoutConsumer`（公開ページを持つ側）、運用コマンドは `CommandFeature`（`minimal-web-kit <コマンド>`）。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。
@@ -38,7 +38,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 - Featureの検索・更新・削除は、リクエストの識別子だけを信用せずOwnerIDで絞る。共有・管理者操作は別途権限を検証する。
 - 管理機能には明示的な認証を付ける。同梱の管理者認証（`features/auth`）を使い、`features.AdminConsumer` で受け取った `Admin` の `Page`・`Form` で全経路を守る。無記名セッションを持つだけで管理者にしない。状態変更をGETで実装せず、CSRF保護と認可を両方適用する。
 - SQLiteの接続別PRAGMAを全接続に適用し、外部キーのCASCADE、期限切れ照会、GC、削除後の再アクセスを確認する。
-- `owners` へのCASCADEは、セッション破棄と30日放置のGCで消えてよいブラウザ単位の一時データに限る。CMSの記事・業務データ等の残すべきデータは `owners` に紐づけず、管理者アカウント等の別の持ち主と保持・削除方法を設計する。
+- `owners` へのCASCADEは、セッション破棄と30日放置のGCで消えてよいブラウザ単位の一時データに限る。お知らせの記事・業務データ等の残すべきデータは `owners` に紐づけず、管理者アカウント等の別の持ち主と保持・削除方法を設計する。
 - 公開ページでは `EnsureSession` を呼ばない。ハンドラ単体でなく、Routes経由でCookie発行と保存件数を確認する。サーバー起動時のDB初期化とページ表示時の保存は区別する。
 - ログには生の入力・URLパス・クエリ・ヘッダー・panic値・DBエラーを安易に渡さず、固定の分類とサーバー生成IDを使う。`LogValuer` だけで文字列や外部ライブラリのエラーは保護できない。
 - 削除の説明は稼働DB上のレコード削除の範囲に限定し、WAL・バックアップ・外部フォームの保持を別途説明する。

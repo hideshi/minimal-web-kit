@@ -1,4 +1,4 @@
-package cms
+package news
 
 import (
 	"bytes"
@@ -31,12 +31,12 @@ func (f *Feature) SetAdmin(admin features.Admin) error {
 
 // AdminNavLinks は、管理画面のナビに「お知らせの管理」を加えます。
 func (f *Feature) AdminNavLinks() []web.NavLink {
-	return []web.NavLink{{Label: "お知らせの管理", Href: "/admin/posts"}}
+	return []web.NavLink{{Label: "お知らせの管理", Href: "/admin/news"}}
 }
 
 // pageData は、管理画面のレイアウトに渡す値に、予約公開の判定に使う現在時刻を加えます。
 func (f *Feature) pageData(s features.AdminSession, title string) map[string]any {
-	data := s.PageData(title, "/admin/posts")
+	data := s.PageData(title, "/admin/news")
 	data["Now"] = f.now()
 	return data
 }
@@ -52,7 +52,7 @@ func (f *Feature) renderAdmin(w http.ResponseWriter, page string, data map[strin
 func (f *Feature) renderAdminStatus(w http.ResponseWriter, status int, page string, data map[string]any) {
 	var buf bytes.Buffer
 	if err := f.adminPages[page].ExecuteTemplate(&buf, "layout", data); err != nil {
-		f.logger.Error("cms render admin failed", f.requestID(w))
+		f.logger.Error("news render admin failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}

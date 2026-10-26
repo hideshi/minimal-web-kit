@@ -6,10 +6,10 @@
 <p class="card">{{.Post.Title}}</p>
 
 <div class="action-bar">
-  <form method="post" action="/admin/posts/{{.Post.ID}}/delete" class="inline-form">
+  <form method="post" action="/admin/news/{{.Post.ID}}/delete" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
     <button type="submit" class="btn btn-danger">削除する</button>
   </form>
-  <a href="/admin/posts/{{.Post.ID}}" class="btn btn-secondary">削除せずに戻る</a>
+  <a href="/admin/news/{{.Post.ID}}" class="btn btn-secondary">削除せずに戻る</a>
 </div>
 {{end}}

@@ -1,2 +1,2 @@
-# Windowsで改行がCRLFに変換されると、add-site/add-cms の目印検査が失敗するため、LFに固定する
+# Windowsで改行がCRLFに変換されると、add-site/add-news の目印検査が失敗するため、LFに固定する
 * text=auto eol=lf

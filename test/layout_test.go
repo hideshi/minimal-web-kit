@@ -12,7 +12,7 @@ import (
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/features/auth"
-	"minimal-web-kit/features/cms"
+	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
@@ -24,13 +24,13 @@ const (
 	coreSubtitle = "個人情報・外部依存を最小限に抑えたWebアプリのひな形"
 )
 
-// newSiteCMSRoutes は、サーバーの起動処理と同じ順で、Site＋CMSを組み込んだ経路を作ります。
-func newSiteCMSRoutes(t *testing.T) (http.Handler, *cms.PostStore) {
+// newSiteNewsRoutes は、サーバーの起動処理と同じ順で、Site＋お知らせ機能を組み込んだ経路を作ります。
+func newSiteNewsRoutes(t *testing.T) (http.Handler, *news.PostStore) {
 	t.Helper()
 	t.Setenv("SITE_URL", "https://example.workers.dev")
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")
-	t.Setenv("CMS_CORS_ORIGINS", "")
+	t.Setenv("NEWS_CORS_ORIGINS", "")
 	logger := discardLogger()
 	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
@@ -41,7 +41,7 @@ func newSiteCMSRoutes(t *testing.T) (http.Handler, *cms.PostStore) {
 	// 起動処理と同じ登録・初期化・つなぎ方（app.BuildRoutes）で組み立てる
 	reg := features.NewRegistry()
 	reg.Register(site.NewFeature(logger))
-	reg.Register(cms.NewFeature(logger))
+	reg.Register(news.NewFeature(logger))
 	reg.Register(auth.NewFeature(logger))
 	for _, f := range reg.All() {
 		if err := f.Init(s.DB()); err != nil {
@@ -52,7 +52,7 @@ func newSiteCMSRoutes(t *testing.T) (http.Handler, *cms.PostStore) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	posts := cms.NewPostStore(s.DB())
+	posts := news.NewPostStore(s.DB())
 	id, _ := posts.Create(context.Background(), "お知らせ", "本文")
 	_ = posts.Publish(context.Background(), id)
 	return routes, posts
@@ -60,7 +60,7 @@ func newSiteCMSRoutes(t *testing.T) (http.Handler, *cms.PostStore) {
 
 // Siteが有効なら、/・/privacy・/news が同じヘッダー・フッター（Siteのレイアウト）で描かれること。
 func TestLayout_SiteLayoutIsSharedAcrossPages(t *testing.T) {
-	routes, _ := newSiteCMSRoutes(t)
+	routes, _ := newSiteNewsRoutes(t)
 
 	for path, canonical := range map[string]string{
 		"/":        "https://example.workers.dev/",
@@ -126,9 +126,9 @@ func TestLayout_ExportUsesSiteLayout(t *testing.T) {
 }
 
 // SEO: ページごとの説明文、記事の og:type、sitemap.xml の記事、公開ページのキャッシュ、favicon。
-// 不変条件: CMS-INV-1
+// 不変条件: NEWS-INV-1
 func TestSEO_PerPageMetaSitemapCacheAndFavicon(t *testing.T) {
-	routes, posts := newSiteCMSRoutes(t)
+	routes, posts := newSiteNewsRoutes(t)
 	ctx := context.Background()
 	long := strings.Repeat("あ", 130)
 	articleID, _ := posts.Create(ctx, "長い記事", "一行目\n\n"+long)
@@ -203,22 +203,22 @@ func TestSEO_BasePrivacyIsNotCached(t *testing.T) {
 	}
 }
 
-// CMSは管理者認証を前提にするため、管理者認証が無ければ起動時に止まること（add-auth を案内する）。
-// 不変条件: CMS-INV-9
-func TestBuildRoutes_CMSRequiresAuth(t *testing.T) {
-	t.Setenv("CMS_CORS_ORIGINS", "")
+// お知らせ機能は管理者認証を前提にするため、管理者認証が無ければ起動時に止まること（add-auth を案内する）。
+// 不変条件: NEWS-INV-9
+func TestBuildRoutes_NewsRequiresAuth(t *testing.T) {
+	t.Setenv("NEWS_CORS_ORIGINS", "")
 	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
 	reg := features.NewRegistry()
-	cm := cms.NewFeature(discardLogger())
+	cm := news.NewFeature(discardLogger())
 	if err := cm.Init(s.DB()); err != nil {
 		t.Fatal(err)
 	}
 	reg.Register(cm)
 	if _, err := app.BuildRoutes(s, reg, false, discardLogger()); err == nil || !strings.Contains(err.Error(), "add-auth") {
-		t.Fatalf("CMS without auth must fail with guidance: %v", err)
+		t.Fatalf("news without auth must fail with guidance: %v", err)
 	}
 }

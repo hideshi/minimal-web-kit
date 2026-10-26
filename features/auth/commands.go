@@ -71,7 +71,7 @@ func confirm(in io.Reader, out io.Writer, message string) error {
 }
 
 // runRecover は確認のうえで、パスキー・セッション・登録トークンを削除し、管理者の登録URLを表示します。
-// アカウント（呼び名・ロール）と、他の機能のデータ（CMSの記事等）は残します。
+// アカウント（呼び名・ロール）と、他の機能のデータ（お知らせの記事等）は残します。
 func runRecover(ctx context.Context, db *sql.DB, args []string, in io.Reader, out io.Writer) error {
 	cfg, err := LoadConfig(os.Getenv)
 	if err != nil {

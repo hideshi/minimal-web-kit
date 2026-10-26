@@ -1,4 +1,4 @@
-package cms
+package news
 
 import (
 	"context"
@@ -19,9 +19,9 @@ const (
 
 var (
 	// ErrNotFound は記事が存在しない（公開側では、公開中でない）ことを示します。
-	ErrNotFound = errors.New("cms: not found")
+	ErrNotFound = errors.New("news: not found")
 	// ErrInvalidInput は入力が制約を満たさないことを示します。
-	ErrInvalidInput = errors.New("cms: invalid input")
+	ErrInvalidInput = errors.New("news: invalid input")
 )
 
 // Post はお知らせ1件です。PublishedAt は一度も公開していなければゼロ値です。
@@ -80,7 +80,7 @@ func (s *PostStore) CreateWithDate(ctx context.Context, title, body string, publ
 	}
 	now := s.now().Unix()
 	res, err := s.db.ExecContext(ctx,
-		"INSERT INTO cms_posts (title, body, status, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO news_posts (title, body, status, published_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
 		title, body, statusDraft, at, now, now)
 	if err != nil {
 		return 0, err
@@ -104,7 +104,7 @@ func (s *PostStore) UpdateWithDate(ctx context.Context, id int64, title, body st
 		return err
 	}
 	return s.execOne(ctx,
-		"UPDATE cms_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ? WHERE id = ?",
+		"UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ? WHERE id = ?",
 		title, body, at, s.now().Unix(), id)
 }
 
@@ -121,18 +121,18 @@ func (s *PostStore) publishedAtArg(t time.Time) (any, error) {
 }
 
 // Publish は記事を公開します。初めて公開する場合だけ公開日時を設定し、再公開では維持します。
-// 公開日時が未来なら予約公開となり、その日時を過ぎてから公開ページ・APIに表示されます（CMS-INV-2）。
+// 公開日時が未来なら予約公開となり、その日時を過ぎてから公開ページ・APIに表示されます（NEWS-INV-2）。
 func (s *PostStore) Publish(ctx context.Context, id int64) error {
 	now := s.now().Unix()
 	return s.execOne(ctx,
-		"UPDATE cms_posts SET status = ?, published_at = COALESCE(published_at, ?), updated_at = ? WHERE id = ?",
+		"UPDATE news_posts SET status = ?, published_at = COALESCE(published_at, ?), updated_at = ? WHERE id = ?",
 		statusPublished, now, now, id)
 }
 
 // Unpublish は記事を下書きに戻します。公開日時は維持します。
 func (s *PostStore) Unpublish(ctx context.Context, id int64) error {
 	return s.execOne(ctx,
-		"UPDATE cms_posts SET status = ?, updated_at = ? WHERE id = ?",
+		"UPDATE news_posts SET status = ?, updated_at = ? WHERE id = ?",
 		statusDraft, s.now().Unix(), id)
 }
 
@@ -146,29 +146,29 @@ func (s *PostStore) SetPublishedAt(ctx context.Context, id int64, at time.Time) 
 		return err
 	}
 	return s.execOne(ctx,
-		"UPDATE cms_posts SET published_at = ?, updated_at = ? WHERE id = ?",
+		"UPDATE news_posts SET published_at = ?, updated_at = ? WHERE id = ?",
 		arg, s.now().Unix(), id)
 }
 
 // Delete は記事を物理削除します。
 func (s *PostStore) Delete(ctx context.Context, id int64) error {
-	return s.execOne(ctx, "DELETE FROM cms_posts WHERE id = ?", id)
+	return s.execOne(ctx, "DELETE FROM news_posts WHERE id = ?", id)
 }
 
 // Get は公開状態にかかわらず記事を返します（管理画面用）。
 func (s *PostStore) Get(ctx context.Context, id int64) (Post, error) {
-	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ?", id)
+	return s.getOne(ctx, "SELECT "+postColumns+" FROM news_posts WHERE id = ?", id)
 }
 
-// GetPublished は公開中の記事だけを返します（公開ページ・API用）。予約公開で公開日時前の記事は含みません（CMS-INV-1）。
+// GetPublished は公開中の記事だけを返します（公開ページ・API用）。予約公開で公開日時前の記事は含みません（NEWS-INV-1）。
 func (s *PostStore) GetPublished(ctx context.Context, id int64) (Post, error) {
-	return s.getOne(ctx, "SELECT "+postColumns+" FROM cms_posts WHERE id = ? AND status = ? AND published_at <= ?", id, statusPublished, s.now().Unix())
+	return s.getOne(ctx, "SELECT "+postColumns+" FROM news_posts WHERE id = ? AND status = ? AND published_at <= ?", id, statusPublished, s.now().Unix())
 }
 
-// ListPublished は公開中の記事を新しい順に返します。予約公開で公開日時前の記事は含みません（CMS-INV-1）。
+// ListPublished は公開中の記事を新しい順に返します。予約公開で公開日時前の記事は含みません（NEWS-INV-1）。
 func (s *PostStore) ListPublished(ctx context.Context, limit, offset int) ([]Post, error) {
 	return s.list(ctx,
-		"SELECT "+postColumns+" FROM cms_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
+		"SELECT "+postColumns+" FROM news_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
 		statusPublished, s.now().Unix(), limit, offset)
 }
 
@@ -178,10 +178,10 @@ type PostRef struct {
 	UpdatedAt time.Time
 }
 
-// PublishedRefs は、公開中の記事のIDと更新日時を、新しい順に最大 limit 件返します。本文は読みません（CMS-INV-1）。
+// PublishedRefs は、公開中の記事のIDと更新日時を、新しい順に最大 limit 件返します。本文は読みません（NEWS-INV-1）。
 func (s *PostStore) PublishedRefs(ctx context.Context, limit int) ([]PostRef, error) {
 	rows, err := s.db.QueryContext(ctx,
-		"SELECT id, updated_at FROM cms_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ?",
+		"SELECT id, updated_at FROM news_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ?",
 		statusPublished, s.now().Unix(), limit)
 	if err != nil {
 		return nil, err
@@ -203,7 +203,7 @@ func (s *PostStore) PublishedRefs(ctx context.Context, limit int) ([]PostRef, er
 // ListAll は全記事を更新の新しい順に返します（管理画面用）。
 func (s *PostStore) ListAll(ctx context.Context, limit, offset int) ([]Post, error) {
 	return s.list(ctx,
-		"SELECT "+postColumns+" FROM cms_posts ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+		"SELECT "+postColumns+" FROM news_posts ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
 		limit, offset)
 }
 

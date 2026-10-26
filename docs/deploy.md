@@ -27,7 +27,7 @@ GOOS=linux GOARCH=amd64 make build
 GOOS=linux GOARCH=arm64 make build
 ```
 
-`bin/minimal-web-kit` 1本に、テンプレート・CSS・JS・マイグレーションが埋め込まれます。有効にした機能（`cmd/server/features.go` の登録）もビルド時に決まるため、Site・CMSの有効化はビルドの前に行います。
+`bin/minimal-web-kit` 1本に、テンプレート・CSS・JS・マイグレーションが埋め込まれます。有効にした機能（`cmd/server/features.go` の登録）もビルド時に決まるため、Site・お知らせ機能の有効化はビルドの前に行います。
 
 ## 3. サーバーの準備
 
@@ -60,11 +60,11 @@ TZ=Asia/Tokyo
 # Siteを有効にした場合
 CONTACT_FORM_URL=https://forms.example.com/...
 
-# 管理者認証（CMSを含む）を有効にした場合
+# 管理者認証（お知らせ機能を含む）を有効にした場合
 AUTH_ORIGIN=https://example.com
 AUTH_RP_ID=example.com
 # 別ドメインのフロントエンドからAPIを読む場合だけ（既定は許可なし）
-# CMS_CORS_ORIGINS=https://front.example.com
+# NEWS_CORS_ORIGINS=https://front.example.com
 ```
 
 - 値に空白や `&` 等の記号を含む場合は、`"..."` で囲みます（7節でシェルからも読み込むため）。
@@ -121,7 +121,7 @@ example.com {
 - ファイアウォールでは、SSHと80・443番だけを開けます。8080番は外部に開けません。
 - 大量のリクエストへの対策（レート制限等）は、キットの範囲外です。プロキシやCloudflare等で行います。
 
-## 7. 管理者のパスキーの初回登録（管理者認証・CMSを有効にした場合）
+## 7. 管理者のパスキーの初回登録（管理者認証・お知らせ機能を有効にした場合）
 
 サーバー上で、サーバーと同じ設定（同じ `DB_PATH`・`AUTH_ORIGIN`）で実行します。Goは不要です。
 
@@ -155,14 +155,14 @@ sudo install -m 0755 /tmp/minimal-web-kit /usr/local/bin/minimal-web-kit
 sudo systemctl restart minimal-web-kit
 ```
 
-テーブルの追加は起動時に自動で行います（既存のテーブル・データは変更しません）。ただし、管理者認証がアカウント導入前の版だった場合は、起動を止めてログに `auth old schema found` を出します。バックアップの後に `auth-recover -reset-schema` を7節と同じ形で実行し、表示されたURLでパスキーを登録し直してください（管理者認証の表だけを作り直し、CMSの記事等は残ります）。管理者のログイン状態は再起動後も続きますが、ログインの途中だった操作や、再起動前に開いた管理画面のフォームの送信は失敗します。ページを開き直してください。
+テーブルの追加は起動時に自動で行います（既存のテーブル・データは変更しません）。お知らせ機能の旧称「CMS」の版から更新する場合は、環境ファイルの `CMS_CORS_ORIGINS` を `NEWS_CORS_ORIGINS` に改名してください（旧名が残っていると起動を止めます）。記事の表は起動時に自動で改名し、記事は残ります。ただし、管理者認証がアカウント導入前の版だった場合は、起動を止めてログに `auth old schema found` を出します。バックアップの後に `auth-recover -reset-schema` を7節と同じ形で実行し、表示されたURLでパスキーを登録し直してください（管理者認証の表だけを作り直し、お知らせの記事等は残ります）。管理者のログイン状態は再起動後も続きますが、ログインの途中だった操作や、再起動前に開いた管理画面のフォームの送信は失敗します。ページを開き直してください。
 
 ## 10. 公開前の確認
 
 - `https://example.com/` が表示され、`http://` はHTTPSへ転送される。
 - Cookieが発行される画面（Base版の画面、管理画面のログイン後）で、Cookieに `Secure` が付いている（ブラウザの開発者ツールで確認）。
 - `http://<サーバーのIP>:8080/` に外部から接続できない。
-- 管理者認証を有効にした場合、パスキーで登録・ログインできる。CMSを有効にした場合、`/news` と `/api/news` が表示される。
+- 管理者認証を有効にした場合、パスキーで登録・ログインできる。お知らせ機能を有効にした場合、`/news` と `/api/news` が表示される。
 - DBのディレクトリが `mwk` 以外から読めない（`ls -ld /var/lib/minimal-web-kit`）。
 - プロキシ・journald・バックアップの保持期間を決めてある。
 
@@ -186,7 +186,7 @@ SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go r
 | `404.html` | 存在しないパスに返すページ。Cloudflare Workersでは `wrangler.jsonc` の `assets.not_found_handling` を `"404-page"` にすると使われます |
 | `_headers` | Goのサーバーと同じセキュリティヘッダー（CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）を全経路に付ける設定 |
 
-- CMS等、セッションや管理画面を使う機能が有効な場合は、静的にできないため書き出しを拒否します。
+- お知らせ機能等、セッションや管理画面を使う機能が有効な場合は、静的にできないため書き出しを拒否します。
 - 書き出し先に、この処理が作るもの以外のファイルがある場合も拒否します（上書き・削除しません）。
 - `CONTACT_FORM_URL` は書き出すときにHTMLへ埋め込まれます。文言や設定を変えたら、書き出し直して配信し直します。
 - アクセスの記録は配信サービス側に残ります。`/privacy` の文面を、実際に使うサービスに合わせて編集してください。

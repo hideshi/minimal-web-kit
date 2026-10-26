@@ -60,7 +60,7 @@ type CommandFeature interface {
 	Commands() []Command
 }
 
-// NavLinkFeature は、共通のナビゲーションにリンクを足す機能が実装します（例: CMSの「お知らせ」）。
+// NavLinkFeature は、共通のナビゲーションにリンクを足す機能が実装します（例: お知らせ機能の「お知らせ」）。
 // 機能を無効にすればリンクも消えるため、他の機能が「この機能があるか」を判定する必要はありません。
 type NavLinkFeature interface {
 	Feature
@@ -81,14 +81,14 @@ type LayoutFeature interface {
 	Layout() web.Layout
 }
 
-// LayoutConsumer は、公開ページをサイト全体のレイアウトで描画できる機能（例: CMSの /news）が実装します。
+// LayoutConsumer は、公開ページをサイト全体のレイアウトで描画できる機能（例: お知らせ機能の /news）が実装します。
 // 起動時に、LayoutFeature が提供するレイアウトを受け取ります（無ければ呼ばれず、自分のレイアウトを使う）。
 type LayoutConsumer interface {
 	Feature
 	SetLayout(layout web.Layout) error
 }
 
-// SitemapFeature は、sitemap.xml に載せるページ（例: CMSの公開中の記事）を持つ機能が実装します。
+// SitemapFeature は、sitemap.xml に載せるページ（例: お知らせ機能の公開中の記事）を持つ機能が実装します。
 type SitemapFeature interface {
 	Feature
 	SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error)
@@ -123,7 +123,7 @@ type AdminSession interface {
 	// CSRFToken は、管理画面のフォームに埋め込むCSRFトークンです（name="csrf_token"）。
 	CSRFToken() string
 	// PageData は、管理画面のレイアウトに渡す値（タイトル、現在のナビ、CSRFトークン、警告等）を返します。
-	// current は、ナビで現在地として示すリンク先（例: "/admin/posts"）です。
+	// current は、ナビで現在地として示すリンク先（例: "/admin/news"）です。
 	PageData(title, current string) map[string]any
 }
 
@@ -148,14 +148,14 @@ type AdminProvider interface {
 	Admin() Admin
 }
 
-// AdminConsumer は、管理画面を持つ機能（例: CMS）が実装します。起動時に、管理者認証を受け取ります。
+// AdminConsumer は、管理画面を持つ機能（例: お知らせ機能）が実装します。起動時に、管理者認証を受け取ります。
 // 管理者認証が有効でない場合は、起動時にエラーになります。
 type AdminConsumer interface {
 	Feature
 	SetAdmin(admin Admin) error
 }
 
-// AdminNavFeature は、管理画面のナビにリンク（例: CMSの「お知らせの管理」）を足す機能が実装します。
+// AdminNavFeature は、管理画面のナビにリンク（例: お知らせ機能の「お知らせの管理」）を足す機能が実装します。
 type AdminNavFeature interface {
 	Feature
 	AdminNavLinks() []web.NavLink

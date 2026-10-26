@@ -28,14 +28,14 @@ func custom() {}
 func fixture(t *testing.T, registration string) {
 	t.Helper()
 	t.Chdir(t.TempDir())
-	for _, dir := range []string{"cmd/server", "features/site", "features/cms", "features/auth", "features/custom"} {
+	for _, dir := range []string{"cmd/server", "features/site", "features/news", "features/auth", "features/custom"} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	write(t, "cmd/server/features.go", registration)
 	write(t, "features/site/site.go", bundledSiteMarker+"\npackage site\n")
-	write(t, "features/cms/cms.go", bundledCMSMarker+"\npackage cms\n")
+	write(t, "features/news/news.go", bundledNewsMarker+"\npackage news\n")
 	write(t, "features/auth/auth.go", bundledAuthMarker+"\npackage auth\n")
 	write(t, "features/custom/custom.go", "package custom\n// keep me\n")
 }
@@ -155,22 +155,22 @@ func TestToggleSiteRejectsConflictsWithoutWriting(t *testing.T) {
 	}
 }
 
-// SiteとCMSは独立して切り替えられ、互いの登録と自作コードを変更しないこと。
-func TestToggleSiteAndCMSIndependently(t *testing.T) {
+// Siteとお知らせ機能は独立して切り替えられ、互いの登録と自作コードを変更しないこと。
+func TestToggleSiteAndNewsIndependently(t *testing.T) {
 	fixture(t, baseRegistration)
 	original := read(t, "cmd/server/features.go")
 	if err := addSite(); err != nil {
 		t.Fatal(err)
 	}
-	if err := addCMS(); err != nil {
+	if err := addNews(); err != nil {
 		t.Fatal(err)
 	}
-	if err := addCMS(); err != nil {
+	if err := addNews(); err != nil {
 		t.Fatal(err)
 	}
 	both := read(t, "cmd/server/features.go")
-	// CMSを有効にすると、CMSが使う管理者認証も一緒に有効になる
-	for _, want := range []string{`"minimal-web-kit/features/site"`, "r.Register(site.NewFeature(logger))", `"minimal-web-kit/features/cms"`, "r.Register(cms.NewFeature(logger))", `"minimal-web-kit/features/auth"`, "r.Register(auth.NewFeature(logger))"} {
+	// お知らせ機能を有効にすると、お知らせ機能が使う管理者認証も一緒に有効になる
+	for _, want := range []string{`"minimal-web-kit/features/site"`, "r.Register(site.NewFeature(logger))", `"minimal-web-kit/features/news"`, "r.Register(news.NewFeature(logger))", `"minimal-web-kit/features/auth"`, "r.Register(auth.NewFeature(logger))"} {
 		if strings.Count(both, want) != 1 {
 			t.Fatalf("expected exactly one %s", want)
 		}
@@ -181,18 +181,18 @@ func TestToggleSiteAndCMSIndependently(t *testing.T) {
 	if err := removeSite(); err != nil {
 		t.Fatal(err)
 	}
-	cmsOnly := read(t, "cmd/server/features.go")
-	if strings.Contains(cmsOnly, "site.") || strings.Count(cmsOnly, "r.Register(cms.NewFeature(logger))") != 1 {
-		t.Fatal("removing Site must keep the CMS registration")
+	newsOnly := read(t, "cmd/server/features.go")
+	if strings.Contains(newsOnly, "site.") || strings.Count(newsOnly, "r.Register(news.NewFeature(logger))") != 1 {
+		t.Fatal("removing Site must keep the news registration")
 	}
-	// CMSが有効な間は、管理者認証を外せない
-	if err := removeAuth(); err == nil || !strings.Contains(err.Error(), "remove-cms") {
-		t.Fatalf("removing auth while CMS is enabled must be refused: %v", err)
+	// お知らせ機能が有効な間は、管理者認証を外せない
+	if err := removeAuth(); err == nil || !strings.Contains(err.Error(), "remove-news") {
+		t.Fatalf("removing auth while news is enabled must be refused: %v", err)
 	}
 	if !strings.Contains(read(t, "cmd/server/features.go"), "r.Register(auth.NewFeature(logger))") {
 		t.Fatal("a refused remove-auth must not change the registration")
 	}
-	if err := removeCMS(); err != nil {
+	if err := removeNews(); err != nil {
 		t.Fatal(err)
 	}
 	if err := removeAuth(); err != nil {
@@ -203,13 +203,13 @@ func TestToggleSiteAndCMSIndependently(t *testing.T) {
 	}
 }
 
-// 識別コメントのない同名のcmsディレクトリは、自作機能として扱い変更しないこと。
-func TestToggleCMSRejectsCustomDirectory(t *testing.T) {
+// 識別コメントのない同名のnewsディレクトリは、自作機能として扱い変更しないこと。
+func TestToggleNewsRejectsCustomDirectory(t *testing.T) {
 	fixture(t, baseRegistration)
-	write(t, "features/cms/cms.go", "package cms\n// user's own feature\n")
+	write(t, "features/news/news.go", "package news\n// user's own feature\n")
 	before := read(t, "cmd/server/features.go")
-	if err := addCMS(); err == nil {
-		t.Fatal("expected refusal for custom cms directory")
+	if err := addNews(); err == nil {
+		t.Fatal("expected refusal for custom news directory")
 	}
 	if read(t, "cmd/server/features.go") != before {
 		t.Fatal("refused operation changed registration")
@@ -223,7 +223,7 @@ func TestToggleKeepsGofmtFormatting(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture(t, string(formatted))
-	steps := []func() error{addCMS, addSite, removeCMS, addCMS, removeSite}
+	steps := []func() error{addNews, addSite, removeNews, addNews, removeSite}
 	for i, step := range steps {
 		if err := step(); err != nil {
 			t.Fatalf("step %d: %v", i, err)
@@ -236,7 +236,7 @@ func TestToggleKeepsGofmtFormatting(t *testing.T) {
 	if !strings.Contains(read(t, "cmd/server/features.go"), "custom code must remain unchanged") {
 		t.Fatal("custom code must be kept")
 	}
-	if err := removeCMS(); err != nil {
+	if err := removeNews(); err != nil {
 		t.Fatal(err)
 	}
 	if err := removeAuth(); err != nil {

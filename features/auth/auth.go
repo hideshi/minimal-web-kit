@@ -103,7 +103,7 @@ func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	f.registerRoutes(mux)
 }
 
-// Admin は、管理画面を持つ他の機能（例: CMS）に、ログインの確認とCSRFの守りを提供します。
+// Admin は、管理画面を持つ他の機能（例: お知らせ機能）に、ログインの確認とCSRFの守りを提供します。
 func (f *Feature) Admin() features.Admin {
 	return adminAPI{f}
 }

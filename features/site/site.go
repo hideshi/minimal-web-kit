@@ -110,7 +110,7 @@ func (f *Feature) Init(db *sql.DB) error {
 func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
 }
 
-// SetNavLinks は、有効な他の機能（例: CMSの「お知らせ」）のリンクをナビゲーションに加えます。
+// SetNavLinks は、有効な他の機能（例: お知らせ機能の「お知らせ」）のリンクをナビゲーションに加えます。
 func (f *Feature) SetNavLinks(links []web.NavLink) {
 	f.navLinks = links
 }
@@ -134,7 +134,7 @@ func (f *Feature) HandleNotFound(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Layout は、Siteのヘッダー・フッターを、Coreの画面（/privacy 等）やCMSの公開ページにも使わせます。
+// Layout は、Siteのヘッダー・フッターを、Coreの画面（/privacy 等）やお知らせ機能の公開ページにも使わせます。
 func (f *Feature) Layout() web.Layout {
 	return web.Layout{FS: viewsFS, File: "views/layout.html", Data: f.layoutData}
 }
@@ -181,7 +181,7 @@ func (f *Feature) handleRobots(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, b.String())
 }
 
-// SetSitemapSources は、sitemap.xml に載せるページを持つ機能（例: CMSの公開中の記事）を受け取ります。
+// SetSitemapSources は、sitemap.xml に載せるページを持つ機能（例: 公開中のお知らせの記事）を受け取ります。
 func (f *Feature) SetSitemapSources(sources []features.SitemapFeature) {
 	f.sitemapSources = sources
 }

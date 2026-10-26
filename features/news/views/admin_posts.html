@@ -3,7 +3,7 @@
 
 {{template "notice" .Notice}}
 
-<p><a href="/admin/posts/new" class="btn btn-primary">お知らせを作成する</a></p>
+<p><a href="/admin/news/new" class="btn btn-primary">お知らせを作成する</a></p>
 
 {{if .Posts}}
 <div class="table-container">
@@ -19,7 +19,7 @@
     <tbody>
       {{range .Posts}}
       <tr>
-        <td><a href="/admin/posts/{{.ID}}">{{.Title}}</a></td>
+        <td><a href="/admin/news/{{.ID}}">{{.Title}}</a></td>
         <td>{{if .ScheduledAt $.Now}}公開予約（<time datetime="{{.PublishedAt.Format "2006-01-02T15:04"}}">{{.PublishedAt.Format "2006年1月2日 15:04"}}</time>）{{else if .Published}}公開中{{else}}下書き{{end}}</td>
         <td><time datetime="{{.UpdatedAt.Format "2006-01-02T15:04"}}">{{.UpdatedAt.Format "2006年1月2日 15:04"}}</time></td>
       </tr>

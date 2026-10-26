@@ -1,4 +1,4 @@
-package cms
+package news
 
 import (
 	"errors"
@@ -53,12 +53,12 @@ func (f *Feature) handleAdminPosts(w http.ResponseWriter, r *http.Request, s fea
 	data := f.pageData(s, "お知らせの管理")
 	posts, err := f.posts.ListAll(r.Context(), pg.Limit(), pg.Offset())
 	if err != nil {
-		f.logger.Error("cms list posts failed", f.requestID(w))
+		f.logger.Error("news list posts failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	posts = page.Trim(&pg, posts)
-	pg.Base, pg.Label, pg.PrevText, pg.NextText = "/admin/posts", "お知らせの一覧のページ送り", "新しい更新", "過去の更新"
+	pg.Base, pg.Label, pg.PrevText, pg.NextText = "/admin/news", "お知らせの一覧のページ送り", "新しい更新", "過去の更新"
 	data["Page"] = pg
 	for i := range posts {
 		posts[i] = adminLocalTime(posts[i])
@@ -137,12 +137,12 @@ func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	if err != nil {
-		f.logger.Error("cms create post failed", f.requestID(w))
+		f.logger.Error("news create post failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	f.logger.Info("cms post created", f.requestID(w), postIDAttr(id))
-	notice.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10), "created")
+	f.logger.Info("news post created", f.requestID(w), postIDAttr(id))
+	notice.Redirect(w, r, "/admin/news/"+strconv.FormatInt(id, 10), "created")
 }
 
 const postInputError = "タイトルは1〜200文字（改行なし）、本文は5万文字以内で入力してください。制御文字は使えません。"
@@ -178,7 +178,7 @@ func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request, s f
 		return
 	}
 	if err != nil {
-		f.logger.Error("cms get post failed", f.requestID(w))
+		f.logger.Error("news get post failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -209,7 +209,7 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s fea
 		f.renderPostFormError(w, r, s, "お知らせの編集", adminLocalTime(p), pf, msg)
 		return
 	}
-	f.afterPostChange(w, r, id, err, "cms post updated", "saved")
+	f.afterPostChange(w, r, id, err, "news post updated", "saved")
 }
 
 // postAction は公開・非公開の切り替えなど、入力を伴わない操作のハンドラを作ります。
@@ -229,12 +229,12 @@ func (f *Feature) afterPostChange(w http.ResponseWriter, r *http.Request, id int
 		return
 	}
 	if err != nil {
-		f.logger.Error("cms post change failed", f.requestID(w))
+		f.logger.Error("news post change failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	f.logger.Info(event, f.requestID(w), postIDAttr(id))
-	notice.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10), key)
+	notice.Redirect(w, r, "/admin/news/"+strconv.FormatInt(id, 10), key)
 }
 
 func (f *Feature) handleDeletePostPage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
@@ -263,26 +263,26 @@ func (f *Feature) handleDeletePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	if err != nil {
-		f.logger.Error("cms delete post failed", f.requestID(w))
+		f.logger.Error("news delete post failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	f.logger.Info("cms post deleted", f.requestID(w), postIDAttr(id))
-	notice.Redirect(w, r, "/admin/posts", "deleted")
+	f.logger.Info("news post deleted", f.requestID(w), postIDAttr(id))
+	notice.Redirect(w, r, "/admin/news", "deleted")
 }
 
 func (f *Feature) registerPostAdminRoutes(mux *web.IsolatedMux) {
-	mux.HandleFunc("GET /admin/posts", f.admin.Page(f.handleAdminPosts))
-	mux.HandleFunc("GET /admin/posts/new", f.admin.Page(f.handleNewPostPage))
-	mux.HandleFunc("POST /admin/posts", f.admin.Form(f.handleCreatePost))
-	mux.HandleFunc("GET /admin/posts/{id}", f.admin.Page(f.handleEditPostPage))
-	mux.HandleFunc("POST /admin/posts/{id}", f.admin.Form(f.handleUpdatePost))
-	mux.HandleFunc("POST /admin/posts/{id}/publish", f.admin.Form(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
+	mux.HandleFunc("GET /admin/news", f.admin.Page(f.handleAdminPosts))
+	mux.HandleFunc("GET /admin/news/new", f.admin.Page(f.handleNewPostPage))
+	mux.HandleFunc("POST /admin/news", f.admin.Form(f.handleCreatePost))
+	mux.HandleFunc("GET /admin/news/{id}", f.admin.Page(f.handleEditPostPage))
+	mux.HandleFunc("POST /admin/news/{id}", f.admin.Form(f.handleUpdatePost))
+	mux.HandleFunc("POST /admin/news/{id}/publish", f.admin.Form(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
 		return s.Publish(r.Context(), id)
-	}, "cms post published", "published")))
-	mux.HandleFunc("POST /admin/posts/{id}/unpublish", f.admin.Form(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
+	}, "news post published", "published")))
+	mux.HandleFunc("POST /admin/news/{id}/unpublish", f.admin.Form(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
 		return s.Unpublish(r.Context(), id)
-	}, "cms post unpublished", "unpublished")))
-	mux.HandleFunc("GET /admin/posts/{id}/delete", f.admin.Page(f.handleDeletePostPage))
-	mux.HandleFunc("POST /admin/posts/{id}/delete", f.admin.Form(f.handleDeletePost))
+	}, "news post unpublished", "unpublished")))
+	mux.HandleFunc("GET /admin/news/{id}/delete", f.admin.Page(f.handleDeletePostPage))
+	mux.HandleFunc("POST /admin/news/{id}/delete", f.admin.Form(f.handleDeletePost))
 }

@@ -45,7 +45,7 @@ const headersFile = "_headers"
 
 // ExportStatic は、Cookieも保存データも使わない公開ページ（Siteの / と /privacy）とCSSを、
 // 静的ファイルとして dir に書き出します。セキュリティヘッダーは _headers に書き出します。
-// セッションや管理画面を使う機能（CMS等）が有効な場合は、静的にできないため拒否します。
+// セッションや管理画面を使う機能（お知らせ機能等）が有効な場合は、静的にできないため拒否します。
 func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error {
 	var root features.CustomRootFeature
 	for _, f := range reg.All() {
@@ -53,7 +53,7 @@ func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error
 			root = cr
 			continue
 		}
-		return fmt.Errorf("feature %s has pages that cannot be exported as static files; enable only Site (e.g. make remove-cms)", f.Name())
+		return fmt.Errorf("feature %s has pages that cannot be exported as static files; enable only Site (e.g. make remove-news)", f.Name())
 	}
 	if root == nil {
 		return errors.New("no static homepage to export; enable Site first (make add-site)")
