@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
-  <title>{{.Title}} - minimal-web-kit CMS</title>
+  <title>{{.Title}} - minimal-web-kit 管理画面</title>
   <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
   <link rel="icon" href="/static/img/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png">
@@ -18,15 +18,14 @@
   <header>
     <div class="site-header-inner">
       <div>
-        <div class="site-title">minimal-web-kit CMS</div>
+        <div class="site-title">minimal-web-kit</div>
         <div class="site-subtitle">管理画面</div>
       </div>
       <nav aria-label="管理画面のナビゲーション">
         {{if .LoggedIn}}
-        <a href="/admin/posts"{{if eq .Nav "posts"}} aria-current="page"{{end}}>お知らせの管理</a>
-        <a href="/admin/passkeys"{{if eq .Nav "passkeys"}} aria-current="page"{{end}}>パスキーの管理</a>
-        {{end}}
-        <a href="/news">公開中のお知らせ</a>
+        {{range .AdminNav}}<a href="{{.Href}}"{{if eq $.Current .Href}} aria-current="page"{{end}}>{{.Label}}</a>
+        {{end}}{{end}}
+        <a href="/">サイトを表示</a>
         {{if .LoggedIn}}
         <form method="post" action="/admin/logout" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
@@ -39,7 +38,7 @@
 
   <main id="main-content" class="admin-main" tabindex="-1">
     {{if .DisabledPasskeys}}
-    <p class="alert alert-warning">複製の疑いで無効化されたパスキーがあります。<a href="/admin/passkeys">パスキーの管理</a>で確認してください。心当たりがない場合は、サーバーで make cms-recover を実行し、パスキーを登録し直してください。</p>
+    <p class="alert alert-warning">複製の疑いで無効化されたパスキーがあります。<a href="/admin/passkeys">パスキーの管理</a>で確認してください。心当たりがない場合は、サーバーで make auth-recover を実行し、パスキーを登録し直してください。</p>
     {{end}}
     {{template "content" .}}
   </main>

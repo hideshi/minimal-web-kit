@@ -1,13 +1,13 @@
 package cms
 
 import (
-	"encoding/base64"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/notice"
@@ -23,9 +23,6 @@ var adminNotices = notice.Messages{
 	"published":   "お知らせを公開しました。",
 	"unpublished": "お知らせを非公開（下書き）に戻しました。",
 	"deleted":     "お知らせを削除しました。",
-	"added":       "パスキーを追加しました。",
-	"renamed":     "端末名を変更しました。",
-	"removed":     "パスキーを削除しました。ほかの端末でのログイン状態も解除しました。",
 }
 
 // postIDAttr は記事IDをログに記録します。IDはサーバーが採番した値で、利用者の入力を含みません。
@@ -47,16 +44,13 @@ func adminPostID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 
 // --- お知らせの管理 ---
 
-func (f *Feature) handleAdminPosts(w http.ResponseWriter, r *http.Request) {
+func (f *Feature) handleAdminPosts(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	pg, ok := page.Parse(r, adminPageSize, maxOffset/adminPageSize)
 	if !ok {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	data, _, ok := f.adminPage(w, r, "お知らせの管理", "posts")
-	if !ok {
-		return
-	}
+	data := f.pageData(s, "お知らせの管理")
 	posts, err := f.posts.ListAll(r.Context(), pg.Limit(), pg.Offset())
 	if err != nil {
 		f.logger.Error("cms list posts failed", f.requestID(w))
@@ -71,7 +65,7 @@ func (f *Feature) handleAdminPosts(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Posts"] = posts
 	setNotice(data, r)
-	f.renderAdmin(w, "admin_posts.html", data, false)
+	f.renderAdmin(w, "admin_posts.html", data)
 }
 
 // adminLocalTime は表示用に、日時をサーバーのタイムゾーンへ変換します。
@@ -82,14 +76,11 @@ func adminLocalTime(p Post) Post {
 	return p
 }
 
-func (f *Feature) handleNewPostPage(w http.ResponseWriter, r *http.Request) {
-	data, _, ok := f.adminPage(w, r, "お知らせの作成", "posts")
-	if !ok {
-		return
-	}
+func (f *Feature) handleNewPostPage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+	data := f.pageData(s, "お知らせの作成")
 	data["Post"] = Post{}
 	data["Form"] = postForm{}
-	f.renderAdmin(w, "admin_post_form.html", data, false)
+	f.renderAdmin(w, "admin_post_form.html", data)
 }
 
 // datetimeInputLayout は <input type="datetime-local"> の値の形式です（サーバーのタイムゾーンで解釈する）。
@@ -113,12 +104,6 @@ func (pf postForm) Fields() []form.Field {
 	}
 }
 
-// labelField は、パスキーの端末名の入力欄です。登録画面のJSは id="passkey-label" を読みます。
-func labelField(example string) form.Field {
-	return form.Field{ID: "passkey-label", Name: "label", Label: "端末名", MaxLength: maxLabelRunes, Required: true,
-		Hint: "あとで見分けるための名前です（例: " + example + "）。個人名は入れないでください。50文字以内。"}
-}
-
 func readPostForm(r *http.Request) postForm {
 	return postForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), PublishedAt: r.PostForm.Get("published_at")}
 }
@@ -139,16 +124,16 @@ func (f *Feature) parsePublishedAt(raw string) (time.Time, string) {
 	return t, ""
 }
 
-func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, session string) {
+func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	pf := readPostForm(r)
 	publishedAt, msg := f.parsePublishedAt(pf.PublishedAt)
 	if msg != "" {
-		f.renderPostFormError(w, r, "お知らせの作成", Post{}, pf, msg)
+		f.renderPostFormError(w, r, s, "お知らせの作成", Post{}, pf, msg)
 		return
 	}
 	id, err := f.posts.CreateWithDate(r.Context(), pf.Title, pf.Body, publishedAt)
 	if errors.Is(err, ErrInvalidInput) {
-		f.renderPostFormError(w, r, "お知らせの作成", Post{}, pf, postInputError)
+		f.renderPostFormError(w, r, s, "お知らせの作成", Post{}, pf, postInputError)
 		return
 	}
 	if err != nil {
@@ -164,15 +149,12 @@ const postInputError = "タイトルは1〜200文字（改行なし）、本文�
 
 // renderPostFormError は入力をそのまま戻して、修正を求めるフォームを返します。
 // p は保存済みの記事（作成時はゼロ値）で、状態の表示に使います。
-func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, title string, p Post, pf postForm, msg string) {
-	data, _, ok := f.adminPage(w, r, title, "posts")
-	if !ok {
-		return
-	}
+func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, s features.AdminSession, title string, p Post, pf postForm, msg string) {
+	data := f.pageData(s, title)
 	data["Post"] = p
 	data["Form"] = pf
 	data["Error"] = msg
-	f.renderAdminStatus(w, http.StatusBadRequest, "admin_post_form.html", data, false)
+	f.renderAdminStatus(w, http.StatusBadRequest, "admin_post_form.html", data)
 }
 
 // formFromPost は保存済みの記事から、フォームの初期値を作ります。
@@ -184,15 +166,12 @@ func formFromPost(p Post) postForm {
 	return pf
 }
 
-func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request) {
+func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	id, ok := adminPostID(w, r)
 	if !ok {
 		return
 	}
-	data, _, ok := f.adminPage(w, r, "お知らせの編集", "posts")
-	if !ok {
-		return
-	}
+	data := f.pageData(s, "お知らせの編集")
 	p, err := f.posts.Get(r.Context(), id)
 	if errors.Is(err, ErrNotFound) {
 		http.NotFound(w, r)
@@ -206,10 +185,10 @@ func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request) {
 	data["Post"] = adminLocalTime(p)
 	data["Form"] = formFromPost(p)
 	setNotice(data, r)
-	f.renderAdmin(w, "admin_post_form.html", data, false)
+	f.renderAdmin(w, "admin_post_form.html", data)
 }
 
-func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, session string) {
+func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	id, ok := adminPostID(w, r)
 	if !ok {
 		return
@@ -227,15 +206,15 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, sessi
 			http.NotFound(w, r)
 			return
 		}
-		f.renderPostFormError(w, r, "お知らせの編集", adminLocalTime(p), pf, msg)
+		f.renderPostFormError(w, r, s, "お知らせの編集", adminLocalTime(p), pf, msg)
 		return
 	}
 	f.afterPostChange(w, r, id, err, "cms post updated", "saved")
 }
 
 // postAction は公開・非公開の切り替えなど、入力を伴わない操作のハンドラを作ります。
-func (f *Feature) postAction(action func(*PostStore, *http.Request, int64) error, event, key string) func(http.ResponseWriter, *http.Request, string) {
-	return func(w http.ResponseWriter, r *http.Request, session string) {
+func (f *Feature) postAction(action func(*PostStore, *http.Request, int64) error, event, key string) func(http.ResponseWriter, *http.Request, features.AdminSession) {
+	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 		id, ok := adminPostID(w, r)
 		if !ok {
 			return
@@ -258,25 +237,22 @@ func (f *Feature) afterPostChange(w http.ResponseWriter, r *http.Request, id int
 	notice.Redirect(w, r, "/admin/posts/"+strconv.FormatInt(id, 10), key)
 }
 
-func (f *Feature) handleDeletePostPage(w http.ResponseWriter, r *http.Request) {
+func (f *Feature) handleDeletePostPage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	id, ok := adminPostID(w, r)
 	if !ok {
 		return
 	}
-	data, _, ok := f.adminPage(w, r, "お知らせの削除", "posts")
-	if !ok {
-		return
-	}
+	data := f.pageData(s, "お知らせの削除")
 	p, err := f.posts.Get(r.Context(), id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 	data["Post"] = p
-	f.renderAdmin(w, "admin_post_delete.html", data, false)
+	f.renderAdmin(w, "admin_post_delete.html", data)
 }
 
-func (f *Feature) handleDeletePost(w http.ResponseWriter, r *http.Request, session string) {
+func (f *Feature) handleDeletePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	id, ok := adminPostID(w, r)
 	if !ok {
 		return
@@ -296,124 +272,17 @@ func (f *Feature) handleDeletePost(w http.ResponseWriter, r *http.Request, sessi
 }
 
 func (f *Feature) registerPostAdminRoutes(mux *web.IsolatedMux) {
-	mux.HandleFunc("GET /admin/posts", f.handleAdminPosts)
-	mux.HandleFunc("GET /admin/posts/new", f.handleNewPostPage)
-	mux.HandleFunc("POST /admin/posts", f.adminForm(f.handleCreatePost))
-	mux.HandleFunc("GET /admin/posts/{id}", f.handleEditPostPage)
-	mux.HandleFunc("POST /admin/posts/{id}", f.adminForm(f.handleUpdatePost))
-	mux.HandleFunc("POST /admin/posts/{id}/publish", f.adminForm(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
+	mux.HandleFunc("GET /admin/posts", f.admin.Page(f.handleAdminPosts))
+	mux.HandleFunc("GET /admin/posts/new", f.admin.Page(f.handleNewPostPage))
+	mux.HandleFunc("POST /admin/posts", f.admin.Form(f.handleCreatePost))
+	mux.HandleFunc("GET /admin/posts/{id}", f.admin.Page(f.handleEditPostPage))
+	mux.HandleFunc("POST /admin/posts/{id}", f.admin.Form(f.handleUpdatePost))
+	mux.HandleFunc("POST /admin/posts/{id}/publish", f.admin.Form(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
 		return s.Publish(r.Context(), id)
 	}, "cms post published", "published")))
-	mux.HandleFunc("POST /admin/posts/{id}/unpublish", f.adminForm(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
+	mux.HandleFunc("POST /admin/posts/{id}/unpublish", f.admin.Form(f.postAction(func(s *PostStore, r *http.Request, id int64) error {
 		return s.Unpublish(r.Context(), id)
 	}, "cms post unpublished", "unpublished")))
-	mux.HandleFunc("GET /admin/posts/{id}/delete", f.handleDeletePostPage)
-	mux.HandleFunc("POST /admin/posts/{id}/delete", f.adminForm(f.handleDeletePost))
-}
-
-// --- パスキーの管理 ---
-
-// credentialParam は経路の {id}（credential IDのbase64url）を解析します。
-func credentialParam(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
-	id, err := base64.RawURLEncoding.Strict().DecodeString(r.PathValue("id"))
-	if err != nil || len(id) == 0 || len(id) > maxCredentialIDLen {
-		http.NotFound(w, r)
-		return nil, false
-	}
-	return id, true
-}
-
-// renderPasskeys はパスキー管理画面を返します。パスキーの追加にWebAuthnを使うため、認証画面と同じCSPで返します。
-func (f *Feature) renderPasskeys(w http.ResponseWriter, r *http.Request, status int, errMsg string) {
-	data, _, ok := f.adminPage(w, r, "パスキーの管理", "passkeys")
-	if !ok {
-		return
-	}
-	creds, err := f.admin.listCredentials(r.Context())
-	if err != nil {
-		f.logger.Error("cms list passkeys failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-	active := 0
-	for _, c := range creds {
-		if !c.Disabled() {
-			active++
-		}
-	}
-	data["LabelField"] = labelField("予備のセキュリティキー")
-	data["Credentials"] = creds
-	data["ActiveCount"] = active
-	data["Error"] = errMsg
-	setNotice(data, r)
-	f.renderAdminStatus(w, status, "admin_passkeys.html", data, true)
-}
-
-func (f *Feature) handlePasskeysPage(w http.ResponseWriter, r *http.Request) {
-	f.renderPasskeys(w, r, http.StatusOK, "")
-}
-
-func (f *Feature) handleRenamePasskey(w http.ResponseWriter, r *http.Request, session string) {
-	id, ok := credentialParam(w, r)
-	if !ok {
-		return
-	}
-	err := f.admin.renameCredential(r.Context(), id, r.PostForm.Get("label"))
-	switch {
-	case errors.Is(err, ErrInvalidInput):
-		f.renderPasskeys(w, r, http.StatusBadRequest, errorMessages["label_invalid"])
-	case errors.Is(err, ErrNotFound):
-		http.NotFound(w, r)
-	case err != nil:
-		f.logger.Error("cms rename passkey failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	default:
-		f.logger.Info("cms passkey renamed", f.requestID(w))
-		notice.Redirect(w, r, "/admin/passkeys", "renamed")
-	}
-}
-
-func (f *Feature) handleDeletePasskeyPage(w http.ResponseWriter, r *http.Request) {
-	id, ok := credentialParam(w, r)
-	if !ok {
-		return
-	}
-	data, _, ok := f.adminPage(w, r, "パスキーの削除", "passkeys")
-	if !ok {
-		return
-	}
-	c, err := f.admin.getCredentialInfo(r.Context(), id)
-	if err != nil {
-		http.NotFound(w, r)
-		return
-	}
-	data["Credential"] = c
-	f.renderAdmin(w, "admin_passkey_delete.html", data, false)
-}
-
-func (f *Feature) handleDeletePasskey(w http.ResponseWriter, r *http.Request, session string) {
-	id, ok := credentialParam(w, r)
-	if !ok {
-		return
-	}
-	err := f.admin.deleteCredential(r.Context(), id, session)
-	switch {
-	case errors.Is(err, ErrLastCredential):
-		f.renderPasskeys(w, r, http.StatusConflict, "最後の有効なパスキーは削除できません。先に別のパスキーを追加してください。")
-	case errors.Is(err, ErrNotFound):
-		http.NotFound(w, r)
-	case err != nil:
-		f.logger.Error("cms delete passkey failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-	default:
-		f.logger.Info("cms passkey deleted", f.requestID(w))
-		notice.Redirect(w, r, "/admin/passkeys", "removed")
-	}
-}
-
-func (f *Feature) registerPasskeyAdminRoutes(mux *web.IsolatedMux) {
-	mux.HandleFunc("GET /admin/passkeys", f.handlePasskeysPage)
-	mux.HandleFunc("POST /admin/passkeys/{id}/label", f.adminForm(f.handleRenamePasskey))
-	mux.HandleFunc("GET /admin/passkeys/{id}/delete", f.handleDeletePasskeyPage)
-	mux.HandleFunc("POST /admin/passkeys/{id}/delete", f.adminForm(f.handleDeletePasskey))
+	mux.HandleFunc("GET /admin/posts/{id}/delete", f.admin.Page(f.handleDeletePostPage))
+	mux.HandleFunc("POST /admin/posts/{id}/delete", f.admin.Form(f.handleDeletePost))
 }

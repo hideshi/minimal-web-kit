@@ -1,6 +1,8 @@
 # CMSテンプレート 実装計画
 
 > 呼び方の注記: この計画の作成時は「CMSテンプレート」と呼んでいた。現在は同梱機能の「CMS（お知らせ機能）」と呼ぶ。識別コメントも `// minimal-web-kit: bundled-feature cms` に変わっている。
+>
+> 構成の注記: パスキーによる管理者のログイン（WebAuthnの検証、管理者セッション、登録トークン、`cms-setup`／`cms-recover`）は、のちに同梱機能の管理者認証（`features/auth`）として切り出した。現在のテーブル名は `auth_*`、Cookieは `admin_session`、コマンドは `auth-setup`／`auth-recover`、設定は `AUTH_ORIGIN`／`AUTH_RP_ID` である。
 
 最終更新: 2026-10-25（Fable（claude-fable-5-1）のレビュー、challenge・端末固定の認証器・異常時の案内・Origin検査・実機確認に関する利用者の決定を反映）
 

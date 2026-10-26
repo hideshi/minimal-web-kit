@@ -1,4 +1,4 @@
-package cms
+package auth
 
 import (
 	"context"
@@ -47,7 +47,7 @@ func TestAdminSession_IdleAndAbsoluteExpiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stored string
-	if err := db.QueryRow("SELECT token_hash FROM cms_admin_sessions").Scan(&stored); err != nil || stored == token || stored != hashToken(token) {
+	if err := db.QueryRow("SELECT token_hash FROM auth_sessions").Scan(&stored); err != nil || stored == token || stored != hashToken(token) {
 		t.Fatal("only the SHA-256 hash of the token must be stored")
 	}
 	if err := s.validateSession(ctx, token); err != nil {
@@ -69,7 +69,7 @@ func TestAdminSession_IdleAndAbsoluteExpiry(t *testing.T) {
 	if err := s.validateSession(ctx, token); !errors.Is(err, ErrSessionInvalid) {
 		t.Fatal("absolute expiry must apply")
 	}
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_admin_sessions", 0)
+	assertRows(t, db, "SELECT COUNT(*) FROM auth_sessions", 0)
 
 	// 無操作で2時間を過ぎると失効する
 	idle, err := s.createSession(ctx)
@@ -97,7 +97,7 @@ func TestAdminSession_DeleteAndDeleteOthers(t *testing.T) {
 	if err := s.deleteSession(ctx, b); err != nil {
 		t.Fatal(err)
 	}
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_admin_sessions", 0)
+	assertRows(t, db, "SELECT COUNT(*) FROM auth_sessions", 0)
 }
 
 func TestSetup_IssuesTokenOnlyWithoutPasskeys(t *testing.T) {
@@ -123,7 +123,7 @@ func TestSetup_IssuesTokenOnlyWithoutPasskeys(t *testing.T) {
 		t.Fatal("checking must not consume the token")
 	}
 	var stored string
-	if err := db.QueryRow("SELECT token_hash FROM cms_setup_tokens").Scan(&stored); err != nil || stored == second {
+	if err := db.QueryRow("SELECT token_hash FROM auth_setup_tokens").Scan(&stored); err != nil || stored == second {
 		t.Fatal("only the hash of the setup token must be stored")
 	}
 
@@ -170,7 +170,7 @@ func TestSetupToken_SingleUseExpiryAndAtomicity(t *testing.T) {
 	if successes != 1 {
 		t.Fatalf("expected exactly one registration, got %d", successes)
 	}
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_credentials", 1)
+	assertRows(t, db, "SELECT COUNT(*) FROM auth_credentials", 1)
 
 	// 期限切れのトークンは使えない
 	expired, err := Recover(ctx, db, clock.now())
@@ -252,7 +252,7 @@ func TestCredentials_DisableRevokesAllSessions(t *testing.T) {
 	if err := s.disableCredential(ctx, c.ID); err != nil {
 		t.Fatal(err)
 	}
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_admin_sessions", 0)
+	assertRows(t, db, "SELECT COUNT(*) FROM auth_sessions", 0)
 	if _, err := s.getCredential(ctx, c.ID); !errors.Is(err, ErrCredentialUnavailable) {
 		t.Fatal("disabled credential must be unavailable")
 	}
@@ -264,11 +264,11 @@ func TestCredentials_DisableRevokesAllSessions(t *testing.T) {
 	}
 }
 
-func TestRecover_ClearsAuthStateButKeepsPosts(t *testing.T) {
+// 復旧では、管理者認証のデータだけを消し、他の機能のデータ（例: CMSの記事）は残すこと。
+func TestRecover_ClearsAuthStateButKeepsOtherData(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
-	postID, err := NewPostStore(db).Create(ctx, "keep", "")
-	if err != nil {
+	if _, err := db.Exec("CREATE TABLE other_data (v TEXT); INSERT INTO other_data VALUES ('keep')"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.addCredential(ctx, testCredential("lost"), "lost key"); err != nil {
@@ -284,7 +284,7 @@ func TestRecover_ClearsAuthStateButKeepsPosts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_credentials", 0)
+	assertRows(t, db, "SELECT COUNT(*) FROM auth_credentials", 0)
 	if s.validateSession(ctx, session) == nil {
 		t.Fatal("recovery must revoke admin sessions")
 	}
@@ -298,9 +298,7 @@ func TestRecover_ClearsAuthStateButKeepsPosts(t *testing.T) {
 	if len(newUserID) != 16 || string(newUserID) == string(oldUserID) {
 		t.Fatal("recovery must regenerate the WebAuthn user id")
 	}
-	if _, err := NewPostStore(db).Get(ctx, postID); err != nil {
-		t.Fatal("recovery must keep posts")
-	}
+	assertRows(t, db, "SELECT COUNT(*) FROM other_data", 1)
 }
 
 func TestSetupURL_UsesFragment(t *testing.T) {
@@ -318,5 +316,20 @@ func TestLabel_Validation(t *testing.T) {
 	}
 	if got, err := normalizeLabel("  Windows Hello  "); err != nil || got != "Windows Hello" {
 		t.Fatal(got, err)
+	}
+}
+
+func TestMigrate_IdempotentAndKeepsUserID(t *testing.T) {
+	_, db := newTestDB(t)
+	var userID []byte
+	if err := db.QueryRow("SELECT webauthn_user_id FROM auth_settings WHERE id = 1").Scan(&userID); err != nil || len(userID) != 16 {
+		t.Fatalf("webauthn user id: %v len=%d", err, len(userID))
+	}
+	if err := Migrate(db); err != nil {
+		t.Fatal(err)
+	}
+	var again []byte
+	if err := db.QueryRow("SELECT webauthn_user_id FROM auth_settings WHERE id = 1").Scan(&again); err != nil || string(again) != string(userID) {
+		t.Fatal("re-running the migration must keep the WebAuthn user id")
 	}
 }

@@ -13,7 +13,6 @@ import (
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
-	"minimal-web-kit/internal/web"
 )
 
 // staticPages は書き出す経路と、書き出し先のファイル名です。
@@ -61,26 +60,8 @@ func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error
 	}
 
 	// DBを使わない。公開ページは保存データに触れないため、メモリ上のストアで足りる。
-	mem := store.NewMemoryStore()
-	sm := web.NewSessionManager(mem, false)
-	h, err := web.NewHandler(mem, sm, logger)
-	if err != nil {
-		return err
-	}
-	// Siteのレイアウトで /privacy 等も描く（サーバーと同じ見た目にする）
-	if lf, ok := root.(features.LayoutFeature); ok {
-		if err := h.SetLayout(lf.Layout()); err != nil {
-			return err
-		}
-	}
-	routes, err := h.RoutesWithIsolated(root.HandleRoot, func(mux *http.ServeMux, sm *web.SessionManager) {
-		root.RegisterRoutes(mux, sm)
-	}, func(mux *web.IsolatedMux) {
-		// Siteの robots.txt・sitemap.xml 等。書き出すのは staticPages の経路だけ
-		if iso, ok := root.(features.IsolatedRoutesFeature); ok {
-			iso.RegisterIsolatedRoutes(mux)
-		}
-	})
+	// 経路は起動時と同じつなぎ方（BuildRoutes）で作り、Goのサーバーと中身がずれないようにする。
+	routes, err := BuildRoutes(store.NewMemoryStore(), reg, false, logger)
 	if err != nil {
 		return err
 	}

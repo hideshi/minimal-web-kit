@@ -1,4 +1,4 @@
-package cms
+package auth
 
 import (
 	"bufio"
@@ -17,12 +17,12 @@ import (
 
 // Commands は、サーバーの実行ファイルから実行できるCMSの運用コマンドを返します。
 //
-//	minimal-web-kit cms-setup          パスキーが未登録のときだけ、初回登録用のURLを表示する
-//	minimal-web-kit cms-recover [-yes] パスキー・管理者セッションを全削除し、登録用のURLを再発行する
+//	minimal-web-kit auth-setup          パスキーが未登録のときだけ、初回登録用のURLを表示する
+//	minimal-web-kit auth-recover [-yes] パスキー・管理者セッションを全削除し、登録用のURLを再発行する
 func (f *Feature) Commands() []features.Command {
 	return []features.Command{
-		{Name: "cms-setup", Summary: "Print a one-time URL to register the first CMS passkey", Run: runSetup},
-		{Name: "cms-recover", Summary: "Delete all CMS passkeys and admin sessions, then print a new registration URL (-yes skips the confirmation)", Run: runRecover},
+		{Name: "auth-setup", Summary: "Print a one-time URL to register the first CMS passkey", Run: runSetup},
+		{Name: "auth-recover", Summary: "Delete all CMS passkeys and admin sessions, then print a new registration URL (-yes skips the confirmation)", Run: runRecover},
 	}
 }
 
@@ -42,7 +42,7 @@ func runSetup(ctx context.Context, db *sql.DB, args []string, in io.Reader, out 
 	}
 	token, err := Setup(ctx, db, time.Now())
 	if errors.Is(err, ErrAlreadySetUp) {
-		return fmt.Errorf("passkeys are already registered; add passkeys from the admin screen, or run cms-recover if you lost them")
+		return fmt.Errorf("passkeys are already registered; add passkeys from the admin screen, or run auth-recover if you lost them")
 	} else if err != nil {
 		return err
 	}

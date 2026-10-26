@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"minimal-web-kit/features/auth"
 	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
@@ -35,6 +36,7 @@ func (s *lookupStore) CreateSession(ctx context.Context, hash string, owner doma
 }
 
 type publicFixture struct {
+	t       *testing.T
 	feature *Feature
 	db      *sql.DB
 	routes  http.Handler
@@ -55,17 +57,31 @@ func newPublicFixture(t *testing.T, corsOrigins string) *publicFixture {
 	if err := f.Init(db); err != nil {
 		t.Fatal(err)
 	}
+	// 管理画面のために、起動処理と同じ形で管理者認証を組み込む
+	t.Setenv("AUTH_ORIGIN", "")
+	t.Setenv("AUTH_RP_ID", "")
+	admin := auth.NewFeature(logger)
+	if err := admin.Init(db); err != nil {
+		t.Fatal(err)
+	}
+	admin.SetAdminNavLinks(f.AdminNavLinks())
+	if err := f.SetAdmin(admin.Admin()); err != nil {
+		t.Fatal(err)
+	}
 	core := &lookupStore{SessionStore: sqlite}
 	sm := web.NewSessionManager(core, false)
 	h, err := web.NewHandler(core, sm, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	routes, err := h.RoutesWithIsolated(nil, f.RegisterRoutes, f.RegisterIsolatedRoutes)
+	routes, err := h.RoutesWithIsolated(nil, f.RegisterRoutes, func(mux *web.IsolatedMux) {
+		admin.RegisterIsolatedRoutes(mux)
+		f.RegisterIsolatedRoutes(mux)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &publicFixture{feature: f, db: db, routes: routes, posts: f.posts, core: core, sm: sm, logs: logs}
+	return &publicFixture{t: t, feature: f, db: db, routes: routes, posts: f.posts, core: core, sm: sm, logs: logs}
 }
 
 func (fx *publicFixture) do(t *testing.T, method, target string, headers map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {

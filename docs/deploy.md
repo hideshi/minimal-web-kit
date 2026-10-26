@@ -60,16 +60,16 @@ TZ=Asia/Tokyo
 # Siteを有効にした場合
 CONTACT_FORM_URL=https://forms.example.com/...
 
-# CMSを有効にした場合
-CMS_ORIGIN=https://example.com
-CMS_RP_ID=example.com
+# 管理者認証（CMSを含む）を有効にした場合
+AUTH_ORIGIN=https://example.com
+AUTH_RP_ID=example.com
 # 別ドメインのフロントエンドからAPIを読む場合だけ（既定は許可なし）
 # CMS_CORS_ORIGINS=https://front.example.com
 ```
 
 - 値に空白や `&` 等の記号を含む場合は、`"..."` で囲みます（7節でシェルからも読み込むため）。
 - 待受は既定の `127.0.0.1:8080` のままにします。外部からの接続はリバースプロキシだけが受けます。`ADDR` で `127.0.0.1` 以外に変える場合は、承認が必要です。
-- `CMS_ORIGIN` が https で `SECURE_COOKIE=true` でない場合、`CMS_RP_ID` が `CMS_ORIGIN` のホストと合わない場合は、起動時にエラーで止まります。
+- `AUTH_ORIGIN` が https で `SECURE_COOKIE=true` でない場合、`AUTH_RP_ID` が `AUTH_ORIGIN` のホストと合わない場合は、起動時にエラーで止まります。
 
 ## 5. 常駐させる（systemd）
 
@@ -121,15 +121,15 @@ example.com {
 - ファイアウォールでは、SSHと80・443番だけを開けます。8080番は外部に開けません。
 - 大量のリクエストへの対策（レート制限等）は、キットの範囲外です。プロキシやCloudflare等で行います。
 
-## 7. CMSの初回登録
+## 7. 管理者のパスキーの初回登録（管理者認証・CMSを有効にした場合）
 
-サーバー上で、サーバーと同じ設定（同じ `DB_PATH`・`CMS_ORIGIN`）で実行します。Goは不要です。
+サーバー上で、サーバーと同じ設定（同じ `DB_PATH`・`AUTH_ORIGIN`）で実行します。Goは不要です。
 
 ```sh
-sudo -u mwk sh -c 'set -a; . /etc/minimal-web-kit/env; exec /usr/local/bin/minimal-web-kit cms-setup'
+sudo -u mwk sh -c 'set -a; . /etc/minimal-web-kit/env; exec /usr/local/bin/minimal-web-kit auth-setup'
 ```
 
-表示された `https://example.com/admin/setup#token=...` を15分以内に開き、パスキーを登録します。パスキーをすべて失った場合は、同じ形で `cms-recover` を実行します（確認の入力あり）。サーバーの稼働中に実行して構いません。
+表示された `https://example.com/admin/setup#token=...` を15分以内に開き、パスキーを登録します。パスキーをすべて失った場合は、同じ形で `auth-recover` を実行します（確認の入力あり）。サーバーの稼働中に実行して構いません。
 
 ## 8. バックアップ
 
@@ -153,14 +153,14 @@ sudo install -m 0755 /tmp/minimal-web-kit /usr/local/bin/minimal-web-kit
 sudo systemctl restart minimal-web-kit
 ```
 
-テーブルの追加は起動時に自動で行います（既存のテーブル・データは変更しません）。CMSのログイン状態は再起動後も続きますが、ログインの途中だった操作や、再起動前に開いた管理画面のフォームの送信は失敗します。ページを開き直してください。
+テーブルの追加は起動時に自動で行います（既存のテーブル・データは変更しません）。管理者のログイン状態は再起動後も続きますが、ログインの途中だった操作や、再起動前に開いた管理画面のフォームの送信は失敗します。ページを開き直してください。
 
 ## 10. 公開前の確認
 
 - `https://example.com/` が表示され、`http://` はHTTPSへ転送される。
-- Cookieが発行される画面（Base版の画面、CMSのログイン後）で、Cookieに `Secure` が付いている（ブラウザの開発者ツールで確認）。
+- Cookieが発行される画面（Base版の画面、管理画面のログイン後）で、Cookieに `Secure` が付いている（ブラウザの開発者ツールで確認）。
 - `http://<サーバーのIP>:8080/` に外部から接続できない。
-- CMSを有効にした場合、パスキーで登録・ログインでき、`/news` と `/api/news` が表示される。
+- 管理者認証を有効にした場合、パスキーで登録・ログインできる。CMSを有効にした場合、`/news` と `/api/news` が表示される。
 - DBのディレクトリが `mwk` 以外から読めない（`ls -ld /var/lib/minimal-web-kit`）。
 - プロキシ・journald・バックアップの保持期間を決めてある。
 

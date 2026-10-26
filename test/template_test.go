@@ -13,7 +13,7 @@ var inlineEventHandlerPattern = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
 // approvedScriptTag は、利用者が承認したJavaScriptの唯一の読み込み方です（AGENTS.mdの承認境界#4）。
 const approvedScriptTag = `<script src="/admin/static/webauthn.js" defer></script>`
 
-// allowedScriptTemplates は approvedScriptTag を含められる、CMSの認証画面のテンプレートです。
+// allowedScriptTemplates は approvedScriptTag を含められる、管理者認証の画面のテンプレートです。
 var allowedScriptTemplates = map[string]bool{
 	"admin_setup.html":    true,
 	"admin_login.html":    true,
@@ -38,8 +38,8 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(found) != 1 || found[0] != "../features/cms/static/webauthn.js" {
-		t.Fatalf("only features/cms/static/webauthn.js is approved, found %v", found)
+	if len(found) != 1 || found[0] != "../features/auth/static/webauthn.js" {
+		t.Fatalf("only features/auth/static/webauthn.js is approved, found %v", found)
 	}
 }
 
@@ -70,8 +70,8 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 		if strings.Contains(str, "<style") {
 			t.Errorf("<style> tag found in %s. Styles must be defined in style.css.", file)
 		}
-		// 承認済みの例外: CMSの認証画面だけ、自サイトの webauthn.js を外部ファイルとして1つ読み込める。
-		if allowedScriptTemplates[filepath.Base(file)] && strings.Contains(file, filepath.Join("features", "cms", "views")) {
+		// 承認済みの例外: 管理者認証の画面だけ、自サイトの webauthn.js を外部ファイルとして1つ読み込める。
+		if allowedScriptTemplates[filepath.Base(file)] && strings.Contains(file, filepath.Join("features", "auth", "views")) {
 			if strings.Count(str, "<script") != 1 || strings.Count(str, approvedScriptTag) != 1 {
 				t.Errorf("%s may contain only %s", file, approvedScriptTag)
 			}

@@ -34,12 +34,24 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Successfully disabled Site (LP template) feature! Site registration is disabled; feature directories were not modified.")
+	case "add-auth":
+		if err := addAuth(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling auth feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled admin authentication (passkey) feature! Run 'make auth-setup' to register the first passkey.")
+	case "remove-auth":
+		if err := removeAuth(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling auth feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully disabled admin authentication feature! Stored passkeys were not modified.")
 	case "add-cms":
 		if err := addCMS(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling cms feature: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("Successfully enabled CMS (news) feature! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
+		fmt.Println("Successfully enabled CMS (news) feature together with admin authentication! Run 'go test ./...' or 'go run ./cmd/server' to try it.")
 	case "remove-cms":
 		if err := removeCMS(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error disabling cms feature: %v\n", err)
@@ -60,11 +72,13 @@ func printUsage() {
 	fmt.Println("Commands:")
 	fmt.Println("  add-site     Enable the Site (LP template) feature in cmd/server/features.go")
 	fmt.Println("  remove-site  Disable the Site (LP template) feature registration")
-	fmt.Println("  add-cms      Enable the CMS (news) feature in cmd/server/features.go")
+	fmt.Println("  add-auth     Enable the admin authentication (passkey) feature")
+	fmt.Println("  remove-auth  Disable admin authentication (refused while CMS is enabled; stored passkeys are kept)")
+	fmt.Println("  add-cms      Enable the CMS (news) feature, together with admin authentication")
 	fmt.Println("  remove-cms   Disable the CMS (news) feature registration (stored data is kept)")
 	fmt.Println()
-	fmt.Println("CMS passkey setup and recovery are subcommands of the server binary:")
-	fmt.Println("  go run ./cmd/server cms-setup   (or: ./bin/minimal-web-kit cms-setup)")
+	fmt.Println("Passkey setup and recovery are subcommands of the server binary:")
+	fmt.Println("  go run ./cmd/server auth-setup   (or: ./bin/minimal-web-kit auth-setup)")
 }
 
 // bundle は登録を切り替えられる同梱機能です。
@@ -78,18 +92,43 @@ type bundle struct {
 const (
 	bundledSiteMarker = "// minimal-web-kit: bundled-feature site"
 	bundledCMSMarker  = "// minimal-web-kit: bundled-feature cms"
+	bundledAuthMarker = "// minimal-web-kit: bundled-feature auth"
 )
 
 var (
 	siteBundle = bundle{name: "site", label: "Site", marker: bundledSiteMarker}
 	cmsBundle  = bundle{name: "cms", label: "CMS", marker: bundledCMSMarker}
+	authBundle = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
 )
 
 func addSite() error               { return toggleSite(true) }
 func removeSite() error            { return toggleSite(false) }
 func toggleSite(enable bool) error { return toggleBundle(siteBundle, enable) }
-func addCMS() error                { return toggleBundle(cmsBundle, true) }
-func removeCMS() error             { return toggleBundle(cmsBundle, false) }
+func addAuth() error               { return toggleBundle(authBundle, true) }
+
+// addCMS は、CMSが使う管理者認証も一緒に有効にします。CMSのソースを先に確認し、拒否する場合は何も変えません。
+func addCMS() error {
+	if err := verifyBundle(cmsBundle); err != nil {
+		return err
+	}
+	if err := toggleBundle(authBundle, true); err != nil {
+		return err
+	}
+	return toggleBundle(cmsBundle, true)
+}
+
+// removeAuth は、管理者認証を使う機能（CMS）が有効な間は拒否します。
+func removeAuth() error {
+	registration, err := os.ReadFile("cmd/server/features.go")
+	if err != nil {
+		return err
+	}
+	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+cmsBundle.name)) {
+		return fmt.Errorf("CMS uses admin authentication; run remove-cms first")
+	}
+	return toggleBundle(authBundle, false)
+}
+func removeCMS() error { return toggleBundle(cmsBundle, false) }
 
 // 実体を確認できない同名ディレクトリと、シンボリックリンクは操作しない。
 func regularPath(path string, directory bool) error {
@@ -103,7 +142,8 @@ func regularPath(path string, directory bool) error {
 	return nil
 }
 
-func toggleBundle(b bundle, enable bool) error {
+// verifyBundle は、features/<name>/ が同梱機能の元のソースとして識別できるかを確認します。
+func verifyBundle(b bundle) error {
 	dir := "features/" + b.name
 	sourcePath := dir + "/" + b.name + ".go"
 	for _, d := range []string{"features", dir, "cmd", "cmd/server"} {
@@ -126,6 +166,13 @@ func toggleBundle(b bundle, enable bool) error {
 		return fmt.Errorf("bundled %s source is invalid", b.label)
 	}
 
+	return nil
+}
+
+func toggleBundle(b bundle, enable bool) error {
+	if err := verifyBundle(b); err != nil {
+		return err
+	}
 	const path = "cmd/server/features.go"
 	if err := regularPath(path, false); err != nil {
 		return err

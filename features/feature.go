@@ -45,7 +45,7 @@ type PurgeFeature interface {
 	Purge(ctx context.Context) error
 }
 
-// Command は、サーバーの実行ファイルのサブコマンドです（例: minimal-web-kit cms-setup）。
+// Command は、サーバーの実行ファイルのサブコマンドです（例: minimal-web-kit auth-setup）。
 // 本番サーバーにGoを入れずに、運用の操作を実行できるようにします。
 // サブコマンドの実行時は Init を呼ばないため、必要なマイグレーションや設定の検証はRunの中で行います。
 type Command struct {
@@ -98,6 +98,51 @@ type SitemapFeature interface {
 type SitemapConsumer interface {
 	Feature
 	SetSitemapSources(sources []SitemapFeature)
+}
+
+// AdminSession は、ログイン中の管理者の要求に付く情報です（同梱機能の管理者認証 features/auth が作る）。
+type AdminSession interface {
+	// CSRFToken は、管理画面のフォームに埋め込むCSRFトークンです（name="csrf_token"）。
+	CSRFToken() string
+	// PageData は、管理画面のレイアウトに渡す値（タイトル、現在のナビ、CSRFトークン、警告等）を返します。
+	// current は、ナビで現在地として示すリンク先（例: "/admin/posts"）です。
+	PageData(title, current string) map[string]any
+}
+
+// Admin は、管理者認証（features/auth）が、管理画面を持つ他の機能に提供する口です。
+// 他の機能は、管理者のログイン・セッション・CSRFを自分で実装せず、これを使います。
+type Admin interface {
+	// Page は、管理者だけが見られる画面（GET）を守ります。未ログインならログイン画面へ移します。
+	Page(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
+	// Form は、管理者のフォーム送信（POST）を守ります。同一オリジン・セッション・CSRFトークンを確認します。
+	Form(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
+	// Layout は、管理画面のレイアウト（ヘッダーのナビ、ログアウト、警告）です。
+	Layout() web.Layout
+}
+
+// AdminProvider は、管理者認証を提供する機能（features/auth）が実装します。
+type AdminProvider interface {
+	Feature
+	Admin() Admin
+}
+
+// AdminConsumer は、管理画面を持つ機能（例: CMS）が実装します。起動時に、管理者認証を受け取ります。
+// 管理者認証が有効でない場合は、起動時にエラーになります。
+type AdminConsumer interface {
+	Feature
+	SetAdmin(admin Admin) error
+}
+
+// AdminNavFeature は、管理画面のナビにリンク（例: CMSの「お知らせの管理」）を足す機能が実装します。
+type AdminNavFeature interface {
+	Feature
+	AdminNavLinks() []web.NavLink
+}
+
+// AdminNavConsumer は、管理画面のナビを描く機能（features/auth）が実装します。
+type AdminNavConsumer interface {
+	Feature
+	SetAdminNavLinks(links []web.NavLink)
 }
 
 // Registry は有効化されている全機能のリストを保持します。

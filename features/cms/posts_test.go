@@ -34,16 +34,8 @@ func TestMigrate_IdempotentAndKeepsData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var userID []byte
-	if err := db.QueryRow("SELECT webauthn_user_id FROM cms_settings WHERE id = 1").Scan(&userID); err != nil || len(userID) != 16 {
-		t.Fatalf("webauthn user id: %v len=%d", err, len(userID))
-	}
 	if err := Migrate(db); err != nil {
 		t.Fatal(err)
-	}
-	var again []byte
-	if err := db.QueryRow("SELECT webauthn_user_id FROM cms_settings WHERE id = 1").Scan(&again); err != nil || string(again) != string(userID) {
-		t.Fatal("re-running the migration must keep the WebAuthn user id")
 	}
 	if _, err := posts.Get(context.Background(), id); err != nil {
 		t.Fatal("re-running the migration must keep posts")
@@ -210,36 +202,14 @@ func TestPostStore_RejectsInvalidInput(t *testing.T) {
 	}
 }
 
-// Purgeは期限切れの管理者セッションと使用済み・期限切れトークンだけを削除し、記事・パスキーを残すこと。
-// CoreのセッションGCとセッション破棄でも、CMSのデータが消えないこと。
-func TestPurge_KeepsContentAndCoreGCIndependent(t *testing.T) {
+// CoreのセッションGCとセッション破棄でも、CMSの記事が消えないこと。
+func TestCoreSessionGC_KeepsPosts(t *testing.T) {
 	ctx := context.Background()
 	s, db := newTestDB(t)
-	f := &Feature{db: db, now: time.Now}
-	now := time.Now()
-
 	postID, err := NewPostStore(db).Create(ctx, "keep", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	mustExec(t, db, "INSERT INTO cms_credentials (id, public_key, alg, label, created_at) VALUES (x'01', x'02', -7, 'key', ?)", now.Unix())
-	mustExec(t, db, "INSERT INTO cms_admin_sessions VALUES ('active', ?, ?, ?)", now.Unix(), now.Unix(), now.Add(time.Hour).Unix())
-	mustExec(t, db, "INSERT INTO cms_admin_sessions VALUES ('idle', ?, ?, ?)", now.Unix(), now.Add(-3*time.Hour).Unix(), now.Add(time.Hour).Unix())
-	mustExec(t, db, "INSERT INTO cms_admin_sessions VALUES ('expired', ?, ?, ?)", now.Unix(), now.Unix(), now.Add(-time.Second).Unix())
-	mustExec(t, db, "INSERT INTO cms_setup_tokens VALUES ('valid', ?, NULL)", now.Add(time.Minute).Unix())
-	mustExec(t, db, "INSERT INTO cms_setup_tokens VALUES ('used', ?, ?)", now.Add(time.Minute).Unix(), now.Unix())
-	mustExec(t, db, "INSERT INTO cms_setup_tokens VALUES ('old', ?, NULL)", now.Add(-time.Minute).Unix())
-
-	if err := f.Purge(ctx); err != nil {
-		t.Fatal(err)
-	}
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_admin_sessions", 1)
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_admin_sessions WHERE token_hash = 'active'", 1)
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_setup_tokens", 1)
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_setup_tokens WHERE token_hash = 'valid'", 1)
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_credentials", 1)
-
-	// Coreの匿名セッションの破棄・GCは、CMSのデータに影響しない
 	owner := domain.OwnerID("owner-x")
 	if err := s.CreateSession(ctx, "core-hash", owner); err != nil {
 		t.Fatal(err)
@@ -253,7 +223,6 @@ func TestPurge_KeepsContentAndCoreGCIndependent(t *testing.T) {
 	if _, err := NewPostStore(db).Get(ctx, postID); err != nil {
 		t.Fatal("Core session deletion must not delete CMS posts")
 	}
-	assertRows(t, db, "SELECT COUNT(*) FROM cms_credentials", 1)
 }
 
 func mustExec(t *testing.T, db *sql.DB, query string, args ...any) {

@@ -1,4 +1,4 @@
-package cms
+package auth
 
 import (
 	"context"
@@ -19,19 +19,23 @@ import (
 
 var (
 	// ErrSessionInvalid は管理者セッションが存在しない、または失効していることを示します。
-	ErrSessionInvalid = errors.New("cms: admin session invalid")
+	ErrSessionInvalid = errors.New("auth: admin session invalid")
 	// ErrSetupTokenInvalid は登録トークンが存在しない、使用済み、または失効していることを示します。
-	ErrSetupTokenInvalid = errors.New("cms: setup token invalid")
+	ErrSetupTokenInvalid = errors.New("auth: setup token invalid")
 	// ErrCredentialExists は同じcredential IDのパスキーが登録済みであることを示します。
-	ErrCredentialExists = errors.New("cms: credential already registered")
+	ErrCredentialExists = errors.New("auth: credential already registered")
 	// ErrCredentialUnavailable はパスキーが存在しない、または無効化済みであることを示します。
-	ErrCredentialUnavailable = errors.New("cms: credential unavailable")
+	ErrCredentialUnavailable = errors.New("auth: credential unavailable")
 	// ErrSignCountConflict は並行ログインにより署名カウンタを更新できなかったことを示します。
-	ErrSignCountConflict = errors.New("cms: sign count update conflict")
+	ErrSignCountConflict = errors.New("auth: sign count update conflict")
 	// ErrAlreadySetUp はパスキーが登録済みのため、初回登録の手順を使えないことを示します。
-	ErrAlreadySetUp = errors.New("cms: passkeys already registered; use cms-recover")
+	ErrAlreadySetUp = errors.New("auth: passkeys already registered; use auth-recover")
+	// ErrNotFound はパスキーが存在しないことを示します。
+	ErrNotFound = errors.New("auth: not found")
+	// ErrInvalidInput は入力（端末名等）が制約を満たさないことを示します。
+	ErrInvalidInput = errors.New("auth: invalid input")
 	// ErrLastCredential は、最後の有効なパスキーは削除できないことを示します。
-	ErrLastCredential = errors.New("cms: cannot delete the last active passkey")
+	ErrLastCredential = errors.New("auth: cannot delete the last active passkey")
 )
 
 const maxLabelRunes = 50
@@ -69,7 +73,7 @@ func (s *adminStore) createSession(ctx context.Context) (string, error) {
 	}
 	now := s.now()
 	_, err = s.db.ExecContext(ctx,
-		"INSERT INTO cms_admin_sessions (token_hash, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?)",
+		"INSERT INTO auth_sessions (token_hash, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?)",
 		hashToken(token), now.Unix(), now.Unix(), now.Add(adminSessionMax).Unix())
 	if err != nil {
 		return "", err
@@ -86,7 +90,7 @@ func (s *adminStore) validateSession(ctx context.Context, token string) error {
 	hash := hashToken(token)
 	now := s.now()
 	res, err := s.db.ExecContext(ctx,
-		"UPDATE cms_admin_sessions SET last_seen_at = ? WHERE token_hash = ? AND expires_at > ? AND last_seen_at > ?",
+		"UPDATE auth_sessions SET last_seen_at = ? WHERE token_hash = ? AND expires_at > ? AND last_seen_at > ?",
 		now.Unix(), hash, now.Unix(), now.Add(-adminSessionIdle).Unix())
 	if err != nil {
 		return err
@@ -96,20 +100,20 @@ func (s *adminStore) validateSession(ctx context.Context, token string) error {
 	} else if n == 1 {
 		return nil
 	}
-	if _, err := s.db.ExecContext(ctx, "DELETE FROM cms_admin_sessions WHERE token_hash = ?", hash); err != nil {
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash = ?", hash); err != nil {
 		return err
 	}
 	return ErrSessionInvalid
 }
 
 func (s *adminStore) deleteSession(ctx context.Context, token string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM cms_admin_sessions WHERE token_hash = ?", hashToken(token))
+	_, err := s.db.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash = ?", hashToken(token))
 	return err
 }
 
 // deleteOtherSessions は、指定したセッション以外の管理者セッションをすべて削除します（パスキー削除時）。
 func (s *adminStore) deleteOtherSessions(ctx context.Context, keepToken string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM cms_admin_sessions WHERE token_hash != ?", hashToken(keepToken))
+	_, err := s.db.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash != ?", hashToken(keepToken))
 	return err
 }
 
@@ -117,7 +121,7 @@ func (s *adminStore) deleteOtherSessions(ctx context.Context, keepToken string) 
 
 // issueSetupToken は未使用の登録トークンを無効化してから、新しいトークンを発行します。
 func issueSetupToken(ctx context.Context, tx *sql.Tx, now time.Time) (string, error) {
-	if _, err := tx.ExecContext(ctx, "DELETE FROM cms_setup_tokens WHERE used_at IS NULL"); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_setup_tokens WHERE used_at IS NULL"); err != nil {
 		return "", err
 	}
 	token, err := newToken()
@@ -125,7 +129,7 @@ func issueSetupToken(ctx context.Context, tx *sql.Tx, now time.Time) (string, er
 		return "", err
 	}
 	if _, err := tx.ExecContext(ctx,
-		"INSERT INTO cms_setup_tokens (token_hash, expires_at) VALUES (?, ?)",
+		"INSERT INTO auth_setup_tokens (token_hash, expires_at) VALUES (?, ?)",
 		hashToken(token), now.Add(setupTokenTTL).Unix()); err != nil {
 		return "", err
 	}
@@ -139,7 +143,7 @@ func (s *adminStore) checkSetupToken(ctx context.Context, token string) error {
 	}
 	var n int
 	err := s.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM cms_setup_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
+		"SELECT COUNT(*) FROM auth_setup_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
 		hashToken(token), s.now().Unix()).Scan(&n)
 	if err != nil {
 		return err
@@ -162,7 +166,7 @@ func normalizeLabel(label string) (string, error) {
 
 func insertCredential(ctx context.Context, tx *sql.Tx, c newCredential, label string, now time.Time) error {
 	_, err := tx.ExecContext(ctx,
-		"INSERT INTO cms_credentials (id, public_key, alg, sign_count, label, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+		"INSERT INTO auth_credentials (id, public_key, alg, sign_count, label, created_at) VALUES (?, ?, ?, ?, ?, ?)",
 		c.ID, c.PublicKey, c.Alg, int64(c.SignCount), label, now.Unix())
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "PRIMARY KEY") {
@@ -187,7 +191,7 @@ func (s *adminStore) registerWithSetupToken(ctx context.Context, token string, c
 	defer func() { _ = tx.Rollback() }()
 	now := s.now()
 	res, err := tx.ExecContext(ctx,
-		"UPDATE cms_setup_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
+		"UPDATE auth_setup_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
 		now.Unix(), hashToken(token), now.Unix())
 	if err != nil {
 		return err
@@ -226,7 +230,7 @@ func (s *adminStore) getCredential(ctx context.Context, id []byte) (storedCreden
 	var count int64
 	var disabledAt sql.NullInt64
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, public_key, alg, sign_count, disabled_at FROM cms_credentials WHERE id = ?", id,
+		"SELECT id, public_key, alg, sign_count, disabled_at FROM auth_credentials WHERE id = ?", id,
 	).Scan(&c.ID, &c.PublicKey, &c.Alg, &count, &disabledAt)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && disabledAt.Valid) {
 		return storedCredential{}, ErrCredentialUnavailable
@@ -245,7 +249,7 @@ func (s *adminStore) getCredential(ctx context.Context, id []byte) (storedCreden
 // 並行ログインで小さい値が後から書かれた場合は ErrSignCountConflict を返します。
 func (s *adminStore) recordLogin(ctx context.Context, id []byte, count uint32) error {
 	res, err := s.db.ExecContext(ctx,
-		"UPDATE cms_credentials SET sign_count = ?, last_used_at = ? WHERE id = ? AND disabled_at IS NULL AND (sign_count < ? OR (sign_count = 0 AND ? = 0))",
+		"UPDATE auth_credentials SET sign_count = ?, last_used_at = ? WHERE id = ? AND disabled_at IS NULL AND (sign_count < ? OR (sign_count = 0 AND ? = 0))",
 		int64(count), s.now().Unix(), id, int64(count), int64(count))
 	if err != nil {
 		return err
@@ -267,10 +271,10 @@ func (s *adminStore) disableCredential(ctx context.Context, id []byte) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx,
-		"UPDATE cms_credentials SET disabled_at = ? WHERE id = ? AND disabled_at IS NULL", s.now().Unix(), id); err != nil {
+		"UPDATE auth_credentials SET disabled_at = ? WHERE id = ? AND disabled_at IS NULL", s.now().Unix(), id); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM cms_admin_sessions"); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_sessions"); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -311,7 +315,7 @@ const credentialInfoColumns = "id, label, created_at, last_used_at, disabled_at"
 
 // listCredentials は登録済みのパスキーを、無効化済みも含めて登録順に返します。
 func (s *adminStore) listCredentials(ctx context.Context) ([]credentialInfo, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT "+credentialInfoColumns+" FROM cms_credentials ORDER BY created_at, id")
+	rows, err := s.db.QueryContext(ctx, "SELECT "+credentialInfoColumns+" FROM auth_credentials ORDER BY created_at, id")
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +332,7 @@ func (s *adminStore) listCredentials(ctx context.Context) ([]credentialInfo, err
 }
 
 func (s *adminStore) getCredentialInfo(ctx context.Context, id []byte) (credentialInfo, error) {
-	c, err := scanCredentialInfo(s.db.QueryRowContext(ctx, "SELECT "+credentialInfoColumns+" FROM cms_credentials WHERE id = ?", id))
+	c, err := scanCredentialInfo(s.db.QueryRowContext(ctx, "SELECT "+credentialInfoColumns+" FROM auth_credentials WHERE id = ?", id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return credentialInfo{}, ErrNotFound
 	}
@@ -341,7 +345,7 @@ func (s *adminStore) renameCredential(ctx context.Context, id []byte, label stri
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(ctx, "UPDATE cms_credentials SET label = ? WHERE id = ?", label, id)
+	res, err := s.db.ExecContext(ctx, "UPDATE auth_credentials SET label = ? WHERE id = ?", label, id)
 	if err != nil {
 		return err
 	}
@@ -363,8 +367,8 @@ func (s *adminStore) deleteCredential(ctx context.Context, id []byte, keepSessio
 	}
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.ExecContext(ctx,
-		`DELETE FROM cms_credentials WHERE id = ? AND (disabled_at IS NOT NULL OR
-			(SELECT COUNT(*) FROM cms_credentials WHERE disabled_at IS NULL AND id != ?) > 0)`,
+		`DELETE FROM auth_credentials WHERE id = ? AND (disabled_at IS NOT NULL OR
+			(SELECT COUNT(*) FROM auth_credentials WHERE disabled_at IS NULL AND id != ?) > 0)`,
 		id, id)
 	if err != nil {
 		return err
@@ -373,7 +377,7 @@ func (s *adminStore) deleteCredential(ctx context.Context, id []byte, keepSessio
 		return err
 	} else if n == 0 {
 		var exists int
-		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM cms_credentials WHERE id = ?", id).Scan(&exists); err != nil {
+		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials WHERE id = ?", id).Scan(&exists); err != nil {
 			return err
 		}
 		if exists == 0 {
@@ -381,7 +385,7 @@ func (s *adminStore) deleteCredential(ctx context.Context, id []byte, keepSessio
 		}
 		return ErrLastCredential
 	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM cms_admin_sessions WHERE token_hash != ?", hashToken(keepSession)); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash != ?", hashToken(keepSession)); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -390,13 +394,13 @@ func (s *adminStore) deleteCredential(ctx context.Context, id []byte, keepSessio
 // countDisabledCredentials は無効化済みのパスキーの数を返します（管理画面上部の警告用）。
 func (s *adminStore) countDisabledCredentials(ctx context.Context) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM cms_credentials WHERE disabled_at IS NOT NULL").Scan(&n)
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials WHERE disabled_at IS NOT NULL").Scan(&n)
 	return n, err
 }
 
 func (s *adminStore) webAuthnUserID(ctx context.Context) ([]byte, error) {
 	var id []byte
-	err := s.db.QueryRowContext(ctx, "SELECT webauthn_user_id FROM cms_settings WHERE id = 1").Scan(&id)
+	err := s.db.QueryRowContext(ctx, "SELECT webauthn_user_id FROM auth_settings WHERE id = 1").Scan(&id)
 	return id, err
 }
 
@@ -413,7 +417,7 @@ func Setup(ctx context.Context, db *sql.DB, now time.Time) (string, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 	var n int
-	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM cms_credentials").Scan(&n); err != nil {
+	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials").Scan(&n); err != nil {
 		return "", err
 	}
 	if n > 0 {
@@ -442,15 +446,15 @@ func Recover(ctx context.Context, db *sql.DB, now time.Time) (string, error) {
 	}
 	defer func() { _ = tx.Rollback() }()
 	for _, q := range []string{
-		"DELETE FROM cms_credentials",
-		"DELETE FROM cms_admin_sessions",
-		"DELETE FROM cms_setup_tokens",
+		"DELETE FROM auth_credentials",
+		"DELETE FROM auth_sessions",
+		"DELETE FROM auth_setup_tokens",
 	} {
 		if _, err := tx.ExecContext(ctx, q); err != nil {
 			return "", err
 		}
 	}
-	if _, err := tx.ExecContext(ctx, "UPDATE cms_settings SET webauthn_user_id = ? WHERE id = 1", userID); err != nil {
+	if _, err := tx.ExecContext(ctx, "UPDATE auth_settings SET webauthn_user_id = ? WHERE id = 1", userID); err != nil {
 		return "", err
 	}
 	token, err := issueSetupToken(ctx, tx, now)
@@ -464,4 +468,8 @@ func Recover(ctx context.Context, db *sql.DB, now time.Time) (string, error) {
 // フラグメントはサーバーにもRefererにも送られません。
 func SetupURL(origin, token string) string {
 	return origin + "/admin/setup#token=" + token
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
 }

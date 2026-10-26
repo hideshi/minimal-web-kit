@@ -1,4 +1,4 @@
-package cms
+package auth
 
 import (
 	"bytes"
@@ -89,7 +89,7 @@ type challenges struct {
 func newChallenges(now func() time.Time) *challenges {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
-		panic("cms: generate challenge key: " + err.Error())
+		panic("auth: generate challenge key: " + err.Error())
 	}
 	return &challenges{key: key, now: now, used: map[string]time.Time{}}
 }

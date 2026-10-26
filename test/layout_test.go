@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/features/auth"
 	"minimal-web-kit/features/cms"
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
@@ -27,8 +28,8 @@ const (
 func newSiteCMSRoutes(t *testing.T) (http.Handler, *cms.PostStore) {
 	t.Helper()
 	t.Setenv("SITE_URL", "https://example.workers.dev")
-	t.Setenv("CMS_ORIGIN", "")
-	t.Setenv("CMS_RP_ID", "")
+	t.Setenv("AUTH_ORIGIN", "")
+	t.Setenv("AUTH_RP_ID", "")
 	t.Setenv("CMS_CORS_ORIGINS", "")
 	logger := discardLogger()
 	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
@@ -37,30 +38,17 @@ func newSiteCMSRoutes(t *testing.T) (http.Handler, *cms.PostStore) {
 	}
 	t.Cleanup(func() { s.Close() })
 
-	st := site.NewFeature(logger)
-	cm := cms.NewFeature(logger)
-	if err := cm.Init(s.DB()); err != nil {
-		t.Fatal(err)
+	// 起動処理と同じ登録・初期化・つなぎ方（app.BuildRoutes）で組み立てる
+	reg := features.NewRegistry()
+	reg.Register(site.NewFeature(logger))
+	reg.Register(cms.NewFeature(logger))
+	reg.Register(auth.NewFeature(logger))
+	for _, f := range reg.All() {
+		if err := f.Init(s.DB()); err != nil {
+			t.Fatal(err)
+		}
 	}
-	links := cm.NavLinks()
-	st.SetNavLinks(links)
-	h, err := web.NewHandler(s, web.NewSessionManager(s, false), logger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	h.SetNavLinks(links)
-	// サーバーの起動処理と同じ順で、Siteのレイアウトを配る
-	if err := h.SetLayout(st.Layout()); err != nil {
-		t.Fatal(err)
-	}
-	if err := cm.SetLayout(st.Layout()); err != nil {
-		t.Fatal(err)
-	}
-	st.SetSitemapSources([]features.SitemapFeature{cm})
-	routes, err := h.RoutesWithIsolated(st.HandleRoot, cm.RegisterRoutes, func(mux *web.IsolatedMux) {
-		st.RegisterIsolatedRoutes(mux)
-		cm.RegisterIsolatedRoutes(mux)
-	})
+	routes, err := app.BuildRoutes(s, reg, false, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,5 +199,24 @@ func TestSEO_BasePrivacyIsNotCached(t *testing.T) {
 	h.Routes(nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/privacy", nil))
 	if got := rec.Header().Get("Cache-Control"); got != "no-store, max-age=0" {
 		t.Fatalf("Base privacy: Cache-Control = %q", got)
+	}
+}
+
+// CMSは管理者認証を前提にするため、管理者認証が無ければ起動時に止まること（add-auth を案内する）。
+func TestBuildRoutes_CMSRequiresAuth(t *testing.T) {
+	t.Setenv("CMS_CORS_ORIGINS", "")
+	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	reg := features.NewRegistry()
+	cm := cms.NewFeature(discardLogger())
+	if err := cm.Init(s.DB()); err != nil {
+		t.Fatal(err)
+	}
+	reg.Register(cm)
+	if _, err := app.BuildRoutes(s, reg, false, discardLogger()); err == nil || !strings.Contains(err.Error(), "add-auth") {
+		t.Fatalf("CMS without auth must fail with guidance: %v", err)
 	}
 }

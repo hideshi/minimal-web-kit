@@ -1,6 +1,6 @@
 # minimal-web-kit
 
-個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のCMS）、3本のAI開発スキル、規約を検査するテストを同梱しています。
+個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のCMS、パスキーの管理者認証）、3本のAI開発スキル、規約を検査するテストを同梱しています。
 
 ## 特徴と提供範囲
 
@@ -8,11 +8,11 @@
 - **機能ごとの分離**：自作機能は `features/<機能名>/` に配置します。Site・CMSの切り替えコマンドは登録ファイルだけを変更し、機能ディレクトリ内のファイルは変更しません。
 - **取得データの最小化**：氏名や連絡先は既定で取得しません。必要な情報を追加するときは、利用目的・保存先・保持期間・削除方法を整理し、開発規約に沿って承認を得て台帳と検査を更新します。
 - **セッションとデータ保護の基盤**：ランダムトークンとDBへのSHA-256ハッシュ保存、CSRF保護、セキュリティヘッダー、期限切れセッションの削除処理を備えています。OwnerIDはデータ分離の識別子であり、管理者認証や業務上の権限管理の代わりにはなりません。
-- **自前CSSとHTMLによるUI**：CSSは `style.css` 1本です。JavaScriptは使用しません。唯一の例外は、CMSの管理画面でパスキー（WebAuthn）を扱う `webauthn.js` 1本で、登録・ログイン・パスキー管理の画面だけで読み込みます。高コントラスト、フォーカス表示、見出し・ランドマーク、スキップリンク等を備えています。JIS X 8341-3 / WCAG 2.1 AAを意識した設計ですが、完全適合を宣言するものではなく、作成したページごとの実画面・支援技術での検証が必要です。
+- **自前CSSとHTMLによるUI**：CSSは `style.css` 1本です。JavaScriptは使用しません。唯一の例外は、管理者認証でパスキー（WebAuthn）を扱う `webauthn.js` 1本で、登録・ログイン・パスキー管理の画面だけで読み込みます。高コントラスト、フォーカス表示、見出し・ランドマーク、スキップリンク等を備えています。JIS X 8341-3 / WCAG 2.1 AAを意識した設計ですが、完全適合を宣言するものではなく、作成したページごとの実画面・支援技術での検証が必要です。
 - **アプリケーションログの最小化**：アクセスログはサーバー生成のリクエストID、既知のHTTPメソッド（その他は `OTHER`）、応答状況、処理時間に限定します。URLパス・クエリ・Cookie・IP・User-Agent・本文や、生のpanic値・エラー内容を記録しない実装です。追加機能やリバースプロキシ等のログは別途確認してください。
 - **スキルと自動検査**：キット固有の設計・実装・監査を支えるスキルと、依存・テンプレート・データ台帳・ログ等のテストがあります。スキルはAIへの手順であり、すべての規約を機械的に強制するものではありません。
 
-企業ホームページ、社内ツール、Webユーティリティ等の出発点として利用できます。お知らせを管理する簡易CMS（パスキーでログインする管理画面、公開ページ、読み取り専用のJSON API）も同梱しています。複数の編集者・権限管理・画像のアップロード等は含みません。
+企業ホームページ、社内ツール、Webユーティリティ等の出発点として利用できます。お知らせを管理する簡易CMS（公開ページ、読み取り専用のJSON API、記事の管理画面）と、管理画面にパスキーでログインする管理者認証も同梱しています。管理者認証はCMS以外の自作の管理画面にも使えます。複数の管理者・権限管理・画像のアップロード等は含みません。
 
 ## 起動方法
 
@@ -59,36 +59,50 @@ Cookieも利用者ごとの内容も持たない公開ページ（Siteの `/`・
 
 `/privacy` の末尾の「免責事項」（Site有効時だけ表示）は、このキットを紹介するサイトを前提にした例です。運営者と掲載内容に合わせて書き換えてください。公開前に実際のフォームURLを設定し、フォームの入力項目・利用目的・保持期間・削除窓口・外部サービスの扱いに合わせて `/privacy` の文面を編集してください。外部フォームの情報は、サイト内のセッション削除では消えません。
 
-### CMS（お知らせ機能）
+### 管理者認証（パスキー）
 
-お知らせ1種類を管理する同梱機能です。サーバーがHTMLを返す使い方（`/news`）と、別のフロントエンドがJSONを読む使い方（`/api/news`）の両方に対応します。Siteとは別に有効化でき、同時に使うとSiteのナビに「お知らせ」のリンクが出ます。
+管理画面を持つ機能のための、管理者1人のログインを提供する同梱機能です。CMSを使わずに、自作の業務アプリ等の管理画面にも使えます。
 
 ```bash
-make add-cms
+make add-auth        # CMSを使う場合は make add-cms で一緒に有効になる
 make run
 # 別のターミナルで、初回登録用のURLを表示
-make cms-setup
+make auth-setup
 ```
 
 表示された `http://localhost:8080/admin/setup#token=...` を15分以内に開いてパスキーを登録し、`http://localhost:8080/admin/login` からログインします。WebAuthnはIPアドレスでは動かないため、`127.0.0.1` ではなく `localhost` で開いてください。
 
 | 経路 | 内容 |
 |---|---|
-| `/news`、`/news/{id}` | 公開中のお知らせ。Cookieを発行・照合しません |
-| `/api/news`、`/api/news/{id}` | 公開中のお知らせのJSON（`limit`・`offset`）。別ドメインからの読み取り（CORS）は `CMS_CORS_ORIGINS` で許可した接続元だけで、既定は許可なしです |
-| `/admin/...` | お知らせの作成・編集・公開・予約公開・削除、パスキーの追加・名前変更・削除 |
+| `/admin/login`、`/admin/setup` | パスキーでのログイン、初回登録・復旧時の登録 |
+| `/admin/passkeys` | パスキーの追加・名前変更・削除 |
+| `/admin` | 管理画面の入り口（他の機能の管理画面、無ければパスキーの管理へ移る） |
 
 - **ログインはパスキーだけ**です。パスワードはありません。複製を検出できない同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーン等）は拒否し、Windows Helloやセキュリティキー等、端末に固定された認証器だけを登録できます。Windows Helloの指紋認証で登録・ログインを確認しています。ChromeOSの指紋認証は同期型として拒否されることを確認しています。MacのTouch IDも、iCloudキーチェーンの同期型のため使えない見込みです。
-- 認証器は2つ以上の登録を推奨します。すべて失った場合は、サーバーで `make cms-recover`（本番は `minimal-web-kit cms-recover`）を実行し、登録し直します。記事は残ります。
-- 管理者は1人で、権限の分離や操作の記録はありません。本文はプレーンテキスト（HTMLは文字として表示）で、画像のアップロードはありません。
+- 認証器は2つ以上の登録を推奨します。すべて失った場合は、サーバーで `make auth-recover`（本番は `minimal-web-kit auth-recover`）を実行し、登録し直します。他の機能のデータ（CMSの記事等）は残ります。
+- 管理者は1人で、権限の分離や操作の記録はありません。
+- 自作機能の管理画面は、`features.AdminConsumer` を実装して管理者認証の口（`features.Admin`）を受け取り、`Page`（画面）・`Form`（送信）で守ります。管理画面のナビへのリンクは `features.AdminNavFeature` で足します。画面は `admin.Layout()` のレイアウトで描きます。
+- 本番では `AUTH_ORIGIN`・`AUTH_RP_ID` を公開するURLに合わせ、`SECURE_COOKIE=true` にします。手順は [docs/deploy.md](docs/deploy.md) を参照してください。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の4節にあります。
+- CMSが有効な間は `make remove-auth` で外せません。登録を外しても、DBのデータは残ります。
+
+### CMS（お知らせ機能）
+
+お知らせ1種類を管理する同梱機能です。サーバーがHTMLを返す使い方（`/news`）と、別のフロントエンドがJSONを読む使い方（`/api/news`）の両方に対応します。Siteとは別に有効化でき、同時に使うとSiteのナビに「お知らせ」のリンクが出ます。管理画面へのログインには管理者認証を使い、`make add-cms` で一緒に有効になります。
+
+| 経路 | 内容 |
+|---|---|
+| `/news`、`/news/{id}` | 公開中のお知らせ。Cookieを発行・照合しません |
+| `/api/news`、`/api/news/{id}` | 公開中のお知らせのJSON（`limit`・`offset`）。別ドメインからの読み取り（CORS）は `CMS_CORS_ORIGINS` で許可した接続元だけで、既定は許可なしです |
+| `/admin/posts` | お知らせの作成・編集・公開・予約公開・削除 |
+
+- 本文はプレーンテキスト（HTMLは文字として表示）で、画像のアップロードはありません。
 - 公開日時に未来の日時を指定して公開すると、その日時まで公開ページとAPIに表示しません（予約公開）。時刻はサーバーのタイムゾーン（`TZ`）で扱います。
-- 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の4節にあります。
-- 本番では `CMS_ORIGIN`・`CMS_RP_ID` を公開するURLに合わせ、`SECURE_COOKIE=true` にします。手順は [docs/deploy.md](docs/deploy.md) を参照してください。設計の詳細と、守る範囲・守らない範囲は [docs/cms-plan.md](docs/cms-plan.md) にあります。
+- 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。設計の詳細と、守る範囲・守らない範囲は [docs/cms-plan.md](docs/cms-plan.md) にあります。
 - `make remove-cms` で登録を外しても、DBのデータは残ります。
 
 ### 切り替えコマンドの保護範囲
 
-`features/site` と `features/cms` は同梱機能用の予約ディレクトリです。自作機能には別名を使用してください。コマンドは `site.go`・`cms.go` 冒頭の識別コメント（例: `// minimal-web-kit: bundled-feature site`）と登録ファイルの構造を確認します。識別できない同名ディレクトリ、シンボリックリンク、マーカーの欠落・重複、部分的な登録、別名import等は書き換えずに拒否します。識別コメントは同梱元の目印で、真正性や未改変を証明するものではありません。
+`features/site`・`features/cms`・`features/auth` は同梱機能用の予約ディレクトリです。自作機能には別名を使用してください。コマンドは `site.go`・`cms.go`・`auth.go` 冒頭の識別コメント（例: `// minimal-web-kit: bundled-feature site`）と登録ファイルの構造を確認します。識別できない同名ディレクトリ、シンボリックリンク、マーカーの欠落・重複、部分的な登録、別名import等は書き換えずに拒否します。識別コメントは同梱元の目印で、真正性や未改変を証明するものではありません。
 
 コマンドはテンプレートをコピー・削除せず、`cmd/server/features.go` のimportと登録行だけを変更します。登録ファイルがgofmt済みなら、変更後もgofmt済みに保ちます。将来コピー機能を追加する場合は、既存のコピー先を上書きしない保護が別途必要です。
 
@@ -101,10 +115,11 @@ make cms-setup
 | `make test` | `go test -race -v ./...` で全テストを実行 |
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
-| `make add-cms` / `make remove-cms` | CMSの登録を有効化・無効化（無効化してもDBのデータは残る） |
-| `make cms-setup` | CMSの初回登録用URLを表示（パスキーが未登録のときだけ）。本番は `minimal-web-kit cms-setup` |
+| `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（CMSが有効な間は無効化できない） |
+| `make add-cms` / `make remove-cms` | CMSの登録を有効化・無効化（有効化すると管理者認証も有効になる。無効化してもDBのデータは残る） |
+| `make auth-setup` | 管理者のパスキーの初回登録用URLを表示（パスキーが未登録のときだけ）。本番は `minimal-web-kit auth-setup` |
 | `go run ./cmd/server export-static <dir>` | Siteの公開ページ（`/`・`/privacy`）とCSS、セキュリティヘッダーの `_headers` を静的ファイルとして書き出す（Siteのみ有効な場合）。本番は `minimal-web-kit export-static <dir>` |
-| `make cms-recover` | CMSのパスキーと管理者セッションを全削除し、登録用URLを再発行（確認あり） |
+| `make auth-recover` | 管理者のパスキーとセッションを全削除し、登録用URLを再発行（確認あり） |
 | `make` / `make all` | テスト後にビルド（サーバーは起動しない） |
 | `make clean` | `bin/` と **`data/`（既定のDBを含む）を削除** |
 
@@ -114,8 +129,8 @@ make cms-setup
 | `ADDR` | 未設定。設定時は待受アドレス全体を指定し、`PORT` より優先 |
 | `DB_PATH` | `data/app.db`。SQLiteの保存先 |
 | `SECURE_COOKIE` | `true` の場合のみCookieのSecure属性を有効化。既定は無効 |
-| `CMS_ORIGIN` | `http://localhost:8080`。CMSを公開するオリジン（WebAuthnの検証と登録URLに使用）。httpsなら `SECURE_COOKIE=true` が必須 |
-| `CMS_RP_ID` | `localhost`。WebAuthnのRP ID。`CMS_ORIGIN` のホストか、その上位のドメイン |
+| `AUTH_ORIGIN` | `http://localhost:8080`。管理画面を公開するオリジン（WebAuthnの検証と登録URLに使用）。httpsなら `SECURE_COOKIE=true` が必須 |
+| `AUTH_RP_ID` | `localhost`。WebAuthnのRP ID。`AUTH_ORIGIN` のホストか、その上位のドメイン |
 | `CMS_CORS_ORIGINS` | 未設定（許可なし）。`/api/` を別ドメインから読むことを許す接続元をカンマ区切りで指定。`*` は不可 |
 | `SITE_URL` | 未設定。Siteを公開するURL（例: `https://example.com`）。設定するとcanonical・OGP・Xカード・`sitemap.xml` を出力する（絶対URLが必要なため） |
 | `CONTACT_FORM_URL` | 未設定。Siteのお問い合わせリンク先（`https://` のみ有効。未設定時はボタン非表示） |
@@ -183,8 +198,9 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
    - `IsolatedRoutesFeature`：CoreのCSRF検査とセッション照合を通さない経路（Cookieを使わない公開ページ、独自認証の管理画面）。認証・CSRF・Origin検査は機能自身が行い、部品の `internal/web/guard`（`SameOrigin`・`CSRF`）を使います。
    - `PurgeFeature`：期限切れデータの削除。起動時と1時間ごとに呼ばれます。
    - `NavLinkFeature`：ナビゲーションへのリンク（例: CMSの「お知らせ」）。機能を外せばリンクも消えます。
+   - `AdminConsumer`・`AdminNavFeature`：管理画面。管理者認証（`features/auth`）の口で、ログイン・CSRFの確認を受けます。
    - `LayoutFeature`・`LayoutConsumer`：サイト全体のヘッダー・フッター。Siteが有効なら、`/privacy` 等のCoreの画面と、CMSの公開ページ（`/news`）もSiteのレイアウトで描画します。
-   - `CommandFeature`：サーバーの実行ファイルのサブコマンド（例: `minimal-web-kit cms-setup`）。
+   - `CommandFeature`：サーバーの実行ファイルのサブコマンド（例: `minimal-web-kit auth-setup`）。
 7. `make test`、`make verify`、`make build` を実行し、画面も確認します。
 
 ### OwnerIDに紐づくデータの寿命
@@ -236,7 +252,8 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 │       └── page/          # 部品: 一覧のページ送り
 ├── features/
 │   ├── site/              # 同梱機能: LPテンプレート（Site）
-│   └── cms/               # 同梱機能: お知らせ機能（CMS。パスキー認証・公開ページ・API）
+│   ├── cms/               # 同梱機能: お知らせ機能（CMS。公開ページ・API・記事の管理画面）
+│   └── auth/              # 同梱機能: 管理者認証（パスキーでのログイン・パスキーの管理）
 ├── skills/                # 3本のAI開発スキルの正本（各150行以内）
 └── test/                  # 依存・テンプレート・台帳・ログ等の検査
 ```

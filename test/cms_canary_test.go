@@ -12,17 +12,19 @@ import (
 	"strings"
 	"testing"
 
+	"minimal-web-kit/features"
+	"minimal-web-kit/features/auth"
 	"minimal-web-kit/features/cms"
+	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
-	"minimal-web-kit/internal/web"
 )
 
 // TestCanary_CMSRoutesDoNotLeakInput は、CMSの公開ページ・API・管理画面に送った値（パス・クエリ・ヘッダー・本文）が
 // ログに出力されず、公開ページとAPIがCookieを発行しないことを検証します。
 func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 	const canary = "CANARYcms7f3a9"
-	t.Setenv("CMS_ORIGIN", "")
-	t.Setenv("CMS_RP_ID", "")
+	t.Setenv("AUTH_ORIGIN", "")
+	t.Setenv("AUTH_RP_ID", "")
 	t.Setenv("CMS_CORS_ORIGINS", "https://allowed.example")
 
 	var logBuf bytes.Buffer
@@ -32,9 +34,14 @@ func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { s.Close() })
-	feature := cms.NewFeature(logger)
-	if err := feature.Init(s.DB()); err != nil {
-		t.Fatal(err)
+	// 起動処理と同じ登録・初期化・つなぎ方（app.BuildRoutes）で、CMSと管理者認証を組み込む
+	reg := features.NewRegistry()
+	reg.Register(cms.NewFeature(logger))
+	reg.Register(auth.NewFeature(logger))
+	for _, f := range reg.All() {
+		if err := f.Init(s.DB()); err != nil {
+			t.Fatal(err)
+		}
 	}
 	posts := cms.NewPostStore(s.DB())
 	id, err := posts.Create(context.Background(), "お知らせ", "本文")
@@ -45,12 +52,7 @@ func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sm := web.NewSessionManager(s, false)
-	h, err := web.NewHandler(s, sm, logger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	routes, err := h.RoutesWithIsolated(nil, feature.RegisterRoutes, feature.RegisterIsolatedRoutes)
+	routes, err := app.BuildRoutes(s, reg, false, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +73,7 @@ func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 		req.Header.Set("X-Request-ID", canary)
 		req.Header.Set("Sec-Fetch-Site", "same-origin")
 		req.AddCookie(&http.Cookie{Name: "session", Value: canary})
-		req.AddCookie(&http.Cookie{Name: "cms_admin", Value: canary})
+		req.AddCookie(&http.Cookie{Name: "admin_session", Value: canary})
 		rec := httptest.NewRecorder()
 		routes.ServeHTTP(rec, req)
 		return rec
@@ -118,7 +120,7 @@ func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 	if logBuf.Len() == 0 {
 		t.Fatal("no logs were captured")
 	}
-	if !strings.Contains(logBuf.String(), "cms login rejected") {
+	if !strings.Contains(logBuf.String(), "auth login rejected") {
 		t.Fatal("the login request must reach the verification (otherwise the canary check is meaningless)")
 	}
 	if strings.Contains(logBuf.String(), canary) || strings.Contains(logBuf.String(), b64) {

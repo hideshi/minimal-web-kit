@@ -25,7 +25,7 @@ func runExportStatic(args []string, registry *features.Registry, logger *slog.Lo
 	return 0
 }
 
-// runCommand は、有効な機能が提供するサブコマンド（例: cms-setup）を実行し、終了コードを返します。
+// runCommand は、有効な機能が提供するサブコマンド（例: auth-setup）を実行し、終了コードを返します。
 // 本番サーバーにGoを入れずに、サーバーと同じ実行ファイル・同じ DB_PATH で運用操作を行うためのものです。
 func runCommand(args []string, registry *features.Registry, db *sql.DB, in io.Reader, out, errOut io.Writer) int {
 	var commands []features.Command
@@ -45,7 +45,7 @@ func runCommand(args []string, registry *features.Registry, db *sql.DB, in io.Re
 	}
 	fmt.Fprintf(errOut, "Unknown command. Run without arguments to start the server, or use export-static <dir>.\n")
 	if len(commands) == 0 {
-		fmt.Fprintln(errOut, "No commands are available. Commands are provided by enabled features (e.g. make add-cms).")
+		fmt.Fprintln(errOut, "No commands are available. Commands are provided by enabled features (e.g. make add-auth).")
 		return 2
 	}
 	fmt.Fprintln(errOut, "Commands:")

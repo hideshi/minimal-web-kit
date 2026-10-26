@@ -14,7 +14,6 @@ import (
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
-	"minimal-web-kit/internal/web"
 )
 
 type Server struct {
@@ -53,93 +52,9 @@ func (s *Server) Run() error {
 	}
 	s.purgeFeatures("startup")
 
-	sm := web.NewSessionManager(s.store, s.cfg.SecureCookie)
-	handler, err := web.NewHandler(s.store, sm, s.logger)
+	httpHandler, err := BuildRoutes(s.store, s.features, s.cfg.SecureCookie, s.logger)
 	if err != nil {
-		return fmt.Errorf("init handler: %w", err)
-	}
-
-	// 有効な機能が宣言したナビゲーションのリンクを、Coreの画面と独自のナビを持つ機能に配る
-	if s.features != nil {
-		links, err := s.features.NavLinks()
-		if err != nil {
-			s.logger.Error("feature nav links invalid")
-			return fmt.Errorf("init nav links: %w", err)
-		}
-		handler.SetNavLinks(links)
-		for _, f := range s.features.All() {
-			if c, ok := f.(features.NavLinkConsumer); ok {
-				c.SetNavLinks(links)
-			}
-		}
-	}
-
-	// sitemap.xml に載せるページを持つ機能を、sitemap.xml を返す機能に配る
-	if s.features != nil {
-		var sources []features.SitemapFeature
-		for _, f := range s.features.All() {
-			if sf, ok := f.(features.SitemapFeature); ok {
-				sources = append(sources, sf)
-			}
-		}
-		for _, f := range s.features.All() {
-			if c, ok := f.(features.SitemapConsumer); ok {
-				c.SetSitemapSources(sources)
-			}
-		}
-	}
-
-	// サイト全体のレイアウトを、Coreの画面と公開ページを持つ機能に配る
-	if s.features != nil {
-		for _, f := range s.features.All() {
-			lf, ok := f.(features.LayoutFeature)
-			if !ok {
-				continue
-			}
-			layout := lf.Layout()
-			if err := handler.SetLayout(layout); err != nil {
-				return fmt.Errorf("init layout: %w", err)
-			}
-			for _, c := range s.features.All() {
-				if lc, ok := c.(features.LayoutConsumer); ok {
-					if err := lc.SetLayout(layout); err != nil {
-						return fmt.Errorf("init layout for %s: %w", c.Name(), err)
-					}
-				}
-			}
-			break
-		}
-	}
-
-	// ルートパス（GET /）の差し替え判定
-	var rootHandler http.HandlerFunc
-	if s.features != nil {
-		for _, f := range s.features.All() {
-			if cr, ok := f.(features.CustomRootFeature); ok {
-				rootHandler = cr.HandleRoot
-				break
-			}
-		}
-	}
-
-	// ルーティング構築
-	httpHandler, err := handler.RoutesWithIsolated(rootHandler, func(mux *http.ServeMux, sm *web.SessionManager) {
-		if s.features != nil {
-			for _, f := range s.features.All() {
-				f.RegisterRoutes(mux, sm)
-			}
-		}
-	}, func(mux *web.IsolatedMux) {
-		if s.features != nil {
-			for _, f := range s.features.All() {
-				if iso, ok := f.(features.IsolatedRoutesFeature); ok {
-					iso.RegisterIsolatedRoutes(mux)
-				}
-			}
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("init routes: %w", err)
+		return err
 	}
 
 	httpServer := &http.Server{

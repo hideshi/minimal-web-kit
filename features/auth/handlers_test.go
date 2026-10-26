@@ -1,4 +1,4 @@
-package cms
+package auth
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 var sameOriginHeaders = map[string]string{"Sec-Fetch-Site": "same-origin", "Content-Type": "application/json"}
 
-func (fx *publicFixture) postJSON(t *testing.T, path string, body any, headers map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+func (fx *fixture) postJSON(t *testing.T, path string, body any, headers map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -41,7 +41,7 @@ func decode(t *testing.T, rec *httptest.ResponseRecorder) map[string]any {
 }
 
 // registerViaHTTP は登録トークンを使って、HTTP経由でパスキーを登録します。
-func (fx *publicFixture) registerViaHTTP(t *testing.T, a *fakeAuthenticator, token string) *httptest.ResponseRecorder {
+func (fx *fixture) registerViaHTTP(t *testing.T, a *fakeAuthenticator, token string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := fx.postJSON(t, "/admin/webauthn/register/begin", map[string]string{"token": token}, sameOriginHeaders)
 	if rec.Code != http.StatusOK {
@@ -61,7 +61,7 @@ func (fx *publicFixture) registerViaHTTP(t *testing.T, a *fakeAuthenticator, tok
 }
 
 // loginViaHTTP はHTTP経由でログインし、応答を返します。
-func (fx *publicFixture) loginViaHTTP(t *testing.T, a *fakeAuthenticator, userID []byte) *httptest.ResponseRecorder {
+func (fx *fixture) loginViaHTTP(t *testing.T, a *fakeAuthenticator, userID []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := fx.postJSON(t, "/admin/webauthn/login/begin", map[string]any{}, sameOriginHeaders)
 	if rec.Code != http.StatusOK {
@@ -92,7 +92,7 @@ func adminCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 }
 
 func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
-	fx := newPublicFixture(t, "")
+	fx := newFixture(t)
 	ctx := context.Background()
 	token, err := Setup(ctx, fx.db, time.Now())
 	if err != nil {
@@ -122,7 +122,7 @@ func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 		t.Fatal("used setup token must be rejected")
 	}
 
-	userID, _ := fx.feature.admin.webAuthnUserID(ctx)
+	userID, _ := fx.feature.store.webAuthnUserID(ctx)
 	rec = fx.loginViaHTTP(t, a, userID)
 	if rec.Code != http.StatusOK || decode(t, rec)["next"] != "/admin" {
 		t.Fatalf("login: %d %s", rec.Code, rec.Body.String())
@@ -132,11 +132,11 @@ func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 		t.Fatalf("unexpected cookie attributes: %+v", cookie)
 	}
 
-	// /admin は記事の管理画面へ。記事の管理画面はJSを許可しない
-	if rec := fx.do(t, http.MethodGet, "/admin", nil, cookie); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/posts" {
+	// /admin は他の機能の管理画面（ここでは見本の /admin/notes）へ。その画面はJSを許可しない
+	if rec := fx.do(t, http.MethodGet, "/admin", nil, cookie); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/notes" {
 		t.Fatalf("admin home: %d %s", rec.Code, rec.Header().Get("Location"))
 	}
-	rec = fx.do(t, http.MethodGet, "/admin/posts", nil, cookie)
+	rec = fx.do(t, http.MethodGet, "/admin/notes", nil, cookie)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "script-src 'none'") {
 		t.Fatalf("dashboard: %d %s", rec.Code, rec.Header().Get("Content-Security-Policy"))
 	}
@@ -171,17 +171,17 @@ func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 	if rec := logout(url.Values{"csrf_token": {csrf}}, "same-origin"); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatalf("logout: %d", rec.Code)
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, cookie); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
+	if rec := fx.do(t, http.MethodGet, "/admin/notes", nil, cookie); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatal("session must be invalid after logout")
 	}
 }
 
 func TestAdmin_RequiresSessionAndSameOrigin(t *testing.T) {
-	fx := newPublicFixture(t, "")
+	fx := newFixture(t)
 	if rec := fx.do(t, http.MethodGet, "/admin", nil); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatalf("unauthenticated dashboard: %d", rec.Code)
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, &http.Cookie{Name: adminCookieName, Value: "forged"}); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
+	if rec := fx.do(t, http.MethodGet, "/admin/notes", nil, &http.Cookie{Name: adminCookieName, Value: "forged"}); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatal("forged cookie must be rejected")
 	}
 	for name, headers := range map[string]map[string]string{
@@ -212,7 +212,7 @@ func TestAdmin_RequiresSessionAndSameOrigin(t *testing.T) {
 }
 
 func TestAdmin_SyncedPasskeyIsRejectedWithGuidance(t *testing.T) {
-	fx := newPublicFixture(t, "")
+	fx := newFixture(t)
 	token, err := Setup(context.Background(), fx.db, time.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -228,20 +228,20 @@ func TestAdmin_SyncedPasskeyIsRejectedWithGuidance(t *testing.T) {
 		t.Fatal("the rejection reason must be logged for diagnosis")
 	}
 	// 拒否された登録ではトークンを消費しない
-	if err := fx.feature.admin.checkSetupToken(context.Background(), token); err != nil {
+	if err := fx.feature.store.checkSetupToken(context.Background(), token); err != nil {
 		t.Fatal("rejected registration must keep the token")
 	}
 }
 
 func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
-	fx := newPublicFixture(t, "")
+	fx := newFixture(t)
 	ctx := context.Background()
 	token, _ := Setup(ctx, fx.db, time.Now())
 	a := newFakeAuthenticator(t, algES256)
 	if rec := fx.registerViaHTTP(t, a, token); rec.Code != http.StatusOK {
 		t.Fatal(rec.Body.String())
 	}
-	userID, _ := fx.feature.admin.webAuthnUserID(ctx)
+	userID, _ := fx.feature.store.webAuthnUserID(ctx)
 	first := adminCookie(t, fx.loginViaHTTP(t, a, userID))
 
 	// 複製したキーが先に進めたカウンタより小さい値で署名した状態を作る
@@ -254,19 +254,19 @@ func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	if strings.Contains(body["message"].(string), "複製") {
 		t.Fatal("the login screen must not reveal clone detection")
 	}
-	if !strings.Contains(fx.logs.String(), "cms passkey disabled") {
+	if !strings.Contains(fx.logs.String(), "auth passkey disabled") {
 		t.Fatal("disabling must be logged")
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin/posts", nil, first); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
+	if rec := fx.do(t, http.MethodGet, "/admin/notes", nil, first); rec.Code != http.StatusSeeOther || rec.Header().Get("Location") != "/admin/login" {
 		t.Fatal("all admin sessions must be revoked")
 	}
-	if _, err := fx.feature.admin.getCredential(ctx, a.credID); err == nil {
+	if _, err := fx.feature.store.getCredential(ctx, a.credID); err == nil {
 		t.Fatal("passkey must be disabled")
 	}
 }
 
 func TestAdmin_LoginRejectsUnknownCredentialAndLogsNoSecrets(t *testing.T) {
-	fx := newPublicFixture(t, "")
+	fx := newFixture(t)
 	a := newFakeAuthenticator(t, algES256)
 	rec := fx.loginViaHTTP(t, a, []byte("0123456789abcdef"))
 	if rec.Code != http.StatusUnauthorized {
@@ -279,7 +279,7 @@ func TestAdmin_LoginRejectsUnknownCredentialAndLogsNoSecrets(t *testing.T) {
 }
 
 func TestAdmin_StaticScript(t *testing.T) {
-	fx := newPublicFixture(t, "")
+	fx := newFixture(t)
 	rec := fx.do(t, http.MethodGet, "/admin/static/webauthn.js", nil)
 	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/javascript; charset=utf-8" || rec.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatalf("script: %d %s", rec.Code, rec.Header().Get("Content-Type"))

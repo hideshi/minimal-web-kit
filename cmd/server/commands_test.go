@@ -48,7 +48,7 @@ func TestRunCommand(t *testing.T) {
 		t.Fatalf("unknown: code=%d err=%q", code, errOut.String())
 	}
 	errOut.Reset()
-	if code := runCommand([]string{"cms-setup"}, features.NewRegistry(), nil, strings.NewReader(""), &out, &errOut); code != 2 || !strings.Contains(errOut.String(), "No commands") {
+	if code := runCommand([]string{"auth-setup"}, features.NewRegistry(), nil, strings.NewReader(""), &out, &errOut); code != 2 || !strings.Contains(errOut.String(), "No commands") {
 		t.Fatalf("no features: code=%d err=%q", code, errOut.String())
 	}
 }

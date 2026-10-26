@@ -2,8 +2,6 @@
 package cms
 
 import (
-	"context"
-	"crypto/rand"
 	"database/sql"
 	_ "embed"
 	"fmt"
@@ -13,31 +11,22 @@ import (
 	"os"
 	"time"
 
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web"
-	"minimal-web-kit/internal/web/guard"
 )
 
 //go:embed migration.sql
 var migrationSQL string
 
-const (
-	// 管理者セッションは、無操作2時間または発行から12時間で失効する。
-	adminSessionIdle = 2 * time.Hour
-	adminSessionMax  = 12 * time.Hour
-	// 初回登録・復旧用のトークンは発行から15分で失効する。
-	setupTokenTTL = 15 * time.Minute
-)
-
-// Feature は同梱機能のCMS（お知らせを管理するお知らせ機能）です。
+// Feature は同梱機能のCMS（お知らせ機能）です。お知らせの公開ページ・読み取りAPIと、記事の管理画面を提供します。
+// 管理者のログインは、同梱機能の管理者認証（features/auth）が担います（make add-cms で一緒に有効になる）。
 // 公開ページ・APIと管理画面は、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
 	logger      *slog.Logger
 	cfg         Config
 	db          *sql.DB
 	posts       *PostStore
-	admin       *adminStore
-	challenges  *challenges
-	csrf        *guard.CSRF
+	admin       features.Admin
 	publicPages map[string]*template.Template
 	adminPages  map[string]*template.Template
 	layout      *web.Layout
@@ -47,10 +36,7 @@ type Feature struct {
 func NewFeature(logger *slog.Logger) *Feature {
 	return &Feature{
 		logger:      logger,
-		challenges:  newChallenges(time.Now),
-		csrf:        guard.NewCSRF(),
 		publicPages: parsePublicTemplates(),
-		adminPages:  parseAdminTemplates(),
 		now:         time.Now,
 	}
 }
@@ -73,24 +59,13 @@ func (f *Feature) Init(db *sql.DB) error {
 	f.cfg = cfg
 	f.db = db
 	f.posts = NewPostStore(db)
-	f.admin = newAdminStore(db, f.now)
 	return nil
 }
 
-// Migrate はCMSのテーブルを作成し、WebAuthnの user.id を用意します。既存のデータは変更しません。
+// Migrate はCMSのテーブルを作成します。既存のデータは変更しません。
 func Migrate(db *sql.DB) error {
 	if _, err := db.Exec(migrationSQL); err != nil {
 		return fmt.Errorf("cms migration: %w", err)
-	}
-	userID := make([]byte, 16)
-	if _, err := rand.Read(userID); err != nil {
-		return fmt.Errorf("cms webauthn user id: %w", err)
-	}
-	if _, err := db.Exec(
-		"INSERT OR IGNORE INTO cms_settings (id, webauthn_user_id, created_at) VALUES (1, ?, ?)",
-		userID, time.Now().Unix(),
-	); err != nil {
-		return fmt.Errorf("cms settings: %w", err)
 	}
 	return nil
 }
@@ -104,28 +79,11 @@ func (f *Feature) NavLinks() []web.NavLink {
 	return []web.NavLink{{Label: "お知らせ", Href: "/news"}}
 }
 
-// RegisterIsolatedRoutes はCMSの公開ページ・API・管理画面を登録します。
+// RegisterIsolatedRoutes はCMSの公開ページ・APIと、記事の管理画面を登録します。
+// 管理画面は、管理者認証を受け取っている場合だけ登録します。
 func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	f.registerPublicRoutes(mux)
-	f.registerAdminRoutes(mux)
-}
-
-// Purge は期限切れの管理者セッションと、使用済み・期限切れの登録トークンを削除します。
-// 記事とパスキーは削除しません。
-func (f *Feature) Purge(ctx context.Context) error {
-	if f.db == nil {
-		return nil
+	if f.admin != nil {
+		f.registerPostAdminRoutes(mux)
 	}
-	now := f.now()
-	if _, err := f.db.ExecContext(ctx,
-		"DELETE FROM cms_admin_sessions WHERE expires_at <= ? OR last_seen_at <= ?",
-		now.Unix(), now.Add(-adminSessionIdle).Unix(),
-	); err != nil {
-		return err
-	}
-	_, err := f.db.ExecContext(ctx,
-		"DELETE FROM cms_setup_tokens WHERE expires_at <= ? OR used_at IS NOT NULL",
-		now.Unix(),
-	)
-	return err
 }

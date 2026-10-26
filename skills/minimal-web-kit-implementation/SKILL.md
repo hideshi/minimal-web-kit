@@ -25,7 +25,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 
 ## 2. 機能（Feature）の作り方
 新しく書く前に `docs/components.md` の部品（入力の検査、独立経路の守り、ページ送り、完了メッセージ、画面部品）で作れないかを確かめる。テンプレートは `web.ParseWithComponents` で解析し、部品を使う。
-1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/site`・`features/cms` は同梱機能（Site・CMS）の予約名で、自作機能には使わない。
+1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/site`・`features/cms`・`features/auth` は同梱機能の予約名で、自作機能には使わない。
 2. **スキーマ**: テーブルは `features/<名前>/migration.sql` に書き、`Init` から同じファイルを適用する。同時に `docs/data-inventory.md` を更新する（台帳テストは全 `features/*/migration.sql` を照合する）。`internal/store/migrations/` はCoreのスキーマだけに使う。
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。
 4. **任意のインターフェース**（`features/feature.go`）: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`、サイト全体のヘッダー・フッターは `LayoutFeature`（提供側）と `LayoutConsumer`（公開ページを持つ側）、運用コマンドは `CommandFeature`（`minimal-web-kit <コマンド>`）。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。
@@ -35,7 +35,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 ## 3. データ保護とセッションの拡張
 - 取得する入力は形式・UTF-8・長さ・本文サイズをサーバー側で検証し、解析エラーを扱う。文章と1行の値は `internal/web/form`（`form.Text`・`form.Line`）で検査する。`template.HTML` 等による自動エスケープの回避は行わない。
 - Featureの検索・更新・削除は、リクエストの識別子だけを信用せずOwnerIDで絞る。共有・管理者操作は別途権限を検証する。
-- 管理機能には明示的な認証を実装する。無記名セッションを持つだけで管理者にしない。状態変更をGETで実装せず、CSRF保護と認可を両方適用する。
+- 管理機能には明示的な認証を付ける。同梱の管理者認証（`features/auth`）を使い、`features.AdminConsumer` で受け取った `Admin` の `Page`・`Form` で全経路を守る。無記名セッションを持つだけで管理者にしない。状態変更をGETで実装せず、CSRF保護と認可を両方適用する。
 - SQLiteの接続別PRAGMAを全接続に適用し、外部キーのCASCADE、期限切れ照会、GC、削除後の再アクセスを確認する。
 - `owners` へのCASCADEは、セッション破棄と30日放置のGCで消えてよいブラウザ単位の一時データに限る。CMSの記事・業務データ等の残すべきデータは `owners` に紐づけず、管理者アカウント等の別の持ち主と保持・削除方法を設計する。
 - 公開ページでは `EnsureSession` を呼ばない。ハンドラ単体でなく、Routes経由でCookie発行と保存件数を確認する。サーバー起動時のDB初期化とページ表示時の保存は区別する。
@@ -47,7 +47,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 ## 4. UIを拡張するとき
 - 見出しをh要素で表し、lang、ランドマーク、スキップリンク、入力ラベル、表見出しと外部リンクの説明を維持する。
 - 通常・hover・focusの文字色と背景色、入力境界とフォーカスの識別を確認する。カード数に応じた列数と狭い画面での1列表示を設計し、固定幅・固定高さで文字を切らない。
-- JavaScriptを使わず、標準のリンク・button・details/summaryで操作を提供する。唯一の例外はCMSの認証画面の `webauthn.js` で、例外の拡大は承認境界4・5に当たる。開閉・モーダル・メニューは `<details>`・`<dialog>`・`popover` で作り、承認を得てhtmx等を使う場合は `docs/ui-guidelines.md` の決まり（CSP、CSRF、変化の通知、フォーカス、JSなしでの動作）に従う。外部フォームURLは実際の窓口に設定し、新規タブの通知と `noopener noreferrer` を維持する。
+- JavaScriptを使わず、標準のリンク・button・details/summaryで操作を提供する。唯一の例外は管理者認証の画面の `webauthn.js` で、例外の拡大は承認境界4・5に当たる。開閉・モーダル・メニューは `<details>`・`<dialog>`・`popover` で作り、承認を得てhtmx等を使う場合は `docs/ui-guidelines.md` の決まり（CSP、CSRF、変化の通知、フォーカス、JSなしでの動作）に従う。外部フォームURLは実際の窓口に設定し、新規タブの通知と `noopener noreferrer` を維持する。
 - `hidden` 属性が `.card`・`.btn` 等の `display` 指定に負けないよう、`style.css` 末尾の `[hidden]` 規則を保つ。`<button>` と `a.btn` を並べる画面では、高さが揃うかを確認する。
 - ナビ・見出し・ボタンの用語は既存の画面に揃える（例: 「ホーム」「プライバシーポリシー」）。
 

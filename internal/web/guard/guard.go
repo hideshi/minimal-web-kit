@@ -8,7 +8,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 // SameOrigin は、要求が同じオリジンから送られたことを確認します。
@@ -48,4 +51,41 @@ func (c *CSRF) Token(session string) string {
 // Valid は、CSRFトークンがセッションに対応するかを、時間差の出ない比較で確認します。
 func (c *CSRF) Valid(session, token string) bool {
 	return session != "" && token != "" && hmac.Equal([]byte(c.Token(session)), []byte(token))
+}
+
+// NormalizeOrigin は scheme://host[:port] の形式だけを受け付け、正規化して返します。
+// http は localhost のみ許可します。既定のポートは省略します（ブラウザが送るOriginと揃えるため）。
+func NormalizeOrigin(raw string) (origin, host string, err error) {
+	if raw == "*" || raw == "null" {
+		return "", "", errors.New("wildcard and opaque origins are not allowed")
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", "", errors.New("invalid origin")
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", "", errors.New("origin must use http or https")
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Path != "" && u.Path != "/") || u.Opaque != "" {
+		return "", "", errors.New("origin must not contain user info, path, query or fragment")
+	}
+	host = strings.ToLower(u.Hostname())
+	if host == "" {
+		return "", "", errors.New("origin must have a host")
+	}
+	if u.Scheme == "http" && host != "localhost" {
+		return "", "", errors.New("http is allowed only for localhost")
+	}
+	port := u.Port()
+	if (u.Scheme == "https" && port == "443") || (u.Scheme == "http" && port == "80") {
+		port = ""
+	}
+	hostport := host
+	if strings.Contains(host, ":") {
+		hostport = "[" + host + "]"
+	}
+	if port != "" {
+		hostport += ":" + port
+	}
+	return u.Scheme + "://" + hostport, host, nil
 }

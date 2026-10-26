@@ -108,7 +108,7 @@
     var token = match ? match[1] : "";
     history.replaceState(null, "", location.pathname);
     if (!token) {
-      show("登録用のURLが正しくありません。サーバーで make cms-setup を実行し、表示されたURLをそのまま開いてください。");
+      show("登録用のURLが正しくありません。サーバーで make auth-setup を実行し、表示されたURLをそのまま開いてください。");
       return;
     }
     setupForm.hidden = false;

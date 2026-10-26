@@ -1,4 +1,4 @@
-package cms
+package auth
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 func TestCommands_SetupAndRecover(t *testing.T) {
 	_, db := newTestDB(t)
 	ctx := context.Background()
-	t.Setenv("CMS_ORIGIN", "")
-	t.Setenv("CMS_RP_ID", "")
+	t.Setenv("AUTH_ORIGIN", "")
+	t.Setenv("AUTH_RP_ID", "")
 
 	var out strings.Builder
 	if err := runSetup(ctx, db, nil, strings.NewReader(""), &out); err != nil {
@@ -46,8 +46,8 @@ func TestCommands_SetupAndRecover(t *testing.T) {
 func TestCommands_SetupRefusesWhenRegisteredAndInvalidConfig(t *testing.T) {
 	_, db := newTestDB(t)
 	ctx := context.Background()
-	t.Setenv("CMS_ORIGIN", "")
-	t.Setenv("CMS_RP_ID", "")
+	t.Setenv("AUTH_ORIGIN", "")
+	t.Setenv("AUTH_RP_ID", "")
 	token, err := Setup(ctx, db, time.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -60,9 +60,9 @@ func TestCommands_SetupRefusesWhenRegisteredAndInvalidConfig(t *testing.T) {
 		t.Fatalf("setup must refuse when passkeys exist, got %v", err)
 	}
 
-	t.Setenv("CMS_ORIGIN", "http://example.com")
+	t.Setenv("AUTH_ORIGIN", "http://example.com")
 	if err := runSetup(ctx, db, nil, strings.NewReader(""), &strings.Builder{}); err == nil {
-		t.Fatal("invalid CMS_ORIGIN must be rejected")
+		t.Fatal("invalid AUTH_ORIGIN must be rejected")
 	}
 	if err := runRecover(ctx, db, []string{"-yes"}, strings.NewReader(""), &strings.Builder{}); err == nil {
 		t.Fatal("recover must validate the config before deleting anything")

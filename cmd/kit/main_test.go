@@ -28,7 +28,7 @@ func custom() {}
 func fixture(t *testing.T, registration string) {
 	t.Helper()
 	t.Chdir(t.TempDir())
-	for _, dir := range []string{"cmd/server", "features/site", "features/cms", "features/custom"} {
+	for _, dir := range []string{"cmd/server", "features/site", "features/cms", "features/auth", "features/custom"} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -36,6 +36,7 @@ func fixture(t *testing.T, registration string) {
 	write(t, "cmd/server/features.go", registration)
 	write(t, "features/site/site.go", bundledSiteMarker+"\npackage site\n")
 	write(t, "features/cms/cms.go", bundledCMSMarker+"\npackage cms\n")
+	write(t, "features/auth/auth.go", bundledAuthMarker+"\npackage auth\n")
 	write(t, "features/custom/custom.go", "package custom\n// keep me\n")
 }
 func write(t *testing.T, path, value string) {
@@ -168,7 +169,8 @@ func TestToggleSiteAndCMSIndependently(t *testing.T) {
 		t.Fatal(err)
 	}
 	both := read(t, "cmd/server/features.go")
-	for _, want := range []string{`"minimal-web-kit/features/site"`, "r.Register(site.NewFeature(logger))", `"minimal-web-kit/features/cms"`, "r.Register(cms.NewFeature(logger))"} {
+	// CMSを有効にすると、CMSが使う管理者認証も一緒に有効になる
+	for _, want := range []string{`"minimal-web-kit/features/site"`, "r.Register(site.NewFeature(logger))", `"minimal-web-kit/features/cms"`, "r.Register(cms.NewFeature(logger))", `"minimal-web-kit/features/auth"`, "r.Register(auth.NewFeature(logger))"} {
 		if strings.Count(both, want) != 1 {
 			t.Fatalf("expected exactly one %s", want)
 		}
@@ -183,11 +185,21 @@ func TestToggleSiteAndCMSIndependently(t *testing.T) {
 	if strings.Contains(cmsOnly, "site.") || strings.Count(cmsOnly, "r.Register(cms.NewFeature(logger))") != 1 {
 		t.Fatal("removing Site must keep the CMS registration")
 	}
+	// CMSが有効な間は、管理者認証を外せない
+	if err := removeAuth(); err == nil || !strings.Contains(err.Error(), "remove-cms") {
+		t.Fatalf("removing auth while CMS is enabled must be refused: %v", err)
+	}
+	if !strings.Contains(read(t, "cmd/server/features.go"), "r.Register(auth.NewFeature(logger))") {
+		t.Fatal("a refused remove-auth must not change the registration")
+	}
 	if err := removeCMS(); err != nil {
 		t.Fatal(err)
 	}
+	if err := removeAuth(); err != nil {
+		t.Fatal(err)
+	}
 	if read(t, "cmd/server/features.go") != original {
-		t.Fatal("registration not restored after removing both")
+		t.Fatal("registration not restored after removing all")
 	}
 }
 
@@ -225,6 +237,9 @@ func TestToggleKeepsGofmtFormatting(t *testing.T) {
 		t.Fatal("custom code must be kept")
 	}
 	if err := removeCMS(); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeAuth(); err != nil {
 		t.Fatal(err)
 	}
 	if read(t, "cmd/server/features.go") != string(formatted) {
