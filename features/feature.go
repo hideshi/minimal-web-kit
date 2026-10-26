@@ -100,8 +100,26 @@ type SitemapConsumer interface {
 	SetSitemapSources(sources []SitemapFeature)
 }
 
-// AdminSession は、ログイン中の管理者の要求に付く情報です（同梱機能の管理者認証 features/auth が作る）。
+// Role はアカウントのロールです。管理者認証が決めるのは「アカウントを管理できるか」だけで、
+// 業務の権限（記事を公開できるか等）は各機能が決めます。
+type Role string
+
+const (
+	// RoleAdmin（管理者）は、アカウントの追加・ロール変更・停止・削除と登録URLの発行ができます。
+	RoleAdmin Role = "admin"
+	// RoleMember（メンバー）は、各機能の管理画面を使えます。アカウントの管理はできません。
+	RoleMember Role = "member"
+)
+
+// AdminSession は、ログイン中のアカウントの要求に付く情報です（同梱機能の管理者認証 features/auth が作る）。
 type AdminSession interface {
+	// AccountID はアカウントのIDです。再利用されません。呼び名（表示名）は返しません。
+	// 機能が自分の表に保存する場合は、承認境界2（保存データの追加）と台帳の更新が要ります。
+	AccountID() int64
+	// Role はアカウントのロールです。要求ごとにアカウントから読みます。
+	Role() Role
+	// IsAdmin はロールが管理者かを返します。
+	IsAdmin() bool
 	// CSRFToken は、管理画面のフォームに埋め込むCSRFトークンです（name="csrf_token"）。
 	CSRFToken() string
 	// PageData は、管理画面のレイアウトに渡す値（タイトル、現在のナビ、CSRFトークン、警告等）を返します。
@@ -116,6 +134,10 @@ type Admin interface {
 	Page(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
 	// Form は、管理者のフォーム送信（POST）を守ります。同一オリジン・セッション・CSRFトークンを確認します。
 	Form(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
+	// AdminPage は Page と同じく守り、さらにロールが管理者でなければ403を返します。
+	AdminPage(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
+	// AdminForm は Form と同じく守り、さらにロールが管理者でなければ403を返します。
+	AdminForm(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
 	// Layout は、管理画面のレイアウト（ヘッダーのナビ、ログアウト、警告）です。
 	Layout() web.Layout
 }

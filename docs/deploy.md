@@ -129,7 +129,9 @@ example.com {
 sudo -u mwk sh -c 'set -a; . /etc/minimal-web-kit/env; exec /usr/local/bin/minimal-web-kit auth-setup'
 ```
 
-表示された `https://example.com/admin/setup#token=...` を15分以内に開き、パスキーを登録します。パスキーをすべて失った場合は、同じ形で `auth-recover` を実行します（確認の入力あり）。サーバーの稼働中に実行して構いません。
+表示された `https://example.com/admin/setup#token=...` を15分以内に開き、パスキーを登録します。2人目からは、管理画面の「アカウントの管理」で登録URLを発行します。
+
+管理者全員がパスキーを失った場合は、同じ形で `auth-recover -account <ID>` を実行します（確認の入力あり。`-account` を省くと管理者の一覧を表示します）。1人分だけ初期化する場合は `-only <ID>` を使います。サーバーの稼働中に実行して構いません。
 
 ## 8. バックアップ
 
@@ -153,7 +155,7 @@ sudo install -m 0755 /tmp/minimal-web-kit /usr/local/bin/minimal-web-kit
 sudo systemctl restart minimal-web-kit
 ```
 
-テーブルの追加は起動時に自動で行います（既存のテーブル・データは変更しません）。管理者のログイン状態は再起動後も続きますが、ログインの途中だった操作や、再起動前に開いた管理画面のフォームの送信は失敗します。ページを開き直してください。
+テーブルの追加は起動時に自動で行います（既存のテーブル・データは変更しません）。ただし、管理者認証がアカウント導入前の版だった場合は、起動を止めてログに `auth old schema found` を出します。バックアップの後に `auth-recover -reset-schema` を7節と同じ形で実行し、表示されたURLでパスキーを登録し直してください（管理者認証の表だけを作り直し、CMSの記事等は残ります）。管理者のログイン状態は再起動後も続きますが、ログインの途中だった操作や、再起動前に開いた管理画面のフォームの送信は失敗します。ページを開き直してください。
 
 ## 10. 公開前の確認
 

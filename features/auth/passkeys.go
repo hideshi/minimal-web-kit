@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/base64"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"minimal-web-kit/internal/web"
@@ -27,7 +28,12 @@ func labelField(example string) form.Field {
 
 // credentialParam は経路の {id}（credential IDのbase64url）を解析します。
 func credentialParam(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
-	id, err := base64.RawURLEncoding.Strict().DecodeString(r.PathValue("id"))
+	return credentialParamNamed(w, r, "id")
+}
+
+// credentialParamNamed は、経路の {name}（credential IDのbase64url）を解析します。
+func credentialParamNamed(w http.ResponseWriter, r *http.Request, name string) ([]byte, bool) {
+	id, err := base64.RawURLEncoding.Strict().DecodeString(r.PathValue(name))
 	if err != nil || len(id) == 0 || len(id) > maxCredentialIDLen {
 		http.NotFound(w, r)
 		return nil, false
@@ -38,7 +44,7 @@ func credentialParam(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 // renderPasskeys はパスキー管理画面を返します。パスキーの追加にWebAuthnを使うため、認証画面と同じCSPで返します。
 func (f *Feature) renderPasskeys(w http.ResponseWriter, r *http.Request, s session, status int, errMsg string) {
 	data := s.PageData("パスキーの管理", "/admin/passkeys")
-	creds, err := f.store.listCredentials(r.Context())
+	creds, err := f.store.listCredentials(r.Context(), s.accountID)
 	if err != nil {
 		f.logger.Error("auth list passkeys failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -67,7 +73,7 @@ func (f *Feature) handleRenamePasskey(w http.ResponseWriter, r *http.Request, s 
 	if !ok {
 		return
 	}
-	err := f.store.renameCredential(r.Context(), id, r.PostForm.Get("label"))
+	err := f.store.renameCredential(r.Context(), s.accountID, id, r.PostForm.Get("label"))
 	switch {
 	case errors.Is(err, ErrInvalidInput):
 		f.renderPasskeys(w, r, s, http.StatusBadRequest, errorMessages["label_invalid"])
@@ -77,7 +83,7 @@ func (f *Feature) handleRenamePasskey(w http.ResponseWriter, r *http.Request, s 
 		f.logger.Error("auth rename passkey failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	default:
-		f.logger.Info("auth passkey renamed", f.requestID(w))
+		f.logger.Info("auth passkey renamed", f.requestID(w), slog.Int64("account_id", s.accountID))
 		notice.Redirect(w, r, "/admin/passkeys", "renamed")
 	}
 }
@@ -88,7 +94,7 @@ func (f *Feature) handleDeletePasskeyPage(w http.ResponseWriter, r *http.Request
 		return
 	}
 	data := s.PageData("パスキーの削除", "/admin/passkeys")
-	c, err := f.store.getCredentialInfo(r.Context(), id)
+	c, err := f.store.getCredentialInfo(r.Context(), s.accountID, id)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -102,7 +108,7 @@ func (f *Feature) handleDeletePasskey(w http.ResponseWriter, r *http.Request, s 
 	if !ok {
 		return
 	}
-	err := f.store.deleteCredential(r.Context(), id, s.token)
+	err := f.store.deleteCredential(r.Context(), s.accountID, id, s.token)
 	switch {
 	case errors.Is(err, ErrLastCredential):
 		f.renderPasskeys(w, r, s, http.StatusConflict, "最後の有効なパスキーは削除できません。先に別のパスキーを追加してください。")
@@ -112,7 +118,7 @@ func (f *Feature) handleDeletePasskey(w http.ResponseWriter, r *http.Request, s 
 		f.logger.Error("auth delete passkey failed", f.requestID(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	default:
-		f.logger.Info("auth passkey deleted", f.requestID(w))
+		f.logger.Info("auth passkey deleted", f.requestID(w), slog.Int64("account_id", s.accountID))
 		notice.Redirect(w, r, "/admin/passkeys", "removed")
 	}
 }

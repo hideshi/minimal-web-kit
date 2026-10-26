@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/features/auth"
+	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/cms"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
@@ -116,6 +118,26 @@ func TestCanary_CMSRoutesDoNotLeakInput(t *testing.T) {
 	}
 	send(http.MethodGet, "/admin/posts?notice="+canary, "", "")
 	send(http.MethodGet, "/admin/setup?token="+canary, "", "")
+	for _, target := range []string{"/admin/accounts", "/admin/accounts/" + canary + "/role", "/admin/accounts/1/setup-url"} {
+		send(http.MethodPost, target, "application/x-www-form-urlencoded", url.Values{"csrf_token": {canary}, "name": {canary}, "role": {canary}}.Encode())
+	}
+
+	// ログイン中の管理者がアカウントを作っても、呼び名と登録URLのトークンはログに出ない
+	admin := authtest.NewSession(t, s.DB())
+	createForm := url.Values{"csrf_token": {authtest.CSRFToken(t, routes, "/admin/accounts", admin)}, "name": {canary}, "role": {"member"}}.Encode()
+	req := httptest.NewRequest(http.MethodPost, "/admin/accounts", strings.NewReader(createForm))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.AddCookie(admin)
+	rec := httptest.NewRecorder()
+	routes.ServeHTTP(rec, req)
+	token := regexp.MustCompile(`#token=([A-Za-z0-9_-]+)`).FindStringSubmatch(rec.Body.String())
+	if rec.Code != http.StatusOK || token == nil || !strings.Contains(logBuf.String(), "auth account created") {
+		t.Fatalf("the account creation must succeed (otherwise the canary check is meaningless): %d", rec.Code)
+	}
+	if strings.Contains(logBuf.String(), token[1]) {
+		t.Fatal("the registration token leaked into logs")
+	}
 
 	if logBuf.Len() == 0 {
 		t.Fatal("no logs were captured")

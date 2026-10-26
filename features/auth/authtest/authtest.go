@@ -17,23 +17,45 @@ import (
 // CookieName は管理者セッションのCookie名です。
 const CookieName = "admin_session"
 
-// NewSession は、管理者セッションをDBに直接作り、そのCookieを返します（管理者認証のマイグレーション適用後に使う）。
+// NewSession は、ロールが管理者のアカウントと、その管理者セッションをDBに直接作り、Cookieを返します
+// （管理者認証のマイグレーション適用後に使う）。
 func NewSession(t testing.TB, db *sql.DB) *http.Cookie {
 	t.Helper()
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
+	return NewSessionWithRole(t, db, "admin")
+}
+
+// NewSessionWithRole は、指定したロール（"admin" または "member"）のアカウントと、その管理者セッションを作ります。
+func NewSessionWithRole(t testing.TB, db *sql.DB, role string) *http.Cookie {
+	t.Helper()
+	now := time.Now()
+	res, err := db.Exec(
+		"INSERT INTO auth_accounts (name, role, webauthn_user_id, created_at) VALUES (?, ?, ?, ?)",
+		"テスト用-"+randomHex(t, 8), role, []byte(randomHex(t, 8)), now.Unix())
+	if err != nil {
 		t.Fatal(err)
 	}
-	token := hex.EncodeToString(raw)
+	accountID, err := res.LastInsertId()
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := randomHex(t, 32)
 	sum := sha256.Sum256([]byte(token))
-	now := time.Now()
 	if _, err := db.Exec(
-		"INSERT INTO auth_sessions (token_hash, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?)",
-		hex.EncodeToString(sum[:]), now.Unix(), now.Unix(), now.Add(12*time.Hour).Unix(),
+		"INSERT INTO auth_sessions (token_hash, account_id, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+		hex.EncodeToString(sum[:]), accountID, now.Unix(), now.Unix(), now.Add(12*time.Hour).Unix(),
 	); err != nil {
 		t.Fatal(err)
 	}
 	return &http.Cookie{Name: CookieName, Value: token}
+}
+
+func randomHex(t testing.TB, n int) string {
+	t.Helper()
+	raw := make([]byte, n)
+	if _, err := rand.Read(raw); err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(raw)
 }
 
 var csrfPattern = regexp.MustCompile(`name="csrf_token" value="([0-9a-f]+)"`)

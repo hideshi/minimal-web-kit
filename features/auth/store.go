@@ -16,11 +16,12 @@ import (
 
 // 管理者セッション・登録トークン・パスキーの保存を担当します。
 // 生のトークンはDBに保存せず、SHA-256のハッシュだけを保存します。
+// パスキー・セッション・登録トークンの読み書きは、すべてアカウント（account_id）単位で行います。
 
 var (
-	// ErrSessionInvalid は管理者セッションが存在しない、または失効していることを示します。
+	// ErrSessionInvalid は管理者セッションが存在しない、失効している、またはアカウントが停止中であることを示します。
 	ErrSessionInvalid = errors.New("auth: admin session invalid")
-	// ErrSetupTokenInvalid は登録トークンが存在しない、使用済み、または失効していることを示します。
+	// ErrSetupTokenInvalid は登録トークンが存在しない、使用済み、失効している、またはアカウントが停止中であることを示します。
 	ErrSetupTokenInvalid = errors.New("auth: setup token invalid")
 	// ErrCredentialExists は同じcredential IDのパスキーが登録済みであることを示します。
 	ErrCredentialExists = errors.New("auth: credential already registered")
@@ -28,13 +29,13 @@ var (
 	ErrCredentialUnavailable = errors.New("auth: credential unavailable")
 	// ErrSignCountConflict は並行ログインにより署名カウンタを更新できなかったことを示します。
 	ErrSignCountConflict = errors.New("auth: sign count update conflict")
-	// ErrAlreadySetUp はパスキーが登録済みのため、初回登録の手順を使えないことを示します。
+	// ErrAlreadySetUp は有効なパスキーが登録済みのため、初回登録の手順を使えないことを示します。
 	ErrAlreadySetUp = errors.New("auth: passkeys already registered; use auth-recover")
-	// ErrNotFound はパスキーが存在しないことを示します。
+	// ErrNotFound はアカウントまたはパスキーが存在しないことを示します。
 	ErrNotFound = errors.New("auth: not found")
-	// ErrInvalidInput は入力（端末名等）が制約を満たさないことを示します。
+	// ErrInvalidInput は入力（端末名・呼び名等）が制約を満たさないことを示します。
 	ErrInvalidInput = errors.New("auth: invalid input")
-	// ErrLastCredential は、最後の有効なパスキーは削除できないことを示します。
+	// ErrLastCredential は、アカウントの最後の有効なパスキーは削除できないことを示します。
 	ErrLastCredential = errors.New("auth: cannot delete the last active passkey")
 )
 
@@ -63,47 +64,78 @@ func hashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
+// execer は *sql.DB と *sql.Tx の共通部分です。
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func affectedOne(res sql.Result, err error, ifNone error) error {
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ifNone
+	}
+	return nil
+}
+
 // --- 管理者セッション ---
 
-// createSession は管理者セッションを発行し、Cookieに入れる生のトークンを返します。
-func (s *adminStore) createSession(ctx context.Context) (string, error) {
+// createSession は、アカウントの管理者セッションを発行し、Cookieに入れる生のトークンを返します。
+func createSession(ctx context.Context, x execer, accountID int64, now time.Time) (string, error) {
 	token, err := newToken()
 	if err != nil {
 		return "", err
 	}
-	now := s.now()
-	_, err = s.db.ExecContext(ctx,
-		"INSERT INTO auth_sessions (token_hash, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?)",
-		hashToken(token), now.Unix(), now.Unix(), now.Add(adminSessionMax).Unix())
+	_, err = x.ExecContext(ctx,
+		"INSERT INTO auth_sessions (token_hash, account_id, created_at, last_seen_at, expires_at) VALUES (?, ?, ?, ?, ?)",
+		hashToken(token), accountID, now.Unix(), now.Unix(), now.Add(adminSessionMax).Unix())
 	if err != nil {
 		return "", err
 	}
 	return token, nil
 }
 
-// validateSession は、無操作・絶対期限の両方で有効なことを確認し、最終アクセス日時を更新します。
-// 失効していれば削除して ErrSessionInvalid を返します。
-func (s *adminStore) validateSession(ctx context.Context, token string) error {
+// sessionAccount は、セッションのアカウントです。ロールは要求ごとにアカウントから読みます。
+type sessionAccount struct {
+	AccountID int64
+	Role      string
+}
+
+// validateSession は、無操作・絶対期限の両方で有効なこと、アカウントが存在し停止中でないことを確認し、
+// 最終アクセス日時を更新します。失効していれば削除して ErrSessionInvalid を返します。
+func (s *adminStore) validateSession(ctx context.Context, token string) (sessionAccount, error) {
 	if token == "" {
-		return ErrSessionInvalid
+		return sessionAccount{}, ErrSessionInvalid
 	}
 	hash := hashToken(token)
 	now := s.now()
 	res, err := s.db.ExecContext(ctx,
-		"UPDATE auth_sessions SET last_seen_at = ? WHERE token_hash = ? AND expires_at > ? AND last_seen_at > ?",
+		`UPDATE auth_sessions SET last_seen_at = ?
+		 WHERE token_hash = ? AND expires_at > ? AND last_seen_at > ?
+		   AND EXISTS (SELECT 1 FROM auth_accounts a WHERE a.id = auth_sessions.account_id AND a.disabled_at IS NULL)`,
 		now.Unix(), hash, now.Unix(), now.Add(-adminSessionIdle).Unix())
-	if err != nil {
-		return err
+	if err := affectedOne(res, err, ErrSessionInvalid); err != nil {
+		if errors.Is(err, ErrSessionInvalid) {
+			if _, derr := s.db.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash = ?", hash); derr != nil {
+				return sessionAccount{}, derr
+			}
+		}
+		return sessionAccount{}, err
 	}
-	if n, err := res.RowsAffected(); err != nil {
-		return err
-	} else if n == 1 {
-		return nil
+	var a sessionAccount
+	err = s.db.QueryRowContext(ctx,
+		"SELECT a.id, a.role FROM auth_sessions s JOIN auth_accounts a ON a.id = s.account_id WHERE s.token_hash = ?",
+		hash).Scan(&a.AccountID, &a.Role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return sessionAccount{}, ErrSessionInvalid
 	}
-	if _, err := s.db.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash = ?", hash); err != nil {
-		return err
-	}
-	return ErrSessionInvalid
+	return a, err
 }
 
 func (s *adminStore) deleteSession(ctx context.Context, token string) error {
@@ -111,47 +143,48 @@ func (s *adminStore) deleteSession(ctx context.Context, token string) error {
 	return err
 }
 
-// deleteOtherSessions は、指定したセッション以外の管理者セッションをすべて削除します（パスキー削除時）。
-func (s *adminStore) deleteOtherSessions(ctx context.Context, keepToken string) error {
-	_, err := s.db.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash != ?", hashToken(keepToken))
-	return err
-}
-
 // --- 登録トークン ---
 
-// issueSetupToken は未使用の登録トークンを無効化してから、新しいトークンを発行します。
-func issueSetupToken(ctx context.Context, tx *sql.Tx, now time.Time) (string, error) {
-	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_setup_tokens WHERE used_at IS NULL"); err != nil {
+// issueSetupToken は、アカウントの未使用の登録トークンを無効化してから、新しいトークンを発行します。
+// 他のアカウントの登録トークンには触れません。
+func issueSetupToken(ctx context.Context, x execer, accountID int64, ttl time.Duration, now time.Time) (string, error) {
+	if _, err := x.ExecContext(ctx, "DELETE FROM auth_setup_tokens WHERE account_id = ? AND used_at IS NULL", accountID); err != nil {
 		return "", err
 	}
 	token, err := newToken()
 	if err != nil {
 		return "", err
 	}
-	if _, err := tx.ExecContext(ctx,
-		"INSERT INTO auth_setup_tokens (token_hash, expires_at) VALUES (?, ?)",
-		hashToken(token), now.Add(setupTokenTTL).Unix()); err != nil {
+	if _, err := x.ExecContext(ctx,
+		"INSERT INTO auth_setup_tokens (token_hash, account_id, expires_at) VALUES (?, ?, ?)",
+		hashToken(token), accountID, now.Add(ttl).Unix()); err != nil {
 		return "", err
 	}
 	return token, nil
 }
 
-// checkSetupToken は登録トークンが未使用かつ有効期限内であることを確認します。消費はしません。
-func (s *adminStore) checkSetupToken(ctx context.Context, token string) error {
+// setupTarget は、登録トークンが結びつくアカウントです。
+type setupTarget struct {
+	AccountID      int64
+	Name           string
+	WebAuthnUserID []byte
+}
+
+// checkSetupToken は、登録トークンが未使用・有効期限内で、アカウントが停止中でないことを確認し、
+// 結びつくアカウントを返します。消費はしません。
+func (s *adminStore) checkSetupToken(ctx context.Context, token string) (setupTarget, error) {
 	if token == "" {
-		return ErrSetupTokenInvalid
+		return setupTarget{}, ErrSetupTokenInvalid
 	}
-	var n int
+	var t setupTarget
 	err := s.db.QueryRowContext(ctx,
-		"SELECT COUNT(*) FROM auth_setup_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
-		hashToken(token), s.now().Unix()).Scan(&n)
-	if err != nil {
-		return err
+		`SELECT a.id, a.name, a.webauthn_user_id FROM auth_setup_tokens t JOIN auth_accounts a ON a.id = t.account_id
+		 WHERE t.token_hash = ? AND t.used_at IS NULL AND t.expires_at > ? AND a.disabled_at IS NULL`,
+		hashToken(token), s.now().Unix()).Scan(&t.AccountID, &t.Name, &t.WebAuthnUserID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return setupTarget{}, ErrSetupTokenInvalid
 	}
-	if n != 1 {
-		return ErrSetupTokenInvalid
-	}
-	return nil
+	return t, err
 }
 
 // --- パスキー ---
@@ -164,10 +197,10 @@ func normalizeLabel(label string) (string, error) {
 	return label, nil
 }
 
-func insertCredential(ctx context.Context, tx *sql.Tx, c newCredential, label string, now time.Time) error {
-	_, err := tx.ExecContext(ctx,
-		"INSERT INTO auth_credentials (id, public_key, alg, sign_count, label, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		c.ID, c.PublicKey, c.Alg, int64(c.SignCount), label, now.Unix())
+func insertCredential(ctx context.Context, x execer, accountID int64, c newCredential, label string, now time.Time) error {
+	_, err := x.ExecContext(ctx,
+		"INSERT INTO auth_credentials (id, account_id, public_key, alg, sign_count, label, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		c.ID, accountID, c.PublicKey, c.Alg, int64(c.SignCount), label, now.Unix())
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "PRIMARY KEY") {
 			return ErrCredentialExists
@@ -177,7 +210,7 @@ func insertCredential(ctx context.Context, tx *sql.Tx, c newCredential, label st
 	return nil
 }
 
-// registerWithSetupToken は、登録トークンの消費とパスキーの保存を1つのトランザクションで行います。
+// registerWithSetupToken は、登録トークンの消費と、そのアカウントへのパスキーの保存を1つのトランザクションで行います。
 // どちらかが失敗すれば両方を取り消し、トークンは未使用のまま残ります。
 func (s *adminStore) registerWithSetupToken(ctx context.Context, token string, c newCredential, label string) error {
 	label, err := normalizeLabel(label)
@@ -190,91 +223,108 @@ func (s *adminStore) registerWithSetupToken(ctx context.Context, token string, c
 	}
 	defer func() { _ = tx.Rollback() }()
 	now := s.now()
-	res, err := tx.ExecContext(ctx,
-		"UPDATE auth_setup_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?",
-		now.Unix(), hashToken(token), now.Unix())
-	if err != nil {
-		return err
-	}
-	if n, err := res.RowsAffected(); err != nil {
-		return err
-	} else if n != 1 {
+	var accountID int64
+	err = tx.QueryRowContext(ctx,
+		`UPDATE auth_setup_tokens SET used_at = ?
+		 WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
+		   AND EXISTS (SELECT 1 FROM auth_accounts a WHERE a.id = auth_setup_tokens.account_id AND a.disabled_at IS NULL)
+		 RETURNING account_id`,
+		now.Unix(), hashToken(token), now.Unix()).Scan(&accountID)
+	if errors.Is(err, sql.ErrNoRows) {
 		return ErrSetupTokenInvalid
+	} else if err != nil {
+		return err
 	}
-	if err := insertCredential(ctx, tx, c, label, now); err != nil {
+	if err := insertCredential(ctx, tx, accountID, c, label, now); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-// addCredential はログイン中の管理者がパスキーを追加します。
-func (s *adminStore) addCredential(ctx context.Context, c newCredential, label string) error {
+// addCredential は、ログイン中のアカウントが自分のパスキーを追加します。
+func (s *adminStore) addCredential(ctx context.Context, accountID int64, c newCredential, label string) error {
 	label, err := normalizeLabel(label)
 	if err != nil {
 		return err
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := insertCredential(ctx, tx, c, label, s.now()); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return insertCredential(ctx, s.db, accountID, c, label, s.now())
 }
 
-// getCredential は有効なパスキーを返します。存在しない・無効化済みなら ErrCredentialUnavailable を返します。
-func (s *adminStore) getCredential(ctx context.Context, id []byte) (storedCredential, error) {
-	var c storedCredential
+// loginCredential は、ログインに使うパスキーと、その持ち主のアカウントです。
+type loginCredential struct {
+	storedCredential
+	AccountID       int64
+	WebAuthnUserID  []byte
+	AccountDisabled bool
+}
+
+// getCredential は有効なパスキーと持ち主のアカウントを返します。存在しない・無効化済みなら ErrCredentialUnavailable を返します。
+// アカウントの停止は、署名の検証と複製の疑いの判定の後に、呼び出し側が確かめます。
+func (s *adminStore) getCredential(ctx context.Context, id []byte) (loginCredential, error) {
+	var c loginCredential
 	var count int64
-	var disabledAt sql.NullInt64
+	var disabledAt, accountDisabledAt sql.NullInt64
 	err := s.db.QueryRowContext(ctx,
-		"SELECT id, public_key, alg, sign_count, disabled_at FROM auth_credentials WHERE id = ?", id,
-	).Scan(&c.ID, &c.PublicKey, &c.Alg, &count, &disabledAt)
+		`SELECT c.id, c.public_key, c.alg, c.sign_count, c.disabled_at, a.id, a.webauthn_user_id, a.disabled_at
+		 FROM auth_credentials c JOIN auth_accounts a ON a.id = c.account_id WHERE c.id = ?`, id,
+	).Scan(&c.ID, &c.PublicKey, &c.Alg, &count, &disabledAt, &c.AccountID, &c.WebAuthnUserID, &accountDisabledAt)
 	if errors.Is(err, sql.ErrNoRows) || (err == nil && disabledAt.Valid) {
-		return storedCredential{}, ErrCredentialUnavailable
+		return loginCredential{}, ErrCredentialUnavailable
 	}
 	if err != nil {
-		return storedCredential{}, err
+		return loginCredential{}, err
 	}
 	if count < 0 || count > int64(^uint32(0)) {
-		return storedCredential{}, ErrCredentialUnavailable
+		return loginCredential{}, ErrCredentialUnavailable
 	}
 	c.SignCount = uint32(count)
+	c.AccountDisabled = accountDisabledAt.Valid
 	return c, nil
 }
 
-// recordLogin は署名カウンタと最終使用日時を更新します。カウンタは単調増加のみ許し、
-// 並行ログインで小さい値が後から書かれた場合は ErrSignCountConflict を返します。
-func (s *adminStore) recordLogin(ctx context.Context, id []byte, count uint32) error {
-	res, err := s.db.ExecContext(ctx,
-		"UPDATE auth_credentials SET sign_count = ?, last_used_at = ? WHERE id = ? AND disabled_at IS NULL AND (sign_count < ? OR (sign_count = 0 AND ? = 0))",
-		int64(count), s.now().Unix(), id, int64(count), int64(count))
+// login は、署名カウンタ・パスキーの最終使用日時・アカウントの最終ログイン日時の更新と、
+// セッションの作成を1つのトランザクションで行い、セッションのトークンを返します。
+// カウンタは単調増加のみ許し、並行ログインで小さい値が後から書かれた場合は ErrSignCountConflict を返します。
+func (s *adminStore) login(ctx context.Context, credID []byte, accountID int64, count uint32) (string, error) {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if n, err := res.RowsAffected(); err != nil {
-		return err
-	} else if n != 1 {
-		return ErrSignCountConflict
+	defer func() { _ = tx.Rollback() }()
+	now := s.now()
+	res, err := tx.ExecContext(ctx,
+		`UPDATE auth_credentials SET sign_count = ?, last_used_at = ?
+		 WHERE id = ? AND account_id = ? AND disabled_at IS NULL AND (sign_count < ? OR (sign_count = 0 AND ? = 0))`,
+		int64(count), now.Unix(), credID, accountID, int64(count), int64(count))
+	if err := affectedOne(res, err, ErrSignCountConflict); err != nil {
+		return "", err
 	}
-	return nil
+	res, err = tx.ExecContext(ctx,
+		"UPDATE auth_accounts SET last_login_at = ? WHERE id = ? AND disabled_at IS NULL", now.Unix(), accountID)
+	if err := affectedOne(res, err, ErrSessionInvalid); err != nil {
+		return "", err
+	}
+	token, err := createSession(ctx, tx, accountID, now)
+	if err != nil {
+		return "", err
+	}
+	return token, tx.Commit()
 }
 
-// disableCredential は複製の疑いがあるパスキーを無効化し、管理者セッションをすべて削除します。
+// disableCredential は複製の疑いがあるパスキーを無効化し、そのアカウントの管理者セッションをすべて削除します。
 // 複製したキーで先にログインした者のセッションを、見分けずに確実に失効させるためです。
-func (s *adminStore) disableCredential(ctx context.Context, id []byte) error {
+func (s *adminStore) disableCredential(ctx context.Context, id []byte, accountID int64) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx,
-		"UPDATE auth_credentials SET disabled_at = ? WHERE id = ? AND disabled_at IS NULL", s.now().Unix(), id); err != nil {
+		"UPDATE auth_credentials SET disabled_at = ? WHERE id = ? AND account_id = ? AND disabled_at IS NULL",
+		s.now().Unix(), id, accountID); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_sessions"); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_sessions WHERE account_id = ?", accountID); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -313,9 +363,10 @@ func scanCredentialInfo(row rowScanner) (credentialInfo, error) {
 
 const credentialInfoColumns = "id, label, created_at, last_used_at, disabled_at"
 
-// listCredentials は登録済みのパスキーを、無効化済みも含めて登録順に返します。
-func (s *adminStore) listCredentials(ctx context.Context) ([]credentialInfo, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT "+credentialInfoColumns+" FROM auth_credentials ORDER BY created_at, id")
+// listCredentials は、アカウントのパスキーを、無効化済みも含めて登録順に返します。
+func (s *adminStore) listCredentials(ctx context.Context, accountID int64) ([]credentialInfo, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT "+credentialInfoColumns+" FROM auth_credentials WHERE account_id = ? ORDER BY created_at, id", accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -331,137 +382,85 @@ func (s *adminStore) listCredentials(ctx context.Context) ([]credentialInfo, err
 	return list, rows.Err()
 }
 
-func (s *adminStore) getCredentialInfo(ctx context.Context, id []byte) (credentialInfo, error) {
-	c, err := scanCredentialInfo(s.db.QueryRowContext(ctx, "SELECT "+credentialInfoColumns+" FROM auth_credentials WHERE id = ?", id))
+// credentialIDs は、アカウントのパスキーのIDを返します（登録時の excludeCredentials 用）。
+func (s *adminStore) credentialIDs(ctx context.Context, accountID int64) ([][]byte, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id FROM auth_credentials WHERE account_id = ?", accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids [][]byte
+	for rows.Next() {
+		var id []byte
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// getCredentialInfo は、アカウントのパスキーを返します。他のアカウントのパスキーなら ErrNotFound です。
+func (s *adminStore) getCredentialInfo(ctx context.Context, accountID int64, id []byte) (credentialInfo, error) {
+	c, err := scanCredentialInfo(s.db.QueryRowContext(ctx,
+		"SELECT "+credentialInfoColumns+" FROM auth_credentials WHERE id = ? AND account_id = ?", id, accountID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return credentialInfo{}, ErrNotFound
 	}
 	return c, err
 }
 
-// renameCredential はパスキーの端末名を変更します。
-func (s *adminStore) renameCredential(ctx context.Context, id []byte, label string) error {
+// renameCredential は、アカウントのパスキーの端末名を変更します。
+func (s *adminStore) renameCredential(ctx context.Context, accountID int64, id []byte, label string) error {
 	label, err := normalizeLabel(label)
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(ctx, "UPDATE auth_credentials SET label = ? WHERE id = ?", label, id)
-	if err != nil {
-		return err
-	}
-	if n, err := res.RowsAffected(); err != nil {
-		return err
-	} else if n == 0 {
-		return ErrNotFound
-	}
-	return nil
+	res, err := s.db.ExecContext(ctx, "UPDATE auth_credentials SET label = ? WHERE id = ? AND account_id = ?", label, id, accountID)
+	return affectedOne(res, err, ErrNotFound)
 }
 
-// deleteCredential はパスキーを削除し、現在のセッション以外の管理者セッションをすべて削除します。
-// 紛失した端末でログイン中のセッションを残さないためです。最後の有効なパスキーは削除できません。
+// deleteCredential は、アカウントのパスキーを削除し、そのアカウントの管理者セッションを keepSession 以外すべて削除します。
+// 紛失した端末でログイン中のセッションを残さないためです。アカウントの最後の有効なパスキーは削除できません。
 // 残数の確認と削除は1つの文で行い、並行して削除しても有効なパスキーが0件にならないようにします。
-func (s *adminStore) deleteCredential(ctx context.Context, id []byte, keepSession string) error {
+func (s *adminStore) deleteCredential(ctx context.Context, accountID int64, id []byte, keepSession string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
 	res, err := tx.ExecContext(ctx,
-		`DELETE FROM auth_credentials WHERE id = ? AND (disabled_at IS NOT NULL OR
-			(SELECT COUNT(*) FROM auth_credentials WHERE disabled_at IS NULL AND id != ?) > 0)`,
-		id, id)
-	if err != nil {
+		`DELETE FROM auth_credentials WHERE id = ? AND account_id = ? AND (disabled_at IS NOT NULL OR
+			(SELECT COUNT(*) FROM auth_credentials WHERE account_id = ? AND disabled_at IS NULL AND id != ?) > 0)`,
+		id, accountID, accountID, id)
+	if err := affectedOne(res, err, ErrLastCredential); err != nil {
+		if errors.Is(err, ErrLastCredential) {
+			var exists int
+			if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials WHERE id = ? AND account_id = ?", id, accountID).Scan(&exists); err != nil {
+				return err
+			}
+			if exists == 0 {
+				return ErrNotFound
+			}
+		}
 		return err
 	}
-	if n, err := res.RowsAffected(); err != nil {
-		return err
-	} else if n == 0 {
-		var exists int
-		if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials WHERE id = ?", id).Scan(&exists); err != nil {
-			return err
-		}
-		if exists == 0 {
-			return ErrNotFound
-		}
-		return ErrLastCredential
-	}
-	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_sessions WHERE token_hash != ?", hashToken(keepSession)); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM auth_sessions WHERE account_id = ? AND token_hash != ?", accountID, hashToken(keepSession)); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 // countDisabledCredentials は無効化済みのパスキーの数を返します（管理画面上部の警告用）。
-func (s *adminStore) countDisabledCredentials(ctx context.Context) (int, error) {
+// accountID が0なら全アカウントの分（管理者向け）、それ以外はそのアカウントの分です。
+func (s *adminStore) countDisabledCredentials(ctx context.Context, accountID int64) (int, error) {
 	var n int
-	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials WHERE disabled_at IS NOT NULL").Scan(&n)
+	if accountID == 0 {
+		err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials WHERE disabled_at IS NOT NULL").Scan(&n)
+		return n, err
+	}
+	err := s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials WHERE account_id = ? AND disabled_at IS NOT NULL", accountID).Scan(&n)
 	return n, err
-}
-
-func (s *adminStore) webAuthnUserID(ctx context.Context) ([]byte, error) {
-	var id []byte
-	err := s.db.QueryRowContext(ctx, "SELECT webauthn_user_id FROM auth_settings WHERE id = 1").Scan(&id)
-	return id, err
-}
-
-// --- 初回登録と復旧（cmd/kit から呼ぶ） ---
-
-// Setup は、パスキーが1件も登録されていない場合だけ、登録トークンを発行して返します。
-func Setup(ctx context.Context, db *sql.DB, now time.Time) (string, error) {
-	if err := Migrate(db); err != nil {
-		return "", err
-	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = tx.Rollback() }()
-	var n int
-	if err := tx.QueryRowContext(ctx, "SELECT COUNT(*) FROM auth_credentials").Scan(&n); err != nil {
-		return "", err
-	}
-	if n > 0 {
-		return "", ErrAlreadySetUp
-	}
-	token, err := issueSetupToken(ctx, tx, now)
-	if err != nil {
-		return "", err
-	}
-	return token, tx.Commit()
-}
-
-// Recover は、すべてのパスキー・管理者セッション・登録トークンを削除し、WebAuthnの user.id を
-// 作り直してから、新しい登録トークンを発行して返します。認証器の紛失・盗難時に使います。
-func Recover(ctx context.Context, db *sql.DB, now time.Time) (string, error) {
-	if err := Migrate(db); err != nil {
-		return "", err
-	}
-	userID := make([]byte, 16)
-	if _, err := rand.Read(userID); err != nil {
-		return "", err
-	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, q := range []string{
-		"DELETE FROM auth_credentials",
-		"DELETE FROM auth_sessions",
-		"DELETE FROM auth_setup_tokens",
-	} {
-		if _, err := tx.ExecContext(ctx, q); err != nil {
-			return "", err
-		}
-	}
-	if _, err := tx.ExecContext(ctx, "UPDATE auth_settings SET webauthn_user_id = ? WHERE id = 1", userID); err != nil {
-		return "", err
-	}
-	token, err := issueSetupToken(ctx, tx, now)
-	if err != nil {
-		return "", err
-	}
-	return token, tx.Commit()
 }
 
 // SetupURL は登録トークンをフラグメントに入れた登録画面のURLを返します。

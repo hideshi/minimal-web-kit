@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"mime"
 	"net/http"
+	"strconv"
 	"time"
 
 	"minimal-web-kit/features"
@@ -38,20 +39,23 @@ const (
 var errorMessages = map[string]string{
 	"bad_request":           "リクエストの形式が正しくありません。ページを再読み込みしてやり直してください。",
 	"forbidden":             "このリクエストは受け付けられません。管理画面を開き直してください。",
-	"setup_token_invalid":   "登録用のURLが無効か、期限切れです。サーバーで make auth-setup（パスキーを失った場合は make auth-recover）を実行し、表示されたURLを開き直してください。",
+	"setup_token_invalid":   "登録用のURLが無効か、期限切れです。管理者に登録URLを発行し直してもらってください（最初の管理者は、サーバーで make auth-setup を実行し直してください）。",
 	"synced_credential":     "同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーンなど）は登録できません。Windows Helloやセキュリティキーなど、この端末だけに保存される認証器を使ってください。",
 	"user_not_verified":     "指紋・顔・PINによる本人確認が必要です。認証器の設定を確認してください。",
 	"public_key_invalid":    "この認証器の鍵の種類には対応していません。別の認証器を使ってください。",
 	"credential_exists":     "この認証器は登録済みです。",
 	"label_invalid":         "端末名は1〜50文字で入力してください。",
 	"registration_rejected": "登録できませんでした。ページを開き直して、もう一度お試しください。",
-	"login_rejected":        "このパスキーではログインできません。別のパスキーでログインするか、サーバーで make auth-recover を実行してください。",
+	"login_rejected":        "このパスキーではログインできません。別のパスキーでログインするか、管理者に登録URLを発行し直してもらってください。",
 	"internal_error":        "処理に失敗しました。もう一度お試しください。",
 }
 
 func parseTemplates() map[string]*template.Template {
 	pages := map[string]*template.Template{}
-	for _, page := range []string{"admin_setup.html", "admin_login.html", "admin_passkeys.html", "admin_passkey_delete.html"} {
+	for _, page := range []string{
+		"admin_setup.html", "admin_login.html", "admin_passkeys.html", "admin_passkey_delete.html",
+		"admin_accounts.html", "admin_account_form.html", "admin_account_created.html", "admin_account.html", "admin_account_delete.html",
+	} {
 		pages[page] = template.Must(web.ParseWithComponents(viewsFS, "views/admin_layout.html", "views/"+page))
 	}
 	return pages
@@ -101,14 +105,22 @@ func (f *Feature) validCSRF(sessionToken, token string) bool {
 
 // adminSession は有効な管理者セッションのトークンを返します。無ければ空文字を返します。
 func (f *Feature) adminSession(r *http.Request) string {
+	token, _ := f.currentAccount(r)
+	return token
+}
+
+// currentAccount は、有効な管理者セッションのトークンとアカウントを返します。無ければトークンは空文字です。
+// アカウントが停止中・削除済みなら、セッションの行が残っていても無効として扱います。
+func (f *Feature) currentAccount(r *http.Request) (string, sessionAccount) {
 	c, err := r.Cookie(adminCookieName)
 	if err != nil || c.Value == "" {
-		return ""
+		return "", sessionAccount{}
 	}
-	if err := f.store.validateSession(r.Context(), c.Value); err != nil {
-		return ""
+	a, err := f.store.validateSession(r.Context(), c.Value)
+	if err != nil {
+		return "", sessionAccount{}
 	}
-	return c.Value
+	return c.Value, a
 }
 
 func (f *Feature) setAdminCookie(w http.ResponseWriter, token string) {
@@ -137,22 +149,29 @@ func (f *Feature) clearAdminCookie(w http.ResponseWriter) {
 
 // --- 画面 ---
 
-// session は、ログイン中の管理者の要求に付く情報です（features.AdminSession）。
+// session は、ログイン中のアカウントの要求に付く情報です（features.AdminSession）。
 type session struct {
-	f        *Feature
-	token    string
-	disabled bool // 複製の疑いで無効化されたパスキーがあるか
+	f         *Feature
+	token     string
+	accountID int64
+	role      string
+	disabled  bool // 複製の疑いで無効化されたパスキーがあるか（管理者は全アカウント、メンバーは自分の分）
 }
 
-func (s session) CSRFToken() string { return s.f.csrfToken(s.token) }
+func (s session) CSRFToken() string   { return s.f.csrfToken(s.token) }
+func (s session) AccountID() int64    { return s.accountID }
+func (s session) Role() features.Role { return features.Role(s.role) }
+func (s session) IsAdmin() bool       { return s.role == roleAdmin }
 
 // PageData は、管理画面のレイアウト（views/admin_layout.html）に渡す値を返します。
 func (s session) PageData(title, current string) map[string]any {
 	return map[string]any{
 		"Title":            title,
 		"Current":          current,
-		"AdminNav":         s.f.adminNav(),
+		"AdminNav":         s.f.adminNav(s.IsAdmin()),
 		"LoggedIn":         true,
+		"IsAdmin":          s.IsAdmin(),
+		"RoleLabel":        roleLabel(s.role),
 		"CSRFToken":        s.CSRFToken(),
 		"DisabledPasskeys": s.disabled,
 		"Now":              s.f.now(),
@@ -160,24 +179,33 @@ func (s session) PageData(title, current string) map[string]any {
 }
 
 // adminNav は管理画面のナビです。他の機能のリンク（例: お知らせの管理）の後に、パスキーの管理を置きます。
-func (f *Feature) adminNav() []web.NavLink {
-	return append(append([]web.NavLink{}, f.navLinks...), web.NavLink{Label: "パスキーの管理", Href: "/admin/passkeys"})
+// 管理者には、アカウントの管理も出します。
+func (f *Feature) adminNav(isAdmin bool) []web.NavLink {
+	nav := append(append([]web.NavLink{}, f.navLinks...), web.NavLink{Label: "パスキーの管理", Href: "/admin/passkeys"})
+	if isAdmin {
+		nav = append(nav, web.NavLink{Label: "アカウントの管理", Href: "/admin/accounts"})
+	}
+	return nav
 }
 
 // loadSession は、有効な管理者セッションを読み込みます。無ければ ok=false です。
 func (f *Feature) loadSession(w http.ResponseWriter, r *http.Request) (session, bool) {
-	token := f.adminSession(r)
+	token, a := f.currentAccount(r)
 	if token == "" {
 		return session{}, false
 	}
-	disabled, err := f.store.countDisabledCredentials(r.Context())
+	scope := a.AccountID
+	if a.Role == roleAdmin {
+		scope = 0
+	}
+	disabled, err := f.store.countDisabledCredentials(r.Context(), scope)
 	if err != nil {
 		f.logger.Error("auth count disabled passkeys failed", f.requestID(w))
 	}
-	return session{f: f, token: token, disabled: disabled > 0}, true
+	return session{f: f, token: token, accountID: a.AccountID, role: a.Role, disabled: disabled > 0}, true
 }
 
-// page は、管理者だけが見られる画面（GET）を守ります。未ログインならログイン画面へ移します。
+// page は、ログイン中のアカウントだけが見られる画面（GET）を守ります。未ログインならログイン画面へ移します。
 func (f *Feature) page(next func(w http.ResponseWriter, r *http.Request, s session)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		s, ok := f.loadSession(w, r)
@@ -214,15 +242,38 @@ func (f *Feature) form(next func(w http.ResponseWriter, r *http.Request, s sessi
 	}
 }
 
+// adminOnly は、ロールが管理者でなければ403を返します（page・form の内側で使う）。
+func adminOnly(next func(w http.ResponseWriter, r *http.Request, s session)) func(w http.ResponseWriter, r *http.Request, s session) {
+	return func(w http.ResponseWriter, r *http.Request, s session) {
+		if !s.IsAdmin() {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r, s)
+	}
+}
+
 // adminAPI は、他の機能に渡す features.Admin の実装です。
 type adminAPI struct{ f *Feature }
 
+func toSession(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) func(w http.ResponseWriter, r *http.Request, s session) {
+	return func(w http.ResponseWriter, r *http.Request, s session) { next(w, r, s) }
+}
+
 func (a adminAPI) Page(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
-	return a.f.page(func(w http.ResponseWriter, r *http.Request, s session) { next(w, r, s) })
+	return a.f.page(toSession(next))
 }
 
 func (a adminAPI) Form(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
-	return a.f.form(func(w http.ResponseWriter, r *http.Request, s session) { next(w, r, s) })
+	return a.f.form(toSession(next))
+}
+
+func (a adminAPI) AdminPage(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
+	return a.f.page(adminOnly(toSession(next)))
+}
+
+func (a adminAPI) AdminForm(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
+	return a.f.form(adminOnly(toSession(next)))
 }
 
 func (a adminAPI) Layout() web.Layout {
@@ -235,7 +286,7 @@ func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, f.adminNav()[0].Href, http.StatusSeeOther)
+	http.Redirect(w, r, f.adminNav(false)[0].Href, http.StatusSeeOther)
 }
 
 func (f *Feature) handleSetupPage(w http.ResponseWriter, r *http.Request) {
@@ -316,13 +367,34 @@ func (b *b64Field) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// registrationAuth は登録の認可を確認します。登録トークン、またはログイン中の管理者セッション＋CSRFトークンが必要です。
-func (f *Feature) registrationAuth(r *http.Request, setupToken string) (token string, ok bool) {
+// registrationTarget は、パスキーを登録するアカウントです。
+type registrationTarget struct {
+	AccountID      int64
+	Name           string
+	WebAuthnUserID []byte
+	viaSession     bool // ログイン中の追加（登録トークンではない）
+}
+
+// registrationAuth は登録の認可を確認し、登録先のアカウントを返します。
+// 登録トークン（結びつくアカウントに登録する）、またはログイン中の管理者セッション＋CSRFトークン（自分に登録する）が必要です。
+func (f *Feature) registrationAuth(r *http.Request, setupToken string) (registrationTarget, bool) {
 	if setupToken != "" {
-		return "", f.store.checkSetupToken(r.Context(), setupToken) == nil
+		t, err := f.store.checkSetupToken(r.Context(), setupToken)
+		if err != nil {
+			return registrationTarget{}, false
+		}
+		return registrationTarget{AccountID: t.AccountID, Name: t.Name, WebAuthnUserID: t.WebAuthnUserID}, true
 	}
-	token = f.adminSession(r)
-	return token, token != "" && f.validCSRF(token, r.Header.Get("X-CSRF-Token"))
+	token, a := f.currentAccount(r)
+	if token == "" || !f.validCSRF(token, r.Header.Get("X-CSRF-Token")) {
+		return registrationTarget{}, false
+	}
+	acc, err := f.store.accountForRegistration(r.Context(), a.AccountID)
+	if err != nil {
+		return registrationTarget{}, false
+	}
+	acc.viaSession = true
+	return acc, true
 }
 
 func (f *Feature) handleRegisterBegin(w http.ResponseWriter, r *http.Request, body []byte) {
@@ -333,7 +405,8 @@ func (f *Feature) handleRegisterBegin(w http.ResponseWriter, r *http.Request, bo
 		f.writeError(w, http.StatusBadRequest, "bad_request")
 		return
 	}
-	if _, ok := f.registrationAuth(r, req.Token); !ok {
+	target, ok := f.registrationAuth(r, req.Token)
+	if !ok {
 		code := "forbidden"
 		if req.Token != "" {
 			code = "setup_token_invalid"
@@ -341,34 +414,27 @@ func (f *Feature) handleRegisterBegin(w http.ResponseWriter, r *http.Request, bo
 		f.writeError(w, http.StatusForbidden, code)
 		return
 	}
-	userID, err := f.store.webAuthnUserID(r.Context())
-	if err != nil {
-		f.logger.Error("auth load webauthn user id failed", f.requestID(w))
-		f.writeError(w, http.StatusInternalServerError, "internal_error")
-		return
-	}
 	challenge, err := f.challenges.issue(purposeRegister)
 	if err != nil {
 		f.writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
-	exclude := []map[string]string{}
-	rows, err := f.db.QueryContext(r.Context(), "SELECT id FROM auth_credentials")
+	// 同じ認証器の重複登録を防ぐのは、登録先のアカウントのパスキーだけ（他のアカウントのIDは渡さない）
+	ids, err := f.store.credentialIDs(r.Context(), target.AccountID)
 	if err != nil {
 		f.writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
-	defer rows.Close()
-	for rows.Next() {
-		var id []byte
-		if rows.Scan(&id) == nil {
-			exclude = append(exclude, map[string]string{"type": "public-key", "id": b64(id)})
-		}
+	exclude := []map[string]string{}
+	for _, id := range ids {
+		exclude = append(exclude, map[string]string{"type": "public-key", "id": b64(id)})
 	}
 	f.writeJSON(w, http.StatusOK, map[string]any{
 		"challenge": challenge,
-		"rp":        map[string]string{"id": f.cfg.RPID, "name": "minimal-web-kit CMS"},
-		"user":      map[string]string{"id": b64(userID), "name": "admin", "displayName": "管理者"},
+		"rp":        map[string]string{"id": f.cfg.RPID, "name": "minimal-web-kit"},
+		// user.name は固定の識別子、displayName は呼び名（認証器のアカウント選択に表示される）
+		"user":        map[string]string{"id": b64(target.WebAuthnUserID), "name": "account-" + strconv.FormatInt(target.AccountID, 10), "displayName": target.Name},
+		"accountName": target.Name,
 		"pubKeyCredParams": []map[string]any{
 			{"type": "public-key", "alg": algES256},
 			{"type": "public-key", "alg": algEdDSA},
@@ -414,7 +480,7 @@ func (f *Feature) handleRegisterFinish(w http.ResponseWriter, r *http.Request, b
 		f.writeError(w, http.StatusBadRequest, "bad_request")
 		return
 	}
-	sessionToken, ok := f.registrationAuth(r, req.Token)
+	target, ok := f.registrationAuth(r, req.Token)
 	if !ok {
 		code := "forbidden"
 		if req.Token != "" {
@@ -435,8 +501,8 @@ func (f *Feature) handleRegisterFinish(w http.ResponseWriter, r *http.Request, b
 		PublicKeyAlgorithm: req.PublicKeyAlgorithm,
 	})
 	if err == nil {
-		if sessionToken != "" {
-			err = f.store.addCredential(r.Context(), cred, req.Label)
+		if target.viaSession {
+			err = f.store.addCredential(r.Context(), target.AccountID, cred, req.Label)
 		} else {
 			err = f.store.registerWithSetupToken(r.Context(), req.Token, cred, req.Label)
 		}
@@ -447,9 +513,9 @@ func (f *Feature) handleRegisterFinish(w http.ResponseWriter, r *http.Request, b
 		f.writeError(w, http.StatusBadRequest, code)
 		return
 	}
-	f.logger.Info("auth passkey registered", f.requestID(w))
+	f.logger.Info("auth passkey registered", f.requestID(w), slog.Int64("account_id", target.AccountID))
 	next := "/admin/login?registered=1"
-	if sessionToken != "" {
+	if target.viaSession {
 		next = notice.URL("/admin/passkeys", "added")
 	}
 	f.writeJSON(w, http.StatusOK, map[string]string{"next": next})
@@ -491,23 +557,19 @@ func (f *Feature) handleLoginFinish(w http.ResponseWriter, r *http.Request, body
 		reject("credential_unavailable")
 		return
 	}
-	userID, err := f.store.webAuthnUserID(r.Context())
-	if err != nil {
-		f.writeError(w, http.StatusInternalServerError, "internal_error")
-		return
-	}
 	count, err := verifyAssertion(f.rp(), f.challenges, assertionResponse{
 		RawID:             req.RawID,
 		ClientDataJSON:    req.ClientDataJSON,
 		AuthenticatorData: req.AuthenticatorData,
 		Signature:         req.Signature,
 		UserHandle:        req.UserHandle,
-	}, cred, userID)
+	}, cred.storedCredential, cred.WebAuthnUserID)
+	// 判定の順: 署名の検証 → 署名カウンタ（複製の疑い） → アカウントの停止。停止中でも複製の疑いの検出は働かせる
 	if errors.Is(err, ErrCloneSuspected) {
-		if derr := f.store.disableCredential(r.Context(), cred.ID); derr != nil {
+		if derr := f.store.disableCredential(r.Context(), cred.ID, cred.AccountID); derr != nil {
 			f.logger.Error("auth disable passkey failed", f.requestID(w))
 		}
-		f.logger.Warn("auth passkey disabled", f.requestID(w))
+		f.logger.Warn("auth passkey disabled", f.requestID(w), slog.Int64("account_id", cred.AccountID))
 		reject("clone_suspected")
 		return
 	}
@@ -515,17 +577,23 @@ func (f *Feature) handleLoginFinish(w http.ResponseWriter, r *http.Request, body
 		reject(verificationReason(err))
 		return
 	}
-	if err := f.store.recordLogin(r.Context(), cred.ID, count); err != nil {
-		reject("sign_count_conflict")
+	if cred.AccountDisabled {
+		reject("account_disabled")
 		return
 	}
-	token, err := f.store.createSession(r.Context())
-	if err != nil {
+	token, err := f.store.login(r.Context(), cred.ID, cred.AccountID, count)
+	if errors.Is(err, ErrSignCountConflict) {
+		reject("sign_count_conflict")
+		return
+	} else if errors.Is(err, ErrSessionInvalid) {
+		reject("account_disabled")
+		return
+	} else if err != nil {
 		f.writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
 	f.setAdminCookie(w, token)
-	f.logger.Info("auth login succeeded", f.requestID(w))
+	f.logger.Info("auth login succeeded", f.requestID(w), slog.Int64("account_id", cred.AccountID))
 	f.writeJSON(w, http.StatusOK, map[string]string{"next": "/admin"})
 }
 
@@ -567,6 +635,7 @@ func (f *Feature) registerRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("POST /admin/webauthn/login/begin", f.jsonEndpoint(f.handleLoginBegin))
 	mux.HandleFunc("POST /admin/webauthn/login/finish", f.jsonEndpoint(f.handleLoginFinish))
 	f.registerPasskeyRoutes(mux)
+	f.registerAccountRoutes(mux)
 }
 
 func (f *Feature) writeJSON(w http.ResponseWriter, status int, v any) {

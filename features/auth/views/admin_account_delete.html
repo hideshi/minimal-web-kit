@@ -1,0 +1,15 @@
+{{define "content"}}
+<h1>アカウントの削除</h1>
+
+<p>次のアカウントを削除します。パスキー・ログイン状態・登録URLも削除され、元に戻せません。</p>
+
+<p class="card">{{.Account.Name}}（{{.Account.RoleLabel}}）</p>
+
+<div class="action-bar">
+  <form method="post" action="/admin/accounts/{{.Account.ID}}/delete" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <button type="submit" class="btn btn-danger">削除する</button>
+  </form>
+  <a href="/admin/accounts/{{.Account.ID}}" class="btn btn-secondary">削除せずに戻る</a>
+</div>
+{{end}}

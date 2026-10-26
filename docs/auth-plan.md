@@ -2,6 +2,8 @@
 
 同梱機能の管理者認証（`features/auth`）を、1人の管理者だけの仕組みから、ロールを持つ複数のアカウントで使える仕組みに広げる計画です。CMSに限らず、業務アプリや社内ツール等の管理画面で使うことを前提にします。
 
+> 状態: 2026-10-26 に段階2〜5を実装済み。
+
 ## 1. 目的と範囲
 
 - 最初の1人は、今までどおりサーバーで `make auth-setup` を実行してパスキーを登録する。
@@ -89,9 +91,9 @@
 | 経路 | ロール | 内容 |
 |---|---|---|
 | `GET /admin/accounts` | 管理者 | アカウントの一覧（呼び名・ロール・状態・パスキー数・最終ログイン日時） |
-| `GET/POST /admin/accounts/new` | 管理者 | 作成。作成後に登録URLを1回だけ表示する画面へ |
+| `GET /admin/accounts/new`・`POST /admin/accounts` | 管理者 | 作成。作成の応答で登録URLを1回だけ表示する |
 | `GET /admin/accounts/{id}` | 管理者 | 詳細。ロール変更・停止/再開・登録URLの再発行・パスキーの一覧と削除 |
-| `POST /admin/accounts/{id}/role`・`/disable`・`/enable`・`/setup-url`・`/delete` | 管理者 | 各操作（削除は確認ページを経る） |
+| `POST /admin/accounts/{id}/role`・`/disable`・`/enable`・`/setup-url`・`/delete`・`/passkeys/{cid}/delete` | 管理者 | 各操作（アカウントの削除は確認ページを経る） |
 | `GET /admin/passkeys` | 両方 | 自分のパスキーの管理（今の画面を自分のアカウントに限定） |
 
 登録URLの表示画面は `Cache-Control: no-store` のまま、`Referrer-Policy: no-referrer` を維持する。URLはフラグメントに入れるため、サーバーのログにも残らない。

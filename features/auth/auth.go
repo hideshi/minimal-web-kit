@@ -3,9 +3,9 @@ package auth
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -29,8 +29,8 @@ const (
 	setupTokenTTL = 15 * time.Minute
 )
 
-// Feature は同梱機能の管理者認証です。パスキー（WebAuthn）だけでログインする管理者1人を前提とし、
-// ログイン・パスキーの登録と管理の画面と、他の機能が管理画面を守るための口（features.Admin）を提供します。
+// Feature は同梱機能の管理者認証です。ロール（管理者・メンバー）を持つ複数のアカウントが、パスキー（WebAuthn）だけでログインします。
+// ログイン・パスキーの登録と管理・アカウントの管理の画面と、他の機能が管理画面を守るための口（features.Admin）を提供します。
 // 画面はすべて、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
 	logger     *slog.Logger
@@ -67,6 +67,9 @@ func (f *Feature) Init(db *sql.DB) error {
 		return fmt.Errorf("auth config: %w", err)
 	}
 	if err := Migrate(db); err != nil {
+		if errors.Is(err, ErrOldSchema) {
+			f.logger.Error("auth old schema found; run auth-recover -reset-schema")
+		}
 		return err
 	}
 	f.cfg = cfg
@@ -75,20 +78,18 @@ func (f *Feature) Init(db *sql.DB) error {
 	return nil
 }
 
-// Migrate は管理者認証のテーブルを作成し、WebAuthnの user.id を用意します。既存のデータは変更しません。
+// Migrate は管理者認証のテーブルを作成します。既存のデータは変更しません。
+// アカウント導入前の形式の表が残っている場合は、ErrOldSchema を返します（auth-recover -reset-schema で作り直す）。
 func Migrate(db *sql.DB) error {
+	old, err := detectOldSchema(context.Background(), db)
+	if err != nil {
+		return fmt.Errorf("auth schema check: %w", err)
+	}
+	if old {
+		return ErrOldSchema
+	}
 	if _, err := db.Exec(migrationSQL); err != nil {
 		return fmt.Errorf("auth migration: %w", err)
-	}
-	userID := make([]byte, 16)
-	if _, err := rand.Read(userID); err != nil {
-		return fmt.Errorf("auth webauthn user id: %w", err)
-	}
-	if _, err := db.Exec(
-		"INSERT OR IGNORE INTO auth_settings (id, webauthn_user_id, created_at) VALUES (1, ?, ?)",
-		userID, time.Now().Unix(),
-	); err != nil {
-		return fmt.Errorf("auth settings: %w", err)
 	}
 	return nil
 }

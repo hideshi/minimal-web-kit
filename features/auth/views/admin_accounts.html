@@ -1,0 +1,39 @@
+{{define "content"}}
+<h1>アカウントの管理</h1>
+
+{{template "notice" .Notice}}
+
+<p>管理画面にログインできるアカウントの一覧です。管理者は、アカウントの追加・ロール変更・停止・削除と、パスキーの登録URLの発行ができます。メンバーは、各機能の管理画面を使えます（アカウントの管理はできません）。</p>
+
+<p><a href="/admin/accounts/new" class="btn btn-primary">アカウントを追加する</a></p>
+
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">アカウント（作成の古い順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">呼び名</th>
+        <th scope="col">ロール</th>
+        <th scope="col">状態</th>
+        <th scope="col">有効なパスキー</th>
+        <th scope="col">登録URL</th>
+        <th scope="col">最終ログイン</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Accounts}}
+      <tr>
+        <td><a href="/admin/accounts/{{.ID}}">{{.Name}}</a>{{if eq .ID $.Self}}（自分）{{end}}</td>
+        <td>{{.RoleLabel}}</td>
+        <td>{{if .Disabled}}停止中{{else if eq .ActivePasskeys 0}}未登録{{else}}有効{{end}}</td>
+        <td>{{.ActivePasskeys}}{{if .DisabledKeys}}（無効 {{.DisabledKeys}}）{{end}}</td>
+        <td>{{template "token-state" .}}</td>
+        <td>{{if .LastLoginAt.IsZero}}未ログイン{{else}}<time datetime="{{.LastLoginAt.Format "2006-01-02T15:04"}}">{{.LastLoginAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+{{define "token-state"}}{{if not .TokenExpiresAt.IsZero}}未使用（<time datetime="{{.TokenExpiresAt.Format "2006-01-02T15:04"}}">{{.TokenExpiresAt.Format "1月2日 15:04"}}</time>まで）{{else if not .TokenUsedAt.IsZero}}使用済み（<time datetime="{{.TokenUsedAt.Format "2006-01-02T15:04"}}">{{.TokenUsedAt.Format "1月2日 15:04"}}</time>）{{else}}なし{{end}}{{end}}

@@ -1,0 +1,89 @@
+{{define "content"}}
+<h1>アカウント: {{.Account.Name}}{{if .IsSelf}}（自分）{{end}}</h1>
+
+{{template "notice" .Notice}}
+{{template "error" .Error}}
+
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">アカウントの状態</caption>
+    <tbody>
+      <tr><th scope="row">ロール</th><td>{{.Account.RoleLabel}}</td></tr>
+      <tr><th scope="row">状態</th><td>{{if .Account.Disabled}}停止中（<time datetime="{{.Account.DisabledAt.Format "2006-01-02T15:04"}}">{{.Account.DisabledAt.Format "2006年1月2日 15:04"}}</time>から）{{else}}有効{{end}}</td></tr>
+      <tr><th scope="row">登録URL</th><td>{{template "token-state" .Account}}</td></tr>
+      <tr><th scope="row">作成日時</th><td><time datetime="{{.Account.CreatedAt.Format "2006-01-02T15:04"}}">{{.Account.CreatedAt.Format "2006年1月2日 15:04"}}</time></td></tr>
+      <tr><th scope="row">最終ログイン</th><td>{{if .Account.LastLoginAt.IsZero}}未ログイン{{else}}<time datetime="{{.Account.LastLoginAt.Format "2006-01-02T15:04"}}">{{.Account.LastLoginAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+{{if .IsSelf}}
+<p>自分のロールの変更・停止・削除は、別の管理者が行います。自分のパスキーは<a href="/admin/passkeys">パスキーの管理</a>で操作できます。</p>
+{{else}}
+<h2>ロールの変更</h2>
+<form method="post" action="/admin/accounts/{{.Account.ID}}/role" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <fieldset class="form-group">
+    <legend>ロール</legend>
+    <p><label><input type="radio" name="role" value="member"{{if not .Account.IsAdmin}} checked{{end}}> メンバー</label></p>
+    <p><label><input type="radio" name="role" value="admin"{{if .Account.IsAdmin}} checked{{end}}> 管理者</label></p>
+  </fieldset>
+  <p class="field-hint">変更すると、このアカウントのログイン状態を解除します。</p>
+  <button type="submit" class="btn btn-secondary">ロールを変更する</button>
+</form>
+
+<h2>停止・再開</h2>
+<form method="post" action="/admin/accounts/{{.Account.ID}}/{{if .Account.Disabled}}enable{{else}}disable{{end}}" class="inline-form">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <button type="submit" class="btn btn-secondary">{{if .Account.Disabled}}アカウントを再開する{{else}}アカウントを停止する（ログイン状態も解除）{{end}}</button>
+</form>
+{{end}}
+
+<h2>登録URLの発行</h2>
+<form method="post" action="/admin/accounts/{{.Account.ID}}/setup-url" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <p>パスキーを追加したいとき、なくしたときに、このアカウントの登録URL（24時間有効・1回限り）を発行し直します。未使用の古いURLは使えなくなります。</p>
+  {{if not .IsSelf}}
+  <p><label><input type="checkbox" name="reset_keys" value="1"> 登録済みのパスキーとログイン状態を削除してから発行する（端末の紛失・盗難時）</label></p>
+  {{end}}
+  <button type="submit" class="btn btn-secondary">登録URLを発行し直す</button>
+</form>
+
+<h2>パスキー</h2>
+{{if .Credentials}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">このアカウントのパスキー</caption>
+    <thead>
+      <tr><th scope="col">端末名</th><th scope="col">状態</th><th scope="col">最終使用日時</th><th scope="col">操作</th></tr>
+    </thead>
+    <tbody>
+      {{range .Credentials}}
+      <tr>
+        <td>{{.Label}}</td>
+        <td>{{if .Disabled}}無効（複製の疑い）{{else}}有効{{end}}</td>
+        <td>{{if .LastUsedAt.IsZero}}未使用{{else}}<time datetime="{{.LastUsedAt.Format "2006-01-02T15:04"}}">{{.LastUsedAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
+        <td>
+          <form method="post" action="/admin/accounts/{{$.Account.ID}}/passkeys/{{.Param}}/delete" class="inline-form">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button type="submit" class="btn btn-danger">削除</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>登録済みのパスキーはありません。</p>
+{{end}}
+
+{{if not .IsSelf}}
+<h2>削除</h2>
+<p><a href="/admin/accounts/{{.Account.ID}}/delete" class="btn btn-danger">アカウントを削除する</a></p>
+{{end}}
+
+<p><a href="/admin/accounts">アカウントの一覧へ戻る</a></p>
+{{end}}
+
+{{define "token-state"}}{{if not .TokenExpiresAt.IsZero}}未使用（<time datetime="{{.TokenExpiresAt.Format "2006-01-02T15:04"}}">{{.TokenExpiresAt.Format "1月2日 15:04"}}</time>まで）{{else if not .TokenUsedAt.IsZero}}使用済み（<time datetime="{{.TokenUsedAt.Format "2006-01-02T15:04"}}">{{.TokenUsedAt.Format "1月2日 15:04"}}</time>）{{else}}なし{{end}}{{end}}

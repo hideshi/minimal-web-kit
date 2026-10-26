@@ -29,13 +29,13 @@ func (fx *fixture) loggedIn(t *testing.T) (*fakeAuthenticator, *http.Cookie) {
 	if rec := fx.registerViaHTTP(t, a, token); rec.Code != http.StatusOK {
 		t.Fatalf("register: %d %s", rec.Code, rec.Body.String())
 	}
-	userID, _ := fx.feature.store.webAuthnUserID(ctx)
+	userID, _ := fx.userID(t, 1), error(nil)
 	return a, adminCookie(t, fx.loginViaHTTP(t, a, userID))
 }
 
 func mustFirstCredential(t *testing.T, fx *fixture) credentialInfo {
 	t.Helper()
-	creds, err := fx.feature.store.listCredentials(context.Background())
+	creds, err := fx.feature.store.listCredentials(context.Background(), 1)
 	if err != nil || len(creds) == 0 {
 		t.Fatalf("no credentials: %v", err)
 	}
@@ -46,7 +46,7 @@ func TestAdminPasskeys_AddRenameDelete(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()
 	first, cookie := fx.loggedIn(t)
-	userID, _ := fx.feature.store.webAuthnUserID(ctx)
+	userID, _ := fx.userID(t, 1), error(nil)
 	// 別の端末でもログインしておく
 	other := adminCookie(t, fx.loginViaHTTP(t, first, userID))
 
@@ -101,7 +101,7 @@ func TestAdminPasskeys_AddRenameDelete(t *testing.T) {
 	if rec := fx.postForm(t, "/admin/passkeys/"+firstParam+"/label", withCSRF(fx, cookie, url.Values{"label": {"仕事用PC"}}), "same-origin", cookie); rec.Code != http.StatusSeeOther {
 		t.Fatalf("rename: %d", rec.Code)
 	}
-	if c, _ := fx.feature.store.getCredentialInfo(ctx, first.credID); c.Label != "仕事用PC" {
+	if c, _ := fx.feature.store.getCredentialInfo(ctx, 1, first.credID); c.Label != "仕事用PC" {
 		t.Fatalf("label not updated: %q", c.Label)
 	}
 
@@ -131,13 +131,13 @@ func TestAdminPasskeys_DisabledPasskeyIsShownAndDeletable(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()
 	first, _ := fx.loggedIn(t)
-	userID, _ := fx.feature.store.webAuthnUserID(ctx)
+	userID, _ := fx.userID(t, 1), error(nil)
 
 	second := newFakeAuthenticator(t, algES256)
-	if err := fx.feature.store.addCredential(ctx, newCredential{ID: second.credID, PublicKey: second.spki(), Alg: second.alg}, "予備"); err != nil {
+	if err := fx.feature.store.addCredential(ctx, 1, newCredential{ID: second.credID, PublicKey: second.spki(), Alg: second.alg}, "予備"); err != nil {
 		t.Fatal(err)
 	}
-	if err := fx.feature.store.disableCredential(ctx, first.credID); err != nil {
+	if err := fx.feature.store.disableCredential(ctx, first.credID, 1); err != nil {
 		t.Fatal(err)
 	}
 	cookie := adminCookie(t, fx.loginViaHTTP(t, second, userID))
@@ -165,15 +165,20 @@ func TestAdminPasskeys_DisabledPasskeyIsShownAndDeletable(t *testing.T) {
 func TestAdminStore_DeleteCredentialKeepsOneActive(t *testing.T) {
 	s, _, _ := newAdminFixture(t)
 	ctx := context.Background()
+	account := newAccount(t, s, "管理者", roleAdmin)
+	other := newAccount(t, s, "B", roleMember)
+	if err := s.addCredential(ctx, other, testCredential("other"), "他のキー"); err != nil {
+		t.Fatal(err)
+	}
 	for _, id := range []string{"a", "b"} {
-		if err := s.addCredential(ctx, testCredential(id), "キー"+id); err != nil {
+		if err := s.addCredential(ctx, account, testCredential(id), "キー"+id); err != nil {
 			t.Fatal(err)
 		}
 	}
 	// 並行して両方を削除しても、有効なパスキーは1つ残る
 	errs := make(chan error, 2)
 	for _, id := range []string{"a", "b"} {
-		go func(id string) { errs <- s.deleteCredential(ctx, []byte(id), "") }(id)
+		go func(id string) { errs <- s.deleteCredential(ctx, account, []byte(id), "") }(id)
 	}
 	ok := 0
 	for range 2 {
@@ -183,12 +188,19 @@ func TestAdminStore_DeleteCredentialKeepsOneActive(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	creds, _ := s.listCredentials(ctx)
+	creds, _ := s.listCredentials(ctx, account)
 	if ok != 1 || len(creds) != 1 {
 		t.Fatalf("deleted %d, remaining %d", ok, len(creds))
 	}
-	if err := s.deleteCredential(ctx, []byte("missing"), ""); err != ErrNotFound {
+	if err := s.deleteCredential(ctx, account, []byte("missing"), ""); err != ErrNotFound {
 		t.Fatalf("missing credential: %v", err)
+	}
+	// 他のアカウントのパスキーは、見つからない扱い（削除も名前の変更もできない）
+	if err := s.deleteCredential(ctx, account, []byte("other"), ""); err != ErrNotFound {
+		t.Fatalf("another account's credential: %v", err)
+	}
+	if err := s.renameCredential(ctx, account, []byte("other"), "x"); err != ErrNotFound {
+		t.Fatalf("renaming another account's credential: %v", err)
 	}
 }
 

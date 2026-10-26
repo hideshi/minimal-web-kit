@@ -51,6 +51,12 @@ func (n *notesFeature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 		data := s.PageData("メモの管理", "/admin/notes")
 		_, _ = io.WriteString(w, "notes page csrf="+s.CSRFToken()+" nav="+data["AdminNav"].([]web.NavLink)[0].Href)
 	}))
+	mux.HandleFunc("GET /admin/notes/settings", n.admin.AdminPage(func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+		_, _ = io.WriteString(w, "settings for "+string(s.Role()))
+	}))
+	mux.HandleFunc("POST /admin/notes/settings", n.admin.AdminForm(func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+		_, _ = io.WriteString(w, "settings saved")
+	}))
 	mux.HandleFunc("POST /admin/notes", n.admin.Form(func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 		n.saved = append(n.saved, r.PostForm.Get("text"))
 		_, _ = io.WriteString(w, "saved")
@@ -128,6 +134,16 @@ func (fx *fixture) postForm(t *testing.T, path, body, site string, cookie *http.
 	return rec
 }
 
+// userID は、アカウントの WebAuthn の user.id（ログイン時の userHandle）を返します。
+func (fx *fixture) userID(t *testing.T, accountID int64) []byte {
+	t.Helper()
+	var id []byte
+	if err := fx.db.QueryRow("SELECT webauthn_user_id FROM auth_accounts WHERE id = ?", accountID).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
 func assertRows(t *testing.T, db *sql.DB, query string, want int) {
 	t.Helper()
 	var got int
@@ -147,13 +163,16 @@ func TestPurge_KeepsPasskeysAndCoreGCIndependent(t *testing.T) {
 	f := &Feature{db: db, now: time.Now}
 	now := time.Now()
 
-	mustExec(t, db, "INSERT INTO auth_credentials (id, public_key, alg, label, created_at) VALUES (x'01', x'02', -7, 'key', ?)", now.Unix())
-	mustExec(t, db, "INSERT INTO auth_sessions VALUES ('active', ?, ?, ?)", now.Unix(), now.Unix(), now.Add(time.Hour).Unix())
-	mustExec(t, db, "INSERT INTO auth_sessions VALUES ('idle', ?, ?, ?)", now.Unix(), now.Add(-3*time.Hour).Unix(), now.Add(time.Hour).Unix())
-	mustExec(t, db, "INSERT INTO auth_sessions VALUES ('expired', ?, ?, ?)", now.Unix(), now.Unix(), now.Add(-time.Second).Unix())
-	mustExec(t, db, "INSERT INTO auth_setup_tokens VALUES ('valid', ?, NULL)", now.Add(time.Minute).Unix())
-	mustExec(t, db, "INSERT INTO auth_setup_tokens VALUES ('used', ?, ?)", now.Add(time.Minute).Unix(), now.Unix())
-	mustExec(t, db, "INSERT INTO auth_setup_tokens VALUES ('old', ?, NULL)", now.Add(-time.Minute).Unix())
+	mustExec(t, db, "INSERT INTO auth_accounts (id, name, role, webauthn_user_id, created_at) VALUES (1, '管理者', 'admin', x'00', ?)", now.Unix())
+	mustExec(t, db, "INSERT INTO auth_credentials (id, account_id, public_key, alg, label, created_at) VALUES (x'01', 1, x'02', -7, 'key', ?)", now.Unix())
+	session := "INSERT INTO auth_sessions (token_hash, account_id, created_at, last_seen_at, expires_at) VALUES (?, 1, ?, ?, ?)"
+	mustExec(t, db, session, "active", now.Unix(), now.Unix(), now.Add(time.Hour).Unix())
+	mustExec(t, db, session, "idle", now.Unix(), now.Add(-3*time.Hour).Unix(), now.Add(time.Hour).Unix())
+	mustExec(t, db, session, "expired", now.Unix(), now.Unix(), now.Add(-time.Second).Unix())
+	token := "INSERT INTO auth_setup_tokens (token_hash, account_id, expires_at, used_at) VALUES (?, 1, ?, ?)"
+	mustExec(t, db, token, "valid", now.Add(time.Minute).Unix(), nil)
+	mustExec(t, db, token, "used", now.Add(time.Minute).Unix(), now.Unix())
+	mustExec(t, db, token, "old", now.Add(-time.Minute).Unix(), nil)
 
 	if err := f.Purge(ctx); err != nil {
 		t.Fatal(err)
@@ -176,6 +195,7 @@ func TestPurge_KeepsPasskeysAndCoreGCIndependent(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertRows(t, db, "SELECT COUNT(*) FROM auth_credentials", 1)
+	assertRows(t, db, "SELECT COUNT(*) FROM auth_accounts", 1)
 }
 
 func mustExec(t *testing.T, db *sql.DB, query string, args ...any) {

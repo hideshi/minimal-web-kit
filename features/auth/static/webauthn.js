@@ -75,6 +75,9 @@
   async function register(token, csrfToken, label) {
     show("認証器の操作を待っています…");
     var options = await post("/admin/webauthn/register/begin", { token: token }, csrfToken);
+    if (options.accountName) {
+      show("「" + options.accountName + "」のパスキーを登録します。認証器の操作を待っています…");
+    }
     options.challenge = toBuffer(options.challenge);
     options.user.id = toBuffer(options.user.id);
     options.excludeCredentials = options.excludeCredentials.map(function (c) {
@@ -108,7 +111,7 @@
     var token = match ? match[1] : "";
     history.replaceState(null, "", location.pathname);
     if (!token) {
-      show("登録用のURLが正しくありません。サーバーで make auth-setup を実行し、表示されたURLをそのまま開いてください。");
+      show("登録用のURLが正しくありません。受け取ったURLをそのまま開いてください。使えない場合は、管理者に登録URLを発行し直してもらってください。");
       return;
     }
     setupForm.hidden = false;

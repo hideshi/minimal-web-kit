@@ -1,0 +1,18 @@
+{{define "content"}}
+<h1>アカウントの追加</h1>
+
+<p>アカウントを作ると、その人専用のパスキーの登録URLを発行します。URLは、メール以外の手段（チャット等）で本人に渡してください。このキットはメールを送りません。</p>
+
+<form method="post" action="/admin/accounts" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{template "field" .NameField}}
+  <fieldset class="form-group">
+    <legend>ロール<span class="required-mark">（必須）</span></legend>
+    <p><label><input type="radio" name="role" value="member"{{if eq .Role "member"}} checked{{end}}> メンバー（各機能の管理画面を使える。アカウントの管理はできない）</label></p>
+    <p><label><input type="radio" name="role" value="admin"{{if eq .Role "admin"}} checked{{end}}> 管理者（アカウントの管理もできる。必要な人に限る）</label></p>
+  </fieldset>
+  <button type="submit" class="btn btn-primary">作成して登録URLを発行する</button>
+</form>
+
+<p><a href="/admin/accounts">アカウントの一覧へ戻る</a></p>
+{{end}}

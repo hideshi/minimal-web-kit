@@ -61,7 +61,7 @@ Cookieも利用者ごとの内容も持たない公開ページ（Siteの `/`・
 
 ### 管理者認証（パスキー）
 
-管理画面を持つ機能のための、管理者1人のログインを提供する同梱機能です。CMSを使わずに、自作の業務アプリ等の管理画面にも使えます。
+管理画面を持つ機能のための、ロールを持つ複数のアカウントのログインを提供する同梱機能です。CMSを使わずに、自作の業務アプリ等の管理画面にも使えます。
 
 ```bash
 make add-auth        # CMSを使う場合は make add-cms で一緒に有効になる
@@ -70,18 +70,29 @@ make run
 make auth-setup
 ```
 
-表示された `http://localhost:8080/admin/setup#token=...` を15分以内に開いてパスキーを登録し、`http://localhost:8080/admin/login` からログインします。WebAuthnはIPアドレスでは動かないため、`127.0.0.1` ではなく `localhost` で開いてください。
+表示された `http://localhost:8080/admin/setup#token=...` を15分以内に開いてパスキーを登録し、`http://localhost:8080/admin/login` からログインします。最初のアカウントは、ロールが管理者で呼び名が「管理者」です。WebAuthnはIPアドレスでは動かないため、`127.0.0.1` ではなく `localhost` で開いてください。
+
+2人目からは、管理者が「アカウントの管理」でアカウント（呼び名とロール）を作り、表示された登録URL（24時間有効・1回限り）を本人に渡します。このキットはメールを送りません。URLはチャット等で本人だけに渡してください。
+
+| ロール | できること |
+|---|---|
+| 管理者（`admin`） | 各機能の管理画面、自分のパスキーの管理、アカウントの追加・ロール変更・停止・削除・登録URLの発行 |
+| メンバー（`member`） | 各機能の管理画面、自分のパスキーの管理 |
 
 | 経路 | 内容 |
 |---|---|
 | `/admin/login`、`/admin/setup` | パスキーでのログイン、初回登録・復旧時の登録 |
-| `/admin/passkeys` | パスキーの追加・名前変更・削除 |
+| `/admin/passkeys` | 自分のパスキーの追加・名前変更・削除 |
+| `/admin/accounts` | アカウントの管理（管理者のみ） |
 | `/admin` | 管理画面の入り口（他の機能の管理画面、無ければパスキーの管理へ移る） |
 
 - **ログインはパスキーだけ**です。パスワードはありません。複製を検出できない同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーン等）は拒否し、Windows Helloやセキュリティキー等、端末に固定された認証器だけを登録できます。Windows Helloの指紋認証で登録・ログインを確認しています。ChromeOSの指紋認証は同期型として拒否されることを確認しています。MacのTouch IDも、iCloudキーチェーンの同期型のため使えない見込みです。
-- 認証器は2つ以上の登録を推奨します。すべて失った場合は、サーバーで `make auth-recover`（本番は `minimal-web-kit auth-recover`）を実行し、登録し直します。他の機能のデータ（CMSの記事等）は残ります。
-- 管理者は1人で、権限の分離や操作の記録はありません。
-- 自作機能の管理画面は、`features.AdminConsumer` を実装して管理者認証の口（`features.Admin`）を受け取り、`Page`（画面）・`Form`（送信）で守ります。管理画面のナビへのリンクは `features.AdminNavFeature` で足します。画面は `admin.Layout()` のレイアウトで描きます。
+- 認証器は2つ以上の登録を推奨します。メンバーや他の管理者がパスキーを失った場合は、管理者がアカウントの詳細で登録URLを発行し直します（紛失・盗難時は、既存のパスキーを削除して発行）。
+- 有効な管理者（停止中でなく、有効なパスキーを持つ管理者）が0人になる操作（最後の管理者の降格・停止・削除・鍵のリセット）は拒否します。自分自身のロール変更・停止・削除もできません。管理者を2人以上にしておくことを推奨します。
+- 管理者全員がログインできなくなった場合は、サーバーで `make auth-recover ARGS="-account <ID>"`（本番は `minimal-web-kit auth-recover -account <ID>`）を実行します。全アカウントのパスキーとセッションを削除し、指定した管理者の登録URLを表示します。1人分だけ初期化する場合は `-only <ID>` を使います。アカウントと、他の機能のデータ（CMSの記事等）は残ります。`-account` を省くと管理者の一覧を表示します。
+- ロール変更・停止・削除の操作はログ（アカウント番号のみ。呼び名は記録しない）に残しますが、DBに操作の記録は持ちません。権限はロール2種類だけで、機能ごとの細かい権限はありません。
+- アカウント導入前の版のDBでは起動を止めます。`make auth-recover ARGS="-reset-schema"` で管理者認証の表だけを作り直し、パスキーを登録し直してください。他の機能のデータは残ります。
+- 自作機能の管理画面は、`features.AdminConsumer` を実装して管理者認証の口（`features.Admin`）を受け取り、`Page`（画面）・`Form`（送信）で守ります。管理画面のナビへのリンクは `features.AdminNavFeature` で足します。画面は `admin.Layout()` のレイアウトで描きます。管理者だけに許す画面は `AdminPage`・`AdminForm` で守ります（ログイン中のアカウントは `AdminSession` の `AccountID`・`Role`・`IsAdmin` で分かります）。
 - 本番では `AUTH_ORIGIN`・`AUTH_RP_ID` を公開するURLに合わせ、`SECURE_COOKIE=true` にします。手順は [docs/deploy.md](docs/deploy.md) を参照してください。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の4節にあります。
 - CMSが有効な間は `make remove-auth` で外せません。登録を外しても、DBのデータは残ります。
 
@@ -117,9 +128,9 @@ make auth-setup
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
 | `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（CMSが有効な間は無効化できない） |
 | `make add-cms` / `make remove-cms` | CMSの登録を有効化・無効化（有効化すると管理者認証も有効になる。無効化してもDBのデータは残る） |
-| `make auth-setup` | 管理者のパスキーの初回登録用URLを表示（パスキーが未登録のときだけ）。本番は `minimal-web-kit auth-setup` |
+| `make auth-setup` | 最初の管理者のパスキーの登録用URLを表示（有効なパスキーが1件も無いときだけ）。本番は `minimal-web-kit auth-setup` |
 | `go run ./cmd/server export-static <dir>` | Siteの公開ページ（`/`・`/privacy`）とCSS、セキュリティヘッダーの `_headers` を静的ファイルとして書き出す（Siteのみ有効な場合）。本番は `minimal-web-kit export-static <dir>` |
-| `make auth-recover` | 管理者のパスキーとセッションを全削除し、登録用URLを再発行（確認あり） |
+| `make auth-recover ARGS="-account <ID>"` | 全アカウントのパスキーとセッションを削除し、指定した管理者の登録用URLを再発行（確認あり）。`-only <ID>` で1人分だけ、`-reset-schema` で古い形式の表を作り直す |
 | `make` / `make all` | テスト後にビルド（サーバーは起動しない） |
 | `make clean` | `bin/` と **`data/`（既定のDBを含む）を削除** |
 

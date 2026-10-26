@@ -122,7 +122,7 @@ func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 		t.Fatal("used setup token must be rejected")
 	}
 
-	userID, _ := fx.feature.store.webAuthnUserID(ctx)
+	userID, _ := fx.userID(t, 1), error(nil)
 	rec = fx.loginViaHTTP(t, a, userID)
 	if rec.Code != http.StatusOK || decode(t, rec)["next"] != "/admin" {
 		t.Fatalf("login: %d %s", rec.Code, rec.Body.String())
@@ -228,7 +228,7 @@ func TestAdmin_SyncedPasskeyIsRejectedWithGuidance(t *testing.T) {
 		t.Fatal("the rejection reason must be logged for diagnosis")
 	}
 	// 拒否された登録ではトークンを消費しない
-	if err := fx.feature.store.checkSetupToken(context.Background(), token); err != nil {
+	if _, err := fx.feature.store.checkSetupToken(context.Background(), token); err != nil {
 		t.Fatal("rejected registration must keep the token")
 	}
 }
@@ -241,7 +241,7 @@ func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	if rec := fx.registerViaHTTP(t, a, token); rec.Code != http.StatusOK {
 		t.Fatal(rec.Body.String())
 	}
-	userID, _ := fx.feature.store.webAuthnUserID(ctx)
+	userID, _ := fx.userID(t, 1), error(nil)
 	first := adminCookie(t, fx.loginViaHTTP(t, a, userID))
 
 	// 複製したキーが先に進めたカウンタより小さい値で署名した状態を作る

@@ -41,10 +41,10 @@ add-cms:
 remove-cms:
 	go run ./cmd/kit remove-cms
 
-# 管理者のパスキーの初回登録用URLを表示（パスキーが未登録のときだけ）
+# 最初の管理者のパスキーの登録用URLを表示（有効なパスキーが1件も無いときだけ）
 auth-setup:
 	go run ./cmd/server auth-setup
 
-# 管理者のパスキーとセッションを全削除し、登録用URLを再発行（確認あり）
+# パスキーとセッションを削除し、管理者の登録用URLを再発行（確認あり）。例: make auth-recover ARGS="-account 1"
 auth-recover:
-	go run ./cmd/server auth-recover
+	go run ./cmd/server auth-recover $(ARGS)
