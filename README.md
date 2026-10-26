@@ -211,6 +211,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── docs/
 │   ├── cms-plan.md         # CMSテンプレートの実装計画
 │   ├── deploy.md           # 本番デプロイの手順例（Linux）
+│   ├── ui-guidelines.md    # 動きのあるUIの作り方（標準の要素 → htmx → Alpine.js等）
 │   └── data-inventory.md   # 取得・保存データ台帳
 ├── LICENSE                # MIT License
 ├── SECURITY.md            # 脆弱性の報告窓口
