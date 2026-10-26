@@ -28,6 +28,8 @@ type Tag struct {
 type Page struct {
 	Alpine        bool // Alpineを読み込む版（一覧の絞り込み・コンボボックス）
 	Combo         bool
+	Vanilla       bool // 素のJSのコンボボックス
+	Scripted      bool // JSを読み込む版。この画面だけscript-srcをselfにする
 	Mode          string
 	Count         int
 	Tags          []Tag
@@ -57,7 +59,7 @@ func readPage(mode, rawCount string) (Page, bool) {
 	if mode == "" {
 		mode = "html"
 	}
-	if mode != "html" && mode != "alpine" && mode != "combo" {
+	if mode != "html" && mode != "alpine" && mode != "combo" && mode != "vanilla" {
 		return Page{}, false
 	}
 	if rawCount == "" {
@@ -67,7 +69,7 @@ func readPage(mode, rawCount string) (Page, bool) {
 	if err != nil || (count != 10 && count != 50 && count != 200) {
 		return Page{}, false
 	}
-	return Page{Mode: mode, Alpine: mode != "html", Combo: mode == "combo", Count: count, Tags: sample(count)}, true
+	return Page{Mode: mode, Alpine: mode == "alpine" || mode == "combo", Combo: mode == "combo", Vanilla: mode == "vanilla", Scripted: mode != "html", Count: count, Tags: sample(count)}, true
 }
 
 // NewHandler はCSSの内容だけを受け取り、DB・セッション・カタログ本体には触れません。
@@ -83,7 +85,7 @@ func NewHandler(css []byte, origin string, logger *slog.Logger) (http.Handler, e
 			http.Error(w, "Internal Server Error", 500)
 			return
 		}
-		if p.Alpine {
+		if p.Scripted {
 			w.Header().Set("Content-Security-Policy", strings.Replace(w.Header().Get("Content-Security-Policy"), "script-src 'none'", "script-src 'self'", 1))
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -169,7 +171,7 @@ func NewHandler(css []byte, origin string, logger *slog.Logger) (http.Handler, e
 		w.Header().Set("Content-Type", "text/css; charset=utf-8")
 		_, _ = w.Write(css)
 	})
-	for _, name := range []string{"tags.js", "alpine-csp.min.js"} {
+	for _, name := range []string{"tags.js", "alpine-csp.min.js", "combobox.js"} {
 		mux.HandleFunc("GET /compare/static/"+name, func(w http.ResponseWriter, r *http.Request) {
 			body, err := files.ReadFile("static/" + name)
 			if err != nil {

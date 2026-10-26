@@ -46,15 +46,18 @@ func send(h http.Handler, method, target string, values url.Values, same bool) *
 }
 func TestVariantsUseIdenticalDataAndScopedScripts(t *testing.T) {
 	h := handler(t)
-	for _, mode := range []string{"html", "alpine", "combo"} {
+	for _, mode := range []string{"html", "alpine", "combo", "vanilla"} {
 		for _, count := range []string{"10", "50", "200"} {
 			w := send(h, "GET", "/compare?mode="+mode+"&count="+count, nil, false)
 			if w.Code != 200 || len(w.Result().Cookies()) != 0 || !strings.Contains(w.Header().Get("Cache-Control"), "no-store") {
 				t.Fatal("page/cookie/cache", w.Code)
 			}
 			expected := 0
-			if mode != "html" {
+			switch mode {
+			case "alpine", "combo":
 				expected = 2
+			case "vanilla":
+				expected = 1
 			}
 			if strings.Count(w.Body.String(), "<script") != expected || strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'self'") != (mode != "html") {
 				t.Fatal("script/CSP scope")
@@ -63,7 +66,7 @@ func TestVariantsUseIdenticalDataAndScopedScripts(t *testing.T) {
 				t.Fatal("sample tags differ")
 			}
 			// コンボボックス版も、JSが動かない場合に送信できる全件のチェックボックスを残す。
-			if (mode == "combo") != strings.Contains(w.Body.String(), `role="combobox"`) || strings.Count(w.Body.String(), `type="checkbox" name="tag"`) != countOf(count) {
+			if (mode == "combo" || mode == "vanilla") != strings.Contains(w.Body.String(), `role="combobox"`) || strings.Count(w.Body.String(), `type="checkbox" name="tag"`) != countOf(count) {
 				t.Fatal("combobox markup or fallback checkboxes", mode, count)
 			}
 			if strings.Contains(w.Header().Get("Content-Security-Policy"), "unsafe-") || strings.Contains(w.Body.String(), "x-show") || strings.Contains(w.Body.String(), "x-cloak") {
@@ -76,7 +79,7 @@ func TestVariantsUseIdenticalDataAndScopedScripts(t *testing.T) {
 			t.Fatal("invalid page parameters accepted", path, w.Code)
 		}
 	}
-	for _, path := range []string{"/compare/static/tags.js", "/compare/static/alpine-csp.min.js", "/static/css/style.css"} {
+	for _, path := range []string{"/compare/static/tags.js", "/compare/static/alpine-csp.min.js", "/compare/static/combobox.js", "/static/css/style.css"} {
 		if w := send(h, "GET", path, nil, false); w.Code != 200 || len(w.Result().Cookies()) != 0 {
 			t.Fatal("asset response", path, w.Code)
 		}
@@ -89,7 +92,7 @@ func TestVariantsUseIdenticalDataAndScopedScripts(t *testing.T) {
 }
 func TestConfirmationIsValidatedAndNotPersisted(t *testing.T) {
 	h := handler(t)
-	for _, mode := range []string{"html", "alpine", "combo"} {
+	for _, mode := range []string{"html", "alpine", "combo", "vanilla"} {
 		values := url.Values{"mode": {mode}, "count": {"50"}, "tag": {"2", "4", "7"}, "new_tags": {"<script>alert(1)</script>"}}
 		w := send(h, "POST", "/compare/result", values, true)
 		if w.Code != 200 || len(w.Result().Cookies()) != 0 || !strings.Contains(w.Body.String(), "&lt;script&gt;") || !strings.Contains(w.Body.String(), "確認しました") {
@@ -134,13 +137,15 @@ func TestFixedAlpineBuildAndNoStorageCode(t *testing.T) {
 	if hex.EncodeToString(hash[:]) != "48c170c92032e527cbae71b8ce75cf1f96ca06fa869a6120ef0fe438d8e92c36" {
 		t.Fatal("Alpine build differs from pinned upstream")
 	}
-	body, err = files.ReadFile("static/tags.js")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, forbidden := range []string{"localStorage", "sessionStorage", "document.cookie", "fetch(", "XMLHttpRequest", ".innerHTML", ".style"} {
-		if strings.Contains(string(body), forbidden) {
-			t.Fatal("comparison script added persistence/network/HTML/style", forbidden)
+	for _, name := range []string{"static/tags.js", "static/combobox.js"} {
+		body, err = files.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{"localStorage", "sessionStorage", "document.cookie", "fetch(", "XMLHttpRequest", ".innerHTML", "insertAdjacentHTML", ".style", "eval(", "new Function"} {
+			if strings.Contains(string(body), forbidden) {
+				t.Fatal("comparison script added persistence/network/HTML/style/eval", name, forbidden)
+			}
 		}
 	}
 }
