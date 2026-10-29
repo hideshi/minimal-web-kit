@@ -126,3 +126,56 @@ func TestCSS_SingleFileAndNoImportant(t *testing.T) {
 		t.Errorf("!important found in %s. Avoid !important to keep CSS maintainable.", files[0])
 	}
 }
+
+// formControlExceptions は、入力欄を部品（field・choices・combobox）を使わずに直接書いてよいテンプレートと理由です。
+var formControlExceptions = map[string]string{
+	// 公開一覧の検索欄。htmxで送るGETのフォームで、検索語・カテゴリ・タグの並びが管理画面の入力欄の形と違う
+	"../features/catalog/views/list.html": "公開一覧の検索欄",
+}
+
+var thPattern = regexp.MustCompile(`<th[\s>]`)
+
+var formControlPattern = regexp.MustCompile(`<(label|input|select|textarea)\b[^>]*>`)
+
+// TestTemplate_FormControlsUseComponents は、機能のテンプレートが入力欄を直接書かず、共通の部品を使うことを検証します
+// （docs/admin-ui-standard-plan.md 6.1）。値を送るだけの hidden の入力は除きます。
+func TestTemplate_FormControlsUseComponents(t *testing.T) {
+	files, err := filepath.Glob("../features/*/views/*.html")
+	if err != nil || len(files) == 0 {
+		t.Fatal("no feature templates", err)
+	}
+	for _, f := range files {
+		if _, ok := formControlExceptions[f]; ok {
+			continue
+		}
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range formControlPattern.FindAllString(string(raw), -1) {
+			if strings.HasPrefix(m, "<input") && strings.Contains(m, `type="hidden"`) {
+				continue
+			}
+			t.Errorf("%s: %s を直接書いている（field・choices 等の部品を使う。例外は formControlExceptions に理由つきで書く）", f, m)
+		}
+	}
+}
+
+// TestTemplate_TablesHaveCaptionAndScope は、全テンプレートの表に caption と th の scope があることを検証します。
+func TestTemplate_TablesHaveCaptionAndScope(t *testing.T) {
+	core, _ := filepath.Glob("../internal/web/views/*.html")
+	feature, _ := filepath.Glob("../features/*/views/*.html")
+	for _, f := range append(core, feature...) {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src := string(raw)
+		if n := strings.Count(src, "<table"); n != strings.Count(src, "<caption") {
+			t.Errorf("%s: table %d 個に対して caption が %d 個", f, n, strings.Count(src, "<caption"))
+		}
+		if n := len(thPattern.FindAllString(src, -1)); n != strings.Count(src, "<th scope=") {
+			t.Errorf("%s: scope の無い th がある", f)
+		}
+	}
+}

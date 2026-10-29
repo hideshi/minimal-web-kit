@@ -594,8 +594,14 @@ func TestAdminUI_AllPagesFollowStandard(t *testing.T) {
 				}
 			})
 		}
-		if f.Kept != "" && !strings.Contains(w.Body.String(), f.Kept) {
-			t.Errorf("%s: 送った値「%s」が入力欄に残っていない", label, f.Kept)
+		if f.Kept != "" {
+			kept := false
+			doc.walk(func(n *node) {
+				kept = kept || (n.name == "input" && n.attr["value"] == f.Kept) || (n.name == "textarea" && strings.TrimSpace(n.text.String()) == f.Kept)
+			})
+			if !kept {
+				t.Errorf("%s: 送った値「%s」が入力欄に残っていない", label, f.Kept)
+			}
 		}
 	}
 }
