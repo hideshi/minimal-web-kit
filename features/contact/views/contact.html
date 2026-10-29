@@ -6,7 +6,8 @@
   <input type="hidden" name="token" value="{{.Form.Token}}">
   {{range .Form.Fields}}{{template "field" .}}{{end}}
   <div class="visually-hidden" aria-hidden="true"><label for="contact-trap">この欄は空のままにしてください</label><input type="text" id="contact-trap" name="{{.Trap}}" value="" tabindex="-1" autocomplete="off"></div>
-  <p class="contact-lead">送信いただいた内容は、お問い合わせへの回答のためだけに使い、受付から{{.RetentionDays}}日で削除します。詳しくは<a href="/privacy">プライバシーポリシー</a>をご覧ください。病歴など、特に配慮が必要な情報は書かないでください。</p>
+  <p>送信いただいた内容は、お問い合わせへの回答のためだけに使い、受付から{{.RetentionDays}}日で削除します。詳しくは<a href="/privacy">プライバシーポリシー</a>をご覧ください。</p>
+  <p class="contact-lead">病歴など、特に配慮が必要な情報は書かないでください。</p>
   <button type="submit" class="btn btn-primary">送信する</button>
 </form>
 {{end}}
