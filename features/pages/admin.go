@@ -76,7 +76,7 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 	case errors.Is(err, ErrNotFound):
 		http.NotFound(w, r)
 	default:
-		f.logger.Error("pages admin failed", slog.String("request_id", w.Header().Get("X-Request-ID")))
+		f.logger.Error("pages admin failed", web.RequestIDAttr(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 	return true

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
 	"errors"
 	"html/template"
 	"net/http"
@@ -188,14 +187,7 @@ func toAPIPost(p Post) apiPost {
 
 // writeJSON はJSONを返します。エラー時の本文は固定の識別子のみとし、入力値を反射しません。
 func (f *Feature) writeJSON(w http.ResponseWriter, status int, v any) {
-	body, err := json.Marshal(v)
-	if err != nil {
-		f.logger.Error("news encode json failed")
-		status, body = http.StatusInternalServerError, []byte(`{"error":"internal_error"}`)
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_, _ = w.Write(body)
+	web.WriteJSON(w, f.logger, "news encode json failed", status, v)
 }
 
 func apiError(code string) map[string]string {

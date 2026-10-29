@@ -162,7 +162,7 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 	p, err := f.store.Published(r.Context(), slug)
 	if err != nil {
 		if err != ErrNotFound {
-			f.logger.Error("pages load failed", slog.String("request_id", w.Header().Get("X-Request-ID")))
+			f.logger.Error("pages load failed", web.RequestIDAttr(w))
 		}
 		f.notFound(w, r)
 		return

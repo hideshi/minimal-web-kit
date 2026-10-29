@@ -62,7 +62,7 @@ func parseTemplates() map[string]*template.Template {
 }
 
 func (f *Feature) requestID(w http.ResponseWriter) slog.Attr {
-	return slog.String("request_id", w.Header().Get("X-Request-ID"))
+	return web.RequestIDAttr(w)
 }
 
 func (f *Feature) renderAdmin(w http.ResponseWriter, page string, data map[string]any, withScript bool) {
@@ -650,12 +650,5 @@ func (f *Feature) registerRoutes(mux *web.IsolatedMux) {
 }
 
 func (f *Feature) writeJSON(w http.ResponseWriter, status int, v any) {
-	body, err := json.Marshal(v)
-	if err != nil {
-		f.logger.Error("auth encode json failed")
-		status, body = http.StatusInternalServerError, []byte(`{"error":"internal_error"}`)
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(status)
-	_, _ = w.Write(body)
+	web.WriteJSON(w, f.logger, "auth encode json failed", status, v)
 }

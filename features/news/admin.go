@@ -37,7 +37,7 @@ func (f *Feature) pageData(s features.AdminSession, title string) map[string]any
 }
 
 func (f *Feature) requestID(w http.ResponseWriter) slog.Attr {
-	return slog.String("request_id", w.Header().Get("X-Request-ID"))
+	return web.RequestIDAttr(w)
 }
 
 func (f *Feature) renderAdmin(w http.ResponseWriter, page string, data map[string]any) {

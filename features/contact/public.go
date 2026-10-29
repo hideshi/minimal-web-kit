@@ -111,7 +111,7 @@ func (f *Feature) renderForm(w http.ResponseWriter, status int, v contactForm, p
 
 // logResult は送信の判定を、固定の分類だけでログに出します（CONTACT-INV-6）。
 func (f *Feature) logResult(w http.ResponseWriter, result string) {
-	f.logger.Info("contact submission", slog.String("request_id", w.Header().Get("X-Request-ID")), slog.String("result", result))
+	f.logger.Info("contact submission", web.RequestIDAttr(w), slog.String("result", result))
 }
 
 // handleSubmit は送信を受け付けます。判定の順と応答は docs/contact-plan.md の4.1。
@@ -177,7 +177,7 @@ func (f *Feature) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		f.renderForm(w, http.StatusServiceUnavailable, v, "現在、お問い合わせの受付を一時停止しています。時間を置いて、もう一度送信してください。", "")
 		return
 	case err != nil:
-		f.logger.Error("contact save failed", slog.String("request_id", w.Header().Get("X-Request-ID")))
+		f.logger.Error("contact save failed", web.RequestIDAttr(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
