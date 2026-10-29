@@ -337,13 +337,14 @@ func inlines(ts []token) []Inline {
 		}
 		if t.sym && t.r == '[' {
 			if j := nextBracket[i+1]; j >= 0 && j+1 < n && ts[j+1].sym && ts[j+1].r == '(' {
-				if k := nextParen[j+2]; k >= 0 && k-(j+2) <= maxURL && nextBad[j+2] >= k {
+				// 文字が空でないか（次の記号か字で止まるので安い）を先に見て、URLの検査を減らす
+				if k := nextParen[j+2]; k >= 0 && k-(j+2) <= maxURL && nextBad[j+2] >= k && !blank(ts[i+1:j]) {
 					href, done := urlOK[j]
 					if !done {
-						href = AllowedURL(joinTokens(ts[j+2 : k]))
+						href = tokenURL(ts[j+2 : k])
 						urlOK[j] = href
 					}
-					if href != "" && !blank(ts[i+1:j]) {
+					if href != "" {
 						flush()
 						out = append(out, Inline{Kind: "link", Text: joinTokens(ts[i+1 : j]), Href: href})
 						i = k + 1
@@ -378,6 +379,20 @@ func plain(in []Inline) string {
 }
 
 // ---- リンクのURL（docs/richtext.md 5節） ----
+
+// tokenURL は、URLの文字種の検査（nextBad）を通った並びを検査します。サイト内のパスは先頭の2文字だけで決まるため、
+// 組み立てるのは許可するときと、https:// の外部のときだけにする（多数の [ が同じ ) を共有しても速い）。
+func tokenURL(ts []token) string {
+	switch {
+	case len(ts) == 0:
+		return ""
+	case ts[0].r == '/' && (len(ts) == 1 || ts[1].r != '/'):
+		return joinTokens(ts)
+	case len(ts) > len("https://") && joinTokens(ts[:len("https://")]) == "https://":
+		return AllowedURL(joinTokens(ts))
+	}
+	return ""
+}
 
 // badURLRune は、URLに使えない文字（空白・\・制御文字・書式文字）かを返します。
 func badURLRune(r rune) bool {
