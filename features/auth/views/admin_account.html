@@ -9,10 +9,10 @@
     <caption class="admin-caption">アカウントの状態</caption>
     <tbody>
       <tr><th scope="row">ロール</th><td>{{.Account.RoleLabel}}</td></tr>
-      <tr><th scope="row">状態</th><td>{{if .Account.Disabled}}停止中（<time datetime="{{.Account.DisabledAt.Format "2006-01-02T15:04"}}">{{.Account.DisabledAt.Format "2006年1月2日 15:04"}}</time>から）{{else}}有効{{end}}</td></tr>
+      <tr><th scope="row">状態</th><td>{{if .Account.Disabled}}停止中（{{template "datetime" .Account.DisabledAt}}から）{{else}}有効{{end}}</td></tr>
       <tr><th scope="row">登録URL</th><td>{{template "token-state" .Account}}</td></tr>
-      <tr><th scope="row">作成日時</th><td><time datetime="{{.Account.CreatedAt.Format "2006-01-02T15:04"}}">{{.Account.CreatedAt.Format "2006年1月2日 15:04"}}</time></td></tr>
-      <tr><th scope="row">最終ログイン</th><td>{{if .Account.LastLoginAt.IsZero}}未ログイン{{else}}<time datetime="{{.Account.LastLoginAt.Format "2006-01-02T15:04"}}">{{.Account.LastLoginAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td></tr>
+      <tr><th scope="row">作成日時</th><td>{{template "datetime" .Account.CreatedAt}}</td></tr>
+      <tr><th scope="row">最終ログイン</th><td>{{if .Account.LastLoginAt.IsZero}}未ログイン{{else}}{{template "datetime" .Account.LastLoginAt}}{{end}}</td></tr>
     </tbody>
   </table>
 </div>
@@ -58,7 +58,7 @@
       <tr>
         <td>{{.Label}}</td>
         <td>{{if .Disabled}}無効（複製の疑い）{{else}}有効{{end}}</td>
-        <td>{{if .LastUsedAt.IsZero}}未使用{{else}}<time datetime="{{.LastUsedAt.Format "2006-01-02T15:04"}}">{{.LastUsedAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
+        <td>{{if .LastUsedAt.IsZero}}未使用{{else}}{{template "datetime" .LastUsedAt}}{{end}}</td>
         <td><a href="/admin/accounts/{{$.Account.ID}}/passkeys/{{.Param}}/delete">削除<span class="visually-hidden">（{{.Label}}）</span></a></td>
       </tr>
       {{end}}

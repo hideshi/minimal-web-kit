@@ -17,7 +17,7 @@
     <tbody>
       {{range .Messages}}
       <tr>
-        <td><a href="/admin/contact/{{.ID}}"><time datetime="{{.CreatedAt.Format "2006-01-02T15:04"}}">{{.CreatedAt.Format "2006年1月2日 15:04"}}</time></a></td>
+        <td><a href="/admin/contact/{{.ID}}">{{template "datetime" .CreatedAt}}</a></td>
         <td>{{.StatusLabel}}</td>
         <td>{{.DisplayName}}</td>
         <td>{{.Excerpt}}</td>

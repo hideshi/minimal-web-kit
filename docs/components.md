@@ -56,6 +56,8 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
 | `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。必須なら「（必須）」を表示。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
 | `choices` | `form.Choices` | 同じ名前のラジオ（`Multiple` ならチェックボックス）の組。`fieldset`・`legend` で囲み、説明・エラーを組に関連付ける。選択肢が1つなら `field` の `checkbox` を使う |
+| `paragraphs` | `form.Paragraphs` の結果 | プレーンテキストの本文。空行で段落（`p`）、段落の中の改行は `br`。`text-body` で囲み、長い英数字も折り返す |
+| `datetime`・`date` | `time.Time` | 日時（「2026年1月2日 15:04」）と日付（「2026年1月2日」）を `<time datetime>` で出す。時刻帯は渡す側で決める（例: `time.Local`）。予定の短い表示（登録URLの期限「1月2日 15:04」）だけは画面で書く |
 | `richtext` | `richtext.Doc`（`internal/web/richtext` の `Parse` で読んだもの） | 書き方を絞ったMarkdownの本文（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）。規則の正本は [richtext.md](richtext.md)。利用者の入力はHTMLとして出さず、リンクは小文字の `https://` とサイト内のパスだけ。保存の前に `Parse` を通して、表の上限を欄のエラーにする |
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |

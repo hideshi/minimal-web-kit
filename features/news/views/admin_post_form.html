@@ -7,7 +7,7 @@
 {{if .Post.ID}}
 <p class="news-meta">
   状態: {{if .Post.ScheduledAt .Now}}公開予約（公開日時になるまで、公開ページには表示されません）{{else if .Post.Published}}公開中（<a href="/news/{{.Post.ID}}">公開ページを見る</a>）{{else}}下書き（公開ページには表示されません）{{end}}
-  {{if not .Post.PublishedAt.IsZero}}／公開日時: <time datetime="{{.Post.PublishedAt.Format "2006-01-02T15:04"}}">{{.Post.PublishedAt.Format "2006年1月2日 15:04"}}</time>{{end}}
+  {{if not .Post.PublishedAt.IsZero}}／公開日時: {{template "datetime" .Post.PublishedAt}}{{end}}
 </p>
 {{end}}
 

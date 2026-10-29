@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/page"
@@ -209,5 +210,15 @@ func TestComponents_Paragraphs(t *testing.T) {
 	got := renderComponent(t, `{{template "paragraphs" .}}`, form.Paragraphs("一行目\n<b>二行目</b>\n\n二段落目"))
 	if got != `<div class="text-body"><p>一行目<br>&lt;b&gt;二行目&lt;/b&gt;</p><p>二段落目</p></div>` {
 		t.Fatalf("paragraphs: %s", got)
+	}
+}
+
+func TestComponents_DateTime(t *testing.T) {
+	at := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	if got := renderComponent(t, `{{template "datetime" .}}`, at); got != `<time datetime="2026-01-02T03:04">2026年1月2日 03:04</time>` {
+		t.Fatalf("datetime: %s", got)
+	}
+	if got := renderComponent(t, `{{template "date" .}}`, at); got != `<time datetime="2026-01-02">2026年1月2日</time>` {
+		t.Fatalf("date: %s", got)
 	}
 }

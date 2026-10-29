@@ -28,9 +28,9 @@
             <button type="submit" class="btn btn-secondary">名前を変更</button>
           </form>
         </td>
-        <td>{{if .Disabled}}無効（複製の疑い）<br><time datetime="{{.DisabledAt.Format "2006-01-02T15:04"}}">{{.DisabledAt.Format "2006年1月2日 15:04"}}</time>{{else}}有効{{end}}</td>
-        <td><time datetime="{{.CreatedAt.Format "2006-01-02T15:04"}}">{{.CreatedAt.Format "2006年1月2日 15:04"}}</time></td>
-        <td>{{if .LastUsedAt.IsZero}}未使用{{else}}<time datetime="{{.LastUsedAt.Format "2006-01-02T15:04"}}">{{.LastUsedAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
+        <td>{{if .Disabled}}無効（複製の疑い）<br>{{template "datetime" .DisabledAt}}{{else}}有効{{end}}</td>
+        <td>{{template "datetime" .CreatedAt}}</td>
+        <td>{{if .LastUsedAt.IsZero}}未使用{{else}}{{template "datetime" .LastUsedAt}}{{end}}</td>
         <td><a href="/admin/passkeys/{{.Param}}/delete">削除<span class="visually-hidden">（{{.Label}}）</span></a></td>
       </tr>
       {{end}}

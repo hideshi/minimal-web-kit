@@ -1,6 +1,6 @@
 {{define "content"}}
 <h1>お問い合わせの削除</h1>
 <p>次のお問い合わせを削除します。元に戻せません。</p>
-<p class="card">{{.Message.DisplayName}}（{{.Message.CreatedAt.Format "2006年1月2日 15:04"}}）: {{.Message.Excerpt}}</p>
+<p class="card">{{.Message.DisplayName}}（{{template "datetime" .Message.CreatedAt}}）: {{.Message.Excerpt}}</p>
 {{template "confirm-actions" (confirm (printf "/admin/contact/%d/delete" .Message.ID) (printf "/admin/contact/%d" .Message.ID) .CSRFToken)}}
 {{end}}

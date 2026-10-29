@@ -6,7 +6,7 @@
   {{range .Posts}}
   <li class="card">
     <h2 class="card-title"><a href="/news/{{.ID}}">{{.Title}}</a></h2>
-    <p class="news-meta">公開日: <time datetime="{{.PublishedAt.Format "2006-01-02"}}">{{.PublishedAt.Format "2006年1月2日"}}</time></p>
+    <p class="news-meta">公開日: {{template "date" .PublishedAt}}</p>
   </li>
   {{end}}
 </ul>

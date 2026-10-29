@@ -1,7 +1,7 @@
 {{define "content"}}
 <article>
   <h1>{{.Post.Title}}</h1>
-  <p class="news-meta">公開日: <time datetime="{{.Post.PublishedAt.Format "2006-01-02"}}">{{.Post.PublishedAt.Format "2006年1月2日"}}</time></p>
+  <p class="news-meta">公開日: {{template "date" .Post.PublishedAt}}</p>
   {{template "paragraphs" .Paragraphs}}
 </article>
 

@@ -113,6 +113,10 @@
 </div>
 {{end}}
 
+{{/* 日時（例: 2026年1月2日 15:04）と日付（例: 2026年1月2日）。引数は time.Time。表示の時刻帯は呼び出し側で決める */}}
+{{define "datetime"}}<time datetime="{{.Format "2006-01-02T15:04"}}">{{.Format "2006年1月2日 15:04"}}</time>{{end}}
+{{define "date"}}<time datetime="{{.Format "2006-01-02"}}">{{.Format "2006年1月2日"}}</time>{{end}}
+
 {{/* プレーンテキストの本文。引数は form.Paragraphs の結果。空行で段落、段落の中の改行は br */}}
 {{define "paragraphs"}}<div class="text-body">{{range .}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}</div>{{end}}
 

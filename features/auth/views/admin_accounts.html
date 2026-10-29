@@ -28,7 +28,7 @@
         <td>{{if .Disabled}}停止中{{else if eq .ActivePasskeys 0}}未登録{{else}}有効{{end}}</td>
         <td>{{.ActivePasskeys}}{{if .DisabledKeys}}（無効 {{.DisabledKeys}}）{{end}}</td>
         <td>{{template "token-state" .}}</td>
-        <td>{{if .LastLoginAt.IsZero}}未ログイン{{else}}<time datetime="{{.LastLoginAt.Format "2006-01-02T15:04"}}">{{.LastLoginAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
+        <td>{{if .LastLoginAt.IsZero}}未ログイン{{else}}{{template "datetime" .LastLoginAt}}{{end}}</td>
       </tr>
       {{end}}
     </tbody>
