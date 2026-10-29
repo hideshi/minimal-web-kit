@@ -104,7 +104,7 @@ func (f *Feature) write(w http.ResponseWriter, status int, t *template.Template,
 	_, _ = b.WriteTo(w)
 }
 func (f *Feature) fail(w http.ResponseWriter) {
-	f.logger.Error("catalog operation failed")
+	f.logger.Error("catalog operation failed", web.RequestIDAttr(w))
 	http.Error(w, "Internal Server Error", 500)
 }
 func (f *Feature) result(w http.ResponseWriter, r *http.Request, err error) bool {
