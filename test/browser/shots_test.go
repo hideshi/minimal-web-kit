@@ -19,6 +19,7 @@ import (
 	"minimal-web-kit/features/catalog"
 	"minimal-web-kit/features/contact"
 	"minimal-web-kit/features/news"
+	"minimal-web-kit/features/pages"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
 )
@@ -40,6 +41,7 @@ func TestAdminScreenshots(t *testing.T) {
 	reg.Register(news.NewFeature(logger))
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(contact.NewFeature(logger))
+	reg.Register(pages.NewFeature(logger))
 	for _, f := range reg.All() {
 		if err := f.Init(core.DB()); err != nil {
 			t.Fatal(err)
@@ -109,6 +111,12 @@ func TestAdminScreenshots(t *testing.T) {
 	shoot("12-contact-form", "/contact")
 	shoot("13-contact-inbox", "/admin/contact")
 	shoot("14-contact-message", fmt.Sprintf("/admin/contact/%d", msg))
+	pageStore := pages.NewStore(db)
+	page, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "about", Title: "会社概要", NavOrder: "1", Body: "## 概要\n小さなチームで、個人情報を集めないWebサイトを作っています。\n詳しくは[お知らせ](/news)をご覧ください。\n\n表: 会社の情報\n| 項目 | 内容 |\n|---|---|\n| 社名 | 例の会社 |\n| 所在地 | 東京都 |\n\n### 大切にしていること\n- 取得するデータを減らす\n- **依存**を減らす\n1. 計画\n2. 実装"}, nil)
+	_ = pageStore.SetPublished(ctx, page, true)
+	shoot("15-page-public", "/about")
+	shoot("16-pages-admin", "/admin/pages")
+	shoot("17-page-form", fmt.Sprintf("/admin/pages/%d", page))
 
 	// 入力の失敗（同じ名前のカテゴリを追加する）。応答は400のため、ブラウザのログのエラーは確かめない
 	b.do(t, chromedp.Navigate(srv.URL+"/admin/catalog/classifications/categories"),

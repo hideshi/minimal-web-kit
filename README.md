@@ -1,6 +1,6 @@
 # minimal-web-kit
 
-個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ）、3本のAI開発スキル、規約を検査するテストを同梱しています。
+個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ、固定ページ）、3本のAI開発スキル、規約を検査するテストを同梱しています。
 
 ## 特徴と提供範囲
 
@@ -141,6 +141,21 @@ make auth-setup
 - Siteと一緒に使うと、LPのお問い合わせのボタンが `/contact` を指します。`CONTACT_FORM_URL`（外部のフォーム）と同時に有効にすると、起動を止めます。
 - 仕様と不変条件は [domain/contact.md](docs/domain/contact.md)、保存内容は[データ台帳](docs/data-inventory.md)の7節、設計の経緯は [contact-plan.md](docs/contact-plan.md) にあります。
 
+### 固定ページ
+
+`make add-pages` で有効化します（管理者認証も有効になります）。`make remove-pages` は登録だけを外し、保存データは保持します。会社概要・採用情報などのページを、管理画面で `/about` のような1階層のURLで作ります。
+
+| 経路 | 内容 |
+|---|---|
+| `/{スラッグ}` | 公開中のページ。下書き・存在しないページはSiteの404。Cookieを発行・照合せず、公開キャッシュも使いません |
+| `/admin/pages` | 一覧・作成・編集・プレビュー（保存しない）・公開・削除。管理者とメンバー |
+
+- 本文は書き方を絞ったMarkdown（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）で、キットのコードで読みます（[書き方の仕様](docs/richtext.md)）。HTMLは書けず、リンクは `https://` とサイト内のパスだけです。画像・添付・版の履歴はありません。
+- スラッグは英小文字・数字・ハイフンで2〜40文字です。`/privacy` や `/news` など、Coreと他の機能が使う経路と同じものは使えません。公開ページは「どの経路にも当たらなかった要求」だけを受けるため、既存の経路は取られません。
+- 「ナビに出す順」を決めた公開中のページは、Siteのナビと `sitemap.xml` に載ります（再起動は不要）。ナビは公開キャッシュのある画面（`/` 等）では最大60秒遅れて見えます。
+- スラッグを変えると、前のURLは404になります（転送はありません）。固定ページを有効にすると、静的書き出し（`export-static`）は使えません。
+- 仕様と不変条件は [domain/pages.md](docs/domain/pages.md)、保存内容は[データ台帳](docs/data-inventory.md)の8節、設計の経緯は [pages-plan.md](docs/pages-plan.md) にあります。
+
 ### 切り替えコマンドの保護範囲
 
 `features/site`・`features/news`・`features/auth`・`features/catalog` は同梱機能用の予約ディレクトリです。自作機能には別名を使用してください。コマンドは `site.go`・`news.go`・`auth.go`・`catalog.go` 冒頭の識別コメント（例: `// minimal-web-kit: bundled-feature site`）と登録ファイルの構造を確認します。識別できない同名ディレクトリ、シンボリックリンク、マーカーの欠落・重複、部分的な登録、別名import等は書き換えずに拒否します。識別コメントは同梱元の目印で、真正性や未改変を証明するものではありません。
@@ -157,9 +172,10 @@ make auth-setup
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
 | `make test-ui` | 画面部品をChrome・Chromiumで操作して確かめ、主な管理画面を `test/browser/shots/` に撮る（`test/browser/` の別モジュール。chromedpを使い、キット本体の依存には含めない。Chromeが無ければ飛ばす。`CHROME_PATH` で指定可） |
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
-| `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（お知らせ・カタログ・お問い合わせが有効な間は無効化できない） |
+| `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（お知らせ・カタログ・お問い合わせ・固定ページが有効な間は無効化できない） |
 | `make add-catalog` / `make remove-catalog` | カタログの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-contact` / `make remove-contact` | お問い合わせの登録を有効化・無効化（Authも有効化。データは保持） |
+| `make add-pages` / `make remove-pages` | 固定ページの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-news` / `make remove-news` | お知らせ機能の登録を有効化・無効化（有効化すると管理者認証も有効になる。無効化してもDBのデータは残る） |
 | `make auth-setup` | 最初の管理者のパスキーの登録用URLを表示（有効なパスキーが1件も無いときだけ）。本番は `minimal-web-kit auth-setup` |
 | `go run ./cmd/server export-static <dir>` | Siteの公開ページ（`/`・`/privacy`）とCSS、セキュリティヘッダーの `_headers` を静的ファイルとして書き出す（Siteのみ有効な場合）。本番は `minimal-web-kit export-static <dir>` |

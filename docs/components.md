@@ -56,6 +56,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
 | `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。必須なら「（必須）」を表示。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
 | `choices` | `form.Choices` | 同じ名前のラジオ（`Multiple` ならチェックボックス）の組。`fieldset`・`legend` で囲み、説明・エラーを組に関連付ける。選択肢が1つなら `field` の `checkbox` を使う |
+| `richtext` | `richtext.Doc`（`internal/web/richtext` の `Parse` で読んだもの） | 書き方を絞ったMarkdownの本文（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）。規則の正本は [richtext.md](richtext.md)。利用者の入力はHTMLとして出さず、リンクは小文字の `https://` とサイト内のパスだけ。保存の前に `Parse` を通して、表の上限を欄のエラーにする |
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
 
@@ -98,7 +99,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 |---|---|---|
 | 一覧 | `h1`（「〜の管理」）→ `notice` → 操作の並び（`action-bar`。主操作は `btn-primary` 1つ、他はリンク）→ 表（`table-container`、`caption`、`th scope`、最後の列が「操作」）か、空のときの `<p>`（「〜はまだありません。」）→ `pagination` | `features/news/views/admin_posts.html` |
 | 一覧＋追加 | 一覧の後に、`h2`（「〜の追加」）→ `error` → フォーム（`card`）。追加の失敗はこの画面のまま、入力欄にエラーを出す | `features/catalog/views/admin_classifications.html` |
-| 作成・編集 | `h1`（「〜の作成」「〜の編集」）→ `notice`・`error` → フォーム（`card`、入力欄は部品、送信は `btn-primary`）→ 公開などの別操作（`action-bar`、フォームは `inline-form`）→ 削除（`btn-danger` のリンク、編集のときだけ）→ 一覧へ戻るリンク | `features/news/views/admin_post_form.html` |
+| 作成・編集 | `h1`（「〜の作成」「〜の編集」）→ `notice`・`error` →（プレビューを持つ場合は、フォームの上にプレビューの節）→ フォーム（`card`、入力欄は部品、送信は `btn-primary`。プレビューのボタンは保存の後に置き `formaction` で送る）→ 公開などの別操作（`action-bar`、フォームは `inline-form`）→ 削除（`btn-danger` のリンク、編集のときだけ）→ 一覧へ戻るリンク | `features/news/views/admin_post_form.html`、プレビューは `features/pages/views/admin_page_form.html` |
 | 詳細（状態と操作） | `h1`（「〜: 名前」）→ `notice`・`error` → 状態の表 → 操作ごとの `h2` とフォーム → 削除（`btn-danger` のリンク）→ 一覧へ戻るリンク | `features/auth/views/admin_account.html` |
 | 削除の確認 | `h1`（「〜の削除」）→ 対象と影響の説明（何が消え、何が残り、元に戻せないか）→ `confirm-actions` | `features/news/views/admin_post_delete.html` |
 
