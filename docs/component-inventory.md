@@ -123,3 +123,28 @@
 | a・k | セッション破棄の確認を `confirm-actions` に。戻るの文言をそろえた |
 
 残り: #4・#7・#13（それぞれ別の回）、3節（#17・f・g・w。今の振る舞いをテストで固めてから）、#12・#20・#21、4節の b〜t。
+
+残りの順（利用者の決定）: #13 → #7 → #4 → 3節 → #12・#20・#21 → 4節。4節は s・t だけ直し、b・c・d・h・i・m・n・r は今のままにして理由を残す（9節）。
+
+## 9. 残りの進め方のレビューの反映（2026-10-30、Claude Fable 5.1）
+
+順番（#13 → #7 → #4 → 3節 → 4節）は、依存を見ても入れ替える必要が無い。#7 と #4 は独立。次を各項目の設計に織り込む。
+
+| 項目 | 織り込むこと |
+|---|---|
+| #13 | Coreの `internal/web/views/layout.html` には `{{block "page_head" .}}` が無い。既定のレイアウトにせずに配ると、Siteが無い構成でカタログ一覧のhtmxの読み込みが黙って消え、CSPだけ `'self'` のまま残る（html/template は無いブロックの `define` をエラーにしない）。既定のレイアウトに `page_head` を置き、「Siteが無くても `/catalog` にhtmxの読み込みが出る」を `test/layout_test.go` に足す |
+| #13 | 機能は `BuildRoutes` の前に自分のレイアウトを解析し、news のテストは `BuildRoutes` を使わない。既定のレイアウトは取得口（例: `web.DefaultLayout()`）にして、機能単体でも動くようにする |
+| #13 | Coreのフッターは Base で「セッションCookieを削除すると…」を出す。Cookieを照合しない機能の公開ページには合わないので、文言を決める。Siteが無い構成では公開ページのHTMLが変わるため、利用者に先に示す |
+| #4 | 共通部品は「バッファに描く（失敗なら500とログ）」と「Content-Typeと状態コードを付けて送る」の2つに分ける。その間で、呼び出し側がCSP（カタログの `web.AllowScripts`、authの独自CSP）を入れる。テンプレート名は引数にする（カタログの断片は `results`）。#13 でナビの注入を既定のレイアウトに寄せれば、Coreの `Render` だけの特別扱いも消せる |
+| #7 | 各機能の `ErrNotFound` は別物（`store.ErrNotFound` を包んでいない）。分類の関数は `store.AffectedOne` と同じく、見分ける値を引数で受ける。お知らせの `ErrInvalidInput` の再取得、カタログの分類の種類の誤りの404、`ErrDuplicateName` の判定順は機能に残す |
+| #7 | お問い合わせと固定ページの管理画面の `failed` は、競合（BUSY）を500にしている。分類を共通にして503にそろえると応答が変わるので、利用者に先に示す |
+| #12 | `type InputError = form.InputError` の別名と、`var ErrInvalidInput = form.ErrInvalid` なら、値の比較も `errors.Is` も今のまま通る |
+| #20・#21 | 要求のヘッダーは呼び出し側が渡す形で `features/auth/authtest` に寄せる。auth 自身のテストは今の `postForm` のまま |
+| #17・w | 「独立経路のトークンは本文だけ」は不正確（auth のJSONの経路は `X-CSRF-Token` を見る）。Coreの `CSRFProtect` には、`cross-site` の拒否とヘッダーのトークンを直接確かめるテストが無い。先に固める入力: `cross-site`→403、`Sec-Fetch-Site` 無し→通る、`same-site`→通る（guard は拒否。方針の違いの核心）、別サイトの `Origin` で `Sec-Fetch-Site` 無し→通る、トークンをクエリだけ→403、本文に無くヘッダーが正→通る、本文が誤りでヘッダーが正→403、別セッションのトークン→403、DBに無いCookieとそのトークン→通って持ち主なし。#17 は鍵が別なので、性質（64桁の16進、自分で真、他人・空・大文字で偽）を固める |
+| f | 文字列でなく、SQLiteの拡張コード 2067（UNIQUE）と 1555（PRIMARY KEY）で判定する。`&255 == 19` にすると、固定ページの表の CHECK 違反までスラッグの重複になる。auth の `webauthn_user_id` の衝突が名前の重複と区別できない疑いは未確認 |
+| g | 「今のまま」で閉じる前に、DSN に `_txlock=immediate` を足す案を検討する。auth の `BeginTx` は読んでから書くため、WAL では待たずにBUSYになりうる（推測）。Coreのトランザクションも immediate になるので、挙動の変更として先に示す |
+| m | 共通にはしないが、`/catalog/static/*.js` が `no-store` のままで、一覧を開くたびにhtmxを配っている。公開のキャッシュを付けるか、`asset` の版付きURLに寄せる（後者は `docs/components.md` とテンプレートの検査の許可に触れる） |
+| r | `removeAuth` が依存する機能を手で4回並べていて、機能を足すと漏れる。表で回す小さな変更なので、閉じずに直す |
+| b〜d | 閉じてよい。公開ボタンの見た目が、お知らせ（公開は `btn-primary`）とカタログ・固定ページ（常に `btn-secondary`）で違うことも理由と一緒に残す |
+| s・t | 案のとおり。`.cta-*` は運用サイトでも使っていない |
+
