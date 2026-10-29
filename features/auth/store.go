@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"minimal-web-kit/internal/store"
 	"strings"
 	"time"
 
@@ -71,17 +72,7 @@ type execer interface {
 }
 
 func affectedOne(res sql.Result, err error, ifNone error) error {
-	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return ifNone
-	}
-	return nil
+	return store.AffectedOne(res, err, ifNone)
 }
 
 // --- 管理者セッション ---

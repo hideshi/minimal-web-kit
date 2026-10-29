@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"minimal-web-kit/internal/store"
 	"regexp"
 	"strconv"
 	"strings"
@@ -177,10 +178,8 @@ func (s *Store) Save(ctx context.Context, id int64, in Input, taken func(string)
 	if err != nil {
 		return 0, uniqueError(err)
 	}
-	if c, err := res.RowsAffected(); err != nil {
+	if err := store.AffectedOne(res, nil, ErrNotFound); err != nil {
 		return 0, err
-	} else if c == 0 {
-		return 0, ErrNotFound
 	}
 	return id, nil
 }
@@ -199,22 +198,10 @@ func (s *Store) SetPublished(ctx context.Context, id int64, published bool) erro
 		status = statusPublished
 	}
 	res, err := s.db.ExecContext(ctx, "UPDATE pages SET status = ?, updated_at = ? WHERE id = ?", status, s.now().Unix(), id)
-	if err != nil {
-		return err
-	}
-	if c, _ := res.RowsAffected(); c == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return store.AffectedOne(res, err, ErrNotFound)
 }
 
 func (s *Store) Delete(ctx context.Context, id int64) error {
 	res, err := s.db.ExecContext(ctx, "DELETE FROM pages WHERE id = ?", id)
-	if err != nil {
-		return err
-	}
-	if c, _ := res.RowsAffected(); c == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return store.AffectedOne(res, err, ErrNotFound)
 }

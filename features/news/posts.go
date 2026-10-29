@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"minimal-web-kit/internal/store"
 	"time"
 
 	"minimal-web-kit/internal/web/form"
@@ -264,15 +265,5 @@ func (s *PostStore) list(ctx context.Context, query string, args ...any) ([]Post
 
 func (s *PostStore) execOne(ctx context.Context, query string, args ...any) error {
 	res, err := s.db.ExecContext(ctx, query, args...)
-	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return store.AffectedOne(res, err, ErrNotFound)
 }

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"minimal-web-kit/internal/store"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -198,15 +199,7 @@ func (s *Store) Counts(ctx context.Context) (unread, spam int, err error) {
 }
 
 func changed(res sql.Result, err error) error {
-	if err != nil {
-		return err
-	}
-	if n, err := res.RowsAffected(); err != nil {
-		return err
-	} else if n == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return store.AffectedOne(res, err, ErrNotFound)
 }
 
 // SetStatus は状態を変えます。

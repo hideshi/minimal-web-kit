@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"minimal-web-kit/internal/store"
 	"slices"
 	"strconv"
 	"strings"
@@ -143,17 +144,7 @@ func (s *Store) write(ctx context.Context, fn func(*sql.Conn) error) error {
 	return err
 }
 func changed(res sql.Result, err error) error {
-	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return ErrNotFound
-	}
-	return nil
+	return store.AffectedOne(res, err, ErrNotFound)
 }
 
 // Save は新規を下書きで作り、既存項目の公開状態は変えない。
