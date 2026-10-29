@@ -2,7 +2,6 @@ package news
 
 import (
 	"bytes"
-	"html/template"
 	"log/slog"
 	"net/http"
 
@@ -16,13 +15,9 @@ var adminPageNames = []string{"admin_posts.html", "admin_post_form.html", "admin
 // SetAdmin は、管理者認証（features/auth）を受け取り、管理画面のテンプレートをその管理画面のレイアウトで解析します。
 // ログイン・セッション・CSRFの確認は、管理者認証が行います。
 func (f *Feature) SetAdmin(admin features.Admin) error {
-	pages := map[string]*template.Template{}
-	for _, name := range adminPageNames {
-		t, err := web.ParsePage(admin.Layout(), viewsFS, "views/"+name)
-		if err != nil {
-			return err
-		}
-		pages[name] = t
+	pages, err := web.ParsePages(admin.Layout(), viewsFS, adminPageNames...)
+	if err != nil {
+		return err
 	}
 	f.admin = admin
 	f.adminPages = pages

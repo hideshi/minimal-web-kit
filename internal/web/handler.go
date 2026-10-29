@@ -255,6 +255,20 @@ type Layout struct {
 	Data func(data map[string]any)
 }
 
+// ParsePages は、names の各ファイル（fsys の views/ の下）を、レイアウトと共通の画面部品と一緒に解析します。
+// 戻り値のキーはファイル名（例: "admin_list.html"）。1つでも失敗したらエラーを返します。
+func ParsePages(layout Layout, fsys fs.FS, names ...string) (map[string]*template.Template, error) {
+	pages := make(map[string]*template.Template, len(names))
+	for _, name := range names {
+		t, err := ParsePage(layout, fsys, "views/"+name)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", name, err)
+		}
+		pages[name] = t
+	}
+	return pages, nil
+}
+
 // ParsePage は、共通の画面部品・レイアウト・本文のテンプレートを1つに解析します。
 func ParsePage(layout Layout, contentFS fs.FS, contentFiles ...string) (*template.Template, error) {
 	t, err := ParseWithComponents(layout.FS, layout.File)

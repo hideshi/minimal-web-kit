@@ -34,9 +34,9 @@ const (
 var publicPageNames = []string{"news_list.html", "news_show.html"}
 
 func parsePublicTemplates() map[string]*template.Template {
-	pages := map[string]*template.Template{}
-	for _, name := range publicPageNames {
-		pages[name] = template.Must(web.ParseWithComponents(viewsFS, "views/layout.html", "views/"+name))
+	pages, err := web.ParsePages(web.Layout{FS: viewsFS, File: "views/layout.html"}, viewsFS, publicPageNames...)
+	if err != nil {
+		panic(err)
 	}
 	return pages
 }
@@ -44,13 +44,11 @@ func parsePublicTemplates() map[string]*template.Template {
 // SetLayout は、公開ページ（/news）をサイト全体のレイアウト（例: Siteのヘッダー・フッター）で描画するようにします。
 // 管理画面は、引き続き管理画面のレイアウトで描画します。
 func (f *Feature) SetLayout(layout web.Layout) error {
-	for _, name := range publicPageNames {
-		t, err := web.ParsePage(layout, viewsFS, "views/"+name)
-		if err != nil {
-			return err
-		}
-		f.publicPages[name] = t
+	pages, err := web.ParsePages(layout, viewsFS, publicPageNames...)
+	if err != nil {
+		return err
 	}
+	f.publicPages = pages
 	f.layout = &layout
 	return nil
 }

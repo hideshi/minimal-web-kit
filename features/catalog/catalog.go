@@ -64,26 +64,18 @@ func (*Feature) AdminNavLinks() []web.NavLink {
 	return []web.NavLink{{Label: "カタログの管理", Href: "/admin/catalog"}}
 }
 func (f *Feature) SetLayout(layout web.Layout) error {
-	pages := map[string]*template.Template{}
-	for _, name := range []string{"list.html", "show.html"} {
-		t, err := web.ParsePage(layout, contentFS, "views/"+name)
-		if err != nil {
-			return err
-		}
-		pages[name] = t
+	pages, err := web.ParsePages(layout, contentFS, "list.html", "show.html")
+	if err != nil {
+		return err
 	}
 	f.publicPages = pages
 	f.layout = &layout
 	return nil
 }
 func (f *Feature) SetAdmin(admin features.Admin) error {
-	pages := map[string]*template.Template{}
-	for _, name := range []string{"admin_list.html", "admin_form.html", "admin_delete.html", "admin_classifications.html", "admin_classification.html"} {
-		t, err := web.ParsePage(admin.Layout(), contentFS, "views/"+name)
-		if err != nil {
-			return err
-		}
-		pages[name] = t
+	pages, err := web.ParsePages(admin.Layout(), contentFS, "admin_list.html", "admin_form.html", "admin_delete.html", "admin_classifications.html", "admin_classification.html")
+	if err != nil {
+		return err
 	}
 	f.adminPages = pages
 	f.admin = admin

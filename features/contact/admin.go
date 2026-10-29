@@ -3,7 +3,6 @@ package contact
 import (
 	"bytes"
 	"errors"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -28,13 +27,9 @@ var adminNotices = notice.Messages{
 
 // SetAdmin は管理者認証を受け取り、受信箱のテンプレートを管理画面のレイアウトで解析します。
 func (f *Feature) SetAdmin(admin features.Admin) error {
-	pages := map[string]*template.Template{}
-	for _, name := range adminPageNames {
-		t, err := web.ParsePage(admin.Layout(), viewsFS, "views/"+name)
-		if err != nil {
-			return err
-		}
-		pages[name] = t
+	pages, err := web.ParsePages(admin.Layout(), viewsFS, adminPageNames...)
+	if err != nil {
+		return err
 	}
 	f.admin = admin
 	f.adminPages = pages

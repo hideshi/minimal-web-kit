@@ -27,22 +27,20 @@ var publicPageNames = []string{"contact.html"}
 var publicNotices = notice.Messages{"sent": "お問い合わせを受け付けました。返信が必要な場合は、書いていただいた返信先へご連絡します。"}
 
 func parsePublicTemplates() map[string]*template.Template {
-	pages := map[string]*template.Template{}
-	for _, name := range publicPageNames {
-		pages[name] = template.Must(web.ParseWithComponents(viewsFS, "views/layout.html", "views/"+name))
+	pages, err := web.ParsePages(web.Layout{FS: viewsFS, File: "views/layout.html"}, viewsFS, publicPageNames...)
+	if err != nil {
+		panic(err)
 	}
 	return pages
 }
 
 // SetLayout は、公開のフォームをサイト全体のレイアウト（例: Siteのヘッダー・フッター）で描画するようにします。
 func (f *Feature) SetLayout(layout web.Layout) error {
-	for _, name := range publicPageNames {
-		t, err := web.ParsePage(layout, viewsFS, "views/"+name)
-		if err != nil {
-			return err
-		}
-		f.publicPages[name] = t
+	pages, err := web.ParsePages(layout, viewsFS, publicPageNames...)
+	if err != nil {
+		return err
 	}
+	f.publicPages = pages
 	f.layout = &layout
 	return nil
 }
