@@ -724,7 +724,15 @@ nav a[aria-current="page"] {
 .richtext p,
 .richtext .table-container {
   margin-bottom: var(--space-md);
+}
+
+.richtext p {
   overflow-wrap: anywhere;
+}
+
+/* 表は anywhere だと列の最小幅が縮み、単語が細かく割れるため break-word にする。 */
+.richtext .table-container {
+  overflow-wrap: break-word;
 }
 
 .richtext caption {
