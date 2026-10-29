@@ -52,21 +52,14 @@ type contactForm struct {
 	Invalid string // 誤りのある欄（InputError.Field）
 }
 
-var fieldErrors = map[string]string{
+var fieldErrors = form.FieldErrors{
 	"body":     "お問い合わせ内容を、2,000文字以内で入力してください。",
 	"links":    "お問い合わせ内容のURLは2つまでにしてください。",
 	"name":     "お名前は50文字以内で、改行を含めずに入力してください。",
 	"reply_to": "返信先は200文字以内で、改行を含めずに入力してください。",
 }
 
-func (v contactForm) fieldError(names ...string) string {
-	for _, n := range names {
-		if v.Invalid == n {
-			return fieldErrors[n]
-		}
-	}
-	return ""
-}
+func (v contactForm) fieldError(names ...string) string { return fieldErrors.For(v.Invalid, names...) }
 
 func (v contactForm) Fields() []form.Field {
 	return []form.Field{

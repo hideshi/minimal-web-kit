@@ -66,3 +66,16 @@ func TestInt(t *testing.T) {
 		}
 	}
 }
+
+func TestFieldErrors(t *testing.T) {
+	e := FieldErrors{"slug": "形が違う", "slug_taken": "使われている", "title": "空"}
+	if got := e.For("slug_taken", "slug", "slug_taken"); got != "使われている" {
+		t.Fatalf("multiple names: %q", got)
+	}
+	if got := e.For("title", "slug", "slug_taken"); got != "" {
+		t.Fatalf("other field must be empty: %q", got)
+	}
+	if got := e.For("", "title"); got != "" {
+		t.Fatalf("no error: %q", got)
+	}
+}

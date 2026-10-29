@@ -93,18 +93,13 @@ type postForm struct {
 }
 
 // postErrors は、欄ごとの入力の誤りの文言です。
-var postErrors = map[string]string{
+var postErrors = form.FieldErrors{
 	"title":        "タイトルは1〜200文字で、改行や制御文字を含めずに入力してください。",
 	"body":         "本文は5万文字以内で、制御文字を含めずに入力してください。",
 	"published_at": "公開日時の形式が正しくありません。日付と時刻を選び直してください。",
 }
 
-func (pf postForm) fieldError(name string) string {
-	if pf.Invalid == name {
-		return postErrors[name]
-	}
-	return ""
-}
+func (pf postForm) fieldError(name string) string { return postErrors.For(pf.Invalid, name) }
 
 // Fields は、共通の画面部品 "field" で描く入力欄を返します。
 func (pf postForm) Fields() []form.Field {

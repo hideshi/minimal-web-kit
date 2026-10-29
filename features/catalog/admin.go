@@ -18,7 +18,7 @@ import (
 var messages = notice.Messages{"saved": "変更を保存しました。", "published": "公開しました。", "unpublished": "下書きに戻しました。", "deleted": "削除しました。"}
 
 // itemErrors は、項目の入力の誤りの文言。欄のエラーはその欄に、タグの数・存在はタグ選択の部品にエラーの場所が無いため画面全体に出す。
-var itemErrors = map[string]string{
+var itemErrors = form.FieldErrors{
 	"title":    "タイトルは1〜200文字で、改行を含めずに入力してください。",
 	"body":     "本文は5万文字以内で入力してください。",
 	"category": "選んだカテゴリが見つかりません。選び直してください。",
@@ -32,13 +32,8 @@ type itemForm struct {
 	Invalid                        string // 誤りのある欄（InputError.Field）
 }
 
-func (itemForm) LogValue() slog.Value { return slog.StringValue("[catalog form]") }
-func (v itemForm) fieldError(name string) string {
-	if v.Invalid == name {
-		return itemErrors[name]
-	}
-	return ""
-}
+func (itemForm) LogValue() slog.Value            { return slog.StringValue("[catalog form]") }
+func (v itemForm) fieldError(name string) string { return itemErrors.For(v.Invalid, name) }
 func (v itemForm) Fields() []form.Field {
 	return []form.Field{
 		{ID: "item-title", Name: "title", Label: "タイトル", Value: v.Title, Required: true, MaxLength: 200, Error: v.fieldError("title"), Hint: "1〜200文字、改行なし。"},

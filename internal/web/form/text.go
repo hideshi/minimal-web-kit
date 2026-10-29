@@ -126,3 +126,17 @@ func Paragraphs(body string) [][]string {
 	}
 	return result
 }
+
+// FieldErrors は、誤りのある欄の名前（例: "title"）から、その欄に出す文言を引く表です。
+type FieldErrors map[string]string
+
+// For は、invalid（誤りのある欄の名前）が names のどれかなら、その文言を返します。違えば空を返します。
+// 1つの入力欄に複数の誤りの種類があるとき（例: "slug" と "slug_taken"）は、names に並べます。
+func (e FieldErrors) For(invalid string, names ...string) string {
+	for _, n := range names {
+		if invalid == n {
+			return e[n]
+		}
+	}
+	return ""
+}

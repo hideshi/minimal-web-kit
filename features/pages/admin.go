@@ -18,7 +18,7 @@ var adminPageNames = []string{"admin_pages.html", "admin_page_form.html", "admin
 
 var messages = notice.Messages{"created": "作成しました。", "saved": "変更を保存しました。", "published": "公開しました。", "unpublished": "下書きに戻しました。", "deleted": "削除しました。"}
 
-var fieldErrors = map[string]string{
+var fieldErrors = form.FieldErrors{
 	"slug":          "URLは、英小文字・数字・ハイフンで2〜40文字にしてください（ハイフンで始めたり終えたりはできません）。",
 	"slug_reserved": "このURLは、サイトの他の機能が使っているため使えません。別のURLにしてください。",
 	"slug_taken":    "このURLは、他のページが使っています。別のURLにしてください。",
@@ -108,14 +108,7 @@ type pageForm struct {
 	Invalid string
 }
 
-func (v pageForm) err(names ...string) string {
-	for _, n := range names {
-		if v.Invalid == n {
-			return fieldErrors[n]
-		}
-	}
-	return ""
-}
+func (v pageForm) err(names ...string) string { return fieldErrors.For(v.Invalid, names...) }
 
 func (v pageForm) Fields() []form.Field {
 	return []form.Field{
