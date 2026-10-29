@@ -39,7 +39,7 @@
 
 - 管理者認証（`features/auth`）の `features.Admin` の口だけを使う。`make add-pages` で管理者認証も有効になり、固定ページが有効な間は `make remove-auth` できない。
 - 公開ページは、Coreと他の機能のどの経路にも当たらなかった要求だけを受け皿（`FallbackFeature`）で受ける。スラッグが登録済みの経路と重ならないかは、配線から受け取る関数（`RouteCheckConsumer`）で確かめる。
-- Siteが有効なら、Siteのヘッダー・フッターで描き（`LayoutConsumer`）、無いページにはSiteの404を返す（`NotFoundConsumer`）。ナビに出す順を決めた公開中のページはナビ（`DynamicNavLinkFeature`）と `sitemap.xml`（`SitemapFeature`）に載る。
+- Siteが有効なら、Siteのヘッダー・フッターで描き（`LayoutConsumer`）、無いページにはSiteの404を返す（`NotFoundConsumer`）。公開中でナビに出す順を決めたページはナビに載る（`DynamicNavLinkFeature`）。`sitemap.xml` には、順の有無にかかわらず公開中のページを載せる（`SitemapFeature`）。
 - お知らせ・カタログとはデータを共有しない。本文を読む部品（`internal/web/richtext`）はCoreにあるが、お知らせの本文には使っていない。
 
 ## 守らない範囲
@@ -48,3 +48,4 @@
 - スラッグを変えたときの旧URLからの転送、検索結果用の説明文の列（本文の冒頭から作る）。
 - 静的書き出し（固定ページを有効にすると `export-static` は使えない）。
 - 作者・操作の記録、ページごとの権限・承認の流れ。
+- Markdownとの完全な互換、リンク先の外部サイトの安全（本文で読む規則と許すリンクは [richtext.md](../richtext.md)）。

@@ -28,8 +28,9 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		// . と _ で始まるディレクトリ（.git、.worktrees の別の作業ツリー等）は、Goのツールと同じく読み飛ばす
-		if d.IsDir() && path != ".." && (strings.HasPrefix(d.Name(), ".") || strings.HasPrefix(d.Name(), "_") || d.Name() == "bin" || d.Name() == "data") {
+		// 作業用のディレクトリだけを名前で読み飛ばす（.worktrees は別の作業ツリー）。
+		// static/* の埋め込みは _ や . で始まるディレクトリも含むため、それらは読み飛ばさない
+		if d.IsDir() && (d.Name() == ".git" || d.Name() == ".worktrees" || d.Name() == "bin" || d.Name() == "data") {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && (strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs")) {
