@@ -330,3 +330,31 @@ func TestContactToggleDependencies(t *testing.T) {
 		t.Fatal("registration not restored")
 	}
 }
+
+func TestPagesToggleDependencies(t *testing.T) {
+	fixture(t, baseRegistration)
+	if err := os.MkdirAll("features/pages", 0755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, "features/pages/pages.go", bundledPagesMarker+"\npackage pages\n")
+	original := read(t, "cmd/server/features.go")
+	if err := addPages(); err != nil {
+		t.Fatal(err)
+	}
+	enabled := read(t, "cmd/server/features.go")
+	if !strings.Contains(enabled, "r.Register(pages.NewFeature(logger))") || !strings.Contains(enabled, "r.Register(auth.NewFeature(logger))") {
+		t.Fatal("missing dependency")
+	}
+	if err := removeAuth(); err == nil || !strings.Contains(err.Error(), "remove-pages") {
+		t.Fatal("Auth removal was not refused")
+	}
+	if err := removePages(); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeAuth(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "cmd/server/features.go") != original {
+		t.Fatal("registration not restored")
+	}
+}

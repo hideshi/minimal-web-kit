@@ -1,0 +1,6 @@
+{{define "content"}}
+<h1>固定ページの削除</h1>
+<p>次のページを削除します。元に戻せません。公開中なら、公開ページとナビからも消えます。</p>
+<p class="card">{{.Page.Title}}（/{{.Page.Slug}}）</p>
+{{template "confirm-actions" (confirm (printf "/admin/pages/%d/delete" .Page.ID) (printf "/admin/pages/%d" .Page.ID) .CSRFToken)}}
+{{end}}

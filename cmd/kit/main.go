@@ -70,6 +70,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Contact registration disabled; stored messages are kept until removed from the database.")
+	case "add-pages":
+		if err := addPages(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling pages feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled fixed pages with admin authentication.")
+	case "remove-pages":
+		if err := removePages(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling pages feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Pages registration disabled; stored pages are kept.")
 	case "add-news":
 		if err := addNews(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling news feature: %v\n", err)
@@ -97,11 +109,13 @@ func printUsage() {
 	fmt.Println("  add-site     Enable the Site (LP template) feature in cmd/server/features.go")
 	fmt.Println("  remove-site  Disable the Site (LP template) feature registration")
 	fmt.Println("  add-auth     Enable the admin authentication (passkey) feature")
-	fmt.Println("  remove-auth  Disable admin authentication (refused while news, catalog or contact is enabled; stored passkeys are kept)")
+	fmt.Println("  remove-auth  Disable admin authentication (refused while news, catalog, contact or pages is enabled; stored passkeys are kept)")
 	fmt.Println("  add-catalog  Enable Catalog with admin authentication")
 	fmt.Println("  remove-catalog Disable Catalog registration (stored data is kept)")
 	fmt.Println("  add-contact  Enable the contact form and inbox, together with admin authentication")
 	fmt.Println("  remove-contact Disable the contact registration (stored messages are kept)")
+	fmt.Println("  add-pages    Enable fixed pages (/{slug}), together with admin authentication")
+	fmt.Println("  remove-pages Disable the pages registration (stored pages are kept)")
 	fmt.Println("  add-news     Enable the news feature, together with admin authentication")
 	fmt.Println("  remove-news  Disable the news feature registration (stored data is kept)")
 	fmt.Println()
@@ -123,6 +137,7 @@ const (
 	bundledCatalogMarker = "// minimal-web-kit: bundled-feature catalog"
 	bundledAuthMarker    = "// minimal-web-kit: bundled-feature auth"
 	bundledContactMarker = "// minimal-web-kit: bundled-feature contact"
+	bundledPagesMarker   = "// minimal-web-kit: bundled-feature pages"
 )
 
 var (
@@ -131,6 +146,7 @@ var (
 	catalogBundle = bundle{name: "catalog", label: "Catalog", marker: bundledCatalogMarker}
 	authBundle    = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
 	contactBundle = bundle{name: "contact", label: "Contact", marker: bundledContactMarker}
+	pagesBundle   = bundle{name: "pages", label: "Pages", marker: bundledPagesMarker}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -173,7 +189,19 @@ func addContact() error {
 }
 func removeContact() error { return toggleBundle(contactBundle, false) }
 
-// removeAuth は、News・Catalog・Contactのどれかが有効な間は拒否します。
+// addPages は、固定ページと管理者認証の登録を有効にします。
+func addPages() error {
+	if err := verifyBundle(pagesBundle); err != nil {
+		return err
+	}
+	if err := toggleBundle(authBundle, true); err != nil {
+		return err
+	}
+	return toggleBundle(pagesBundle, true)
+}
+func removePages() error { return toggleBundle(pagesBundle, false) }
+
+// removeAuth は、News・Catalog・Contact・Pagesのどれかが有効な間は拒否します。
 func removeAuth() error {
 	registration, err := os.ReadFile("cmd/server/features.go")
 	if err != nil {
@@ -187,6 +215,9 @@ func removeAuth() error {
 	}
 	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+contactBundle.name)) {
 		return fmt.Errorf("contact uses admin authentication; run remove-contact first")
+	}
+	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+pagesBundle.name)) {
+		return fmt.Errorf("pages uses admin authentication; run remove-pages first")
 	}
 	return toggleBundle(authBundle, false)
 }

@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact
+.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages
 
 BIN_NAME := minimal-web-kit
 
@@ -66,3 +66,10 @@ add-contact:
 
 remove-contact:
 	go run ./cmd/kit remove-contact
+
+# 固定ページ（管理者認証も有効化。無効化してもデータは保持）
+add-pages:
+	go run ./cmd/kit add-pages
+
+remove-pages:
+	go run ./cmd/kit remove-pages

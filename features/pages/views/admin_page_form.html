@@ -1,0 +1,40 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
+{{if .Page.ID}}<p>状態: {{if .Page.Published}}公開中（<a href="/{{.Page.Slug}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
+{{if .Preview}}
+<section class="card page-preview" aria-labelledby="preview-title">
+  <h2 id="preview-title">プレビュー（保存していません）</h2>
+  {{template "richtext" .Preview}}
+</section>
+{{end}}
+<form method="post" action="{{if .Page.ID}}/admin/pages/{{.Page.ID}}{{else}}/admin/pages{{end}}" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{if .Page.ID}}<input type="hidden" name="id" value="{{.Page.ID}}">{{end}}
+  {{range .Form.Fields}}{{template "field" .}}{{end}}
+  <details class="richtext-help">
+    <summary>本文の書き方</summary>
+    <ul class="richtext-list">
+      <li>見出し: 行の先頭に「## 」（大）か「### 」（小）</li>
+      <li>段落: 空行で区切る。段落の中の改行はそのまま改行</li>
+      <li>箇条書き: 行の先頭に「- 」。番号付き: 「1. 」</li>
+      <li>リンク: [文字](/about) か [文字](https://example.com)。http:// やメールアドレスはリンクになりません</li>
+      <li>強調: **文字**</li>
+      <li>表: 「| 項目 | 内容 |」の次の行に「|---|---|」、続けて「| 社名 | 例 |」。表の前の行に「表: 説明」と書くと説明になります（20列・200行まで）</li>
+      <li>記号をそのまま出すには、前に「\」を付けます（例: \*\*）。HTMLは書けません</li>
+    </ul>
+  </details>
+  <div class="action-bar">
+    <button type="submit" class="btn btn-primary">{{if .Page.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
+    <button type="submit" class="btn btn-secondary" formaction="/admin/pages/preview">プレビュー（保存しない）</button>
+  </div>
+</form>
+{{if .Page.ID}}
+<h2>公開と削除</h2>
+<p>編集中の内容は、先に保存してください。</p>
+<div class="action-bar">
+  <form method="post" action="/admin/pages/{{.Page.ID}}/{{if .Page.Published}}unpublish{{else}}publish{{end}}" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-secondary">{{if .Page.Published}}非公開（下書き）に戻す{{else}}公開する{{end}}</button></form>
+  <a href="/admin/pages/{{.Page.ID}}/delete" class="btn btn-danger">削除する</a>
+</div>
+{{end}}
+<p><a href="/admin/pages">固定ページの一覧へ戻る</a></p>
+{{end}}

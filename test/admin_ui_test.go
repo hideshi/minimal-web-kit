@@ -28,6 +28,7 @@ import (
 	"minimal-web-kit/features/catalog"
 	"minimal-web-kit/features/contact"
 	"minimal-web-kit/features/news"
+	"minimal-web-kit/features/pages"
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
@@ -52,6 +53,7 @@ func newAdminUIRegistry(logger *slog.Logger) *features.Registry {
 	reg.Register(news.NewFeature(logger))
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(contact.NewFeature(logger))
+	reg.Register(pages.NewFeature(logger))
 	return reg
 }
 
@@ -136,6 +138,17 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	ui.ids["item_draft"], ui.ids["item_published"] = itoa(itemDraft), itoa(itemPublished)
 	ui.ids["category"], ui.ids["category_unused"] = itoa(category), itoa(unusedCategory)
 	ui.ids["tag"], ui.ids["tag_unused"] = itoa(tag), itoa(unusedTag)
+
+	pageStore := pages.NewStore(db)
+	draftPage, err := pageStore.Save(ctx, 0, pages.Input{Slug: "draft-page", Title: "下書きのページ", Body: "## 見出し\n本文"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publishedPage, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "about", Title: "会社概要", Body: "| 項目 | 内容 |\n|---|---|\n| 社名 | 例 |", NavOrder: "1"}, nil)
+	if err := pageStore.SetPublished(ctx, publishedPage, true); err != nil {
+		t.Fatal(err)
+	}
+	ui.ids["page_draft"], ui.ids["page_published"] = itoa(draftPage), itoa(publishedPage)
 
 	inbox := contact.NewStore(db)
 	limits := contact.Limits{Hourly: 100, Daily: 100, Unread: 100}
@@ -254,6 +267,11 @@ var adminSamples = []adminSample{
 	{"GET /admin/contact/{id}", "/admin/contact/{msg_anon}", "admin", "admin_message.html", kindDetail},
 	{"GET /admin/contact/{id}/delete", "/admin/contact/{msg_read}/delete", "admin", "admin_message_delete.html", kindConfirm},
 	{"GET /admin/contact/spam/delete", "/admin/contact/spam/delete", "admin", "admin_spam_delete.html", kindConfirm},
+	{"GET /admin/pages", "/admin/pages", "member", "admin_pages.html", kindList},
+	{"GET /admin/pages/new", "/admin/pages/new", "admin", "admin_page_form.html", kindForm},
+	{"GET /admin/pages/{id}", "/admin/pages/{page_draft}", "admin", "admin_page_form.html", kindForm},
+	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "member", "admin_page_form.html", kindForm},
+	{"GET /admin/pages/{id}/delete", "/admin/pages/{page_draft}/delete", "admin", "admin_page_delete.html", kindConfirm},
 }
 
 // adminPostSamples は、成功したときに画面を返す送信（GETの経路が無い画面）。
@@ -264,6 +282,7 @@ var adminPostSamples = []struct {
 }{
 	{"/admin/accounts", url.Values{"name": {"見本の追加"}, "role": {"member"}}, "admin_account_created.html"},
 	{"/admin/accounts/{other}/setup-url", url.Values{}, "admin_account_created.html"},
+	{"/admin/pages/preview", url.Values{"slug": {"new-page"}, "title": {"題"}, "body": {"## 見出し\n\n| a | b |\n|---|---|\n| [x](/about) | **y** |"}}, "admin_page_form.html"},
 }
 
 // adminFailure は、わざと失敗する送信の見本。Field はエラーを出す入力欄の id（空なら画面全体のエラー）、
@@ -288,6 +307,10 @@ var adminFailures = []adminFailure{
 	{"/admin/accounts", url.Values{"name": {""}, "role": {"member"}}, 400, "アカウントの追加", "account-name", ""},
 	{"/admin/accounts/{self}/disable", url.Values{}, 409, "アカウント: ", "", ""},
 	{"/admin/accounts/{other}/passkeys/{other_key}/delete", url.Values{}, 409, "アカウント: ", "", ""},
+	{"/admin/pages", url.Values{"slug": {"news"}, "title": {"題"}, "body": {"残す本文"}}, 400, "固定ページの作成", "page-slug", "残す本文"},
+	{"/admin/pages/{page_draft}", url.Values{"slug": {"about"}, "title": {"題"}, "body": {"残す本文"}}, 400, "固定ページの編集", "page-slug", "残す本文"},
+	{"/admin/pages/preview", url.Values{"slug": {"new-page"}, "title": {""}, "body": {"残す本文"}}, 400, "固定ページの作成", "page-title", "残す本文"},
+	{"/admin/pages", url.Values{"slug": {"wide"}, "title": {"題"}, "body": {"| a |\n|---|\n| x | y |"}}, 400, "固定ページの作成", "page-body", ""},
 }
 
 // ---- HTMLの解析 ----
