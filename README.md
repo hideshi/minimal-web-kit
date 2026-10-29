@@ -1,12 +1,12 @@
 # minimal-web-kit
 
-個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ）、3本のAI開発スキル、規約を検査するテストを同梱しています。
+個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ）、3本のAI開発スキル、規約を検査するテストを同梱しています。
 
 ## 特徴と提供範囲
 
 - **Go標準機能を中心とした構成**：`net/http`、`html/template`、`embed.FS`、`log/slog` を使用します。直接依存は純Go版SQLiteドライバ1件で、間接依存もあります（[一覧](#依存モジュール)）。Node.js/npmや外部CSSフレームワークは使用しません。
 - **機能ごとの分離**：自作機能は `features/<機能名>/` に配置します。Site・お知らせ機能の切り替えコマンドは登録ファイルだけを変更し、機能ディレクトリ内のファイルは変更しません。
-- **取得データの最小化**：氏名や連絡先は既定で取得しません。必要な情報を追加するときは、利用目的・保存先・保持期間・削除方法を整理し、開発規約に沿って承認を得て台帳と検査を更新します。
+- **取得データの最小化**：氏名や連絡先は既定で取得しません（お問い合わせ機能を有効にした場合だけ、送る人が任意で書くお名前・返信先を保存します）。必要な情報を追加するときは、利用目的・保存先・保持期間・削除方法を整理し、開発規約に沿って承認を得て台帳と検査を更新します。
 - **セッションとデータ保護の基盤**：ランダムトークンとDBへのSHA-256ハッシュ保存、CSRF保護、セキュリティヘッダー、期限切れセッションの削除処理を備えています。OwnerIDはデータ分離の識別子であり、管理者認証や業務上の権限管理の代わりにはなりません。
 - **自前CSSとHTMLによるUI**：CSSは `style.css` 1本です。JavaScriptは承認した画面だけで使用します。管理者認証では、管理者認証でパスキー（WebAuthn）を扱う `webauthn.js` 1本で、登録・ログイン・パスキー管理の画面だけで読み込みます。カタログの公開一覧では固定版htmxとcatalog.jsの2本を、カタログの項目の作成・編集画面ではタグ選択の部品 `combobox.js`（外部ライブラリなし）を、同一オリジンから読み込みます。高コントラスト、フォーカス表示、見出し・ランドマーク、スキップリンク等を備えています。JIS X 8341-3 / WCAG 2.1 AAを意識した設計ですが、完全適合を宣言するものではなく、作成したページごとの実画面・支援技術での検証が必要です。
 - **アプリケーションログの最小化**：アクセスログはサーバー生成のリクエストID、既知のHTTPメソッド（その他は `OTHER`）、応答状況、処理時間に限定します。URLパス・クエリ・Cookie・IP・User-Agent・本文や、生のpanic値・エラー内容を記録しない実装です。追加機能やリバースプロキシ等のログは別途確認してください。
@@ -126,6 +126,21 @@ make auth-setup
 
 仕様と不変条件は [domain/catalog.md](docs/domain/catalog.md)、保存内容は[データ台帳](docs/data-inventory.md)の6節、ブラウザ依存の記録は [カタログのJavaScript](features/catalog/static/README.md) を参照してください。独自レイアウトで強化UIを使う場合は、head内に空の `{{block "page_head" .}}{{end}}` を用意します（Siteと既定レイアウトには用意済み）。
 
+### お問い合わせ機能
+
+`make add-contact` で有効化します（管理者認証も有効になります）。`make remove-contact` は登録だけを外し、保存データは保持します。メールは送らず、届いた内容は管理画面の受信箱で読みます。
+
+| 経路 | 内容 |
+|---|---|
+| `/contact` | お問い合わせのフォーム。内容（必須）・お名前（任意）・返信先（任意）。Cookieを発行・照合せず、IPアドレス・User-Agentを保存しません。JavaScriptは使いません |
+| `/admin/contact` | 受信箱。**管理者だけ**が見られます（メンバーにはナビのリンクも出ません）。既読・未読・スパムの印、1件ずつとスパムのまとめての削除 |
+
+- 受付から `CONTACT_RETENTION_DAYS`（既定90日）で、状態に関係なく自動で削除します。削除前のバックアップの複製には、その保持期間のあいだ残るため、プライバシーポリシーには両方を合わせた期間を書いてください。
+- スパム対策は、IPアドレスと外部のCAPTCHAを使わずに、見えない入力欄、署名つきのフォームの値（3秒未満・1時間超え・使用済みを判定）、URLは2つまで、全体の受付上限（`CONTACT_HOURLY_LIMIT`・`CONTACT_DAILY_LIMIT`・`CONTACT_UNREAD_LIMIT`。保存した件数で数える）を組み合わせます。人が手で書く宣伝は防げません。判定の結果は固定の分類（`result=saved`・`honeypot`・`too_fast` 等）でログに出すので、効き目を確かめられます。連打は前段（Cloudflare等）のレート制限で抑えます（[デプロイ手順](docs/deploy.md)）。
+- 送信の前に、利用目的・保持期間とプライバシーポリシーへのリンクを表示します。同意のチェック欄はありません（取得に同意は要らず、利用目的の明示が必要なため。法的な判断は運営者が行ってください）。
+- Siteと一緒に使うと、LPのお問い合わせのボタンが `/contact` を指します。`CONTACT_FORM_URL`（外部のフォーム）と同時に有効にすると、起動を止めます。
+- 仕様と不変条件は [domain/contact.md](docs/domain/contact.md)、保存内容は[データ台帳](docs/data-inventory.md)の7節、設計の経緯は [contact-plan.md](docs/contact-plan.md) にあります。
+
 ### 切り替えコマンドの保護範囲
 
 `features/site`・`features/news`・`features/auth`・`features/catalog` は同梱機能用の予約ディレクトリです。自作機能には別名を使用してください。コマンドは `site.go`・`news.go`・`auth.go`・`catalog.go` 冒頭の識別コメント（例: `// minimal-web-kit: bundled-feature site`）と登録ファイルの構造を確認します。識別できない同名ディレクトリ、シンボリックリンク、マーカーの欠落・重複、部分的な登録、別名import等は書き換えずに拒否します。識別コメントは同梱元の目印で、真正性や未改変を証明するものではありません。
@@ -142,8 +157,9 @@ make auth-setup
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
 | `make test-ui` | 画面部品をChrome・Chromiumで操作して確かめ、主な管理画面を `test/browser/shots/` に撮る（`test/browser/` の別モジュール。chromedpを使い、キット本体の依存には含めない。Chromeが無ければ飛ばす。`CHROME_PATH` で指定可） |
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
-| `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（お知らせ・カタログが有効な間は無効化できない） |
+| `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（お知らせ・カタログ・お問い合わせが有効な間は無効化できない） |
 | `make add-catalog` / `make remove-catalog` | カタログの登録を有効化・無効化（Authも有効化。データは保持） |
+| `make add-contact` / `make remove-contact` | お問い合わせの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-news` / `make remove-news` | お知らせ機能の登録を有効化・無効化（有効化すると管理者認証も有効になる。無効化してもDBのデータは残る） |
 | `make auth-setup` | 最初の管理者のパスキーの登録用URLを表示（有効なパスキーが1件も無いときだけ）。本番は `minimal-web-kit auth-setup` |
 | `go run ./cmd/server export-static <dir>` | Siteの公開ページ（`/`・`/privacy`）とCSS、セキュリティヘッダーの `_headers` を静的ファイルとして書き出す（Siteのみ有効な場合）。本番は `minimal-web-kit export-static <dir>` |
@@ -162,7 +178,9 @@ make auth-setup
 | `AUTH_ALLOW_SYNCED_PASSKEYS` | 無効。`true` のときだけ同期型のパスキーを受け入れる。`true`・`false`・空以外の値は起動時にエラー |
 | `NEWS_CORS_ORIGINS` | 未設定（許可なし）。`/api/` を別ドメインから読むことを許す接続元をカンマ区切りで指定。`*` は不可 |
 | `SITE_URL` | 未設定。Siteを公開するURL（例: `https://example.com`）。設定するとcanonical・OGP・Xカード・`sitemap.xml` を出力する（絶対URLが必要なため） |
-| `CONTACT_FORM_URL` | 未設定。Siteのお問い合わせリンク先（`https://` のみ有効。未設定時はボタン非表示） |
+| `CONTACT_FORM_URL` | 未設定。Siteのお問い合わせリンク先（外部のフォーム。`https://` のみ有効。未設定時はボタン非表示）。お問い合わせ機能と同時に有効にすると起動時にエラー |
+| `CONTACT_RETENTION_DAYS` | 90。お問い合わせの保持日数（1〜365。範囲外・数字以外は起動時にエラー） |
+| `CONTACT_HOURLY_LIMIT` / `CONTACT_DAILY_LIMIT` / `CONTACT_UNREAD_LIMIT` | 20 / 100 / 500。お問い合わせの全体の受付上限（保存した件数で数える） |
 
 `make build` はテンプレート・CSS・JS・マイグレーションを埋め込んだ単一実行ファイルを作ります。対象OS・CPUに合わせたビルドが必要で、サイズはGoバージョン・構成・対象環境により変わります。SQLiteのデータはバイナリの外に保存されます。
 

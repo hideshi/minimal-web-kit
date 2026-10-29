@@ -574,9 +574,19 @@ footer {
   margin-bottom: var(--space-md);
 }
 
-.news-body p {
+.news-body p,
+.contact-body p {
   margin-bottom: var(--space-md);
   overflow-wrap: anywhere;
+}
+
+/* お問い合わせ機能 */
+.contact-body p:last-child {
+  margin-bottom: 0;
+}
+
+.contact-lead {
+  margin-bottom: var(--space-md);
 }
 
 .pagination {

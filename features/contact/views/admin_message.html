@@ -12,7 +12,7 @@
   </table>
 </div>
 <h2>内容</h2>
-<div class="card">{{range .Paragraphs}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}</div>
+<div class="card contact-body">{{range .Paragraphs}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}</div>
 <h2>状態の変更</h2>
 <div class="action-bar">
   {{if ne .Message.Status "read"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="read"><button type="submit" class="btn btn-secondary">既読にする</button></form>{{end}}

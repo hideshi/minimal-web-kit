@@ -17,6 +17,7 @@ import (
 	"minimal-web-kit/features/auth"
 	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/catalog"
+	"minimal-web-kit/features/contact"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
@@ -38,6 +39,7 @@ func TestAdminScreenshots(t *testing.T) {
 	reg.Register(auth.NewFeature(logger))
 	reg.Register(news.NewFeature(logger))
 	reg.Register(catalog.NewFeature(logger))
+	reg.Register(contact.NewFeature(logger))
 	for _, f := range reg.All() {
 		if err := f.Init(core.DB()); err != nil {
 			t.Fatal(err)
@@ -101,6 +103,12 @@ func TestAdminScreenshots(t *testing.T) {
 	shoot("08-news-form", fmt.Sprintf("/admin/news/%d", post))
 	shoot("09-account-detail", fmt.Sprintf("/admin/accounts/%d", other))
 	shoot("10-passkeys", "/admin/passkeys")
+	inbox := contact.NewStore(db)
+	msg, _ := inbox.Save(ctx, contact.Input{Name: "見本の人", ReplyTo: "reply@example.com", Body: "見本のお問い合わせです。\n\n2段落目です。"}, contact.Limits{Hourly: 10, Daily: 10, Unread: 10})
+	_, _ = inbox.Save(ctx, contact.Input{Body: "無記名のお問い合わせ"}, contact.Limits{Hourly: 10, Daily: 10, Unread: 10})
+	shoot("12-contact-form", "/contact")
+	shoot("13-contact-inbox", "/admin/contact")
+	shoot("14-contact-message", fmt.Sprintf("/admin/contact/%d", msg))
 
 	// 入力の失敗（同じ名前のカテゴリを追加する）。応答は400のため、ブラウザのログのエラーは確かめない
 	b.do(t, chromedp.Navigate(srv.URL+"/admin/catalog/classifications/categories"),
