@@ -198,8 +198,9 @@ func TestSEO_PerPageMetaSitemapCacheAndFavicon(t *testing.T) {
 			t.Errorf("%s: Cache-Control = %q", path, got)
 		}
 	}
-	for _, path := range []string{"/admin/login", "/account/delete-confirm"} {
-		if got := get(path).Header().Get("Cache-Control"); got != "no-store, max-age=0" {
+	// 管理画面は、前段に書き換えさせない指定（no-transform）も付ける
+	for path, want := range map[string]string{"/admin/login": "no-store, max-age=0, no-transform", "/account/delete-confirm": "no-store, max-age=0"} {
+		if got := get(path).Header().Get("Cache-Control"); got != want {
 			t.Errorf("%s: Cache-Control = %q", path, got)
 		}
 	}

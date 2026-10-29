@@ -214,6 +214,7 @@ func (f *Feature) loadSession(w http.ResponseWriter, r *http.Request) (session, 
 // page は、ログイン中のアカウントだけが見られる画面（GET）を守ります。未ログインならログイン画面へ移します。
 func (f *Feature) page(next func(w http.ResponseWriter, r *http.Request, s session)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		web.NoTransform(w) // 管理画面は前段に書き換えさせない（受信箱のメールアドレス等）
 		s, ok := f.loadSession(w, r)
 		if !ok {
 			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
@@ -226,6 +227,7 @@ func (f *Feature) page(next func(w http.ResponseWriter, r *http.Request, s sessi
 // form は、管理画面のフォーム送信（POST）に、同一オリジン・管理者セッション・CSRFトークンの確認を掛けます。
 func (f *Feature) form(next func(w http.ResponseWriter, r *http.Request, s session)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		web.NoTransform(w)
 		if !f.sameOrigin(r) {
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
@@ -296,10 +298,12 @@ func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Feature) handleSetupPage(w http.ResponseWriter, r *http.Request) {
+	web.NoTransform(w)
 	f.renderAdmin(w, "admin_setup.html", map[string]any{"Title": "パスキーの登録", "LabelField": labelField("仕事用PCのWindows Hello"), "AllowSynced": f.cfg.AllowSynced}, true)
 }
 
 func (f *Feature) handleLoginPage(w http.ResponseWriter, r *http.Request) {
+	web.NoTransform(w)
 	if f.adminSession(r) != "" {
 		http.Redirect(w, r, "/admin", http.StatusSeeOther)
 		return

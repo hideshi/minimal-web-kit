@@ -564,6 +564,10 @@ func TestAdminUI_AllPagesFollowStandard(t *testing.T) {
 		if w.Code >= 300 && w.Code < 400 || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/html") {
 			return
 		}
+		// 管理画面は前段（Cloudflareのメールの難読化等）に書き換えさせない
+		if cc := w.Header().Get("Cache-Control"); !strings.Contains(cc, "no-transform") || !strings.Contains(cc, "no-store") {
+			t.Errorf("%s: Cache-Control %q（no-store と no-transform が要る）", label, cc)
+		}
 		for _, p := range checkAdminPage(parseHTML(t, w.Body.String()), kind) {
 			t.Errorf("%s: %s", label, p)
 		}
@@ -705,5 +709,18 @@ func TestAdminUI_TemplatesAndRoutesHaveSamples(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// 公開ページは書き換えを止めない（Cloudflareのメールの難読化に任せる）。管理画面だけが no-transform。
+func TestAdminUI_NoTransformOnlyOnAdmin(t *testing.T) {
+	ui := setupAdminUI(t, false)
+	for _, path := range []string{"/", "/privacy", "/news", "/catalog", "/contact"} {
+		if cc := ui.get("", path).Header().Get("Cache-Control"); strings.Contains(cc, "no-transform") {
+			t.Errorf("%s must not set no-transform: %q", path, cc)
+		}
+	}
+	if w := ui.post("admin", "/admin/catalog/classifications/tags", url.Values{"name": {""}}); !strings.Contains(w.Header().Get("Cache-Control"), "no-transform") {
+		t.Errorf("admin form responses must set no-transform")
 	}
 }

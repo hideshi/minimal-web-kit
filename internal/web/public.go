@@ -24,3 +24,11 @@ type SitemapEntry struct {
 	Path    string    // サイト内のパス（例: "/news/1"）
 	LastMod time.Time // 最終更新日時。ゼロ値なら載せない
 }
+
+// NoTransform は、前段（CDN・プロキシ）に応答の中身を書き換えさせない指定を足します（Cache-Control: no-transform）。
+// 例えば Cloudflare の Email Address Obfuscation は、HTMLのメールアドレスを書き換えて復元用のJavaScriptを差し込むが、
+// このキットのCSPではそのJavaScriptが動かず、読めなくなる。管理画面（ログインが要り、ボットに拾われない）に使います。
+// キャッシュの指定（Coreの既定の no-store）は変えません。
+func NoTransform(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store, max-age=0, no-transform")
+}
