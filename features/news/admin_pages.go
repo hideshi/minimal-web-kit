@@ -32,16 +32,6 @@ func setNotice(data map[string]any, r *http.Request) {
 	data["Notice"] = adminNotices.From(r)
 }
 
-// adminPostID は経路の {id} を解析し、不正なら404/400を返します。
-func adminPostID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, status := parsePostID(r.PathValue("id"))
-	if status != 0 {
-		http.Error(w, http.StatusText(status), status)
-		return 0, false
-	}
-	return id, true
-}
-
 // --- お知らせの管理 ---
 
 func (f *Feature) handleAdminPosts(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
@@ -180,7 +170,7 @@ func formFromPost(p Post) postForm {
 }
 
 func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := adminPostID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -202,7 +192,7 @@ func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request, s f
 }
 
 func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := adminPostID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -226,7 +216,7 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s fea
 // postAction は公開・非公開の切り替えなど、入力を伴わない操作のハンドラを作ります。
 func (f *Feature) postAction(action func(*PostStore, *http.Request, int64) error, event, key string) func(http.ResponseWriter, *http.Request, features.AdminSession) {
 	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-		id, ok := adminPostID(w, r)
+		id, ok := web.PathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -249,7 +239,7 @@ func (f *Feature) afterPostChange(w http.ResponseWriter, r *http.Request, id int
 }
 
 func (f *Feature) handleDeletePostPage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := adminPostID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -264,7 +254,7 @@ func (f *Feature) handleDeletePostPage(w http.ResponseWriter, r *http.Request, s
 }
 
 func (f *Feature) handleDeletePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := adminPostID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}

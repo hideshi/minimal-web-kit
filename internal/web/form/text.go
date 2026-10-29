@@ -55,6 +55,16 @@ func Int(raw string, def, min, max int) (n int, ok bool) {
 	return n, true
 }
 
+// ID は、データの番号（1以上の整数）を読みます。半角の数字だけを受け付け、先頭のゼロ（"01"）、符号（"+1"）、範囲外は ok=false にします。
+// 同じ番号を1通りの書き方にだけ対応させ、URLの重複やキャッシュの分かれを防ぎます。
+func ID(raw string) (id int64, ok bool) {
+	if raw == "" || raw[0] == '0' || strings.TrimLeft(raw, "0123456789") != "" {
+		return 0, false
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	return id, err == nil
+}
+
 // Field は、共通の画面部品 "field"（入力欄）に渡す値です。ラベル・説明・エラーを入力欄に関連付けて描画します。
 type Field struct {
 	ID        string // 入力欄のid。説明は ID+"-hint"、エラーは ID+"-error" になる

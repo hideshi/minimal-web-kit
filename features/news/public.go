@@ -67,18 +67,6 @@ func (f *Feature) render(w http.ResponseWriter, page string, data map[string]any
 	_, _ = buf.WriteTo(w)
 }
 
-// parsePostID は経路の {id} を解析します。数値でなければ400、範囲外なら404とします。
-func parsePostID(raw string) (id int64, status int) {
-	if raw == "" || strings.TrimLeft(raw, "0123456789") != "" {
-		return 0, http.StatusBadRequest
-	}
-	id, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || id <= 0 {
-		return 0, http.StatusNotFound
-	}
-	return id, 0
-}
-
 // excerptRunes は、記事の説明文（検索結果・SNSのカード）に使う本文の文字数です。
 const excerptRunes = 120
 
@@ -140,9 +128,8 @@ func (f *Feature) handleNewsList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
-	id, status := parsePostID(r.PathValue("id"))
-	if status != 0 {
-		http.Error(w, http.StatusText(status), status)
+	id, ok := web.PathID(w, r, "id")
+	if !ok {
 		return
 	}
 	post, err := f.posts.GetPublished(r.Context(), id)
@@ -227,12 +214,9 @@ func (f *Feature) handleAPIList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (f *Feature) handleAPIShow(w http.ResponseWriter, r *http.Request) {
-	id, status := parsePostID(r.PathValue("id"))
-	if status == http.StatusBadRequest {
-		f.writeJSON(w, status, apiError("bad_request"))
-		return
-	} else if status != 0 {
-		f.writeJSON(w, status, apiError("not_found"))
+	id, ok := form.ID(r.PathValue("id"))
+	if !ok {
+		f.writeJSON(w, http.StatusNotFound, apiError("not_found"))
 		return
 	}
 	post, err := f.posts.GetPublished(r.Context(), id)

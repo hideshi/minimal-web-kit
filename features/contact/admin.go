@@ -78,15 +78,6 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 	return true
 }
 
-func messageID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		http.NotFound(w, r)
-		return 0, false
-	}
-	return id, true
-}
-
 func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	pg, ok := page.Parse(r, 20, 5000)
 	if !ok {
@@ -115,7 +106,7 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 
 // handleShow は1件を表示します。開いただけでは既読にしない（CONTACT-INV-7）。
 func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := messageID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -131,7 +122,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request, s features.
 }
 
 func (f *Feature) handleStatus(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := messageID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -150,7 +141,7 @@ func (f *Feature) handleStatus(w http.ResponseWriter, r *http.Request, s feature
 }
 
 func (f *Feature) handleDeletePage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := messageID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -164,7 +155,7 @@ func (f *Feature) handleDeletePage(w http.ResponseWriter, r *http.Request, s fea
 }
 
 func (f *Feature) handleDelete(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := messageID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}

@@ -11,13 +11,21 @@
 | `internal/web/form` | `form.Text(s, max, required)` | 複数行の文章の検査（UTF-8、改行・タブ以外の制御文字、文字数、必須）。改行をLFに揃える |
 | | `form.Line(s, max, required)` | 1行の値（タイトル、名前等）の検査。前後の空白を除き、改行を拒否する |
 | | `form.Int(raw, def, min, max)` | クエリ等の整数の解析。未指定なら `def`、不正・範囲外なら `ok=false`（400にする） |
+| | `form.ID(raw)` | データの番号（1以上）の解析。半角の数字だけで、先頭のゼロ（`01`）・符号（`+1`）・範囲外は `ok=false`。1つの番号に書き方を1通りにする |
+| | `form.Paragraphs(body)` | プレーンテキストの本文を段落と行に分ける（画面部品 `paragraphs` に渡す） |
+| | `form.FieldErrors` と `For(invalid, names...)` | 欄の名前から、その欄に出すエラーの文言を引く表 |
 | | `form.Field` | 画面部品 `field` に渡す入力欄の値 |
 | `internal/web/guard` | `guard.SameOrigin(r, origin)` | 独立経路（`IsolatedRoutesFeature`）で、別サイトからのPOSTを拒否する |
 | | `guard.NewCSRF()`・`Token`・`Valid` | セッションに結びつけたCSRFトークンの発行・検証 |
 | `internal/web/page` | `page.Parse(r, size, maxPage)`・`Limit`・`Offset`・`page.Trim` | 一覧のページ送り。1件多く取得して次のページの有無を決める |
 | `internal/web/notice` | `notice.Messages`・`From`・`Redirect`・`URL` | 操作の完了メッセージの受け渡し（`?notice=` に固定の語だけを載せる） |
+| `internal/store` | `store.AffectedOne(res, err, ifNone)` | 更新・削除が1行に当たったかを確かめる。0行なら `ifNone`（例: `ErrNotFound`） |
 | | `form.Combobox`・`form.Option` | 画面部品 `combobox` に渡す値（候補、上限、要素idの接頭辞） |
 | `internal/web` | `web.ParseWithComponents(fsys, files...)` | 共通の画面部品と、機能のテンプレートを一緒に解析する |
+| | `web.ParsePages(layout, fsys, names...)` | レイアウトと `views/` の各ファイルを解析し、ファイル名をキーにした表を返す |
+| | `web.PathID(w, r, "id")` | 経路の `{id}` を `form.ID` の規則で読む。読めなければ404を返す |
+| | `web.RequestIDAttr(w)` | ログに添えるリクエストID（サーバーが作った値） |
+| | `web.WriteJSON(w, logger, event, status, v)` | JSONを返す。変換に失敗したら500と `{"error":"internal_error"}` |
 | | `web.AllowScripts(w)` | その応答だけ、CSPの `script-src` を `'self'` にする（部品のJSを読み込む画面で、描画に成功した後に呼ぶ）。既定のCSPのときだけ変える |
 
 使い方の例（一覧のページ送りと完了メッセージ）:

@@ -46,16 +46,6 @@ func roleChoices(id, role string, long bool) form.Choices {
 	}}
 }
 
-// accountIDParam は経路の {id} を解析します。
-func accountIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		http.NotFound(w, r)
-		return 0, false
-	}
-	return id, true
-}
-
 func (f *Feature) handleAccountsPage(w http.ResponseWriter, r *http.Request, s session) {
 	list, err := f.store.listAccounts(r.Context())
 	if err != nil {
@@ -154,7 +144,7 @@ func (f *Feature) renderAccount(w http.ResponseWriter, r *http.Request, s sessio
 }
 
 func (f *Feature) handleAccountPage(w http.ResponseWriter, r *http.Request, s session) {
-	id, ok := accountIDParam(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -164,7 +154,7 @@ func (f *Feature) handleAccountPage(w http.ResponseWriter, r *http.Request, s se
 // accountAction は、他のアカウントへの操作（ロール変更・停止・再開）のハンドラを作ります。
 func (f *Feature) accountAction(event, key string, do func(r *http.Request, s session, id int64) error) func(http.ResponseWriter, *http.Request, session) {
 	return func(w http.ResponseWriter, r *http.Request, s session) {
-		id, ok := accountIDParam(w, r)
+		id, ok := web.PathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -204,7 +194,7 @@ func (f *Feature) accountActionFailed(w http.ResponseWriter, r *http.Request, s 
 
 // handleReissueToken は、アカウントの登録URL（24時間）を発行し直します。reset_keys なら、既存のパスキーとログイン状態を削除します。
 func (f *Feature) handleReissueToken(w http.ResponseWriter, r *http.Request, s session) {
-	id, ok := accountIDParam(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -224,7 +214,7 @@ func (f *Feature) handleReissueToken(w http.ResponseWriter, r *http.Request, s s
 
 // handleDeleteAccountPasskey は、管理者が他のアカウントのパスキーを削除します（そのアカウントのログイン状態も解除する）。
 func (f *Feature) handleDeleteAccountPasskey(w http.ResponseWriter, r *http.Request, s session) {
-	id, ok := accountIDParam(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -246,7 +236,7 @@ func (f *Feature) handleDeleteAccountPasskey(w http.ResponseWriter, r *http.Requ
 
 // handleDeleteAccountPasskeyPage は、他のアカウントのパスキーを削除する前の確認画面です。
 func (f *Feature) handleDeleteAccountPasskeyPage(w http.ResponseWriter, r *http.Request, s session) {
-	id, ok := accountIDParam(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -278,7 +268,7 @@ func (f *Feature) handleDeleteAccountPasskeyPage(w http.ResponseWriter, r *http.
 }
 
 func (f *Feature) handleDeleteAccountPage(w http.ResponseWriter, r *http.Request, s session) {
-	id, ok := accountIDParam(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -294,7 +284,7 @@ func (f *Feature) handleDeleteAccountPage(w http.ResponseWriter, r *http.Request
 }
 
 func (f *Feature) handleDeleteAccount(w http.ResponseWriter, r *http.Request, s session) {
-	id, ok := accountIDParam(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}

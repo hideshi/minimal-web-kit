@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"minimal-web-kit/features"
@@ -121,20 +120,6 @@ func (f *Feature) result(w http.ResponseWriter, r *http.Request, err error) bool
 	}
 	return false
 }
-func parseID(raw string) (int64, bool) {
-	if raw == "" || strings.TrimLeft(raw, "0123456789") != "" {
-		return 0, false
-	}
-	n, err := strconv.ParseInt(raw, 10, 64)
-	return n, err == nil && n > 0
-}
-func requestID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, ok := parseID(r.PathValue("id"))
-	if !ok {
-		http.NotFound(w, r)
-	}
-	return id, ok
-}
 
 func parseFilter(r *http.Request) (Filter, page.Page, error) {
 	q, err := url.ParseQuery(r.URL.RawQuery)
@@ -151,14 +136,14 @@ func parseFilter(r *http.Request) (Filter, page.Page, error) {
 	}
 	f := Filter{Query: query}
 	if raw := q.Get("category"); raw != "" {
-		id, ok := parseID(raw)
+		id, ok := form.ID(raw)
 		if !ok {
 			return f, pg, ErrInvalidInput
 		}
 		f.CategoryID = id
 	}
 	for _, raw := range q["tag"] {
-		id, ok := parseID(raw)
+		id, ok := form.ID(raw)
 		if !ok {
 			return f, pg, ErrInvalidInput
 		}
@@ -266,7 +251,7 @@ func tagFilterChoices(tags []Classification, selected []int64) form.Choices {
 	return choices
 }
 func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
-	id, ok := requestID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}

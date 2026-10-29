@@ -138,7 +138,7 @@ func TestPublicRoutesPrivacyAndRepresentations(t *testing.T) {
 					t.Fatal("cache headers missing")
 				}
 			}
-			for _, path := range []string{"/catalog/" + idString(draft), "/catalog/999999", "/catalog/not-a-number", "/catalog/missing/path", "/catalog/static/no.js"} {
+			for _, path := range []string{"/catalog/" + idString(draft), "/catalog/999999", "/catalog/not-a-number", "/catalog/0" + idString(id), "/catalog/+" + idString(id), "/catalog/missing/path", "/catalog/static/no.js"} {
 				w := fx.send("GET", path, nil, nil, nil)
 				if w.Code != 404 || (strings.Contains(w.Body.String(), "秘密分類") || strings.Contains(w.Body.String(), "秘密タグ") || strings.Contains(w.Body.String(), "秘密の下書き")) || len(w.Result().Cookies()) != 0 {
 					t.Fatal("draft/404 leak")

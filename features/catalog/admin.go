@@ -62,14 +62,14 @@ func readInput(r *http.Request) (itemForm, Input, error) {
 		return v, in, InputError{"tags"}
 	}
 	if v.Category != "" {
-		id, ok := parseID(v.Category)
+		id, ok := form.ID(v.Category)
 		if !ok {
 			return v, in, InputError{"category"}
 		}
 		in.CategoryID = id
 	}
 	for _, raw := range r.PostForm["tag"] {
-		id, ok := parseID(raw)
+		id, ok := form.ID(raw)
 		if !ok {
 			return v, in, InputError{"tags"}
 		}
@@ -158,7 +158,7 @@ func (f *Feature) handleNew(w http.ResponseWriter, r *http.Request, s features.A
 	f.itemFormPage(w, r, s, Item{}, itemForm{}, 200)
 }
 func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := requestID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -178,7 +178,7 @@ func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.
 func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	var item Item
 	if r.PathValue("id") != "" {
-		id, ok := requestID(w, r)
+		id, ok := web.PathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -213,7 +213,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 }
 func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.Request, features.AdminSession) {
 	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-		id, ok := requestID(w, r)
+		id, ok := web.PathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -229,7 +229,7 @@ func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.
 	}
 }
 func (f *Feature) handleDeletePage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := requestID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -242,7 +242,7 @@ func (f *Feature) handleDeletePage(w http.ResponseWriter, r *http.Request, s fea
 	f.renderAdmin(w, 200, "admin_delete.html", data)
 }
 func (f *Feature) handleDelete(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := requestID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -316,7 +316,7 @@ func (f *Feature) classificationPage(w http.ResponseWriter, r *http.Request, s f
 	f.renderAdmin(w, status, "admin_classification.html", data)
 }
 func (f *Feature) handleClassification(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := requestID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -339,7 +339,7 @@ func (f *Feature) handleSaveClassification(w http.ResponseWriter, r *http.Reques
 	var id int64
 	if r.PathValue("id") != "" {
 		var ok bool
-		id, ok = requestID(w, r)
+		id, ok = web.PathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -361,7 +361,7 @@ func (f *Feature) handleSaveClassification(w http.ResponseWriter, r *http.Reques
 	notice.Redirect(w, r, "/admin/catalog/classifications/"+kind, "saved")
 }
 func (f *Feature) handleDeleteClassification(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := requestID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}

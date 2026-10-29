@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"minimal-web-kit/internal/web/form"
 )
 
 // RequestIDAttr は、ログに添えるサーバー生成のリクエストID（RequestID ミドルウェアが応答のヘッダーに付けたもの）です。
@@ -23,4 +25,13 @@ func WriteJSON(w http.ResponseWriter, logger *slog.Logger, event string, status 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = w.Write(body)
+}
+
+// PathID は、経路の値（例: {id}）をデータの番号として読みます（form.ID の規則）。読めなければ404を返し、ok=false にします。
+func PathID(w http.ResponseWriter, r *http.Request, name string) (id int64, ok bool) {
+	id, ok = form.ID(r.PathValue(name))
+	if !ok {
+		http.NotFound(w, r)
+	}
+	return id, ok
 }

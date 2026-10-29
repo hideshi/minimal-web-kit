@@ -256,8 +256,11 @@ func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 	if rec := fx.do(t, http.MethodGet, "/admin/accounts/2", nil, admin); rec.Code != http.StatusNotFound {
 		t.Fatalf("deleted account: %d", rec.Code)
 	}
-	if rec := fx.do(t, http.MethodGet, "/admin/accounts/abc", nil, admin); rec.Code != http.StatusNotFound {
-		t.Fatalf("invalid id: %d", rec.Code)
+	// 番号は1通りの書き方だけ（先頭のゼロ・符号は、存在するアカウント1でも404）
+	for _, raw := range []string{"abc", "01", "+1"} {
+		if rec := fx.do(t, http.MethodGet, "/admin/accounts/"+raw, nil, admin); rec.Code != http.StatusNotFound {
+			t.Fatalf("invalid id %q: %d", raw, rec.Code)
+		}
 	}
 }
 

@@ -82,15 +82,6 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 	return true
 }
 
-func pageID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil || id <= 0 {
-		http.NotFound(w, r)
-		return 0, false
-	}
-	return id, true
-}
-
 func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	list, err := f.store.List(r.Context())
 	if f.failed(w, r, err) {
@@ -148,7 +139,7 @@ func (f *Feature) handleNew(w http.ResponseWriter, r *http.Request, s features.A
 }
 
 func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := pageID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -167,7 +158,7 @@ func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.
 func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	var p Page
 	if r.PathValue("id") != "" {
-		id, ok := pageID(w, r)
+		id, ok := web.PathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -200,11 +191,12 @@ func (f *Feature) handlePreview(w http.ResponseWriter, r *http.Request, s featur
 	in := readInput(r)
 	var p Page
 	if raw := r.PostForm.Get("id"); raw != "" {
-		id, err := strconv.ParseInt(raw, 10, 64)
-		if err != nil || id <= 0 {
+		id, ok := form.ID(raw)
+		if !ok {
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
+		var err error
 		if p, err = f.store.Get(r.Context(), id); f.failed(w, r, err) {
 			return
 		}
@@ -222,7 +214,7 @@ func (f *Feature) handlePreview(w http.ResponseWriter, r *http.Request, s featur
 
 func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.Request, features.AdminSession) {
 	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-		id, ok := pageID(w, r)
+		id, ok := web.PathID(w, r, "id")
 		if !ok {
 			return
 		}
@@ -240,7 +232,7 @@ func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.
 }
 
 func (f *Feature) handleDeletePage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := pageID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}
@@ -254,7 +246,7 @@ func (f *Feature) handleDeletePage(w http.ResponseWriter, r *http.Request, s fea
 }
 
 func (f *Feature) handleDelete(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	id, ok := pageID(w, r)
+	id, ok := web.PathID(w, r, "id")
 	if !ok {
 		return
 	}

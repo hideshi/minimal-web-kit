@@ -79,3 +79,16 @@ func TestFieldErrors(t *testing.T) {
 		t.Fatalf("no error: %q", got)
 	}
 }
+
+func TestID(t *testing.T) {
+	for raw, want := range map[string]int64{"1": 1, "42": 42, "9223372036854775807": 9223372036854775807} {
+		if got, ok := ID(raw); !ok || got != want {
+			t.Errorf("ID(%q) = %d, %v", raw, got, ok)
+		}
+	}
+	for _, raw := range []string{"", "0", "00", "01", "+1", "-1", " 1", "1 ", "1.0", "1e3", "0x1", "１", "9223372036854775808", "abc"} {
+		if _, ok := ID(raw); ok {
+			t.Errorf("ID(%q) accepted", raw)
+		}
+	}
+}

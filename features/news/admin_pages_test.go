@@ -166,7 +166,8 @@ func TestAdminPages_RequireSessionCSRFAndSameOrigin(t *testing.T) {
 
 	// 不正なID
 	for path, want := range map[string]int{
-		"/admin/news/abc": http.StatusBadRequest,
+		"/admin/news/abc": http.StatusNotFound,
+		"/admin/news/01":  http.StatusNotFound,
 		"/admin/news/999": http.StatusNotFound,
 	} {
 		if rec := fx.do(t, http.MethodGet, path, nil, cookie); rec.Code != want {
