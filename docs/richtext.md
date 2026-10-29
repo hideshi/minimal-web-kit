@@ -68,6 +68,7 @@
 | 外部 | 文字どおり小文字の `https://` で始まる。`net/url` で解析でき、ホスト（`Hostname()`）が空でなく、`%` を含まず、ユーザー情報（`user@`）が無い |
 | サイト内 | `/` で始まり、`//` と `/\` で始まらない |
 
+- URLの中に `\` で作った文字（`\)` 等）があれば許可しない（URLの区切りを `\` でずらせないようにする）。
 - どちらも、2,048文字以下で、空白・`\`・制御文字（`unicode.IsControl`。C0とC1）・書式文字（`unicode.Cf`。右から左への上書き等）を含まないこと。
 - 許可しないURL（`http://`・`HTTPS://`・`mailto:`・`javascript:`・`data:`・`//example.com`・`/\example.com`・`https://`・`https:example.com`・`https://user@example.com` 等）は、`[文字](URL)` をそのまま文字として出す。
 - リンクは同じタブで開く。

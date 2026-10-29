@@ -679,7 +679,30 @@ nav a[aria-current="page"] {
 .combobox-option[aria-disabled="true"] { cursor: not-allowed; text-decoration: line-through; }
 .combobox-empty { margin-top: var(--space-xs); }
 
+/* 本文（richtext。固定ページ等）。描く部品は components.html の "richtext" */
+.richtext h2,
+.richtext h3 {
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-sm);
+}
+
+.richtext p,
+.richtext .table-container {
+  margin-bottom: var(--space-md);
+  overflow-wrap: anywhere;
+}
+
+.richtext-list {
+  margin-bottom: var(--space-md);
+  padding-left: 1.5em;
+}
+
+.richtext-list li + li {
+  margin-top: var(--space-xs);
+}
+
 /* hidden属性を、.card や .btn の display 指定より優先する（同じ詳細度のため、ファイルの最後に置く） */
 [hidden] {
   display: none;
 }
+

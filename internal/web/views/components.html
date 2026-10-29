@@ -103,3 +103,12 @@
   </div>
 </div>
 {{end}}
+
+{{/*
+  本文（書き方を絞ったMarkdown）。引数は richtext.Doc（richtext.Parse で読んだもの）。規則は docs/richtext.md。
+  利用者の入力は文字として描き、HTMLとしては出さない。リンクは richtext が許可したURLだけ
+*/}}
+{{define "richtext"}}<div class="richtext">{{range .Blocks}}{{if eq .Kind "h2"}}<h2>{{template "richtext-inline" .Inlines}}</h2>{{else if eq .Kind "h3"}}<h3>{{template "richtext-inline" .Inlines}}</h3>{{else if eq .Kind "p"}}<p>{{range $i, $line := .Lines}}{{if $i}}<br>{{end}}{{template "richtext-inline" $line}}{{end}}</p>{{else if eq .Kind "ul"}}<ul class="richtext-list">{{range .Items}}<li>{{template "richtext-inline" .}}</li>{{end}}</ul>{{else if eq .Kind "ol"}}<ol class="richtext-list">{{range .Items}}<li>{{template "richtext-inline" .}}</li>{{end}}</ol>{{else if eq .Kind "table"}}<div class="table-container"><table><caption>{{.Caption}}</caption><thead><tr>{{range .Head}}<th scope="col">{{template "richtext-inline" .}}</th>{{end}}</tr></thead><tbody>{{range .Rows}}<tr>{{range .}}<td>{{template "richtext-inline" .}}</td>{{end}}</tr>{{end}}</tbody></table></div>{{end}}{{end}}</div>{{end}}
+
+{{/* richtext の内部用。文字の並び */}}
+{{define "richtext-inline"}}{{range .}}{{if eq .Kind "strong"}}<strong>{{.Text}}</strong>{{else if eq .Kind "link"}}<a href="{{.Href}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}{{end}}
