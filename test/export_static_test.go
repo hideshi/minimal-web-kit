@@ -41,7 +41,11 @@ func TestExportStatic_Site(t *testing.T) {
 		return string(b)
 	}
 	index := read("index.html")
-	if !strings.Contains(index, "https://forms.example.com/contact") || !strings.Contains(index, `<link rel="stylesheet" href="/static/css/style.css">`) {
+	cssURL, err := web.AssetURL("css/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(index, "https://forms.example.com/contact") || !strings.Contains(index, `<link rel="stylesheet" href="`+cssURL+`">`) {
 		t.Fatal("index.html must contain the contact URL and the stylesheet")
 	}
 	if !strings.Contains(read("privacy.html"), "プライバシーポリシー") {

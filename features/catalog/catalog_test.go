@@ -26,6 +26,7 @@ import (
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
+	"minimal-web-kit/internal/web"
 )
 
 type fixture struct {
@@ -377,13 +378,17 @@ func TestAdminProtectionWorkflowAndLogCanary(t *testing.T) {
 	}
 	id := list[0].ID
 	path := "/admin/catalog/" + idString(id)
+	combobox, err := web.AssetURL("js/combobox.js")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, p := range []string{"/admin/catalog", "/admin/catalog/new", path, path + "/delete", "/admin/catalog/classifications/tags"} {
 		w := fx.send("GET", p, nil, cookie, nil)
 		// 項目の作成・編集画面だけ、タグ選択の部品のJSを読み込み、自サイトのJSを許す。
 		form := p == "/admin/catalog/new" || p == path
 		scripts := strings.Count(w.Body.String(), "<script")
 		csp := w.Header().Get("Content-Security-Policy")
-		if w.Code != 200 || form && (scripts != 1 || !strings.Contains(w.Body.String(), `<script src="/static/js/combobox.js" defer></script>`) || !strings.Contains(csp, "script-src 'self'")) || !form && (scripts != 0 || !strings.Contains(csp, "script-src 'none'")) || strings.Contains(csp, "unsafe-") {
+		if w.Code != 200 || form && (scripts != 1 || !strings.Contains(w.Body.String(), `<script src="`+combobox+`" defer></script>`) || !strings.Contains(csp, "script-src 'self'")) || !form && (scripts != 0 || !strings.Contains(csp, "script-src 'none'")) || strings.Contains(csp, "unsafe-") {
 			t.Fatalf("member page %s: %d scripts=%d csp=%q", p, w.Code, scripts, csp)
 		}
 		if w := fx.send("GET", p, nil, nil, nil); w.Code != 303 {

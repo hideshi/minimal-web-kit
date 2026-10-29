@@ -3,6 +3,15 @@
   使い方と注意は docs/components.md を参照。
 */}}
 
+{{/*
+  CSS とアイコンの読み込み。レイアウトの <head> で {{template "static-head"}} と書く。
+  URL には中身の版（?v=）が付き、CSS を変えるとすぐ新しい版が読まれる。予約名なので、利用側で定義し直さない
+*/}}
+{{define "static-head"}}<link rel="icon" href="{{asset "img/favicon.svg"}}" type="image/svg+xml">
+  <link rel="icon" href="{{asset "img/favicon-32.png"}}" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="{{asset "img/apple-touch-icon.png"}}">
+  <link rel="stylesheet" href="{{asset "css/style.css"}}">{{end}}
+
 {{/* 完了メッセージ。引数は文字列（空なら何も出さない）。読み上げソフトに穏やかに伝える */}}
 {{define "notice"}}{{if .}}<p class="alert alert-info" role="status">{{.}}</p>{{end}}{{end}}
 

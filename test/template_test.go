@@ -46,6 +46,26 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 	}
 }
 
+// TestTemplate_StaticAssetsUseAsset は、同梱のテンプレートが /static/ を直接書かず、版付きの URL（共通部品 static-head か
+// {{asset "..."}}）で読み込むことを検証します。直接書くと、CSS を更新しても古い版がキャッシュに残るためです。
+func TestTemplate_StaticAssetsUseAsset(t *testing.T) {
+	files, _ := filepath.Glob("../internal/web/views/*.html")
+	featureFiles, _ := filepath.Glob("../features/*/views/*.html")
+	direct := regexp.MustCompile(`(?:href|src)="/static/`)
+	for _, file := range append(files, featureFiles...) {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if direct.Match(b) {
+			t.Errorf("%s loads /static/ directly; use {{template \"static-head\"}} or {{asset \"...\"}}", file)
+		}
+		if strings.Contains(file, "layout") && !strings.Contains(string(b), `{{template "static-head"}}`) {
+			t.Errorf("%s must load CSS and icons with {{template \"static-head\"}}", file)
+		}
+	}
+}
+
 // TestTemplate_NoInlineStylesOrScripts は全HTMLテンプレートにインラインstyle属性、タグ、イベントハンドラがないことを検証します。
 func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 	coreFiles, err := filepath.Glob("../internal/web/views/*.html")
@@ -79,8 +99,8 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 				t.Errorf("%s may contain only %s", file, approvedScriptTag)
 			}
 		} else if filepath.ToSlash(file) == "../features/catalog/views/admin_form.html" {
-			// 承認済みの例外: 項目の作成・編集画面だけ、Coreの部品 combobox.js を1つ読み込める。
-			tag := `<script src="/static/js/combobox.js" defer></script>`
+			// 承認済みの例外: 項目の作成・編集画面だけ、Coreの部品 combobox.js を1つ読み込める（版付きの URL）。
+			tag := `<script src="{{asset "js/combobox.js"}}" defer></script>`
 			if strings.Count(str, "<script") != 1 || strings.Count(str, tag) != 1 {
 				t.Errorf("%s may contain only %s", file, tag)
 			}

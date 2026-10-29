@@ -1,4 +1,4 @@
-{{define "script"}}<script src="/static/js/combobox.js" defer></script>{{end}}
+{{define "script"}}<script src="{{asset "js/combobox.js"}}" defer></script>{{end}}
 {{define "content"}}
 <h1>{{.Title}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
 {{if .Item.ID}}<p>状態: {{if .Item.Published}}公開中（<a href="/catalog/{{.Item.ID}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}

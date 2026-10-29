@@ -140,7 +140,7 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 	}
 	static := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
 	rootMux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		PublicCache(w, staticCacheSeconds)
+		staticCache(w, r)
 		static.ServeHTTP(w, r)
 	}))
 	// /favicon.ico を直接取りに来るブラウザ・クローラ向けに、PNGのアイコンを返す（404のログを増やさない）
@@ -261,7 +261,14 @@ func ParsePage(layout Layout, contentFS fs.FS, contentFiles ...string) (*templat
 	if err != nil {
 		return nil, err
 	}
-	return t.ParseFS(contentFS, contentFiles...)
+	if t, err = t.ParseFS(contentFS, contentFiles...); err != nil {
+		return nil, err
+	}
+	// 本文で足した定義（content・page_head・script 等）も確かめる
+	if err := checkTemplates(t); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // SetLayout は、Coreの画面をサイト全体のレイアウトで描画するようにします。起動時に1回だけ呼びます。
@@ -279,20 +286,29 @@ func (h *Handler) SetLayout(layout Layout) error {
 
 // componentFuncs は部品に値を渡すための関数。confirm は削除の確認の操作の並び（confirm-actions）の値を作る:
 // {{template "confirm-actions" (confirm "/admin/x/1/delete" "/admin/x/1" .CSRFToken)}}
+// asset は /static/ のファイルの版付きの URL を作る: {{asset "js/combobox.js"}}（引数は文字列だけ。解析時に実在を確かめる）
 var componentFuncs = template.FuncMap{
 	"confirm": func(action, back, csrfToken string) form.Confirm {
 		return form.Confirm{Action: action, Back: back, CSRFToken: csrfToken}
 	},
+	"asset": AssetURL,
 }
 
 // ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field・choices・
-// confirm-actions・combobox）と、機能のテンプレートを1つにまとめて解析します。機能は自分の embed.FS とファイル名を渡します。
+// confirm-actions・combobox・static-head）と、機能のテンプレートを1つにまとめて解析します。機能は自分の embed.FS とファイル名を渡します。
+// asset の引数の誤りと static-head の定義し直しは、ここでエラーにします（実行しない分岐の中も含む）。
 func ParseWithComponents(fsys fs.FS, patterns ...string) (*template.Template, error) {
 	t, err := template.New("components").Funcs(componentFuncs).ParseFS(contentFS, "views/components.html")
 	if err != nil {
 		return nil, err
 	}
-	return t.ParseFS(fsys, patterns...)
+	if t, err = t.ParseFS(fsys, patterns...); err != nil {
+		return nil, err
+	}
+	if err := checkTemplates(t); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 func (h *Handler) Render(w http.ResponseWriter, page string, data any) {

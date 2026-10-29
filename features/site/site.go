@@ -46,7 +46,7 @@ const (
 func NewFeature(logger *slog.Logger) *Feature {
 	pages := map[string]*template.Template{}
 	for _, page := range []string{"index.html", "notfound.html"} {
-		t, err := template.ParseFS(viewsFS, "views/layout.html", "views/"+page)
+		t, err := web.ParseWithComponents(viewsFS, "views/layout.html", "views/"+page)
 		if err != nil {
 			panic(fmt.Sprintf("parse site views: %v", err))
 		}

@@ -208,11 +208,74 @@ func TestSEO_PerPageMetaSitemapCacheAndFavicon(t *testing.T) {
 	if rec := get("/favicon.ico"); rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" {
 		t.Errorf("favicon.ico: %d %s", rec.Code, rec.Header().Get("Content-Type"))
 	}
+	favicon, err := web.AssetURL("img/favicon.svg")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, path := range []string{"/", "/privacy", "/news", "/admin/login"} {
-		if !strings.Contains(get(path).Body.String(), `<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">`) {
+		if !strings.Contains(get(path).Body.String(), `<link rel="icon" href="`+favicon+`" type="image/svg+xml">`) {
 			t.Errorf("%s: missing favicon link", path)
 		}
 	}
+}
+
+// CSS とアイコンは共通部品 static-head の1か所から、版付きの URL で読み込むこと。
+// Site の有効・無効（各機能の予備のレイアウト・Base）と管理画面で、CSS が1本、アイコンが各1つだけ出ることを確かめる。
+func TestLayout_StaticHeadOnEveryLayout(t *testing.T) {
+	var links []string
+	for _, name := range []string{"css/style.css", "img/favicon.svg", "img/favicon-32.png", "img/apple-touch-icon.png"} {
+		u, err := web.AssetURL(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		links = append(links, `href="`+u+`"`)
+	}
+	check := func(label string, routes http.Handler, paths ...string) {
+		t.Helper()
+		for _, path := range paths {
+			rec := httptest.NewRecorder()
+			routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+			body := rec.Body.String()
+			if rec.Code != http.StatusOK {
+				t.Errorf("%s %s: %d", label, path, rec.Code)
+				continue
+			}
+			for _, link := range links {
+				if strings.Count(body, link) != 1 {
+					t.Errorf("%s %s: %s must appear once", label, path, link)
+				}
+			}
+			if strings.Count(body, `rel="stylesheet"`) != 1 || strings.Contains(body, `"/static/css/style.css"`) {
+				t.Errorf("%s %s: must load only the versioned stylesheet", label, path)
+			}
+		}
+	}
+
+	withSite, _ := newSiteNewsRoutes(t)
+	check("site", withSite, "/", "/privacy", "/news", "/news/1", "/admin/login")
+
+	// Site が無効なら、お知らせは自分の予備のレイアウトで、/ と /privacy は Base のレイアウトで描く
+	t.Setenv("AUTH_ORIGIN", "")
+	t.Setenv("AUTH_RP_ID", "")
+	t.Setenv("NEWS_CORS_ORIGINS", "")
+	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { s.Close() })
+	reg := features.NewRegistry()
+	reg.Register(news.NewFeature(discardLogger()))
+	reg.Register(auth.NewFeature(discardLogger()))
+	for _, f := range reg.All() {
+		if err := f.Init(s.DB()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	noSite, err := app.BuildRoutes(s, reg, false, discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("no site", noSite, "/", "/privacy", "/news", "/admin/login")
 }
 
 // Baseの /privacy はセッションを扱うため、キャッシュさせないこと。

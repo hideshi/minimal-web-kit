@@ -3,11 +3,14 @@ package app
 import (
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -103,6 +106,10 @@ func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error
 		files[notFoundFile] = rec.Body.Bytes()
 	}
 
+	if err := checkStaticRefs(files); err != nil {
+		return err
+	}
+
 	var b strings.Builder
 	b.WriteString("/*\n")
 	for _, name := range staticHeaders {
@@ -113,6 +120,30 @@ func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error
 	files[headersFile] = []byte(b.String())
 
 	return writeExport(dir, files)
+}
+
+// staticRefPattern は、HTML の href・src にある /static/ への参照です（外部のURL・ページへのリンク・canonical は対象外）。
+var staticRefPattern = regexp.MustCompile(`(?:href|src)="(/static/[^"]*)"`)
+
+// checkStaticRefs は、書き出す HTML が参照する /static/ のファイルが、すべて書き出しの対象に入っているかを確かめます。
+// 書き出すファイルは staticPages の固定の一覧なので、レイアウトが一覧に無いファイルを参照すると、静的ホスティングで欠けるためです。
+// 版の ?v= とフラグメントは除いて照合します（静的ホスティングがクエリを無視してファイルを返すかは、使うホストで確かめる）。
+func checkStaticRefs(files map[string][]byte) error {
+	for name, body := range files {
+		if !strings.HasSuffix(name, ".html") {
+			continue
+		}
+		for _, m := range staticRefPattern.FindAllStringSubmatch(string(body), -1) {
+			u, err := url.Parse(html.UnescapeString(m[1]))
+			if err != nil {
+				return fmt.Errorf("%s refers to an invalid URL %q", name, m[1])
+			}
+			if _, ok := files[strings.TrimPrefix(u.Path, "/")]; !ok {
+				return fmt.Errorf("%s refers to %s, which is not exported", name, u.Path)
+			}
+		}
+	}
+	return nil
 }
 
 // writeExport は書き出し先を確認してからファイルを書きます。

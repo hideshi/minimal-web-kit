@@ -10,7 +10,9 @@ import (
 // 更新（お知らせの公開等）が反映されるまでの最大の遅れにもなるため、短めにしています。
 const PublicCacheSeconds = 60
 
-// staticCacheSeconds は /static/（CSS・画像）のキャッシュ秒数です。ファイル名に版を含めないため、長くしません。
+// staticCacheSeconds は、/static/（CSS・画像）を版なし（?v= が無いか、今の版と違う）で取りに来たときのキャッシュ秒数です。
+// 版が一致すれば1年にします（staticCache）。キットが指定する値で、前段の CDN（Cloudflare の Browser Cache TTL 等）が
+// ブラウザ向けの期間を引き上げることがあります。
 const staticCacheSeconds = 600
 
 // PublicCache は、応答をキャッシュしてよい公開ページとして扱います。
