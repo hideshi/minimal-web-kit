@@ -605,7 +605,8 @@ textarea[aria-invalid="true"] {
 
 /* お知らせ機能・管理者認証: 管理画面 */
 .admin-main > p,
-.admin-main > .card {
+.admin-main > .card,
+.admin-main > .action-bar {
   margin-bottom: var(--space-md);
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strconv"
@@ -17,6 +18,8 @@ import (
 var (
 	ErrNotFound     = errors.New("catalog: not found")
 	ErrInvalidInput = errors.New("catalog: invalid input")
+	// ErrDuplicateName は同種の分類名の重複。ErrInvalidInput としても判定できる。
+	ErrDuplicateName = fmt.Errorf("catalog: duplicate name: %w", ErrInvalidInput)
 )
 
 type Item struct {
@@ -34,6 +37,12 @@ func (Item) LogValue() slog.Value { return slog.StringValue("[catalog item]") }
 type Classification struct {
 	ID   int64
 	Name string
+}
+
+// ClassificationUsage は管理画面の一覧用に、分類と、それを使う項目の数（公開・下書きを含む）を持つ。
+type ClassificationUsage struct {
+	Classification
+	Items int
 }
 
 func (Classification) LogValue() slog.Value { return slog.StringValue("[catalog classification]") }
@@ -336,6 +345,32 @@ func (s *Store) Classifications(ctx context.Context, kind string, public bool) (
 	}
 	return s.classifications(ctx, q+" ORDER BY c.name,c.id")
 }
+
+// ClassificationUsages は管理画面の一覧用に、全分類と使っている項目の数を名前順で返す。
+func (s *Store) ClassificationUsages(ctx context.Context, kind string) ([]ClassificationUsage, error) {
+	table, err := classificationTable(kind)
+	if err != nil {
+		return nil, err
+	}
+	count := "SELECT COUNT(*) FROM catalog_items i WHERE i.category_id=c.id"
+	if kind == "tags" {
+		count = "SELECT COUNT(*) FROM catalog_item_tags it WHERE it.tag_id=c.id"
+	}
+	rows, err := s.db.QueryContext(ctx, "SELECT c.id,c.name,("+count+") FROM "+table+" c ORDER BY c.name,c.id")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := []ClassificationUsage{}
+	for rows.Next() {
+		var v ClassificationUsage
+		if err := rows.Scan(&v.ID, &v.Name, &v.Items); err != nil {
+			return nil, err
+		}
+		result = append(result, v)
+	}
+	return result, rows.Err()
+}
 func (s *Store) Classification(ctx context.Context, kind string, id int64) (Classification, int, error) {
 	table, err := classificationTable(kind)
 	if err != nil {
@@ -374,7 +409,7 @@ func (s *Store) SaveClassification(ctx context.Context, kind string, id int64, n
 			return err
 		}
 		if existing != 0 && existing != id {
-			return ErrInvalidInput
+			return ErrDuplicateName
 		}
 		if id == 0 {
 			res, err := c.ExecContext(ctx, "INSERT INTO "+table+"(name) VALUES(?)", name)

@@ -1,6 +1,31 @@
 {{define "content"}}
 <h1>{{.Title}}</h1>{{template "notice" .Notice}}
-<ul>{{range .Values}}<li><a href="/admin/catalog/classifications/{{$.Kind}}/{{.ID}}">{{.Name}}</a></li>{{else}}<li>まだありません。</li>{{end}}</ul>
-<h2>{{.KindTitle}}の追加</h2><form method="post" action="/admin/catalog/classifications/{{.Kind}}" class="card"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><label for="classification-name">名前（必須）</label><p id="classification-name-hint">1〜50文字、改行なし。同じ名前は使えません。個人情報は書かないでください。</p><input type="text" id="classification-name" name="name" required aria-describedby="classification-name-hint"><button type="submit" class="btn btn-primary">追加する</button></form>
+{{if .Values}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">{{.KindTitle}}の一覧（名前順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">名前</th>
+        <th scope="col">使っている項目</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Values}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{.Items}}件</td>
+        <td><a href="/admin/catalog/classifications/{{$.Kind}}/{{.ID}}">編集<span class="visually-hidden">（{{.Name}}）</span></a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>{{.KindTitle}}はまだありません。</p>
+{{end}}
+<h2>{{.KindTitle}}の追加</h2>{{template "error" .Error}}
+<form method="post" action="/admin/catalog/classifications/{{.Kind}}" class="card"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{template "field" .Field}}<button type="submit" class="btn btn-primary">追加する</button></form>
 <p><a href="/admin/catalog">カタログの管理へ戻る</a></p>
 {{end}}

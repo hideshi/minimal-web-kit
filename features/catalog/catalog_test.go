@@ -249,7 +249,7 @@ func TestStoreTransactionsClassificationDeletionAndRetention(t *testing.T) {
 	if _, err := s.SaveClassification(ctx, "tags", 0, "重複"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SaveClassification(ctx, "tags", 0, " 重複 "); !errors.Is(err, ErrInvalidInput) {
+	if _, err := s.SaveClassification(ctx, "tags", 0, " 重複 "); !errors.Is(err, ErrDuplicateName) || !errors.Is(err, ErrInvalidInput) {
 		t.Fatal("duplicate classification accepted")
 	}
 	if err := s.Delete(ctx, id); err != nil {
@@ -508,6 +508,52 @@ func TestClassificationRoutesAndDeletionWorkflow(t *testing.T) {
 	}
 	if strings.Contains(fx.logs.String(), "分類カナリア") {
 		t.Fatal("classification leaked to log")
+	}
+}
+
+// TestClassificationAdminPages は、分類の一覧が使用件数つきの表になり、追加・編集の失敗が理由つきで同じ画面に出ることを確かめる。
+func TestClassificationAdminPages(t *testing.T) {
+	fx := setup(t, false)
+	cookie := authtest.NewSession(t, fx.core.DB())
+	token := authtest.CSRFToken(t, fx.routes, "/admin/catalog/new", cookie)
+	headers := map[string]string{"Origin": "null", "Sec-Fetch-Site": "same-origin"}
+	used := classification(t, fx.f.store, "tags", "使用中")
+	unused := classification(t, fx.f.store, "tags", "未使用")
+	mustSave(t, fx.f.store, Input{Title: "項目", TagIDs: []int64{used}})
+	base := "/admin/catalog/classifications/tags"
+
+	usages, err := fx.f.store.ClassificationUsages(context.Background(), "tags")
+	if err != nil || len(usages) != 2 || usages[0].Name != "使用中" || usages[0].Items != 1 || usages[1].Items != 0 {
+		t.Fatalf("usages: %+v %v", usages, err)
+	}
+	if w := fx.send("GET", base, nil, cookie, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "<td>1件</td>") || !strings.Contains(w.Body.String(), "<caption") {
+		t.Fatal("classification table without usage count")
+	}
+	if w := fx.send("GET", "/admin/catalog/classifications/categories", nil, cookie, nil); !strings.Contains(w.Body.String(), "<p>カテゴリはまだありません。</p>") {
+		t.Fatal("empty classification list")
+	}
+
+	w := fx.send("POST", base, url.Values{"name": {"使用中"}, "csrf_token": {token}}, cookie, headers)
+	body := w.Body.String()
+	if w.Code != 400 || !strings.Contains(body, "<h1>タグの管理</h1>") || !strings.Contains(body, "同じ名前のタグがあります") || !strings.Contains(body, `aria-invalid="true"`) || !strings.Contains(body, `value="使用中"`) || strings.Contains(body, "タイトルは1〜200文字") {
+		t.Fatalf("duplicate add: %d", w.Code)
+	}
+	if w := fx.send("POST", base, url.Values{"name": {" "}, "csrf_token": {token}}, cookie, headers); w.Code != 400 || !strings.Contains(w.Body.String(), "名前は1〜50文字") {
+		t.Fatal("empty name on add")
+	}
+	w = fx.send("POST", base+"/"+idString(unused), url.Values{"name": {"使用中"}, "csrf_token": {token}}, cookie, headers)
+	if w.Code != 400 || !strings.Contains(w.Body.String(), "<h1>タグの編集</h1>") || !strings.Contains(w.Body.String(), "同じ名前のタグがあります") {
+		t.Fatal("duplicate rename")
+	}
+
+	if w := fx.send("GET", base+"/"+idString(unused)+"/delete", nil, cookie, nil); !strings.Contains(w.Body.String(), "使っている項目はありません。") || strings.Contains(w.Body.String(), "0件") {
+		t.Fatal("unused deletion text")
+	}
+	if w := fx.send("GET", base+"/"+idString(used)+"/delete", nil, cookie, nil); !strings.Contains(w.Body.String(), "現在1件の項目で使っています。") {
+		t.Fatal("used deletion text")
+	}
+	if w := fx.send("GET", "/admin/catalog", nil, cookie, nil); !strings.Contains(w.Body.String(), `<ul class="catalog-items">`) {
+		t.Fatal("admin item list")
 	}
 }
 

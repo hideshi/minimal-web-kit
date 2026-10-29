@@ -1,11 +1,11 @@
 {{define "content"}}
 <h1>{{.KindTitle}}の{{if .Deleting}}削除{{else}}編集{{end}}</h1>{{template "error" .Error}}
 {{if .Deleting}}
-<p>「{{.Value.Name}}」を削除します。現在{{.Count}}件の項目で使用中です。項目自体は削除しません。{{if eq .Kind "categories"}}関連項目は未分類になります。{{else}}項目からこのタグを外します。{{end}}元に戻せません。</p>
+<p>「{{.Value.Name}}」を削除します。{{if .Count}}現在{{.Count}}件の項目で使っています。{{if eq .Kind "categories"}}それらの項目は未分類になります。{{else}}それらの項目からこのタグを外します。{{end}}{{else}}使っている項目はありません。{{end}}項目自体は削除しません。元に戻せません。</p>
 <form method="post" action="/admin/catalog/classifications/{{.Kind}}/{{.Value.ID}}/delete"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-danger">削除する</button></form>
 {{else}}
-<form method="post" action="/admin/catalog/classifications/{{.Kind}}{{if .Value.ID}}/{{.Value.ID}}{{end}}" class="card"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{template "field" .Field}}<button type="submit" class="btn btn-primary">保存する</button></form>
-{{if .Value.ID}}<p><a href="/admin/catalog/classifications/{{.Kind}}/{{.Value.ID}}/delete">削除する</a></p>{{end}}
+<form method="post" action="/admin/catalog/classifications/{{.Kind}}/{{.Value.ID}}" class="card"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{template "field" .Field}}<button type="submit" class="btn btn-primary">保存する</button></form>
+<p><a href="/admin/catalog/classifications/{{.Kind}}/{{.Value.ID}}/delete" class="btn btn-danger">削除する</a></p>
 {{end}}
 <p><a href="/admin/catalog/classifications/{{.Kind}}">{{.KindTitle}}の一覧へ戻る</a></p>
 {{end}}

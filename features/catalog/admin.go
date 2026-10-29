@@ -227,13 +227,37 @@ func kindTitle(kind string) string {
 	}
 	return "タグ"
 }
+
+// classificationField は分類名の入力欄。追加と編集で同じ説明を使う。
+func classificationField(name, fieldError string) form.Field {
+	return form.Field{ID: "classification-name", Name: "name", Label: "名前", Value: name, Required: true, MaxLength: 50, Error: fieldError, Hint: "1〜50文字、改行なし。同じ名前は使えません。実名などの個人情報は入力しないでください。"}
+}
+
+// classificationError は保存の失敗を、入力欄のエラーか画面全体のエラーに分ける。どちらでもなければ空。
+func classificationError(w http.ResponseWriter, kind string, err error) (status int, fieldError, pageError string) {
+	switch {
+	case busyError(err):
+		w.Header().Set("Retry-After", "1")
+		return 503, "", "一時的に保存できませんでした。時間を置いて再試行してください。"
+	case errors.Is(err, ErrDuplicateName):
+		return 400, "同じ名前の" + kindTitle(kind) + "があります。別の名前にしてください。", ""
+	case errors.Is(err, ErrInvalidInput):
+		return 400, "名前は1〜50文字で、改行を含めずに入力してください。", ""
+	}
+	return 0, "", ""
+}
 func (f *Feature) handleClassifications(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+	f.classificationsPage(w, r, s, 200, "", "", "")
+}
+
+// classificationsPage は一覧と追加のフォームを描画する。追加に失敗したときは、入力した名前とエラーを添える。
+func (f *Feature) classificationsPage(w http.ResponseWriter, r *http.Request, s features.AdminSession, status int, name, fieldError, pageError string) {
 	kind := r.PathValue("kind")
-	if _, err := classificationTable(kind); err != nil {
+	values, err := f.store.ClassificationUsages(r.Context(), kind)
+	if errors.Is(err, ErrInvalidInput) {
 		http.NotFound(w, r)
 		return
 	}
-	values, err := f.store.Classifications(r.Context(), kind, false)
 	if !f.result(w, r, err) {
 		return
 	}
@@ -241,22 +265,19 @@ func (f *Feature) handleClassifications(w http.ResponseWriter, r *http.Request, 
 	data["Kind"] = kind
 	data["Values"] = values
 	data["KindTitle"] = kindTitle(kind)
-	f.renderAdmin(w, 200, "admin_classifications.html", data)
+	data["Field"] = classificationField(name, fieldError)
+	data["Error"] = pageError
+	f.renderAdmin(w, status, "admin_classifications.html", data)
 }
-func (f *Feature) classificationPage(w http.ResponseWriter, r *http.Request, s features.AdminSession, v Classification, count, status int, deleting bool) {
+func (f *Feature) classificationPage(w http.ResponseWriter, r *http.Request, s features.AdminSession, v Classification, count, status int, deleting bool, fieldError, pageError string) {
 	data := f.adminData(s, kindTitle(r.PathValue("kind"))+"の編集", r)
 	data["Value"] = v
 	data["Kind"] = r.PathValue("kind")
 	data["KindTitle"] = kindTitle(r.PathValue("kind"))
 	data["Count"] = count
 	data["Deleting"] = deleting
-	data["Field"] = form.Field{ID: "classification-name", Name: "name", Label: "名前", Value: v.Name, Required: true, Hint: "1〜50文字、改行なし。同じ名前は使えません。実名などの個人情報は入力しないでください。"}
-	if status == 400 {
-		data["Error"] = inputError
-	} else if status == 503 {
-		data["Error"] = "一時的に保存できませんでした。時間を置いて再試行してください。"
-		w.Header().Set("Retry-After", "1")
-	}
+	data["Field"] = classificationField(v.Name, fieldError)
+	data["Error"] = pageError
 	f.renderAdmin(w, status, "admin_classification.html", data)
 }
 func (f *Feature) handleClassification(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
@@ -272,7 +293,7 @@ func (f *Feature) handleClassification(w http.ResponseWriter, r *http.Request, s
 	if !f.result(w, r, err) {
 		return
 	}
-	f.classificationPage(w, r, s, v, n, 200, strings.HasSuffix(r.URL.Path, "/delete"))
+	f.classificationPage(w, r, s, v, n, 200, strings.HasSuffix(r.URL.Path, "/delete"), "", "")
 }
 func (f *Feature) handleSaveClassification(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	kind := r.PathValue("kind")
@@ -288,13 +309,14 @@ func (f *Feature) handleSaveClassification(w http.ResponseWriter, r *http.Reques
 			return
 		}
 	}
-	_, err := f.store.SaveClassification(r.Context(), kind, id, r.PostForm.Get("name"))
-	if busyError(err) {
-		f.classificationPage(w, r, s, Classification{ID: id, Name: r.PostForm.Get("name")}, 0, 503, false)
-		return
-	}
-	if errors.Is(err, ErrInvalidInput) {
-		f.classificationPage(w, r, s, Classification{ID: id, Name: r.PostForm.Get("name")}, 0, 400, false)
+	name := r.PostForm.Get("name")
+	_, err := f.store.SaveClassification(r.Context(), kind, id, name)
+	if status, fieldError, pageError := classificationError(w, kind, err); status != 0 {
+		if id == 0 {
+			f.classificationsPage(w, r, s, status, name, fieldError, pageError)
+		} else {
+			f.classificationPage(w, r, s, Classification{ID: id, Name: name}, 0, status, false, fieldError, pageError)
+		}
 		return
 	}
 	if !f.result(w, r, err) {
