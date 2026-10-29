@@ -112,7 +112,7 @@ func TestAdminScreenshots(t *testing.T) {
 	shoot("13-contact-inbox", "/admin/contact")
 	shoot("14-contact-message", fmt.Sprintf("/admin/contact/%d", msg))
 	pageStore := pages.NewStore(db)
-	page, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "about", Title: "会社概要", NavOrder: "1", Body: "## 概要\n小さなチームで、個人情報を集めないWebサイトを作っています。\n詳しくは[お知らせ](/news)をご覧ください。\n\n表: 会社の情報\n| 項目 | 内容 |\n|---|---|\n| 社名 | 例の会社 |\n| 所在地 | 東京都 |\n| 有効にするコマンド | make add-catalog |\n| 資料 | https://github.com/hideshi/minimal-web-kit/blob/main/docs/data-inventory.md |\n\n### 大切にしていること\n- 取得するデータを減らす\n- **依存**を減らす\n1. 計画\n2. 実装"}, nil)
+	page, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "about", Title: "会社概要", NavOrder: "1", Body: "## 概要\n小さなチームで、個人情報を集めないWebサイトを作っています。\n詳しくは[お知らせ](/news)をご覧ください。\n\n表: 会社の情報\n| 項目 | 内容 |\n|---|---|\n| 社名 | 例の会社 |\n| 所在地 | 東京都 |\n| 有効にするコマンド | make add-catalog |\n| 資料 | https://github.com/hideshi/minimal-web-kit/blob/main/docs/data-inventory.md |\n\n表: 機能と設定\n| 機能 | 有効にするコマンド | 設定 | 説明 |\n|---|---|---|---|\n| カタログ | make add-catalog | なし | 項目の一覧と詳細 |\n| お問い合わせ | make add-contact | CONTACT_RETENTION_DAYS | 受信箱。internationalization のような長い単語も入れる |\n\n### 大切にしていること\n- 取得するデータを減らす\n- **依存**を減らす\n1. 計画\n2. 実装"}, nil)
 	_ = pageStore.SetPublished(ctx, page, true)
 	shoot("15-page-public", "/about")
 	// 公開一覧の絞り込み（タグ20個。狭い画面での折り返しを見る）

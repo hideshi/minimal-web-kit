@@ -736,6 +736,13 @@ nav a[aria-current="page"] {
   overflow-wrap: break-word;
 }
 
+/* 長いURL等の列に幅を取られて、日本語の列が1文字幅に潰れないよう、列に最小の幅を持たせる。
+   入りきらない分は .table-container の横スクロールで見る。 */
+.richtext th,
+.richtext td {
+  min-width: 6em;
+}
+
 .richtext-list {
   margin-bottom: var(--space-md);
   padding-left: 1.5em;
