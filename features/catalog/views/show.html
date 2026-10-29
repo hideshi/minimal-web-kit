@@ -4,5 +4,5 @@
 {{if .Item.Tags}}<ul aria-label="タグ">{{range .Item.Tags}}<li><a href="/catalog?tag={{.ID}}">{{.Name}}</a></li>{{end}}</ul>{{end}}
 {{template "paragraphs" .Paragraphs}}
 <p>更新: {{template "datetime" .Item.UpdatedAt}}</p>
-</article><p><a href="/catalog">カタログ一覧へ戻る</a></p>
+</article><p><a href="/catalog">カタログの一覧へ戻る</a></p>
 {{end}}

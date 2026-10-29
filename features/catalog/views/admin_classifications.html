@@ -27,5 +27,5 @@
 {{end}}
 <h2>{{.KindTitle}}の追加</h2>{{template "error" .Error}}
 <form method="post" action="/admin/catalog/classifications/{{.Kind}}" class="card"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{template "field" .Field}}<button type="submit" class="btn btn-primary">追加する</button></form>
-<p><a href="/admin/catalog">カタログの管理へ戻る</a></p>
+<p><a href="/admin/catalog">カタログの一覧へ戻る</a></p>
 {{end}}

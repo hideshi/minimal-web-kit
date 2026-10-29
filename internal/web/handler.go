@@ -389,7 +389,7 @@ func (h *Handler) handleDeleteConfirm(w http.ResponseWriter, r *http.Request) {
 	h.Render(w, "confirm_delete.html", map[string]any{
 		"Title":      "セッション破棄の確認",
 		"HasSession": hasSession,
-		"CSRFToken":  GetCSRFToken(r.Context()),
+		"Confirm":    form.Confirm{Action: "/account/delete-all", Back: "/", CSRFToken: GetCSRFToken(r.Context()), Submit: "はい、破棄します"},
 	})
 }
 

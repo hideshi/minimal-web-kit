@@ -8,13 +8,7 @@
 
 <p>本当にセッションを破棄して初期化しますか？</p>
 
-<div class="action-bar">
-  <form action="/account/delete-all" method="POST" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-danger">はい、破棄します</button>
-  </form>
-  <a href="/" class="btn btn-secondary">キャンセルして戻る</a>
-</div>
+{{template "confirm-actions" .Confirm}}
 {{else}}
 <div class="alert alert-info">
   <p>現在、この端末には発行済みのセッション情報はありません（Cookie不要・セッション不要で閲覧中です）。</p>

@@ -103,6 +103,17 @@ func TestCanary_LogAndPrivacyProtection(t *testing.T) {
 		t.Fatalf("CRITICAL SECURITY FAILURE: Raw session token was leaked into logs via X-Request-ID injection!\nLogs:\n%s", logOutput)
 	}
 
+	// 確認画面は部品 confirm-actions で、そのセッションのCSRFトークンを送る
+	reqConfirm := httptest.NewRequest(http.MethodGet, "/account/delete-confirm", nil)
+	reqConfirm.AddCookie(sessionCookie)
+	recConfirm := httptest.NewRecorder()
+	routes.ServeHTTP(recConfirm, reqConfirm)
+	for _, want := range []string{`action="/account/delete-all"`, `name="csrf_token" value="` + csrfToken + `"`, "はい、破棄します", `<a href="/" class="btn btn-secondary">削除せずに戻る</a>`} {
+		if !strings.Contains(recConfirm.Body.String(), want) {
+			t.Fatalf("delete confirm missing %q", want)
+		}
+	}
+
 	// 5. CSRFトークンを検証して全データ即時削除を実行
 	formDeleteAll := url.Values{}
 	formDeleteAll.Set("csrf_token", csrfToken)
