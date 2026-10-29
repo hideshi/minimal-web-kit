@@ -2,7 +2,7 @@
 <article><h1>{{.Item.Title}}</h1>
 {{if .Item.CategoryID}}<p>カテゴリ: <a href="/catalog?category={{.Item.CategoryID}}">{{.Item.Category}}</a></p>{{end}}
 {{if .Item.Tags}}<ul aria-label="タグ">{{range .Item.Tags}}<li><a href="/catalog?tag={{.ID}}">{{.Name}}</a></li>{{end}}</ul>{{end}}
-<div class="news-body">{{range .Paragraphs}}<p>{{range $i,$line:=.}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}</div>
+{{template "paragraphs" .Paragraphs}}
 <p>更新: <time datetime="{{.Item.UpdatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Item.UpdatedAt.Format "2006年1月2日 15:04"}}</time></p>
 </article><p><a href="/catalog">カタログ一覧へ戻る</a></p>
 {{end}}

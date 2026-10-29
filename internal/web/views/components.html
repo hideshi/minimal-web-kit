@@ -113,6 +113,9 @@
 </div>
 {{end}}
 
+{{/* プレーンテキストの本文。引数は form.Paragraphs の結果。空行で段落、段落の中の改行は br */}}
+{{define "paragraphs"}}<div class="text-body">{{range .}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}</div>{{end}}
+
 {{/*
   本文（書き方を絞ったMarkdown）。引数は richtext.Doc（richtext.Parse で読んだもの）。規則は docs/richtext.md。
   利用者の入力は文字として描き、HTMLとしては出さない。リンクは richtext が許可したURLだけ

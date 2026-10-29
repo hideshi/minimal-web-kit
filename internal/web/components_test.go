@@ -204,3 +204,10 @@ func TestComboboxScript_NoUnsafeAPIs(t *testing.T) {
 		}
 	}
 }
+
+func TestComponents_Paragraphs(t *testing.T) {
+	got := renderComponent(t, `{{template "paragraphs" .}}`, form.Paragraphs("一行目\n<b>二行目</b>\n\n二段落目"))
+	if got != `<div class="text-body"><p>一行目<br>&lt;b&gt;二行目&lt;/b&gt;</p><p>二段落目</p></div>` {
+		t.Fatalf("paragraphs: %s", got)
+	}
+}

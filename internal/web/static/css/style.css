@@ -611,14 +611,14 @@ footer {
   margin-bottom: var(--space-md);
 }
 
-.news-body p,
-.contact-body p {
+/* 本文の段落（部品の paragraphs） */
+.text-body p {
   margin-bottom: var(--space-md);
   overflow-wrap: anywhere;
 }
 
 /* お問い合わせ機能 */
-.contact-body p:last-child {
+.card > .text-body p:last-child {
   margin-bottom: 0;
 }
 
@@ -659,7 +659,9 @@ select[aria-invalid="true"] {
   margin-bottom: var(--space-md);
 }
 
-.admin-caption {
+/* 表の説明（管理画面の表と、本文の表で共通） */
+.admin-caption,
+.richtext caption {
   text-align: left;
   font-weight: 700;
   margin-bottom: var(--space-sm);
@@ -733,12 +735,6 @@ nav a[aria-current="page"] {
 /* 表は anywhere だと列の最小幅が縮み、単語が細かく割れるため break-word にする。 */
 .richtext .table-container {
   overflow-wrap: break-word;
-}
-
-.richtext caption {
-  text-align: left;
-  font-weight: 700;
-  margin-bottom: var(--space-sm);
 }
 
 .richtext-list {
