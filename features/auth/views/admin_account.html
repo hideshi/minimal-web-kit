@@ -76,5 +76,3 @@
 
 <p><a href="/admin/accounts">アカウントの一覧へ戻る</a></p>
 {{end}}
-
-{{define "token-state"}}{{if not .TokenExpiresAt.IsZero}}未使用（<time datetime="{{.TokenExpiresAt.Format "2006-01-02T15:04"}}">{{.TokenExpiresAt.Format "1月2日 15:04"}}</time>まで）{{else if not .TokenUsedAt.IsZero}}使用済み（<time datetime="{{.TokenUsedAt.Format "2006-01-02T15:04"}}">{{.TokenUsedAt.Format "1月2日 15:04"}}</time>）{{else}}なし{{end}}{{end}}
