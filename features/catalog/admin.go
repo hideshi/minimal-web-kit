@@ -391,7 +391,7 @@ func (f *Feature) registerAdmin(mux *web.IsolatedMux) {
 	mux.HandleFunc("POST /admin/catalog/{id}/unpublish", f.admin.Form(f.handlePublish(false)))
 	mux.HandleFunc("GET /admin/catalog/{id}/delete", f.admin.Page(f.handleDeletePage))
 	mux.HandleFunc("POST /admin/catalog/{id}/delete", f.admin.Form(f.handleDelete))
-	// 経路は文字列のリテラルで書く（管理画面の検査が、ソースの "GET /admin..." と登録された経路を突き合わせる）。
+	// 経路は文字列のリテラルで書く（管理画面の検査が、ソースに書いた経路と登録された経路を突き合わせる）。
 	// {kind} の1つの経路にすると GET /admin/catalog/{id}/delete と重なるため、種類ごとに登録する
 	mux.HandleFunc("GET /admin/catalog/classifications/categories", f.admin.Page(withKind("categories", f.handleClassifications)))
 	mux.HandleFunc("POST /admin/catalog/classifications/categories", f.admin.Form(withKind("categories", f.handleSaveClassification)))

@@ -89,17 +89,32 @@ const datetimeInputLayout = "2006-01-02T15:04"
 // postForm は記事のフォームの入力です。誤りがあれば、入力をそのまま戻して修正を求めます。
 type postForm struct {
 	Title, Body, PublishedAt string
+	Invalid                  string // 誤りのある欄（InputError.Field）
+}
+
+// postErrors は、欄ごとの入力の誤りの文言です。
+var postErrors = map[string]string{
+	"title":        "タイトルは1〜200文字で、改行や制御文字を含めずに入力してください。",
+	"body":         "本文は5万文字以内で、制御文字を含めずに入力してください。",
+	"published_at": "公開日時の形式が正しくありません。日付と時刻を選び直してください。",
+}
+
+func (pf postForm) fieldError(name string) string {
+	if pf.Invalid == name {
+		return postErrors[name]
+	}
+	return ""
 }
 
 // Fields は、共通の画面部品 "field" で描く入力欄を返します。
 func (pf postForm) Fields() []form.Field {
 	return []form.Field{
-		{ID: "post-title", Name: "title", Label: "タイトル", Value: pf.Title, MaxLength: maxTitleRunes, Required: true,
+		{ID: "post-title", Name: "title", Label: "タイトル", Value: pf.Title, MaxLength: maxTitleRunes, Required: true, Error: pf.fieldError("title"),
 			Hint: "1〜200文字。改行は使えません。"},
 		// 本文は maxlength を付けない（ブラウザはUTF-16で数えるため、絵文字等でサーバーの文字数と食い違う）
-		{ID: "post-body", Name: "body", Label: "本文", Value: pf.Body, Rows: 14,
+		{ID: "post-body", Name: "body", Label: "本文", Value: pf.Body, Rows: 14, Error: pf.fieldError("body"),
 			Hint: "5万文字以内のプレーンテキスト。空行で段落を分けます。HTMLは文字としてそのまま表示されます。個人情報は書かないでください。"},
-		{ID: "post-published-at", Name: "published_at", Label: "公開日時（任意）", Value: pf.PublishedAt, Type: "datetime-local",
+		{ID: "post-published-at", Name: "published_at", Label: "公開日時（任意）", Value: pf.PublishedAt, Type: "datetime-local", Error: pf.fieldError("published_at"),
 			Hint: "公開ページの表示と並び順に使います。空欄のままなら、初めて公開した日時が入ります。未来の日時を指定して「公開を予約する」を押すと、その日時になってから公開ページとAPIに表示されます。時刻はサーバーのタイムゾーンです。"},
 	}
 }
@@ -109,9 +124,9 @@ func readPostForm(r *http.Request) postForm {
 }
 
 // parsePublishedAt は公開日時の入力を解析します。空ならゼロ値（変更しない）を返します。
-func (f *Feature) parsePublishedAt(raw string) (time.Time, string) {
+func (f *Feature) parsePublishedAt(raw string) (time.Time, error) {
 	if raw == "" {
-		return time.Time{}, ""
+		return time.Time{}, nil
 	}
 	// ブラウザによっては秒まで送るため、両方の形式を受け付ける
 	t, err := time.ParseInLocation(datetimeInputLayout, raw, time.Local)
@@ -119,21 +134,20 @@ func (f *Feature) parsePublishedAt(raw string) (time.Time, string) {
 		t, err = time.ParseInLocation(datetimeInputLayout+":05", raw, time.Local)
 	}
 	if err != nil || t.Year() < 1970 {
-		return time.Time{}, "公開日時の形式が正しくありません。"
+		return time.Time{}, InputError{"published_at"}
 	}
-	return t, ""
+	return t, nil
 }
 
 func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	pf := readPostForm(r)
-	publishedAt, msg := f.parsePublishedAt(pf.PublishedAt)
-	if msg != "" {
-		f.renderPostFormError(w, r, s, "お知らせの作成", Post{}, pf, msg)
-		return
+	publishedAt, err := f.parsePublishedAt(pf.PublishedAt)
+	var id int64
+	if err == nil {
+		id, err = f.posts.CreateWithDate(r.Context(), pf.Title, pf.Body, publishedAt)
 	}
-	id, err := f.posts.CreateWithDate(r.Context(), pf.Title, pf.Body, publishedAt)
 	if errors.Is(err, ErrInvalidInput) {
-		f.renderPostFormError(w, r, s, "お知らせの作成", Post{}, pf, postInputError)
+		f.renderPostFormError(w, r, s, "お知らせの作成", Post{}, pf, err)
 		return
 	}
 	if err != nil {
@@ -145,15 +159,19 @@ func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, s fea
 	notice.Redirect(w, r, "/admin/news/"+strconv.FormatInt(id, 10), "created")
 }
 
-const postInputError = "タイトルは1〜200文字（改行なし）、本文は5万文字以内で入力してください。制御文字は使えません。"
-
-// renderPostFormError は入力をそのまま戻して、修正を求めるフォームを返します。
+// renderPostFormError は入力をそのまま戻して、修正を求めるフォームを返します。誤りは、その欄に出します。
 // p は保存済みの記事（作成時はゼロ値）で、状態の表示に使います。
-func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, s features.AdminSession, title string, p Post, pf postForm, msg string) {
+func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, s features.AdminSession, title string, p Post, pf postForm, err error) {
+	var invalid InputError
+	if errors.As(err, &invalid) {
+		pf.Invalid = invalid.Field
+	}
 	data := f.pageData(s, title)
 	data["Post"] = p
 	data["Form"] = pf
-	data["Error"] = msg
+	if pf.Invalid == "" {
+		data["Error"] = "入力を確認してください。"
+	}
 	f.renderAdminStatus(w, http.StatusBadRequest, "admin_post_form.html", data)
 }
 
@@ -194,11 +212,9 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	pf := readPostForm(r)
-	publishedAt, msg := f.parsePublishedAt(pf.PublishedAt)
-	err := ErrInvalidInput
-	if msg == "" {
+	publishedAt, err := f.parsePublishedAt(pf.PublishedAt)
+	if err == nil {
 		err = f.posts.UpdateWithDate(r.Context(), id, pf.Title, pf.Body, publishedAt)
-		msg = postInputError
 	}
 	if errors.Is(err, ErrInvalidInput) {
 		p, gerr := f.posts.Get(r.Context(), id)
@@ -206,7 +222,7 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s fea
 			http.NotFound(w, r)
 			return
 		}
-		f.renderPostFormError(w, r, s, "お知らせの編集", adminLocalTime(p), pf, msg)
+		f.renderPostFormError(w, r, s, "お知らせの編集", adminLocalTime(p), pf, err)
 		return
 	}
 	f.afterPostChange(w, r, id, err, "news post updated", "saved")

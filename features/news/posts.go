@@ -24,6 +24,13 @@ var (
 	ErrInvalidInput = errors.New("news: invalid input")
 )
 
+// InputError は、どの欄の入力が制約を満たさないかを示します。ErrInvalidInput としても判定できます。
+// Field は "title"・"body"・"published_at" のどれかです。
+type InputError struct{ Field string }
+
+func (e InputError) Error() string { return "news: invalid " + e.Field }
+func (e InputError) Unwrap() error { return ErrInvalidInput }
+
 // Post はお知らせ1件です。PublishedAt は一度も公開していなければゼロ値です。
 type Post struct {
 	ID          int64
@@ -50,15 +57,15 @@ func NewPostStore(db *sql.DB) *PostStore {
 	return &PostStore{db: db, now: time.Now}
 }
 
-// normalizePost はタイトル（1行）と本文を検査します。理由は区別せず ErrInvalidInput を返します。
+// normalizePost はタイトル（1行）と本文を検査します。誤りは、欄を示す InputError で返します。
 func normalizePost(title, body string) (string, string, error) {
 	title, err := form.Line(title, maxTitleRunes, true)
 	if err != nil {
-		return "", "", ErrInvalidInput
+		return "", "", InputError{"title"}
 	}
 	body, err = form.Text(body, maxBodyRunes, false)
 	if err != nil {
-		return "", "", ErrInvalidInput
+		return "", "", InputError{"body"}
 	}
 	return title, body, nil
 }
@@ -115,7 +122,7 @@ func (s *PostStore) publishedAtArg(t time.Time) (any, error) {
 		return nil, nil
 	}
 	if t.Unix() <= 0 {
-		return nil, ErrInvalidInput
+		return nil, InputError{"published_at"}
 	}
 	return t.Unix(), nil
 }
