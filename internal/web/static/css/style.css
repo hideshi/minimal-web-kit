@@ -384,6 +384,7 @@ input[type="text"],
 input[type="search"],
 input[type="datetime-local"],
 textarea,
+select,
 .catalog-select {
   width: 100%;
   padding: var(--space-sm);
@@ -599,7 +600,8 @@ footer {
 }
 
 input[aria-invalid="true"],
-textarea[aria-invalid="true"] {
+textarea[aria-invalid="true"],
+select[aria-invalid="true"] {
   border: 2px solid var(--color-danger-hover);
 }
 
@@ -628,9 +630,9 @@ nav a[aria-current="page"] {
   margin-bottom: 0;
 }
 
-.label-form input[type="text"] {
+.label-form .form-group {
   flex: 1 1 12rem;
-  width: auto;
+  margin-bottom: 0;
 }
 
 /* 画面には表示せず、支援技術には読み上げさせる */

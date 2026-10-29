@@ -24,15 +24,14 @@
         <td>
           <form method="post" action="/admin/passkeys/{{.Param}}/label" class="label-form">
             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-            <label for="label-{{.Param}}" class="visually-hidden">端末名</label>
-            <input type="text" id="label-{{.Param}}" name="label" maxlength="50" required value="{{.Label}}">
+            {{template "field" .LabelField}}
             <button type="submit" class="btn btn-secondary">名前を変更</button>
           </form>
         </td>
         <td>{{if .Disabled}}無効（複製の疑い）<br><time datetime="{{.DisabledAt.Format "2006-01-02T15:04"}}">{{.DisabledAt.Format "2006年1月2日 15:04"}}</time>{{else}}有効{{end}}</td>
         <td><time datetime="{{.CreatedAt.Format "2006-01-02T15:04"}}">{{.CreatedAt.Format "2006年1月2日 15:04"}}</time></td>
         <td>{{if .LastUsedAt.IsZero}}未使用{{else}}<time datetime="{{.LastUsedAt.Format "2006-01-02T15:04"}}">{{.LastUsedAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
-        <td><a href="/admin/passkeys/{{.Param}}/delete">削除</a></td>
+        <td><a href="/admin/passkeys/{{.Param}}/delete">削除<span class="visually-hidden">（{{.Label}}）</span></a></td>
       </tr>
       {{end}}
     </tbody>

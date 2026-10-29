@@ -22,6 +22,13 @@ var (
 	ErrDuplicateName = fmt.Errorf("catalog: duplicate name: %w", ErrInvalidInput)
 )
 
+// InputError は、項目の入力のどの欄が誤りかを示す。ErrInvalidInput としても判定できる。
+// Field は "title"・"body"・"category"・"tags"・"new_tags" のどれか。
+type InputError struct{ Field string }
+
+func (e InputError) Error() string { return "catalog: invalid " + e.Field }
+func (e InputError) Unwrap() error { return ErrInvalidInput }
+
 type Item struct {
 	ID                   int64
 	Title, Body          string
@@ -86,27 +93,30 @@ func line(raw string, max int, required bool) (string, error) {
 func normalize(in Input) (Input, error) {
 	var err error
 	if in.Title, err = line(in.Title, 200, true); err != nil {
-		return in, err
+		return in, InputError{"title"}
 	}
 	if in.Body, err = form.Text(in.Body, 50000, false); err != nil {
-		return in, ErrInvalidInput
+		return in, InputError{"body"}
 	}
-	if in.CategoryID < 0 || len(in.TagIDs)+len(in.NewTags) > 20 {
-		return in, ErrInvalidInput
+	if in.CategoryID < 0 {
+		return in, InputError{"category"}
+	}
+	if len(in.TagIDs)+len(in.NewTags) > 20 {
+		return in, InputError{"tags"}
 	}
 	in.TagIDs = slices.Clone(in.TagIDs)
 	slices.Sort(in.TagIDs)
 	in.TagIDs = slices.Compact(in.TagIDs)
 	for _, id := range in.TagIDs {
 		if id <= 0 {
-			return in, ErrInvalidInput
+			return in, InputError{"tags"}
 		}
 	}
 	names := make([]string, 0, len(in.NewTags))
 	for _, name := range in.NewTags {
 		v, err := line(name, 50, true)
 		if err != nil {
-			return in, err
+			return in, InputError{"new_tags"}
 		}
 		names = append(names, v)
 	}
@@ -159,7 +169,7 @@ func (s *Store) Save(ctx context.Context, id int64, in Input) (int64, error) {
 			var found int
 			if err := c.QueryRowContext(ctx, "SELECT 1 FROM catalog_categories WHERE id=?", in.CategoryID).Scan(&found); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					return ErrInvalidInput
+					return InputError{"category"}
 				}
 				return err
 			}
@@ -198,7 +208,7 @@ func (s *Store) Save(ctx context.Context, id int64, in Input) (int64, error) {
 			var exists int
 			if err := c.QueryRowContext(ctx, "SELECT 1 FROM catalog_tags WHERE id=?", tagID).Scan(&exists); err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
-					return ErrInvalidInput
+					return InputError{"tags"}
 				}
 				return err
 			}

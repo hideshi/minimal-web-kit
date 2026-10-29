@@ -63,7 +63,7 @@ type Field struct {
 	Hint      string // 入力の条件等の説明（任意）
 	Error     string // この欄のエラー（任意）。表示すると aria-invalid="true" になる
 	Value     string
-	Type      string // 既定は "text"（例: "datetime-local"、"email"）
+	Type      string // 既定は "text"（例: "datetime-local"、"email"、単独のチェックボックスは "checkbox"）
 	MaxLength int    // 0なら指定しない
 	Rows      int    // 1以上なら複数行（textarea）
 	Required  bool
@@ -71,6 +71,7 @@ type Field struct {
 	// LabelHidden はラベルを画面に出さず、読み上げソフトにだけ伝える（表の中の欄等、見出しで意味が分かる場合）
 	LabelHidden bool
 	Readonly    bool // 表示用の欄（登録URL等、選んでコピーする値）
+	Checked     bool // Type が "checkbox" のとき、選んだ状態にする（Value の既定は "1"）
 }
 
 // Choices は、共通の画面部品 "choices"（同じ名前のラジオ・チェックボックスの組）に渡す値です。

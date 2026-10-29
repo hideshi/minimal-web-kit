@@ -5,11 +5,5 @@
 
 <p class="card">{{.Credential.Label}}{{if .Credential.Disabled}}（無効・複製の疑い）{{end}}</p>
 
-<div class="action-bar">
-  <form method="post" action="/admin/passkeys/{{.Credential.Param}}/delete" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-danger">削除する</button>
-  </form>
-  <a href="/admin/passkeys" class="btn btn-secondary">削除せずに戻る</a>
-</div>
+{{template "confirm-actions" (confirm (printf "/admin/passkeys/%s/delete" .Credential.Param) "/admin/passkeys" .CSRFToken)}}
 {{end}}

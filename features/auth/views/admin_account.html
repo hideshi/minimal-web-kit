@@ -23,11 +23,7 @@
 <h2>ロールの変更</h2>
 <form method="post" action="/admin/accounts/{{.Account.ID}}/role" class="card">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-  <fieldset class="form-group">
-    <legend>ロール</legend>
-    <p><label><input type="radio" name="role" value="member"{{if not .Account.IsAdmin}} checked{{end}}> メンバー</label></p>
-    <p><label><input type="radio" name="role" value="admin"{{if .Account.IsAdmin}} checked{{end}}> 管理者</label></p>
-  </fieldset>
+  {{template "choices" .RoleChoices}}
   <p class="field-hint">変更すると、このアカウントのログイン状態を解除します。</p>
   <button type="submit" class="btn btn-secondary">ロールを変更する</button>
 </form>
@@ -44,7 +40,7 @@
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   <p>パスキーを追加したいとき、なくしたときに、このアカウントの登録URL（24時間有効・1回限り）を発行し直します。未使用の古いURLは使えなくなります。</p>
   {{if not .IsSelf}}
-  <p><label><input type="checkbox" name="reset_keys" value="1"> 登録済みのパスキーとログイン状態を削除してから発行する（端末の紛失・盗難時）</label></p>
+  {{template "field" .ResetKeysField}}
   {{end}}
   <button type="submit" class="btn btn-secondary">登録URLを発行し直す</button>
 </form>
@@ -63,12 +59,7 @@
         <td>{{.Label}}</td>
         <td>{{if .Disabled}}無効（複製の疑い）{{else}}有効{{end}}</td>
         <td>{{if .LastUsedAt.IsZero}}未使用{{else}}<time datetime="{{.LastUsedAt.Format "2006-01-02T15:04"}}">{{.LastUsedAt.Format "2006年1月2日 15:04"}}</time>{{end}}</td>
-        <td>
-          <form method="post" action="/admin/accounts/{{$.Account.ID}}/passkeys/{{.Param}}/delete" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-            <button type="submit" class="btn btn-danger">削除</button>
-          </form>
-        </td>
+        <td><a href="/admin/accounts/{{$.Account.ID}}/passkeys/{{.Param}}/delete">削除<span class="visually-hidden">（{{.Label}}）</span></a></td>
       </tr>
       {{end}}
     </tbody>

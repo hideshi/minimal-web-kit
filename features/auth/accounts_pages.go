@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -30,6 +31,19 @@ var accountErrorMessages = map[error]string{
 func nameField(value, errMsg string) form.Field {
 	return form.Field{ID: "account-name", Name: "name", Label: "呼び名", Value: value, Error: errMsg, MaxLength: maxAccountNameRunes, Required: true,
 		Hint: "アカウントを見分けるための名前です（例: 編集担当A）。実名・メールアドレスは入れないでください。50文字以内。パスキーの登録時に、認証器にも保存されます。"}
+}
+
+// roleChoices はロールの選択肢。long は作成画面の説明つきの文言。
+func roleChoices(id, role string, long bool) form.Choices {
+	member, admin := "メンバー", "管理者"
+	if long {
+		member = "メンバー（各機能の管理画面を使える。アカウントの管理はできない）"
+		admin = "管理者（アカウントの管理もできる。必要な人に限る）"
+	}
+	return form.Choices{ID: id, Name: "role", Legend: "ロール", Required: long, Options: []form.Option{
+		{Value: roleMember, Label: member, Selected: role == roleMember},
+		{Value: roleAdmin, Label: admin, Selected: role == roleAdmin},
+	}}
 }
 
 // accountIDParam は経路の {id} を解析します。
@@ -62,7 +76,7 @@ func (f *Feature) renderAccountForm(w http.ResponseWriter, s session, status int
 		role = roleMember
 	}
 	data["NameField"] = nameField(name, errMsg)
-	data["Role"] = role
+	data["RoleChoices"] = roleChoices("account-role", role, true)
 	f.renderAdminStatus(w, status, "admin_account_form.html", data, false)
 }
 
@@ -97,10 +111,14 @@ func (f *Feature) renderSetupURL(w http.ResponseWriter, r *http.Request, s sessi
 		http.NotFound(w, r)
 		return
 	}
-	data := s.PageData("登録URLの発行", "/admin/accounts")
+	title := "登録URLを発行しました"
+	if created {
+		title = "アカウントを作成しました"
+	}
+	data := s.PageData(title, "/admin/accounts")
 	data["Account"] = a
-	data["Created"] = created
-	data["SetupURL"] = SetupURL(f.cfg.Origin, token)
+	data["SetupURLField"] = form.Field{ID: "setup-url", Name: "setup_url", Label: "登録URL", Value: SetupURL(f.cfg.Origin, token), Readonly: true,
+		Hint: "URLを持っている人は、このアカウントとしてパスキーを登録できます。共有の場所に貼らず、本人だけに渡してください。発行し直すと、このURLは使えなくなります。"}
 	f.renderAdmin(w, "admin_account_created.html", data, false)
 }
 
@@ -125,6 +143,12 @@ func (f *Feature) renderAccount(w http.ResponseWriter, r *http.Request, s sessio
 	data["Credentials"] = creds
 	data["IsSelf"] = id == s.accountID
 	data["Notice"] = accountNotices.From(r)
+	role := roleMember
+	if a.IsAdmin() {
+		role = roleAdmin
+	}
+	data["RoleChoices"] = roleChoices("account-role", role, false)
+	data["ResetKeysField"] = form.Field{ID: "reset-keys", Name: "reset_keys", Type: "checkbox", Label: "登録済みのパスキーとログイン状態を削除してから発行する（端末の紛失・盗難時）"}
 	data["Error"] = errMsg
 	f.renderAdminStatus(w, status, "admin_account.html", data, false)
 }
@@ -220,6 +244,39 @@ func (f *Feature) handleDeleteAccountPasskey(w http.ResponseWriter, r *http.Requ
 	notice.Redirect(w, r, "/admin/accounts/"+strconv.FormatInt(id, 10), "passkey_removed")
 }
 
+// handleDeleteAccountPasskeyPage は、他のアカウントのパスキーを削除する前の確認画面です。
+func (f *Feature) handleDeleteAccountPasskeyPage(w http.ResponseWriter, r *http.Request, s session) {
+	id, ok := accountIDParam(w, r)
+	if !ok {
+		return
+	}
+	credID, ok := credentialParamNamed(w, r, "cid")
+	if !ok {
+		return
+	}
+	a, err := f.store.getAccount(r.Context(), id)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	creds, err := f.store.listCredentials(r.Context(), id)
+	if err != nil {
+		f.logger.Error("auth list passkeys failed", f.requestID(w))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	for _, c := range creds {
+		if bytes.Equal(c.ID, credID) {
+			data := s.PageData("パスキーの削除", "/admin/accounts")
+			data["Account"] = a
+			data["Credential"] = c
+			f.renderAdmin(w, "admin_account_passkey_delete.html", data, false)
+			return
+		}
+	}
+	http.NotFound(w, r)
+}
+
 func (f *Feature) handleDeleteAccountPage(w http.ResponseWriter, r *http.Request, s session) {
 	id, ok := accountIDParam(w, r)
 	if !ok {
@@ -273,6 +330,7 @@ func (f *Feature) registerAccountRoutes(mux *web.IsolatedMux) {
 			return f.store.enableAccount(r.Context(), s.accountID, id)
 		})))
 	mux.HandleFunc("POST /admin/accounts/{id}/setup-url", form(f.handleReissueToken))
+	mux.HandleFunc("GET /admin/accounts/{id}/passkeys/{cid}/delete", page(f.handleDeleteAccountPasskeyPage))
 	mux.HandleFunc("POST /admin/accounts/{id}/passkeys/{cid}/delete", form(f.handleDeleteAccountPasskey))
 	mux.HandleFunc("GET /admin/accounts/{id}/delete", page(f.handleDeleteAccountPage))
 	mux.HandleFunc("POST /admin/accounts/{id}/delete", form(f.handleDeleteAccount))

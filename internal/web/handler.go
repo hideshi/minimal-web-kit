@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"minimal-web-kit/internal/store"
+	"minimal-web-kit/internal/web/form"
 )
 
 //go:embed views/*.html static/*
@@ -225,10 +226,18 @@ func (h *Handler) SetLayout(layout Layout) error {
 	return nil
 }
 
-// ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field）と、
-// 機能のテンプレートを1つにまとめて解析します。機能は自分の embed.FS とファイル名を渡します。
+// componentFuncs は部品に値を渡すための関数。confirm は削除の確認の操作の並び（confirm-actions）の値を作る:
+// {{template "confirm-actions" (confirm "/admin/x/1/delete" "/admin/x/1" .CSRFToken)}}
+var componentFuncs = template.FuncMap{
+	"confirm": func(action, back, csrfToken string) form.Confirm {
+		return form.Confirm{Action: action, Back: back, CSRFToken: csrfToken}
+	},
+}
+
+// ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field・choices・
+// confirm-actions・combobox）と、機能のテンプレートを1つにまとめて解析します。機能は自分の embed.FS とファイル名を渡します。
 func ParseWithComponents(fsys fs.FS, patterns ...string) (*template.Template, error) {
-	t, err := template.New("components").ParseFS(contentFS, "views/components.html")
+	t, err := template.New("components").Funcs(componentFuncs).ParseFS(contentFS, "views/components.html")
 	if err != nil {
 		return nil, err
 	}

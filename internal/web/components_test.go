@@ -93,6 +93,10 @@ func TestComponents_FieldSelectHiddenReadonly(t *testing.T) {
 	if !strings.Contains(got, `<label for="label-1" class="visually-hidden">端末名</label>`) {
 		t.Fatalf("hidden label: %s", got)
 	}
+	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "reset", Name: "reset", Label: "削除してから発行する", Type: "checkbox", Hint: "紛失時", Checked: true})
+	if !strings.Contains(got, `<label><input type="checkbox" id="reset" name="reset" value="1" checked aria-describedby="reset-hint"> 削除してから発行する</label>`) {
+		t.Fatalf("checkbox: %s", got)
+	}
 	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "url", Name: "url", Label: "登録URL", Value: "https://example.com/#t", Readonly: true})
 	if !strings.Contains(got, `value="https://example.com/#t" readonly>`) {
 		t.Fatalf("readonly: %s", got)

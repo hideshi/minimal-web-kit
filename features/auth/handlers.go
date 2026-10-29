@@ -54,7 +54,7 @@ func parseTemplates() map[string]*template.Template {
 	pages := map[string]*template.Template{}
 	for _, page := range []string{
 		"admin_setup.html", "admin_login.html", "admin_passkeys.html", "admin_passkey_delete.html",
-		"admin_accounts.html", "admin_account_form.html", "admin_account_created.html", "admin_account.html", "admin_account_delete.html",
+		"admin_accounts.html", "admin_account_form.html", "admin_account_created.html", "admin_account.html", "admin_account_delete.html", "admin_account_passkey_delete.html",
 	} {
 		pages[page] = template.Must(web.ParseWithComponents(viewsFS, "views/admin_layout.html", "views/"+page))
 	}

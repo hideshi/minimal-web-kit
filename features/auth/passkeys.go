@@ -26,6 +26,11 @@ func labelField(example string) form.Field {
 
 // --- パスキーの管理 ---
 
+// LabelField は、パスキーの管理画面の表の中の、端末名の入力欄です。見出しの列で意味が分かるため、ラベルは読み上げ専用にする。
+func (c credentialInfo) LabelField() form.Field {
+	return form.Field{ID: "label-" + c.Param(), Name: "label", Label: "端末名", LabelHidden: true, Value: c.Label, MaxLength: 50, Required: true}
+}
+
 // credentialParam は経路の {id}（credential IDのbase64url）を解析します。
 func credentialParam(w http.ResponseWriter, r *http.Request) ([]byte, bool) {
 	return credentialParamNamed(w, r, "id")

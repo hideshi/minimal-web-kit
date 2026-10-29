@@ -19,9 +19,17 @@
 
 {{/*
   入力欄。引数は form.Field。ラベル・説明・エラーを入力欄に関連付ける。
-  Options があれば選択（select）、Rows が1以上なら複数行、それ以外は1行。LabelHidden はラベルを読み上げ専用にする（表の中の欄）
+  Options があれば選択（select）、Rows が1以上なら複数行、Type が "checkbox" なら単独のチェックボックス（ラベルで囲む）、
+  それ以外は1行。LabelHidden はラベルを読み上げ専用にする（表の中の欄）
 */}}
 {{define "field"}}
+{{if eq .Type "checkbox"}}
+<div class="form-group">
+  {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
+  {{if .Error}}<p class="field-error" id="{{.ID}}-error">{{.Error}}</p>{{end}}
+  <label><input type="checkbox" id="{{.ID}}" name="{{.Name}}" value="{{or .Value "1"}}"{{if .Checked}} checked{{end}}{{if .Required}} required{{end}}{{template "field-described" .}}> {{.Label}}</label>
+</div>
+{{else}}
 <div class="form-group">
   <label for="{{.ID}}"{{if .LabelHidden}} class="visually-hidden"{{end}}>{{.Label}}{{if .Required}}<span class="required-mark">（必須）</span>{{end}}</label>
   {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
@@ -34,6 +42,7 @@
   <input type="{{or .Type "text"}}" id="{{.ID}}" name="{{.Name}}" value="{{.Value}}"{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Required}} required{{end}}{{if .Readonly}} readonly{{end}}{{template "field-described" .}}>
   {{end}}
 </div>
+{{end}}
 {{end}}
 
 {{/* field の内部用。説明とエラーを関連付け、エラーがあれば aria-invalid を付ける */}}

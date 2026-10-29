@@ -1,0 +1,9 @@
+{{define "content"}}
+<h1>パスキーの削除</h1>
+
+<p>「{{.Account.Name}}」のパスキーを削除します。削除すると、この認証器ではログインできなくなります。あわせて、このアカウントのログイン状態をすべて解除します。元に戻せません。</p>
+
+<p class="card">{{.Credential.Label}}{{if .Credential.Disabled}}（無効・複製の疑い）{{end}}</p>
+
+{{template "confirm-actions" (confirm (printf "/admin/accounts/%d/passkeys/%s/delete" .Account.ID .Credential.Param) (printf "/admin/accounts/%d" .Account.ID) .CSRFToken)}}
+{{end}}

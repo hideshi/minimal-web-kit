@@ -17,37 +17,66 @@ import (
 
 var messages = notice.Messages{"saved": "変更を保存しました。", "published": "公開しました。", "unpublished": "下書きに戻しました。", "deleted": "削除しました。"}
 
-const inputError = "入力を確認してください。タイトルは1〜200文字、本文は5万文字以内、分類名は1〜50文字、タグは20個までです。分類の重複や存在しない分類は使えません。"
+// itemErrors は、項目の入力の誤りの文言。欄のエラーはその欄に、タグの数・存在はタグ選択の部品にエラーの場所が無いため画面全体に出す。
+var itemErrors = map[string]string{
+	"title":    "タイトルは1〜200文字で、改行を含めずに入力してください。",
+	"body":     "本文は5万文字以内で入力してください。",
+	"category": "選んだカテゴリが見つかりません。選び直してください。",
+	"new_tags": "新規タグの名前は、1行に1つ、各50文字以内で入力してください。",
+	"tags":     "タグは、新規タグを含めて合計20個までです。選んだタグが削除されていた場合は、選び直してください。",
+}
 
 type itemForm struct {
 	Title, Body, Category, NewTags string
 	Tags                           []int64
+	Invalid                        string // 誤りのある欄（InputError.Field）
 }
 
 func (itemForm) LogValue() slog.Value { return slog.StringValue("[catalog form]") }
+func (v itemForm) fieldError(name string) string {
+	if v.Invalid == name {
+		return itemErrors[name]
+	}
+	return ""
+}
 func (v itemForm) Fields() []form.Field {
 	return []form.Field{
-		{ID: "item-title", Name: "title", Label: "タイトル", Value: v.Title, Required: true, Hint: "1〜200文字、改行なし。"},
-		{ID: "item-body", Name: "body", Label: "本文", Value: v.Body, Rows: 12, Hint: "5万文字以内のプレーンテキスト。HTMLは文字として表示されます。個人情報は書かないでください。"},
+		{ID: "item-title", Name: "title", Label: "タイトル", Value: v.Title, Required: true, MaxLength: 200, Error: v.fieldError("title"), Hint: "1〜200文字、改行なし。"},
+		{ID: "item-body", Name: "body", Label: "本文", Value: v.Body, Rows: 12, Error: v.fieldError("body"), Hint: "5万文字以内のプレーンテキスト。HTMLは文字として表示されます。個人情報は書かないでください。"},
 	}
+}
+
+// categoryField は、項目のカテゴリの選択欄。
+func (v itemForm) categoryField(categories []Classification) form.Field {
+	field := form.Field{ID: "item-category", Name: "category", Label: "カテゴリ", Error: v.fieldError("category"), Options: []form.Option{{Value: "", Label: "未分類"}}}
+	for _, c := range categories {
+		id := idString(c.ID)
+		field.Options = append(field.Options, form.Option{Value: id, Label: c.Name, Selected: id == v.Category})
+	}
+	return field
+}
+
+// newTagsField は、新規タグの入力欄。
+func (v itemForm) newTagsField() form.Field {
+	return form.Field{ID: "item-new-tags", Name: "new_tags", Label: "新規タグとして追加する名前（任意）", Value: v.NewTags, Rows: 3, Error: v.fieldError("new_tags"), Hint: "1行に1つ、各50文字以内。項目の保存と同時に追加します。同名のタグがある場合はそれを使います。個人情報は書かないでください。"}
 }
 func readInput(r *http.Request) (itemForm, Input, error) {
 	v := itemForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), Category: r.PostForm.Get("category"), NewTags: r.PostForm.Get("new_tags")}
 	in := Input{Title: v.Title, Body: v.Body}
 	if len(r.PostForm["tag"]) > 20 {
-		return v, in, ErrInvalidInput
+		return v, in, InputError{"tags"}
 	}
 	if v.Category != "" {
 		id, ok := parseID(v.Category)
 		if !ok {
-			return v, in, ErrInvalidInput
+			return v, in, InputError{"category"}
 		}
 		in.CategoryID = id
 	}
 	for _, raw := range r.PostForm["tag"] {
 		id, ok := parseID(raw)
 		if !ok {
-			return v, in, ErrInvalidInput
+			return v, in, InputError{"tags"}
 		}
 		v.Tags = append(v.Tags, id)
 	}
@@ -107,10 +136,13 @@ func (f *Feature) itemFormPage(w http.ResponseWriter, r *http.Request, s feature
 	}
 	data["Item"] = item
 	data["Form"] = v
-	data["Categories"] = categories
+	data["CategoryField"] = v.categoryField(categories)
+	data["NewTagsField"] = v.newTagsField()
 	data["TagField"] = tagField(tags, v.Tags)
-	if status == 400 {
-		data["Error"] = inputError
+	if v.Invalid == "tags" {
+		data["Error"] = itemErrors["tags"]
+	} else if status == 400 && v.Invalid == "" {
+		data["Error"] = "入力を確認してください。"
 	} else if status == 503 {
 		data["Error"] = "一時的に保存できませんでした。時間を置いて再試行してください。"
 		w.Header().Set("Retry-After", "1")
@@ -171,6 +203,10 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 		return
 	}
 	if errors.Is(err, ErrInvalidInput) {
+		var invalid InputError
+		if errors.As(err, &invalid) {
+			v.Invalid = invalid.Field
+		}
 		f.itemFormPage(w, r, s, item, v, 400)
 		return
 	}

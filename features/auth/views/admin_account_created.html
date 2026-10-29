@@ -1,15 +1,11 @@
 {{define "content"}}
-<h1>{{if .Created}}アカウントを作成しました{{else}}登録URLを発行しました{{end}}</h1>
+<h1>{{.Title}}</h1>
 
 <p class="alert alert-warning" role="status">この画面を再読み込みしないでください。登録URLは、この画面でしか表示できません。</p>
 
 <div class="card">
   <p>「{{.Account.Name}}」（{{.Account.RoleLabel}}）のパスキーの登録URLです。24時間以内に1回だけ使えます。本人に渡し、URLを開いてパスキーを登録してもらってください。</p>
-  <div class="form-group">
-    <label for="setup-url">登録URL</label>
-    <input type="text" id="setup-url" readonly value="{{.SetupURL}}">
-  </div>
-  <p class="field-hint">URLを持っている人は、このアカウントとしてパスキーを登録できます。共有の場所に貼らず、本人だけに渡してください。発行し直すと、このURLは使えなくなります。</p>
+  {{template "field" .SetupURLField}}
 </div>
 
 <p><a href="/admin/accounts/{{.Account.ID}}" class="btn btn-secondary">アカウントの詳細へ</a></p>

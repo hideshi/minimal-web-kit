@@ -1,6 +1,30 @@
 {{define "content"}}
 <h1>カタログの管理</h1>{{template "notice" .Notice}}
 <div class="action-bar"><a href="/admin/catalog/new" class="btn btn-primary">項目を作成する</a><a href="/admin/catalog/classifications/categories">カテゴリの管理</a><a href="/admin/catalog/classifications/tags">タグの管理</a><a href="/catalog">公開一覧を見る</a></div>
-{{if .Items}}<ul class="catalog-items">{{range .Items}}<li class="card"><h2><a href="/admin/catalog/{{.ID}}">{{.Title}}</a></h2><p>{{if .Published}}公開中{{else}}下書き{{end}} ／ 更新: <time datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.UpdatedAt.Format "2006年1月2日 15:04"}}</time></p></li>{{end}}</ul>{{else}}<p>項目はまだありません。</p>{{end}}
+{{if .Items}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">項目の一覧（作成の新しい順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">タイトル</th>
+        <th scope="col">状態</th>
+        <th scope="col">更新日時</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr>
+        <td><a href="/admin/catalog/{{.ID}}">{{.Title}}</a></td>
+        <td>{{if .Published}}公開中{{else}}下書き{{end}}</td>
+        <td><time datetime="{{.UpdatedAt.Format "2006-01-02T15:04"}}">{{.UpdatedAt.Format "2006年1月2日 15:04"}}</time></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>項目はまだありません。</p>
+{{end}}
 {{template "pagination" .Page}}
 {{end}}
