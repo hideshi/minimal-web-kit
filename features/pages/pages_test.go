@@ -168,6 +168,21 @@ func TestPublic_PublishedOnlyAndCoreRoutesKept(t *testing.T) {
 	}
 }
 
+// TestPublic_LoadFailureIsNot404 は、取得の失敗を「ページが無い」（404）と区別して500にすることを確かめる。
+func TestPublic_LoadFailureIsNot404(t *testing.T) {
+	fx := setup(t)
+	fx.create("about", "会社概要", "本文", "", true)
+	if _, err := fx.core.DB().Exec("ALTER TABLE pages RENAME TO pages_gone"); err != nil {
+		t.Fatal(err)
+	}
+	if w := fx.get("/about", nil); w.Code != http.StatusInternalServerError || strings.Contains(w.Body.String(), "会社概要") {
+		t.Fatalf("load failure: %d", w.Code)
+	}
+	if !strings.Contains(fx.logs.String(), "pages load failed") {
+		t.Fatal("load failure must be logged")
+	}
+}
+
 // TestPublic_BodyIsRenderedAsText は、本文の利用者の入力がHTMLとして出ず、許可したリンクだけが出ることを確かめる。
 // 不変条件: PAGES-INV-2
 func TestPublic_BodyIsRenderedAsText(t *testing.T) {

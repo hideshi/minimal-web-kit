@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -26,5 +27,21 @@ func TestAffectedOne(t *testing.T) {
 	}
 	if err := AffectedOne(fakeResult{err: countErr}, nil, none); err != countErr {
 		t.Fatalf("RowsAffected error must not be dropped: %v", err)
+	}
+}
+
+type codedError int
+
+func (e codedError) Error() string { return "coded" }
+func (e codedError) Code() int     { return int(e) }
+
+func TestBusy(t *testing.T) {
+	for code, want := range map[int]bool{5: true, 6: true, 5 | 2<<8: true, 6 | 1<<8: true, 1: false, 19: false, 2067: false} {
+		if got := Busy(fmt.Errorf("wrapped: %w", codedError(code))); got != want {
+			t.Errorf("Busy(code %d) = %v", code, got)
+		}
+	}
+	if Busy(errors.New("database is locked")) || Busy(nil) {
+		t.Fatal("errors without a SQLite code must not be busy")
 	}
 }

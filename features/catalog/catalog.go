@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/page"
@@ -110,7 +111,7 @@ func (f *Feature) result(w http.ResponseWriter, r *http.Request, err error) bool
 	if err == nil {
 		return true
 	}
-	if busyError(err) {
+	if store.Busy(err) {
 		w.Header().Set("Retry-After", "1")
 		http.Error(w, "一時的に処理できませんでした。時間を置いて再試行してください。", http.StatusServiceUnavailable)
 	} else if errors.Is(err, ErrNotFound) {

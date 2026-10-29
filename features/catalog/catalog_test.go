@@ -609,7 +609,7 @@ func TestBusyWriteDoesNotChangeDataAndCanRetry(t *testing.T) {
 	}
 	other.Close()
 	_, err = fx.f.store.Save(ctx, id, Input{Title: "再試行する内容"})
-	if !busyError(err) {
+	if !store.Busy(err) {
 		t.Fatal("write conflict not classified", err)
 	}
 	w := httptest.NewRecorder()

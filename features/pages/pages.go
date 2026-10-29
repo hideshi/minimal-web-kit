@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -160,11 +161,13 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := f.store.Published(r.Context(), slug)
-	if err != nil {
-		if err != ErrNotFound {
-			f.logger.Error("pages load failed", web.RequestIDAttr(w))
-		}
+	if errors.Is(err, ErrNotFound) {
 		f.notFound(w, r)
+		return
+	} else if err != nil {
+		// 取得の失敗を404にすると、障害の間に公開中のページが「無い」と扱われる（検索エンジン等）ため、500にする
+		f.logger.Error("pages load failed", web.RequestIDAttr(w))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	doc, err := richtext.Parse(p.Body)

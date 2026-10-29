@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/notice"
@@ -193,7 +194,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 	if err == nil {
 		id, err = f.store.Save(r.Context(), id, in)
 	}
-	if busyError(err) {
+	if store.Busy(err) {
 		f.itemFormPage(w, r, s, item, v, 503)
 		return
 	}
@@ -267,7 +268,7 @@ func classificationField(name, fieldError string) form.Field {
 // classificationError は保存の失敗を、入力欄のエラーか画面全体のエラーに分ける。どちらでもなければ空。
 func classificationError(w http.ResponseWriter, kind string, err error) (status int, fieldError, pageError string) {
 	switch {
-	case busyError(err):
+	case store.Busy(err):
 		w.Header().Set("Retry-After", "1")
 		return 503, "", "一時的に保存できませんでした。時間を置いて再試行してください。"
 	case errors.Is(err, ErrDuplicateName):

@@ -448,9 +448,3 @@ func (s *Store) DeleteClassification(ctx context.Context, kind string, id int64)
 	})
 }
 func idString(id int64) string { return strconv.FormatInt(id, 10) }
-
-// busyError はSQLiteの一時的な書き込み競合だけを分類する。エラー文字列は表示・記録しない。
-func busyError(err error) bool {
-	var coded interface{ Code() int }
-	return errors.As(err, &coded) && (coded.Code()&255 == 5 || coded.Code()&255 == 6)
-}
