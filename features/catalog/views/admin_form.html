@@ -11,7 +11,7 @@
 <button type="submit" class="btn btn-primary">{{if .Item.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
 </form>
 {{if .Item.ID}}<h2>公開と削除</h2><p>編集中の内容は先に保存してください。</p><div class="action-bar">
-<form method="post" action="/admin/catalog/{{.Item.ID}}/{{if .Item.Published}}unpublish{{else}}publish{{end}}"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-secondary">{{if .Item.Published}}非公開（下書き）に戻す{{else}}公開する{{end}}</button></form>
+<form method="post" action="/admin/catalog/{{.Item.ID}}/{{if .Item.Published}}unpublish{{else}}publish{{end}}" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-secondary">{{if .Item.Published}}非公開（下書き）に戻す{{else}}公開する{{end}}</button></form>
 <a href="/admin/catalog/{{.Item.ID}}/delete" class="btn btn-danger">削除する</a></div>{{end}}
 <p><a href="/admin/catalog">カタログの管理へ戻る</a></p>
 {{end}}

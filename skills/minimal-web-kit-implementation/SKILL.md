@@ -46,6 +46,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 - 日時はUNIX秒で保存し、表示はサーバーのタイムゾーン（`TZ`）で行い、`<time datetime>` を添える。
 
 ## 4. UIを拡張するとき
+- 管理画面は `docs/components.md` の「画面の型」の見本と部品（`field`・`choices`・`confirm-actions` 等）で組み、入力欄を直接書かない。用語とエラー文は同じ文書の「用語とメッセージ」に揃える。画面を足したら `test/admin_ui_test.go` の `adminSamples`（入力の失敗は `adminFailures`）に見本を足す。
 - 見出しをh要素で表し、lang、ランドマーク、スキップリンク、入力ラベル、表見出しと外部リンクの説明を維持する。
 - 通常・hover・focusの文字色と背景色、入力境界とフォーカスの識別を確認する。カード数に応じた列数と狭い画面での1列表示を設計し、固定幅・固定高さで文字を切らない。
 - JavaScriptを使わず、標準のリンク・button・details/summaryで操作を提供する。承認済みの例外は管理者認証の画面の `webauthn.js`、カタログ公開一覧の `htmx.min.js`・`catalog.js`、カタログの項目の作成・編集画面のCoreの部品 `combobox.js` で、例外の拡大は承認境界4・5に当たる。開閉・モーダル・メニューは `<details>`・`<dialog>`・`popover` で作り、承認を得てhtmx等を使う場合は `docs/ui-guidelines.md` の決まり（CSP、CSRF、変化の通知、フォーカス、JSなしでの動作）に従う。外部フォームURLは実際の窓口に設定し、新規タブの通知と `noopener noreferrer` を維持する。

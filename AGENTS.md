@@ -33,6 +33,7 @@ AIエージェントおよび開発者は、以下の原則と規約に必ず従
    - サーバーサイドレンダリング（`html/template`）を基本とし、外部ビルドツール（Node.js/npm）は使用しない。
    - CSSは1本（`style.css`）に集約し、インライン `style="..."` は禁止する。
    - JavaScriptは使用しない。承認済みの例外は、管理者認証の画面（WebAuthnを使う登録・ログイン・パスキー管理）で読み込む `features/auth/static/webauthn.js` 1本で、外部ファイルとしてのみ読み込み、その画面だけCSPの `script-src` を `'self'` にする。カタログの公開一覧では、`features/catalog/static/htmx.min.js`（固定版）と `catalog.js` の2本だけを読み込み、同画面だけ `script-src` を `'self'` にする。管理画面・詳細ページでは読み込まない。Coreの画面部品 `internal/web/static/js/combobox.js` は、カタログの項目の作成・編集画面だけで読み込み、その応答だけ `web.AllowScripts` で `script-src` を `'self'` にする。例外の追加・拡大は承認境界4・5に当たる。
+   - 管理画面は `docs/components.md` の「画面の型」（一覧・一覧＋追加・作成・編集・詳細・削除の確認）と部品で作り、`test/admin_ui_test.go` の見本の表に足す。標準から外れた画面はテストが落ちる。
    - 動きのあるUIは、次の順で検討する（詳細は `docs/ui-guidelines.md`）。(1) 標準の要素（`<details>`・`<dialog>`・`popover` 等）で作る。(2) サーバーとのやり取りを滑らかにしたい箇所だけ htmx を使う。(3) 標準の要素で作れない部品が必要な場合だけ、外部ライブラリを使わない素のJSで、ARIAとキーボード操作まで作り込む。(2)(3) の導入は承認境界4・5に当たる。
 4. **規約はスキルに、強制はテストに**:
    - ルールを文書に書くだけにせず、`test/` 配下の機械的テスト（依存検査、テンプレート検査、docs/data-inventory.md突合、docs/domain/ の不変条件とテストの突合、ログ非漏洩カナリアテスト）で自動検証する。

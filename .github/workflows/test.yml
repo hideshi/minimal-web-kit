@@ -1,0 +1,25 @@
+# プッシュとプルリクエストのたびに、テストと検証を走らせる。
+# 外部のアクションはコミットのハッシュで固定し（タグは付け替えられるため）、権限は読み取りだけにする。秘密は使わない。
+# ブラウザのテスト（make test-ui、別モジュール）はChromeが要るため、ここでは走らせない。
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: make verify
+      - run: go test -race ./...

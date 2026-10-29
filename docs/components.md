@@ -54,7 +54,9 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `notice` | 文字列 | 完了メッセージ。`role="status"` で読み上げソフトに穏やかに伝える。空なら何も出さない |
 | `error` | 文字列 | 画面全体のエラー。`role="alert"` ですぐに伝える。空なら何も出さない |
 | `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
-| `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。必須なら「（必須）」を表示。`Rows` が1以上なら複数行 |
+| `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。必須なら「（必須）」を表示。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
+| `choices` | `form.Choices` | 同じ名前のラジオ（`Multiple` ならチェックボックス）の組。`fieldset`・`legend` で囲み、説明・エラーを組に関連付ける。選択肢が1つなら `field` の `checkbox` を使う |
+| `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
 
 `combobox` を使う画面は、レイアウトの `script` ブロック等で `<script src="/static/js/combobox.js" defer></script>` を読み込み、その応答で `web.AllowScripts` を呼びます。テンプレートの検査（`test/template_test.go`）の許可リストにその画面を足す必要があります（承認境界4・5）。上限（`Limit`）は画面上の制限で、送信された値の検査はサーバー側で別に行います。
@@ -88,7 +90,38 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 
 インラインの `style` 属性と、新しいCSSファイルは使えません。必要な見た目は `style.css` にクラスを追加します（新しいファイルの追加は承認境界4）。
 
-## 4. 部品を増やすとき
+## 4. 管理画面の画面の型
+
+管理画面（`/admin` 以下）は、次のどれかの型で作ります。型ごとの構成と、6節の検査がそろえる点です。
+
+| 型 | 構成（上から） | 見本 |
+|---|---|---|
+| 一覧 | `h1`（「〜の管理」）→ `notice` → 操作の並び（`action-bar`。主操作は `btn-primary` 1つ、他はリンク）→ 表（`table-container`、`caption`、`th scope`、最後の列が「操作」）か、空のときの `<p>`（「〜はまだありません。」）→ `pagination` | `features/news/views/admin_posts.html` |
+| 一覧＋追加 | 一覧の後に、`h2`（「〜の追加」）→ `error` → フォーム（`card`）。追加の失敗はこの画面のまま、入力欄にエラーを出す | `features/catalog/views/admin_classifications.html` |
+| 作成・編集 | `h1`（「〜の作成」「〜の編集」）→ `notice`・`error` → フォーム（`card`、入力欄は部品、送信は `btn-primary`）→ 公開などの別操作（`action-bar`、フォームは `inline-form`）→ 削除（`btn-danger` のリンク、編集のときだけ）→ 一覧へ戻るリンク | `features/news/views/admin_post_form.html` |
+| 詳細（状態と操作） | `h1`（「〜: 名前」）→ `notice`・`error` → 状態の表 → 操作ごとの `h2` とフォーム → 削除（`btn-danger` のリンク）→ 一覧へ戻るリンク | `features/auth/views/admin_account.html` |
+| 削除の確認 | `h1`（「〜の削除」）→ 対象と影響の説明（何が消え、何が残り、元に戻せないか）→ `confirm-actions` | `features/news/views/admin_post_delete.html` |
+
+- `<title>` は `h1` と同じか、`h1` がそれで始まる（例: `h1`「アカウント: 名前（自分）」、`<title>`「アカウント: 名前」）。
+- 表の中に削除のボタンを置かない。操作の列は、確認画面へのリンク「編集」「削除」にし、対象の名前を `visually-hidden` で添える（`削除<span class="visually-hidden">（名前）</span>`）。
+- 入力の失敗は、送る前と同じ画面・同じ `h1` で、入力した値を残して返す。原因が入力欄にあれば、その欄の `Error`（`aria-invalid`）に、ないとき（一時的な失敗・状態の衝突）は `error`（`role="alert"`）に出す。状態コードは、入力の誤り400、状態の衝突（最後の管理者を消す等）409、一時的な失敗503。
+- ログイン・初回登録・登録URLの表示・パスキーの追加（JSで開くフォーム）は型の外で、6節の共通の検査だけを当てる。
+
+## 5. 用語とメッセージ
+
+- 操作: 「〜を作成する」（新しく作る主操作）、「保存する」「変更を保存する」、「追加する」（一覧の画面で足す）、「削除する」、「削除せずに戻る」、「〜の一覧へ戻る」、「公開する」「非公開（下書き）に戻す」。表の操作列は「編集」「削除」。
+- 件数: 「○件」。0件のときは「〜はありません。」のように言い換える（「0件の項目で使用中」と書かない）。
+- エラー: 何が問題か＋どうすればよいか（例:「同じ名前のタグがあります。別の名前にしてください。」）。その画面に関係しない条件を並べた汎用の文を使わない。
+- 完了: `notice` に機能の `notice.Messages` の文（「変更を保存しました。」「削除しました。」等）を出す。
+
+## 6. 検査（`go test ./...`）
+
+- `test/admin_ui_test.go`: 登録された管理画面の経路を全部集め、見本のデータ（状態の違うものを含む）と空の状態で開いて、`h1` と `<title>`、`id` の重複と参照先、ラベル、選択肢の組、CSRFトークン、素の箇条書き、表の `caption`・`scope`、表の中の削除ボタン、削除の確認の操作の並び、一覧の空の1文を確かめる。わざと失敗する送信では、状態コード・`h1`・エラーの場所・入力の保持を確かめる。
+- `test/template_test.go`: 機能のテンプレートで入力欄を直接書かないこと（例外は理由つきの許可リスト）、全部の表の `caption`・`scope`。
+- **管理画面を足したら**、`adminSamples`（開くURLと画面の型）に見本を足す。成功で画面を返す送信は `adminPostSamples`、入力の失敗は `adminFailures` に足す。見本の無い経路・テンプレートがあるとテストが落ちる。経路は文字列のリテラルで登録する（ソースの経路との突き合わせに使う）。
+- 見た目（余白・並び・狭い画面）は検査できないため、`make test-ui` が `test/browser/shots/` に撮る主な画面を見て確かめる。
+
+## 7. 部品を増やすとき
 
 - 2つ以上の機能で同じものを書いたら、部品にすることを検討します。使う予定の無い部品は作りません。
 - 部品には単体テストを付けます。画面の部品は、エスケープとアクセシビリティの属性（ラベルの関連付け、`role`、`aria-*`）を検査します。

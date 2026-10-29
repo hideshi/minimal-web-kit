@@ -628,6 +628,7 @@ nav a[aria-current="page"] {
   flex-wrap: wrap;
   gap: var(--space-sm);
   margin-bottom: 0;
+  min-width: 14rem; /* 狭い画面では列を潰さず、表を横に動かす */
 }
 
 .label-form .form-group {

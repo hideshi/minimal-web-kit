@@ -28,3 +28,6 @@ data/
 .vscode/
 *.swp
 *~
+
+# 見本の画面の撮影（make test-ui が書き出す。人かAIが見て確かめる）
+test/browser/shots/

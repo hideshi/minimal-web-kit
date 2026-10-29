@@ -140,7 +140,7 @@ make auth-setup
 | `make build` | CGO無効で `bin/minimal-web-kit` を作成 |
 | `make test` | `go test -race -v ./...` で全テストを実行 |
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
-| `make test-ui` | 画面部品をChrome・Chromiumで操作して確かめる（`test/browser/` の別モジュール。chromedpを使い、キット本体の依存には含めない。Chromeが無ければ飛ばす。`CHROME_PATH` で指定可） |
+| `make test-ui` | 画面部品をChrome・Chromiumで操作して確かめ、主な管理画面を `test/browser/shots/` に撮る（`test/browser/` の別モジュール。chromedpを使い、キット本体の依存には含めない。Chromeが無ければ飛ばす。`CHROME_PATH` で指定可） |
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
 | `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（お知らせ・カタログが有効な間は無効化できない） |
 | `make add-catalog` / `make remove-catalog` | カタログの登録を有効化・無効化（Authも有効化。データは保持） |
