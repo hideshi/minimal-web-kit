@@ -274,13 +274,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 	if !f.result(w, r, err) {
 		return
 	}
-	paragraphs := [][]string{}
-	for _, block := range strings.Split(item.Body, "\n\n") {
-		if strings.TrimSpace(block) != "" {
-			paragraphs = append(paragraphs, strings.Split(block, "\n"))
-		}
-	}
-	data := map[string]any{"Title": item.Title, "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": paragraphs}
+	data := map[string]any{"Title": item.Title, "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": form.Paragraphs(item.Body)}
 	if f.layout.Data != nil {
 		f.layout.Data(data)
 	}

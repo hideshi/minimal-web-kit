@@ -119,7 +119,7 @@ func TestPublicRoutesPrivacyAndRepresentations(t *testing.T) {
 			privateCat := classification(t, s, "categories", "秘密分類")
 			tag := classification(t, s, "tags", "公開タグ")
 			privateTag := classification(t, s, "tags", "秘密タグ")
-			id := mustSave(t, s, Input{Title: "公開<script>alert(1)</script>", Body: "本文", CategoryID: cat, TagIDs: []int64{tag}})
+			id := mustSave(t, s, Input{Title: "公開<script>alert(1)</script>", Body: "一行目\n二行目\n\n\n次の段落", CategoryID: cat, TagIDs: []int64{tag}})
 			mustPublish(t, s, id)
 			draft := mustSave(t, s, Input{Title: "秘密の下書き", CategoryID: privateCat, TagIDs: []int64{privateTag}})
 			for _, headers := range []map[string]string{nil, {"HX-Request": "true"}, {"HX-Request": "true", "HX-History-Restore-Request": "true"}} {
@@ -147,6 +147,9 @@ func TestPublicRoutesPrivacyAndRepresentations(t *testing.T) {
 			w := fx.send("GET", "/catalog/"+idString(id), nil, nil, nil)
 			if w.Code != 200 || strings.Contains(w.Body.String(), "<script") || !strings.Contains(w.Header().Get("Content-Security-Policy"), "script-src 'none'") {
 				t.Fatal("detail script scope")
+			}
+			if !strings.Contains(w.Body.String(), "<p>一行目<br>二行目</p><p>次の段落</p>") {
+				t.Fatalf("detail paragraphs: %s", w.Body.String())
 			}
 			for _, kind := range []string{"category", "tag"} {
 				private := privateCat
