@@ -18,6 +18,7 @@ import (
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web"
+	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/page"
 )
 
@@ -228,13 +229,15 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request) {
 		pg.Prev = 0
 		pg.Next = 0
 	}
-	data := map[string]any{"Title": "カタログ", "Description": "公開中のカタログです。", "CanonicalPath": "/catalog", "Items": items, "Filter": filter, "Categories": categories, "Tags": tagOptions(tags, filter.TagIDs), "Page": pg}
+	data := map[string]any{"Title": "カタログ", "Description": "公開中のカタログです。", "CanonicalPath": "/catalog", "Items": items, "Filter": filter, "Page": pg}
+	shown := filter
 	if invalidFilter {
-		data["FilterCategory"] = int64(0)
-		data["Tags"] = tagOptions(tags, nil)
-	} else {
-		data["FilterCategory"] = filter.CategoryID
+		// 公開候補に無い分類の指定は、存在しないものと同じ扱い（CATALOG-INV-1）。選択の状態は出さない
+		shown.CategoryID, shown.TagIDs = 0, nil
 	}
+	data["QueryField"] = form.Field{ID: "catalog-q", Name: "q", Label: "キーワード", Type: "search", Value: filter.Query, MaxLength: 200}
+	data["CategoryField"] = categoryFilterField(categories, shown.CategoryID)
+	data["TagChoices"] = tagFilterChoices(tags, shown.TagIDs)
 	if pg.Prev > 0 {
 		data["PrevURL"] = filterURL(filter, pg.Prev)
 	}
@@ -253,18 +256,22 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request) {
 	f.renderScripted(w, 200, f.publicPages["list.html"], "layout", data)
 }
 
-type tagOption struct {
-	ID       int64
-	Name     string
-	Selected bool
+// categoryFilterField は、公開一覧のカテゴリの選択欄です。
+func categoryFilterField(categories []Classification, selected int64) form.Field {
+	field := form.Field{ID: "catalog-category", Name: "category", Label: "カテゴリ", Options: []form.Option{{Value: "", Label: "すべて"}}}
+	for _, c := range categories {
+		field.Options = append(field.Options, form.Option{Value: idString(c.ID), Label: c.Name, Selected: c.ID == selected})
+	}
+	return field
 }
 
-func tagOptions(tags []Classification, ids []int64) []tagOption {
-	result := []tagOption{}
+// tagFilterChoices は、公開一覧のタグの選択肢です（横に並べて折り返す）。
+func tagFilterChoices(tags []Classification, selected []int64) form.Choices {
+	choices := form.Choices{ID: "catalog-tags", Name: "tag", Legend: "タグ（すべてに一致・20個まで）", Multiple: true, Inline: true, Empty: "公開中のタグはありません。"}
 	for _, tag := range tags {
-		result = append(result, tagOption{tag.ID, tag.Name, slices.Contains(ids, tag.ID)})
+		choices.Options = append(choices.Options, form.Option{Value: idString(tag.ID), Label: tag.Name, Selected: slices.Contains(selected, tag.ID)})
 	}
-	return result
+	return choices
 }
 func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 	id, ok := requestID(w, r)

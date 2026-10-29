@@ -82,7 +82,9 @@ type Choices struct {
 	Hint     string
 	Error    string
 	Required bool
-	Multiple bool // true ならチェックボックス（複数選択）、false ならラジオ
+	Multiple bool   // true ならチェックボックス（複数選択）、false ならラジオ
+	Inline   bool   // true なら選択肢を横に並べて折り返す（タグ等、短い選択肢が多いとき）
+	Empty    string // 選択肢が無いときに出す文（空なら何も出さない）
 	Options  []Option
 }
 

@@ -27,7 +27,7 @@
 <div class="form-group">
   {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
   {{if .Error}}<p class="field-error" id="{{.ID}}-error">{{.Error}}</p>{{end}}
-  <label><input type="checkbox" id="{{.ID}}" name="{{.Name}}" value="{{or .Value "1"}}"{{if .Checked}} checked{{end}}{{if .Required}} required{{end}}{{template "field-described" .}}> {{.Label}}</label>
+  <label class="choice"><input type="checkbox" id="{{.ID}}" name="{{.Name}}" value="{{or .Value "1"}}"{{if .Checked}} checked{{end}}{{if .Required}} required{{end}}{{template "field-described" .}}> {{.Label}}</label>
 </div>
 {{else}}
 <div class="form-group">
@@ -53,11 +53,11 @@
   選択肢が1つだけのチェックボックスには使わない（ラベルで囲んだ input を直接書く代わりに field を使う）
 */}}
 {{define "choices"}}
-<fieldset class="form-group"{{if or .Hint .Error}} aria-describedby="{{if .Hint}}{{.ID}}-hint{{end}}{{if and .Hint .Error}} {{end}}{{if .Error}}{{.ID}}-error{{end}}"{{end}}>
+<fieldset class="form-group choices{{if .Inline}} choices-inline{{end}}"{{if or .Hint .Error}} aria-describedby="{{if .Hint}}{{.ID}}-hint{{end}}{{if and .Hint .Error}} {{end}}{{if .Error}}{{.ID}}-error{{end}}"{{end}}>
   <legend>{{.Legend}}{{if .Required}}<span class="required-mark">（必須）</span>{{end}}</legend>
   {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
   {{if .Error}}<p class="field-error" id="{{.ID}}-error">{{.Error}}</p>{{end}}
-  {{range .Options}}<p><label><input type="{{if $.Multiple}}checkbox{{else}}radio{{end}}" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}{{if and $.Required (not $.Multiple)}} required{{end}}> {{.Label}}</label></p>{{end}}
+  <div class="choices-options">{{range .Options}}<label class="choice"><input type="{{if $.Multiple}}checkbox{{else}}radio{{end}}" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}{{if and $.Required (not $.Multiple)}} required{{end}}> {{.Label}}</label>{{else}}{{if $.Empty}}<p>{{$.Empty}}</p>{{end}}{{end}}</div>
 </fieldset>
 {{end}}
 

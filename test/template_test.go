@@ -128,10 +128,7 @@ func TestCSS_SingleFileAndNoImportant(t *testing.T) {
 }
 
 // formControlExceptions は、入力欄を部品（field・choices・combobox）を使わずに直接書いてよいテンプレートと理由です。
-var formControlExceptions = map[string]string{
-	// 公開一覧の検索欄。htmxで送るGETのフォームで、検索語・カテゴリ・タグの並びが管理画面の入力欄の形と違う
-	"../features/catalog/views/list.html": "公開一覧の検索欄",
-}
+var formControlExceptions = map[string]string{}
 
 var thPattern = regexp.MustCompile(`<th[\s>]`)
 

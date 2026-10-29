@@ -115,6 +115,18 @@ func TestAdminScreenshots(t *testing.T) {
 	page, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "about", Title: "会社概要", NavOrder: "1", Body: "## 概要\n小さなチームで、個人情報を集めないWebサイトを作っています。\n詳しくは[お知らせ](/news)をご覧ください。\n\n表: 会社の情報\n| 項目 | 内容 |\n|---|---|\n| 社名 | 例の会社 |\n| 所在地 | 東京都 |\n\n### 大切にしていること\n- 取得するデータを減らす\n- **依存**を減らす\n1. 計画\n2. 実装"}, nil)
 	_ = pageStore.SetPublished(ctx, page, true)
 	shoot("15-page-public", "/about")
+	// 公開一覧の絞り込み（タグ20個。狭い画面での折り返しを見る）
+	for i, name := range []string{"新築", "リフォーム", "木造", "鉄骨", "省エネ", "断熱", "耐震", "バリアフリー", "店舗", "オフィス", "住宅", "倉庫", "外構", "内装", "水回り", "屋根", "外壁", "太陽光", "蓄電池", "地域材"} {
+		tagID, _ := items.SaveClassification(ctx, "tags", 0, name)
+		if i < 3 {
+			pub, _ := items.Save(ctx, 0, catalog.Input{Title: "公開の項目 " + name, CategoryID: category, TagIDs: []int64{tagID}})
+			_ = items.SetPublished(ctx, pub, true)
+		} else {
+			pub, _ := items.Save(ctx, 0, catalog.Input{Title: "項目 " + name, TagIDs: []int64{tagID}})
+			_ = items.SetPublished(ctx, pub, true)
+		}
+	}
+	shoot("18-catalog-public", "/catalog?tag="+fmt.Sprint(tag))
 	shoot("16-pages-admin", "/admin/pages")
 	shoot("17-page-form", fmt.Sprintf("/admin/pages/%d", page))
 

@@ -94,7 +94,7 @@ func TestComponents_FieldSelectHiddenReadonly(t *testing.T) {
 		t.Fatalf("hidden label: %s", got)
 	}
 	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "reset", Name: "reset", Label: "削除してから発行する", Type: "checkbox", Hint: "紛失時", Checked: true})
-	if !strings.Contains(got, `<label><input type="checkbox" id="reset" name="reset" value="1" checked aria-describedby="reset-hint"> 削除してから発行する</label>`) {
+	if !strings.Contains(got, `<label class="choice"><input type="checkbox" id="reset" name="reset" value="1" checked aria-describedby="reset-hint"> 削除してから発行する</label>`) {
 		t.Fatalf("checkbox: %s", got)
 	}
 	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "url", Name: "url", Label: "登録URL", Value: "https://example.com/#t", Readonly: true})
@@ -107,19 +107,23 @@ func TestComponents_Choices(t *testing.T) {
 	c := form.Choices{ID: "role", Name: "role", Legend: "ロール", Hint: "必要な人に限る", Error: "選んでください", Required: true, Options: []form.Option{{Value: "member", Label: "メンバー"}, {Value: "admin", Label: "<i>管理者</i>", Selected: true}}}
 	got := renderComponent(t, `{{template "choices" .}}`, c)
 	for _, want := range []string{
-		`<fieldset class="form-group" aria-describedby="role-hint role-error">`,
+		`<fieldset class="form-group choices" aria-describedby="role-hint role-error">`,
 		`<legend>ロール<span class="required-mark">（必須）</span></legend>`,
 		`<p class="field-error" id="role-error">選んでください</p>`,
-		`<label><input type="radio" name="role" value="member" required> メンバー</label>`,
-		`<label><input type="radio" name="role" value="admin" checked required> &lt;i&gt;管理者&lt;/i&gt;</label>`,
+		`<label class="choice"><input type="radio" name="role" value="member" required> メンバー</label>`,
+		`<label class="choice"><input type="radio" name="role" value="admin" checked required> &lt;i&gt;管理者&lt;/i&gt;</label>`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %s in %s", want, got)
 		}
 	}
-	c.Multiple, c.Error = true, ""
-	if got := renderComponent(t, `{{template "choices" .}}`, c); !strings.Contains(got, `type="checkbox" name="role" value="member">`) {
-		t.Fatalf("checkbox group: %s", got)
+	c.Multiple, c.Error, c.Inline = true, "", true
+	if got := renderComponent(t, `{{template "choices" .}}`, c); !strings.Contains(got, `type="checkbox" name="role" value="member">`) || !strings.Contains(got, `class="form-group choices choices-inline"`) {
+		t.Fatalf("inline checkbox group: %s", got)
+	}
+	c.Options, c.Empty = nil, "選べるものはありません。"
+	if got := renderComponent(t, `{{template "choices" .}}`, c); !strings.Contains(got, `<p>選べるものはありません。</p>`) {
+		t.Fatalf("empty: %s", got)
 	}
 }
 

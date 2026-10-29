@@ -374,6 +374,44 @@ label {
   margin-bottom: var(--space-xs);
 }
 
+/* 選択肢の組（部品の choices 等）。ブラウザ標準の枠を消し、見出しを他の欄のラベルとそろえる */
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+legend {
+  font-weight: 700;
+  margin-bottom: var(--space-xs);
+  padding: 0;
+}
+
+.choice {
+  display: flex;
+  align-items: flex-start; /* 名前が折り返しても、箱を1行目にそろえる */
+  gap: 0.5em;
+  min-height: 2.75rem; /* 押せる範囲を24px以上に（WCAG 2.5.8） */
+  padding-block: 0.5rem;
+  margin-bottom: 0;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.choice input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.15em 0 0;
+  flex: none;
+}
+
+.choices-inline .choices-options {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-md);
+}
+
 .field-hint {
   font-size: 0.85rem;
   color: #4a5568;
@@ -384,8 +422,7 @@ input[type="text"],
 input[type="search"],
 input[type="datetime-local"],
 textarea,
-select,
-.catalog-select {
+select {
   width: 100%;
   padding: var(--space-sm);
   font-family: inherit;
@@ -585,7 +622,7 @@ footer {
   margin-bottom: 0;
 }
 
-.contact-lead {
+.form-lead {
   margin-bottom: var(--space-md);
 }
 
@@ -659,9 +696,7 @@ nav a[aria-current="page"] {
 /* カタログの検索状態。hiddenの表示規則より優先する指定を作らない。 */
 .catalog-items { list-style: none; padding: 0; }
 .catalog-items > li + li { margin-top: 1rem; }
-.catalog-check { display: flex; align-items: baseline; gap: 0.5em; margin-block: 0.5em; }
-.catalog-check input { width: auto; }
-.catalog-loading { visibility: hidden; }
+.catalog-loading { visibility: hidden; margin-block: 0; }
 .catalog-busy .catalog-loading { visibility: visible; }
 
 /* 画面部品 combobox。候補は入力欄の直下に重ね、長い一覧は枠の中でスクロールする。 */
