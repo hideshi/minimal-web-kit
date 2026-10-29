@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"minimal-web-kit/internal/web/form"
 )
@@ -83,11 +82,6 @@ func line(raw string, max int, required bool) (string, error) {
 	v, err := form.Line(raw, max, required)
 	if err != nil {
 		return "", ErrInvalidInput
-	}
-	for _, r := range v {
-		if unicode.IsControl(r) {
-			return "", ErrInvalidInput
-		}
 	}
 	return v, nil
 }

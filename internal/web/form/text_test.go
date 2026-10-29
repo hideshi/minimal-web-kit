@@ -40,7 +40,7 @@ func TestLine(t *testing.T) {
 	if got, err := Line("  見出し  ", 10, true); err != nil || got != "見出し" {
 		t.Fatalf("got %q, %v", got, err)
 	}
-	for _, bad := range []string{"一行目\n二行目", "一行目\r\n二行目", "   ", strings.Repeat("a", 11)} {
+	for _, bad := range []string{"一行目\n二行目", "一行目\r\n二行目", "列\t区切り", "改\r行", "   ", strings.Repeat("a", 11)} {
 		if _, err := Line(bad, 10, true); !errors.Is(err, ErrInvalid) {
 			t.Errorf("%q must be rejected", bad)
 		}

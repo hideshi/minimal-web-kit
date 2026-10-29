@@ -34,10 +34,11 @@ func Text(s string, maxRunes int, required bool) (string, error) {
 	return s, nil
 }
 
-// Line は1行の値（タイトル、名前等）を検査します。前後の空白を除き、改行を含む入力を拒否します。
+// Line は1行の値（タイトル、名前等）を検査します。前後の空白を除き、改行・タブを含む入力を拒否します。
+// タブは表示で幅が変わり、一覧や表の中で値の区切りと見分けにくいため、1行の値には認めない。
 func Line(s string, maxRunes int, required bool) (string, error) {
 	s, err := Text(strings.TrimSpace(s), maxRunes, required)
-	if err != nil || strings.Contains(s, "\n") {
+	if err != nil || strings.ContainsAny(s, "\n\t") {
 		return "", ErrInvalid
 	}
 	return s, nil
