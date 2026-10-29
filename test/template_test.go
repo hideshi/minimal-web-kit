@@ -28,7 +28,8 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && (d.Name() == ".git" || d.Name() == "bin" || d.Name() == "data") {
+		// . と _ で始まるディレクトリ（.git、.worktrees の別の作業ツリー等）は、Goのツールと同じく読み飛ばす
+		if d.IsDir() && path != ".." && (strings.HasPrefix(d.Name(), ".") || strings.HasPrefix(d.Name(), "_") || d.Name() == "bin" || d.Name() == "data") {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && (strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".mjs")) {

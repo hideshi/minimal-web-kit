@@ -52,8 +52,12 @@ func TestDomain_InvariantsAreTested(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
+			// . と _ で始まるディレクトリ（.git、.worktrees の別の作業ツリー等）は、Goのツールと同じく読み飛ばす
+			if path != ".." && (strings.HasPrefix(d.Name(), ".") || strings.HasPrefix(d.Name(), "_")) {
+				return filepath.SkipDir
+			}
 			switch d.Name() {
-			case ".git", "bin", "dist", "data", "node_modules":
+			case "bin", "dist", "data", "node_modules":
 				return filepath.SkipDir
 			}
 			return nil
