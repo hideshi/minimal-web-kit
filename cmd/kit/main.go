@@ -58,6 +58,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Catalog registration disabled; stored data is kept.")
+	case "add-contact":
+		if err := addContact(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling contact feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled the contact form with admin authentication.")
+	case "remove-contact":
+		if err := removeContact(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling contact feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Contact registration disabled; stored messages are kept until removed from the database.")
 	case "add-news":
 		if err := addNews(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling news feature: %v\n", err)
@@ -85,9 +97,11 @@ func printUsage() {
 	fmt.Println("  add-site     Enable the Site (LP template) feature in cmd/server/features.go")
 	fmt.Println("  remove-site  Disable the Site (LP template) feature registration")
 	fmt.Println("  add-auth     Enable the admin authentication (passkey) feature")
-	fmt.Println("  remove-auth  Disable admin authentication (refused while news or catalog is enabled; stored passkeys are kept)")
+	fmt.Println("  remove-auth  Disable admin authentication (refused while news, catalog or contact is enabled; stored passkeys are kept)")
 	fmt.Println("  add-catalog  Enable Catalog with admin authentication")
 	fmt.Println("  remove-catalog Disable Catalog registration (stored data is kept)")
+	fmt.Println("  add-contact  Enable the contact form and inbox, together with admin authentication")
+	fmt.Println("  remove-contact Disable the contact registration (stored messages are kept)")
 	fmt.Println("  add-news     Enable the news feature, together with admin authentication")
 	fmt.Println("  remove-news  Disable the news feature registration (stored data is kept)")
 	fmt.Println()
@@ -108,6 +122,7 @@ const (
 	bundledNewsMarker    = "// minimal-web-kit: bundled-feature news"
 	bundledCatalogMarker = "// minimal-web-kit: bundled-feature catalog"
 	bundledAuthMarker    = "// minimal-web-kit: bundled-feature auth"
+	bundledContactMarker = "// minimal-web-kit: bundled-feature contact"
 )
 
 var (
@@ -115,6 +130,7 @@ var (
 	newsBundle    = bundle{name: "news", label: "News", marker: bundledNewsMarker}
 	catalogBundle = bundle{name: "catalog", label: "Catalog", marker: bundledCatalogMarker}
 	authBundle    = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
+	contactBundle = bundle{name: "contact", label: "Contact", marker: bundledContactMarker}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -145,7 +161,19 @@ func addCatalog() error {
 }
 func removeCatalog() error { return toggleBundle(catalogBundle, false) }
 
-// removeAuth は、NewsまたはCatalogが有効な間は拒否します。
+// addContact は、お問い合わせ機能と管理者認証の登録を有効にします。
+func addContact() error {
+	if err := verifyBundle(contactBundle); err != nil {
+		return err
+	}
+	if err := toggleBundle(authBundle, true); err != nil {
+		return err
+	}
+	return toggleBundle(contactBundle, true)
+}
+func removeContact() error { return toggleBundle(contactBundle, false) }
+
+// removeAuth は、News・Catalog・Contactのどれかが有効な間は拒否します。
 func removeAuth() error {
 	registration, err := os.ReadFile("cmd/server/features.go")
 	if err != nil {
@@ -156,6 +184,9 @@ func removeAuth() error {
 	}
 	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+catalogBundle.name)) {
 		return fmt.Errorf("catalog uses admin authentication; run remove-catalog first")
+	}
+	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+contactBundle.name)) {
+		return fmt.Errorf("contact uses admin authentication; run remove-contact first")
 	}
 	return toggleBundle(authBundle, false)
 }

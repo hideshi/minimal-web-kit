@@ -135,6 +135,15 @@ var formControlExceptions = map[string]string{
 
 var thPattern = regexp.MustCompile(`<th[\s>]`)
 
+// formControlTagExceptions は、ファイルの中で直接書いてよいタグだけを、理由つきで書きます（ファイル全体は例外にしない）。
+var formControlTagExceptions = map[string][]string{
+	// お問い合わせのスパム対策の見えない入力欄（ハニーポット）。部品の field は aria-hidden・tabindex を持たない（docs/contact-plan.md 4.1）
+	"../features/contact/views/contact.html": {
+		`<label for="contact-trap">`,
+		`<input type="text" id="contact-trap" name="{{.Trap}}" value="" tabindex="-1" autocomplete="off">`,
+	},
+}
+
 var formControlPattern = regexp.MustCompile(`<(label|input|select|textarea)\b[^>]*>`)
 
 // TestTemplate_FormControlsUseComponents は、機能のテンプレートが入力欄を直接書かず、共通の部品を使うことを検証します
@@ -148,12 +157,13 @@ func TestTemplate_FormControlsUseComponents(t *testing.T) {
 		if _, ok := formControlExceptions[f]; ok {
 			continue
 		}
+		allowed := formControlTagExceptions[f]
 		raw, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, m := range formControlPattern.FindAllString(string(raw), -1) {
-			if strings.HasPrefix(m, "<input") && strings.Contains(m, `type="hidden"`) {
+			if strings.HasPrefix(m, "<input") && strings.Contains(m, `type="hidden"`) || slices.Contains(allowed, m) {
 				continue
 			}
 			t.Errorf("%s: %s を直接書いている（field・choices 等の部品を使う。例外は formControlExceptions に理由つきで書く）", f, m)

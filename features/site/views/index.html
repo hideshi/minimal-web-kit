@@ -175,19 +175,23 @@
   <div class="card">
     <div class="card-content">
       <p>当サイトは、Cookieを無効にした状態でも安全・快適に閲覧できます。閲覧のために氏名や連絡先を登録する必要はありません。</p>
-      {{if .ContactFormURL}}
+      {{if .Contact}}
       <p>お問い合わせフォームにてお預かりするお名前やご連絡先などの情報は、お問い合わせへの回答や対応の目的にのみ適切に使用いたします。以下のボタンよりご連絡ください。</p>
       {{else}}
       <p>お問い合わせ窓口は現在準備中です。</p>
       {{end}}
     </div>
     <div class="action-bar action-bar-center">
-      {{if .ContactFormURL}}
-      <a href="{{.ContactFormURL}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
+      {{if .Contact}}{{if .Contact.External}}
+      <a href="{{.Contact.Href}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
         <span class="btn-main-text">お問い合わせフォームを開く</span>
         <span class="btn-sub-text">Googleフォーム（新しいタブで開きます）</span>
       </a>
-      {{end}}
+      {{else}}
+      <a href="{{.Contact.Href}}" class="btn btn-primary btn-cta">
+        <span class="btn-main-text">お問い合わせフォームを開く</span>
+      </a>
+      {{end}}{{end}}
       <a href="/privacy" class="btn btn-secondary">プライバシーポリシー</a>
     </div>
   </div>

@@ -26,6 +26,7 @@ import (
 	"minimal-web-kit/features/auth"
 	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/catalog"
+	"minimal-web-kit/features/contact"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
@@ -50,6 +51,7 @@ func newAdminUIRegistry(logger *slog.Logger) *features.Registry {
 	reg.Register(auth.NewFeature(logger))
 	reg.Register(news.NewFeature(logger))
 	reg.Register(catalog.NewFeature(logger))
+	reg.Register(contact.NewFeature(logger))
 	return reg
 }
 
@@ -134,6 +136,27 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	ui.ids["item_draft"], ui.ids["item_published"] = itoa(itemDraft), itoa(itemPublished)
 	ui.ids["category"], ui.ids["category_unused"] = itoa(category), itoa(unusedCategory)
 	ui.ids["tag"], ui.ids["tag_unused"] = itoa(tag), itoa(unusedTag)
+
+	inbox := contact.NewStore(db)
+	limits := contact.Limits{Hourly: 100, Daily: 100, Unread: 100}
+	for key, in := range map[string]contact.Input{
+		"msg_unread": {Name: "未読の人", ReplyTo: "reply@example.com", Body: "未読の本文"},
+		"msg_read":   {Name: "既読の人", Body: "既読の本文"},
+		"msg_spam":   {Body: "スパムの本文"},
+		"msg_anon":   {Body: "無記名の本文"},
+	} {
+		id, err := inbox.Save(ctx, in, limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ui.ids[key] = itoa(id)
+	}
+	for key, status := range map[string]string{"msg_read": "read", "msg_spam": "spam"} {
+		id, _ := strconv.ParseInt(ui.ids[key], 10, 64)
+		if err := inbox.SetStatus(ctx, id, status); err != nil {
+			t.Fatal(err)
+		}
+	}
 	return ui
 }
 
@@ -224,6 +247,13 @@ var adminSamples = []adminSample{
 	{"GET /admin/catalog/classifications/tags", "/admin/catalog/classifications/tags", "member", "admin_classifications.html", kindListAdd},
 	{"GET /admin/catalog/classifications/tags/{id}", "/admin/catalog/classifications/tags/{tag}", "admin", "admin_classification.html", kindForm},
 	{"GET /admin/catalog/classifications/tags/{id}/delete", "/admin/catalog/classifications/tags/{tag_unused}/delete", "admin", "admin_classification.html", kindConfirm},
+	{"GET /admin/contact", "/admin/contact", "admin", "admin_messages.html", kindList},
+	{"GET /admin/contact/{id}", "/admin/contact/{msg_unread}", "admin", "admin_message.html", kindDetail},
+	{"GET /admin/contact/{id}", "/admin/contact/{msg_read}", "admin", "admin_message.html", kindDetail},
+	{"GET /admin/contact/{id}", "/admin/contact/{msg_spam}", "admin", "admin_message.html", kindDetail},
+	{"GET /admin/contact/{id}", "/admin/contact/{msg_anon}", "admin", "admin_message.html", kindDetail},
+	{"GET /admin/contact/{id}/delete", "/admin/contact/{msg_read}/delete", "admin", "admin_message_delete.html", kindConfirm},
+	{"GET /admin/contact/spam/delete", "/admin/contact/spam/delete", "admin", "admin_spam_delete.html", kindConfirm},
 }
 
 // adminPostSamples は、成功したときに画面を返す送信（GETの経路が無い画面）。

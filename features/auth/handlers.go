@@ -181,7 +181,13 @@ func (s session) PageData(title, current string) map[string]any {
 // adminNav は管理画面のナビです。他の機能のリンク（例: お知らせの管理）の後に、パスキーの管理を置きます。
 // 管理者には、アカウントの管理も出します。
 func (f *Feature) adminNav(isAdmin bool) []web.NavLink {
-	nav := append(append([]web.NavLink{}, f.navLinks...), web.NavLink{Label: "パスキーの管理", Href: "/admin/passkeys"})
+	var nav []web.NavLink
+	for _, l := range f.navLinks {
+		if !l.AdminOnly || isAdmin {
+			nav = append(nav, l)
+		}
+	}
+	nav = append(nav, web.NavLink{Label: "パスキーの管理", Href: "/admin/passkeys"})
 	if isAdmin {
 		nav = append(nav, web.NavLink{Label: "アカウントの管理", Href: "/admin/accounts"})
 	}

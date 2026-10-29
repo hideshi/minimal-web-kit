@@ -82,19 +82,6 @@ func parsePostID(raw string) (id int64, status int) {
 	return id, 0
 }
 
-// paragraphs は本文を空行で段落に、段落内を改行で行に分けます。表示時はテンプレートがエスケープします。
-func paragraphs(body string) [][]string {
-	var result [][]string
-	for _, block := range strings.Split(body, "\n\n") {
-		block = strings.Trim(block, "\n")
-		if strings.TrimSpace(block) == "" {
-			continue
-		}
-		result = append(result, strings.Split(block, "\n"))
-	}
-	return result
-}
-
 // excerptRunes は、記事の説明文（検索結果・SNSのカード）に使う本文の文字数です。
 const excerptRunes = 120
 
@@ -178,7 +165,7 @@ func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
 		"PublishedTime": post.PublishedAt.UTC().Format(time.RFC3339),
 		"CanonicalPath": "/news/" + strconv.FormatInt(post.ID, 10),
 		"Post":          localTime(post),
-		"Paragraphs":    paragraphs(post.Body),
+		"Paragraphs":    form.Paragraphs(post.Body),
 	})
 }
 

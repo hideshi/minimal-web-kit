@@ -111,3 +111,16 @@ type Option struct {
 	Label    string
 	Selected bool
 }
+
+// Paragraphs は本文を空行で段落に、段落内を改行で行に分けます。表示時はテンプレートがエスケープします。
+func Paragraphs(body string) [][]string {
+	var result [][]string
+	for _, block := range strings.Split(body, "\n\n") {
+		block = strings.Trim(block, "\n")
+		if strings.TrimSpace(block) == "" {
+			continue
+		}
+		result = append(result, strings.Split(block, "\n"))
+	}
+	return result
+}

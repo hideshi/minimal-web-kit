@@ -1,0 +1,33 @@
+{{define "content"}}
+<h1>お問い合わせの管理</h1>{{template "notice" .Notice}}
+<p>未読 {{.Unread}}件。受付から{{.RetentionDays}}日で、状態に関係なく自動で削除します。返信先へは、各自の手段で連絡してください（この画面からは送りません）。</p>
+{{if .Spam}}<div class="action-bar"><a href="/admin/contact/spam/delete">スパムをまとめて削除する（{{.Spam}}件）</a></div>{{end}}
+{{if .Messages}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">お問い合わせの一覧（受付の新しい順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">受付日時</th>
+        <th scope="col">状態</th>
+        <th scope="col">お名前</th>
+        <th scope="col">内容</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Messages}}
+      <tr>
+        <td><a href="/admin/contact/{{.ID}}"><time datetime="{{.CreatedAt.Format "2006-01-02T15:04"}}">{{.CreatedAt.Format "2006年1月2日 15:04"}}</time></a></td>
+        <td>{{.StatusLabel}}</td>
+        <td>{{.DisplayName}}</td>
+        <td>{{.Excerpt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>お問い合わせはまだありません。</p>
+{{end}}
+{{template "pagination" .Page}}
+{{end}}

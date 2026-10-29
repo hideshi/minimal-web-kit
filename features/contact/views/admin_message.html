@@ -1,0 +1,25 @@
+{{define "content"}}
+<h1>お問い合わせ: {{.Message.DisplayName}}</h1>{{template "notice" .Notice}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">受付の情報</caption>
+    <tbody>
+      <tr><th scope="row">受付日時</th><td><time datetime="{{.Message.CreatedAt.Format "2006-01-02T15:04"}}">{{.Message.CreatedAt.Format "2006年1月2日 15:04"}}</time></td></tr>
+      <tr><th scope="row">状態</th><td>{{.Message.StatusLabel}}</td></tr>
+      <tr><th scope="row">お名前</th><td>{{.Message.DisplayName}}</td></tr>
+      <tr><th scope="row">返信先</th><td>{{if .Message.ReplyTo}}{{.Message.ReplyTo}}{{else}}（なし）{{end}}</td></tr>
+    </tbody>
+  </table>
+</div>
+<h2>内容</h2>
+<div class="card">{{range .Paragraphs}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}</div>
+<h2>状態の変更</h2>
+<div class="action-bar">
+  {{if ne .Message.Status "read"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="read"><button type="submit" class="btn btn-secondary">既読にする</button></form>{{end}}
+  {{if ne .Message.Status "unread"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="unread"><button type="submit" class="btn btn-secondary">未読に戻す</button></form>{{end}}
+  {{if ne .Message.Status "spam"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="spam"><button type="submit" class="btn btn-secondary">スパムにする</button></form>{{end}}
+</div>
+<h2>削除</h2>
+<p><a href="/admin/contact/{{.Message.ID}}/delete" class="btn btn-danger">削除する</a></p>
+<p><a href="/admin/contact">お問い合わせの一覧へ戻る</a></p>
+{{end}}

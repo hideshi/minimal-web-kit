@@ -75,6 +75,19 @@ type PrivacyFeature interface {
 	PrivacyNotices() []web.PrivacyNotice
 }
 
+// ContactLinkFeature は、お問い合わせの行き先を申告する機能が実装します（Siteの外部フォームのURL、お問い合わせ機能の /contact）。
+// ok が false なら申告しません。2つ以上の機能が申告した場合は、受付の口が二重になるため起動時にエラーになります。
+type ContactLinkFeature interface {
+	Feature
+	ContactLink() (link web.ContactLink, ok bool)
+}
+
+// ContactLinkConsumer は、お問い合わせへのボタン等を描く機能（例: Site）が実装します。申告が無ければ呼ばれません。
+type ContactLinkConsumer interface {
+	Feature
+	SetContactLink(link web.ContactLink)
+}
+
 // NavLinkConsumer は、独自のナビゲーションを描画する機能（例: Site）が実装します。
 // 起動時に、有効な全機能のリンクを受け取ります。
 type NavLinkConsumer interface {

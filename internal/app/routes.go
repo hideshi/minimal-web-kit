@@ -49,6 +49,35 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		handler.SetPrivacyNotices(notices)
 	}
 
+	// お問い合わせの行き先を、ボタンを描く機能とプライバシーポリシーに配る。申告は1つまで
+	{
+		var link *web.ContactLink
+		var from string
+		for _, f := range reg.All() {
+			cf, ok := f.(features.ContactLinkFeature)
+			if !ok {
+				continue
+			}
+			l, ok := cf.ContactLink()
+			if !ok {
+				continue
+			}
+			if link != nil {
+				logger.Error("contact link declared twice", slog.String("feature", from), slog.String("other", f.Name()))
+				return nil, fmt.Errorf("contact is provided by both %s and %s (unset CONTACT_FORM_URL to use the contact feature, or run: make remove-contact)", from, f.Name())
+			}
+			link, from = &l, f.Name()
+		}
+		if link != nil {
+			handler.SetContactLink(*link)
+			for _, f := range reg.All() {
+				if c, ok := f.(features.ContactLinkConsumer); ok {
+					c.SetContactLink(*link)
+				}
+			}
+		}
+	}
+
 	// 管理者認証を、管理画面を持つ機能に配る。管理画面のナビのリンクを管理者認証に集める
 	{
 		var admin features.Admin

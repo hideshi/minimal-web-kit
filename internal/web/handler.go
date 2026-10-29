@@ -24,6 +24,7 @@ type Handler struct {
 	navLinks  []NavLink
 	layout    *Layout
 	privacy   []PrivacyNotice
+	contact   *ContactLink
 }
 
 // corePages はCoreが描画する画面です。
@@ -170,6 +171,14 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 type NavLink struct {
 	Label string
 	Href  string
+	// AdminOnly は、管理画面のナビで、管理者ロールにだけ出すリンクに付ける（例: お問い合わせの受信箱）
+	AdminOnly bool
+}
+
+// ContactLink は、お問い合わせの行き先です。外部のフォームか、サイトの中のフォーム（お問い合わせ機能）のどちらか1つです。
+type ContactLink struct {
+	Href     string
+	External bool // 外部のフォーム（新しいタブで開き、プライバシーポリシーに外部フォームの節を出す）
 }
 
 // PrivacyNotice は、機能が保存する情報を、プライバシーポリシーの画面で説明するための節です。
@@ -182,6 +191,11 @@ type PrivacyNotice struct {
 // PrivacyRow は、PrivacyNotice の表の1行です。内容は docs/data-inventory.md と揃えます。
 type PrivacyRow struct {
 	Kind, Items, Purpose, Retention string
+}
+
+// SetContactLink は、お問い合わせの行き先を設定します。外部のフォームのとき、プライバシーポリシーに外部フォームの節を出します。
+func (h *Handler) SetContactLink(link ContactLink) {
+	h.contact = &link
 }
 
 // SetPrivacyNotices は、プライバシーポリシーの画面に載せる、機能が保存する情報を設定します。起動時に1回だけ呼びます。
@@ -294,6 +308,7 @@ func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode
 		"CanonicalPath": "/privacy",
 		"SiteMode":      siteMode,
 		"Notices":       h.privacy,
+		"Contact":       h.contact,
 		"CSRFToken":     GetCSRFToken(r.Context()),
 	})
 }

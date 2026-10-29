@@ -29,6 +29,7 @@ type Feature struct {
 	pages          map[string]*template.Template
 	logger         *slog.Logger
 	contactFormURL string
+	contact        *web.ContactLink
 	siteURL        string
 	navLinks       []web.NavLink
 	sitemapSources []features.SitemapFeature
@@ -115,14 +116,38 @@ func (f *Feature) SetNavLinks(links []web.NavLink) {
 	f.navLinks = links
 }
 
+// ContactLink は、CONTACT_FORM_URL（外部のフォーム）を設定していれば、お問い合わせの行き先として申告します。
+func (f *Feature) ContactLink() (web.ContactLink, bool) {
+	if f.contactFormURL == "" {
+		return web.ContactLink{}, false
+	}
+	return web.ContactLink{Href: f.contactFormURL, External: true}, true
+}
+
+// contactLink は、受け取ったお問い合わせの行き先を返します。受け取っていなければ（単体で使う場合）、自分の申告を使います。
+func (f *Feature) contactLink() *web.ContactLink {
+	if f.contact != nil {
+		return f.contact
+	}
+	if l, ok := f.ContactLink(); ok {
+		return &l
+	}
+	return nil
+}
+
+// SetContactLink は、お問い合わせの行き先（外部のフォームか、お問い合わせ機能の /contact）を受け取ります。
+func (f *Feature) SetContactLink(link web.ContactLink) {
+	f.contact = &link
+}
+
 // HandleRoot はBaseのデフォルトトップ（GET /）をこのLP画面で置き換えます。
 func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	// LPはCookieも利用者ごとの内容も持たないため、キャッシュしてよい
 	web.PublicCache(w, web.PublicCacheSeconds)
 	f.render(w, http.StatusOK, "index.html", map[string]any{
-		"Title":          "個人情報と依存を最小限に抑えるWeb開発基盤",
-		"CanonicalPath":  "/",
-		"ContactFormURL": f.contactFormURL,
+		"Title":         "個人情報と依存を最小限に抑えるWeb開発基盤",
+		"CanonicalPath": "/",
+		"Contact":       f.contactLink(),
 	})
 }
 

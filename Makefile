@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog
+.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact
 
 BIN_NAME := minimal-web-kit
 
@@ -59,3 +59,10 @@ add-catalog:
 
 remove-catalog:
 	go run ./cmd/kit remove-catalog
+
+# お問い合わせ（管理者認証も有効化。無効化してもデータは保持）
+add-contact:
+	go run ./cmd/kit add-contact
+
+remove-contact:
+	go run ./cmd/kit remove-contact

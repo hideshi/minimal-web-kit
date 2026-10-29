@@ -1,0 +1,5 @@
+{{define "content"}}
+<h1>スパムの削除</h1>
+<p>スパムの印を付けたお問い合わせ{{.Spam}}件を、まとめて削除します。元に戻せません。</p>
+{{template "confirm-actions" (confirm "/admin/contact/spam/delete" "/admin/contact" .CSRFToken)}}
+{{end}}
