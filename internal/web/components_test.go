@@ -153,8 +153,8 @@ func TestComponents_Combobox(t *testing.T) {
 	for _, want := range []string{
 		`data-combobox data-limit="20"`,
 		// JSなし用: 全候補のチェックボックスと選択状態
-		`<fieldset data-combobox-fallback aria-describedby="tags-hint">`, `<legend>タグ&lt;b&gt;</legend>`,
-		`<input type="checkbox" name="tag" value="1"> 設計`, `<input type="checkbox" name="tag" value="2 x" checked> &lt;script&gt;`,
+		`<fieldset class="form-group choices" data-combobox-fallback aria-describedby="tags-hint">`, `<legend>タグ&lt;b&gt;</legend>`,
+		`<label class="choice"><input type="checkbox" name="tag" value="1"> 設計`, `<input type="checkbox" name="tag" value="2 x" checked> &lt;script&gt;`,
 		// JSあり用: 最初は隠し、ARIAの関連付けを持つ
 		`role="group" aria-labelledby="tags-title" data-combobox-ui hidden`,
 		`<label for="tags-input">タグ&lt;b&gt;を追加</label>`,

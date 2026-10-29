@@ -597,13 +597,16 @@ footer {
   margin-top: var(--space-xs);
 }
 
-/* お知らせ機能: 公開ページ */
-.news-list {
+/* カードの縦の一覧（お知らせ・カタログの公開一覧） */
+.card-list {
   list-style: none;
+  padding: 0;
   display: grid;
   gap: var(--space-md);
   margin-bottom: var(--space-lg);
 }
+
+/* お知らせ機能: 公開ページ */
 
 .news-meta {
   color: #4a5568;
@@ -696,14 +699,10 @@ nav a[aria-current="page"] {
 }
 
 /* カタログの検索状態。hiddenの表示規則より優先する指定を作らない。 */
-.catalog-items { list-style: none; padding: 0; }
-.catalog-items > li + li { margin-top: 1rem; }
 .catalog-loading { visibility: hidden; margin-block: 0; }
 .catalog-busy .catalog-loading { visibility: visible; }
 
 /* 画面部品 combobox。候補は入力欄の直下に重ね、長い一覧は枠の中でスクロールする。 */
-.combobox-check { display: flex; align-items: baseline; gap: 0.5em; margin-block: 0.5em; }
-.combobox-check input { width: auto; }
 .combobox-title { font-weight: 700; margin-bottom: var(--space-xs); }
 .combobox-chips { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-sm); }
 .combobox-chip { display: inline-flex; align-items: center; gap: 0.5em; padding: 0.25em 0.75em; }

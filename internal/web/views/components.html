@@ -90,10 +90,10 @@
 */}}
 {{define "combobox"}}
 <div class="combobox" data-combobox data-limit="{{.Limit}}">
-  <fieldset data-combobox-fallback{{if .Hint}} aria-describedby="{{.ID}}-hint"{{end}}>
+  <fieldset class="form-group choices" data-combobox-fallback{{if .Hint}} aria-describedby="{{.ID}}-hint"{{end}}>
     <legend>{{.Label}}</legend>
     {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
-    {{range .Options}}<label class="combobox-check"><input type="checkbox" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}> {{.Label}}</label>{{else}}<p>候補はまだありません。</p>{{end}}
+    <div class="choices-options">{{range .Options}}<label class="choice"><input type="checkbox" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}> {{.Label}}</label>{{else}}<p>候補はまだありません。</p>{{end}}</div>
   </fieldset>
   <div role="group" aria-labelledby="{{.ID}}-title" data-combobox-ui hidden>
     <p class="combobox-title" id="{{.ID}}-title">{{.Label}}</p>

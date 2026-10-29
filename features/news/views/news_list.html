@@ -2,7 +2,7 @@
 <h1>お知らせ</h1>
 
 {{if .Posts}}
-<ul class="news-list" role="list">
+<ul class="card-list" role="list">
   {{range .Posts}}
   <li class="card">
     <h2 class="card-title"><a href="/news/{{.ID}}">{{.Title}}</a></h2>
