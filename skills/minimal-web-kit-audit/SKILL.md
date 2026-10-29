@@ -17,14 +17,18 @@ description: minimal-web-kitの変更を検証する際に、付属テストと�
 go test -race -v ./...
 ```
 
-### 自動検証される項目:
-- **`TestArchitecture_DependencyAllowedList`**: `go.mod` の直接依存が許可リスト（`modernc.org/sqlite` のみ）と一致しているか。
-- **`TestArchitecture_LinkedModules`**: 実行ファイルに組み込まれる外部モジュール（間接依存を含む）が一覧と一致しているか。増減したら用途・ライセンス・保守状況を確認し、READMEの一覧と合わせて更新する。
-- **`TestDataSchema_MatchesDataLedger`**: `docs/data-inventory.md` に記載されたテーブル・列定義と、インメモリDB上の実スキーマ（`PRAGMA table_info`）のテーブル名・列名が双方向で一致しているか。Featureは有効化の状態にかかわらず全 `features/*/migration.sql` を適用する。型・NULL制約・外部キーや、`migration.sql` 以外で作るテーブルは検査しない。
-- **`TestDomain_InvariantsAreTested`**: `docs/domain/*.md` の不変条件の番号が、それぞれ1つ以上のテスト関数の説明コメントにあるか、コードに書かれた番号がすべて定義されているか。番号の対応だけを見て、テストの中身が条件を確かめているかは検査しないため、番号を足したテストは読んで確認する。
-- **`TestTemplate_NoInlineStylesOrScripts`**: HTMLテンプレートにインライン `style=`、`<style>`、`<script>`、および `on*` イベントハンドラが含まれていないか。
-- **`TestCSS_SingleFileAndNoImportant`**: CSSファイルが単一であり、`!important` が含まれていないか。
-- **`TestCanary_LogAndPrivacyProtection`**: 公開ページの新規セッション非発行、未知Cookieの拒否、Request-ID注入や削除ログからのトークン・OwnerID漏洩を検査する。任意の業務データを網羅した保証ではない。URL・panic・削除エラーの経路は `TestCanary_RequestAndPanicLogProtection` と `TestCanary_StoreErrorLogProtection`、お知らせ機能の公開ページ・API・管理画面は `TestCanary_NewsRoutesDoNotLeakInput` で検査する。
+### 自動検証される項目（`test/` の種類ごと。代表のテスト名を1つ挙げる）:
+| 種類 | ファイル（代表） | 守るもの |
+|---|---|---|
+| 依存 | `architecture_test.go`（`TestArchitecture_DependencyAllowedList`） | 直接依存の許可リストと、組み込まれる外部モジュールの一覧。増減したらREADMEの一覧も直す |
+| データ台帳 | `data_schema_test.go`（`TestDataSchema_MatchesDataLedger`） | `docs/data-inventory.md` と実スキーマの表名・列名。型・制約や `migration.sql` 以外の表は見ない |
+| 不変条件 | `domain_test.go`（`TestDomain_InvariantsAreTested`） | `docs/domain/*.md` の番号とテスト関数のコメントの対応。中身が条件を確かめているかは読んで確認する |
+| テンプレート・CSS・JS | `template_test.go`（`TestTemplate_NoInlineStylesOrScripts`） | インラインの意匠・スクリプト、CSS 1本、承認済みのJS、`static-head`・`asset` の使用、表の見出し |
+| レイアウト・公開ページ | `layout_test.go`（`TestLayout_StaticHeadOnEveryLayout`） | レイアウトの共有、SEO・キャッシュ、静的書き出し（`export_static_test.go`） |
+| 管理画面 | `admin_ui_test.go`（`TestAdminUI_AllPagesFollowStandard`） | `docs/components.md` の画面の型と、全経路の見本 |
+| ログ・Cookie | `canary_test.go`（`TestCanary_LogAndPrivacyProtection`） | 公開ページのセッション非発行と、ログへの漏洩。業務データを網羅した保証ではない |
+
+`test/browser/` は別モジュールで、`go test ./...` では走らない。画面部品の操作と撮影は `make test-ui` で確かめる。
 
 ## 2. 人手による差分チェック観点
 自動テストに加え、`git diff` で以下の観点を確認します。
@@ -44,16 +48,17 @@ go test -race -v ./...
 - 動的機能を追加したら、別Ownerからの読み書き・削除の拒否、未認証の管理操作、CSRF不正・欠落、期限切れCookieを検証する。SQLiteは複数接続で制約と削除を確認する。
 - 公開ページと404はRoutes経由で新規Cookieと保存行の増加がないか確認する。Site有効時とBaseの差、既存Cookieを送った場合も区別する。
 - 検査が空振りしていないかを確かめる。新しい検査や守りの処理を足したら、その処理をわざと外してテストが失敗することを見る。カナリアは、値が入口の形式検査で止まらず、ログを出す処理まで届いた証拠も検査に含める。
-- 有効にする機能の組み合わせ（Base／Site／管理者認証／お知らせ機能＋管理者認証／Site＋お知らせ機能）ごとに、ビルドと主な経路を確認する。手元の `cmd/server/features.go` がコミット済みの状態と違う場合は、コミット済みの状態でも確認する。
+- 有効にする機能の組み合わせ（Base／Site／管理者認証／お知らせ機能＋管理者認証／Site＋お知らせ機能）ごとに、ビルドと主な経路を確認する。手元の `cmd/server/features.go` がコミット済みの状態と違う場合は、コミット済みの状態でも確認する。手元の変更に触れずに確かめるには、コミットした作業を `git worktree add .worktrees/<名前> HEAD`（他の作業の取り込み後を見るなら `origin/main`）で取り出し、そこで `go test ./...` と `make verify` を回す。置き場所はリポジトリの中の `.worktrees/`（`.gitignore` 済み、走査する検査も読み飛ばす）にする。
 - `export-static` で書き出す場合は、`_headers` がGoのサーバーと同じセキュリティヘッダーを持つこと、`/privacy` が実際の配信サービスでの記録を説明していることを確認する。
 
 ## 4. 実画面・公開前の確認
-- 320 CSS px幅、文字200%拡大、行高1.5・段落後2em・字間0.12em・単語間0.16emを適用し、欠落やページ全体の横スクロールを確認する。表の横スクロールは本文と分離する。
+- 手動の確認では320 CSS px幅、文字200%拡大、行高1.5・段落後2em・字間0.12em・単語間0.16emを適用し、欠落やページ全体の横スクロールを確認する（`make test-ui` の撮影は360pxと1100px）。表の横スクロールは本文と分離する。表や本文の見本には、日本語だけでなく、空白の無い長い英単語・コマンド・URLも入れて狭い幅で見る。
 - Tab順序、スキップリンク、フォーカスの見切れ、リンクのEnter、buttonとsummaryのEnter/Spaceを実操作する。支援技術で見出し・リスト・表・入力ラベルを確認する。
 - 色の計算や静的検査だけでJIS/WCAGの完全適合を宣言しない。対象ページ・状態・ブラウザ・実施項目・未確認項目を報告する。
 - 本番公開する場合はHTTPS終端、`SECURE_COOKIE=true`、待受・公開範囲の承認、DB/ディレクトリ権限、ログとバックアップの保持・削除方針を確認する。公開操作自体の承認は別途得る。
+- CSS・テンプレートを変えて配備したら、本番のHTMLのCSSのURLの版と、その応答のヘッダー・中身を確かめる（`docs/deploy.md` の6節・10節）。手元で再現しない見た目の不具合は、まずブラウザや前段のCDNに古いCSSが残っていないかを疑う。
 - `CONTACT_FORM_URL` が実際のフォームを指すか、入力項目と利用目的・保持期間・削除窓口がポリシーに一致するかを確認する。仮URLを実用の窓口として案内しない。
-- LP・README・スキル・コードを照合し、同梱済み機能（Site・お知らせ機能・管理者認証・カタログ）と範囲外を区別する。未実装の権限管理・画像アップロード等や未確認の性能を提供済みと表現しない。
+- LP・README・スキル・コードを照合し、同梱済み機能（Site・お知らせ機能・管理者認証・カタログ・お問い合わせ・固定ページ）と範囲外（各 `docs/domain/<機能>.md` の「守らない範囲」）を区別する。未実装の権限管理・画像アップロード等や未確認の性能を提供済みと表現しない。
 - 管理者認証を有効にした場合は、パスキーでの登録・ログイン、同期型パスキーを既定で拒否し `AUTH_ALLOW_SYNCED_PASSKEYS=true` のときだけ受け入れること、WebAuthnのJSが認証画面だけで動くこと、管理画面の全経路が `Page`・`Form` で守られていることを確認する。お知らせ機能を有効にした場合は、`/news`・`/api/news` がCookieを扱わないこと、CORSが既定で無許可であることも確認する。
 - 動きのあるUIが `docs/ui-guidelines.md` の順（標準の要素 → htmx → 素のJS）で選ばれ、JSを使う箇所でも、変化の通知・フォーカス・キーボード操作・JSなしでの重要な操作が成り立つかを確認する。画面部品のJSを変えたら `make test-ui` も実行する。
 - ナビ・見出し・ボタンの用語が、Base・Site・お知らせ機能の画面で揃っているか（表記揺れ）を確認する。管理画面は `TestAdminUI_*` が構造を検査するため、`make test-ui` が `test/browser/shots/` に撮る画面を見て、余白・並び・狭い画面での崩れと文の自然さを確かめる。

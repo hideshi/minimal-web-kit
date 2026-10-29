@@ -172,6 +172,7 @@ sudo systemctl restart minimal-web-kit
 - 管理者認証を有効にした場合、パスキーで登録・ログインできる。お知らせ機能を有効にした場合、`/news` と `/api/news` が表示される。
 - DBのディレクトリが `mwk` 以外から読めない（`ls -ld /var/lib/minimal-web-kit`）。
 - プロキシ・journald・バックアップの保持期間を決めてある。
+- CSS・テンプレートを変えて配備したら、本番のHTMLのCSSのURLの `?v=` が配備の前と変わり、その応答が `Cache-Control: public, max-age=31536000, immutable` で新しい中身を返す（6節の `/static/` のキャッシュ）。
 
 ## 11. Siteだけを静的ホスティングに置く
 
