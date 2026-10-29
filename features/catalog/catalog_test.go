@@ -552,8 +552,8 @@ func TestClassificationAdminPages(t *testing.T) {
 	if w := fx.send("GET", base+"/"+idString(used)+"/delete", nil, cookie, nil); !strings.Contains(w.Body.String(), "現在1件の項目で使っています。") {
 		t.Fatal("used deletion text")
 	}
-	if w := fx.send("GET", "/admin/catalog", nil, cookie, nil); !strings.Contains(w.Body.String(), `<ul class="catalog-items">`) {
-		t.Fatal("admin item list")
+	if w := fx.send("GET", base+"/"+idString(used)+"/delete", nil, cookie, nil); !strings.Contains(w.Body.String(), "<title>タグの削除") {
+		t.Fatal("deletion page title")
 	}
 }
 

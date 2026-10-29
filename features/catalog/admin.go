@@ -270,7 +270,11 @@ func (f *Feature) classificationsPage(w http.ResponseWriter, r *http.Request, s 
 	f.renderAdmin(w, status, "admin_classifications.html", data)
 }
 func (f *Feature) classificationPage(w http.ResponseWriter, r *http.Request, s features.AdminSession, v Classification, count, status int, deleting bool, fieldError, pageError string) {
-	data := f.adminData(s, kindTitle(r.PathValue("kind"))+"の編集", r)
+	action := "の編集"
+	if deleting {
+		action = "の削除"
+	}
+	data := f.adminData(s, kindTitle(r.PathValue("kind"))+action, r)
 	data["Value"] = v
 	data["Kind"] = r.PathValue("kind")
 	data["KindTitle"] = kindTitle(r.PathValue("kind"))
@@ -351,19 +355,26 @@ func (f *Feature) registerAdmin(mux *web.IsolatedMux) {
 	mux.HandleFunc("POST /admin/catalog/{id}/unpublish", f.admin.Form(f.handlePublish(false)))
 	mux.HandleFunc("GET /admin/catalog/{id}/delete", f.admin.Page(f.handleDeletePage))
 	mux.HandleFunc("POST /admin/catalog/{id}/delete", f.admin.Form(f.handleDelete))
-	for _, kind := range []string{"categories", "tags"} {
-		wrap := func(next func(http.ResponseWriter, *http.Request, features.AdminSession)) func(http.ResponseWriter, *http.Request, features.AdminSession) {
-			return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-				r.SetPathValue("kind", kind)
-				next(w, r, s)
-			}
-		}
-		base := "/admin/catalog/classifications/" + kind
-		mux.HandleFunc("GET "+base, f.admin.Page(wrap(f.handleClassifications)))
-		mux.HandleFunc("POST "+base, f.admin.Form(wrap(f.handleSaveClassification)))
-		mux.HandleFunc("GET "+base+"/{id}", f.admin.Page(wrap(f.handleClassification)))
-		mux.HandleFunc("POST "+base+"/{id}", f.admin.Form(wrap(f.handleSaveClassification)))
-		mux.HandleFunc("GET "+base+"/{id}/delete", f.admin.Page(wrap(f.handleClassification)))
-		mux.HandleFunc("POST "+base+"/{id}/delete", f.admin.Form(wrap(f.handleDeleteClassification)))
+	// 経路は文字列のリテラルで書く（管理画面の検査が、ソースの "GET /admin..." と登録された経路を突き合わせる）。
+	// {kind} の1つの経路にすると GET /admin/catalog/{id}/delete と重なるため、種類ごとに登録する
+	mux.HandleFunc("GET /admin/catalog/classifications/categories", f.admin.Page(withKind("categories", f.handleClassifications)))
+	mux.HandleFunc("POST /admin/catalog/classifications/categories", f.admin.Form(withKind("categories", f.handleSaveClassification)))
+	mux.HandleFunc("GET /admin/catalog/classifications/categories/{id}", f.admin.Page(withKind("categories", f.handleClassification)))
+	mux.HandleFunc("POST /admin/catalog/classifications/categories/{id}", f.admin.Form(withKind("categories", f.handleSaveClassification)))
+	mux.HandleFunc("GET /admin/catalog/classifications/categories/{id}/delete", f.admin.Page(withKind("categories", f.handleClassification)))
+	mux.HandleFunc("POST /admin/catalog/classifications/categories/{id}/delete", f.admin.Form(withKind("categories", f.handleDeleteClassification)))
+	mux.HandleFunc("GET /admin/catalog/classifications/tags", f.admin.Page(withKind("tags", f.handleClassifications)))
+	mux.HandleFunc("POST /admin/catalog/classifications/tags", f.admin.Form(withKind("tags", f.handleSaveClassification)))
+	mux.HandleFunc("GET /admin/catalog/classifications/tags/{id}", f.admin.Page(withKind("tags", f.handleClassification)))
+	mux.HandleFunc("POST /admin/catalog/classifications/tags/{id}", f.admin.Form(withKind("tags", f.handleSaveClassification)))
+	mux.HandleFunc("GET /admin/catalog/classifications/tags/{id}/delete", f.admin.Page(withKind("tags", f.handleClassification)))
+	mux.HandleFunc("POST /admin/catalog/classifications/tags/{id}/delete", f.admin.Form(withKind("tags", f.handleDeleteClassification)))
+}
+
+// withKind は、分類の種類を経路の値 kind として処理に渡す。
+func withKind(kind string, next func(http.ResponseWriter, *http.Request, features.AdminSession)) func(http.ResponseWriter, *http.Request, features.AdminSession) {
+	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+		r.SetPathValue("kind", kind)
+		next(w, r, s)
 	}
 }

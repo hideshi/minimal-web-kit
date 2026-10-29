@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
@@ -27,6 +28,13 @@ func NewSession(t testing.TB, db *sql.DB) *http.Cookie {
 // NewSessionWithRole は、指定したロール（"admin" または "member"）のアカウントと、その管理者セッションを作ります。
 func NewSessionWithRole(t testing.TB, db *sql.DB, role string) *http.Cookie {
 	t.Helper()
+	cookie, _ := NewAccountSession(t, db, role)
+	return cookie
+}
+
+// NewAccountSession は NewSessionWithRole と同じものを作り、Cookieに加えてアカウントIDを返します。
+func NewAccountSession(t testing.TB, db *sql.DB, role string) (*http.Cookie, int64) {
+	t.Helper()
 	now := time.Now()
 	res, err := db.Exec(
 		"INSERT INTO auth_accounts (name, role, webauthn_user_id, created_at) VALUES (?, ?, ?, ?)",
@@ -46,7 +54,24 @@ func NewSessionWithRole(t testing.TB, db *sql.DB, role string) *http.Cookie {
 	); err != nil {
 		t.Fatal(err)
 	}
-	return &http.Cookie{Name: CookieName, Value: token}
+	return &http.Cookie{Name: CookieName, Value: token}, accountID
+}
+
+// NewCredential は、アカウントに見本のパスキーをDBに直接登録し、経路に使う識別子（credential IDのbase64url）を返します。
+// 公開鍵は形だけの値で、このパスキーではログインできません。画面の表示を確かめるために使います。
+func NewCredential(t testing.TB, db *sql.DB, accountID int64, label string) string {
+	t.Helper()
+	id := make([]byte, 16)
+	if _, err := rand.Read(id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(
+		"INSERT INTO auth_credentials (id, account_id, public_key, alg, label, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+		id, accountID, []byte{0}, -7, label, time.Now().Unix(),
+	); err != nil {
+		t.Fatal(err)
+	}
+	return base64.RawURLEncoding.EncodeToString(id)
 }
 
 func randomHex(t testing.TB, n int) string {

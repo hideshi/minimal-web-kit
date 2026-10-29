@@ -67,6 +67,30 @@ type Field struct {
 	MaxLength int    // 0なら指定しない
 	Rows      int    // 1以上なら複数行（textarea）
 	Required  bool
+	Options   []Option // 1つ以上あれば選択（select）。Selected の付いたものを選んだ状態にする
+	// LabelHidden はラベルを画面に出さず、読み上げソフトにだけ伝える（表の中の欄等、見出しで意味が分かる場合）
+	LabelHidden bool
+	Readonly    bool // 表示用の欄（登録URL等、選んでコピーする値）
+}
+
+// Choices は、共通の画面部品 "choices"（同じ名前のラジオ・チェックボックスの組）に渡す値です。
+type Choices struct {
+	ID       string // 説明は ID+"-hint"、エラーは ID+"-error" になる
+	Name     string
+	Legend   string // 組の見出し
+	Hint     string
+	Error    string
+	Required bool
+	Multiple bool // true ならチェックボックス（複数選択）、false ならラジオ
+	Options  []Option
+}
+
+// Confirm は、共通の画面部品 "confirm-actions"（削除の確認画面の操作の並び）に渡す値です。
+type Confirm struct {
+	Action    string // 削除を送信する先
+	Back      string // 「削除せずに戻る」の行き先
+	CSRFToken string
+	Submit    string // 送信ボタンの文言。空なら「削除する」
 }
 
 // Combobox は、共通の画面部品 "combobox"（入力で候補を絞り込み、複数を選ぶ部品）に渡す値です。

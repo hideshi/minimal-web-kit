@@ -81,6 +81,61 @@ func TestComponents_Field(t *testing.T) {
 	}
 }
 
+func TestComponents_FieldSelectHiddenReadonly(t *testing.T) {
+	f := form.Field{ID: "cat", Name: "category", Label: "カテゴリ", Hint: "任意", Options: []form.Option{{Value: "", Label: "未分類"}, {Value: "2", Label: "<b>住宅</b>", Selected: true}}}
+	got := renderComponent(t, `{{template "field" .}}`, f)
+	for _, want := range []string{`<label for="cat">カテゴリ</label>`, `<select id="cat" name="category" aria-describedby="cat-hint">`, `<option value="">未分類</option>`, `<option value="2" selected>&lt;b&gt;住宅&lt;/b&gt;</option>`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "label-1", Name: "label", Label: "端末名", LabelHidden: true})
+	if !strings.Contains(got, `<label for="label-1" class="visually-hidden">端末名</label>`) {
+		t.Fatalf("hidden label: %s", got)
+	}
+	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "url", Name: "url", Label: "登録URL", Value: "https://example.com/#t", Readonly: true})
+	if !strings.Contains(got, `value="https://example.com/#t" readonly>`) {
+		t.Fatalf("readonly: %s", got)
+	}
+}
+
+func TestComponents_Choices(t *testing.T) {
+	c := form.Choices{ID: "role", Name: "role", Legend: "ロール", Hint: "必要な人に限る", Error: "選んでください", Required: true, Options: []form.Option{{Value: "member", Label: "メンバー"}, {Value: "admin", Label: "<i>管理者</i>", Selected: true}}}
+	got := renderComponent(t, `{{template "choices" .}}`, c)
+	for _, want := range []string{
+		`<fieldset class="form-group" aria-describedby="role-hint role-error">`,
+		`<legend>ロール<span class="required-mark">（必須）</span></legend>`,
+		`<p class="field-error" id="role-error">選んでください</p>`,
+		`<label><input type="radio" name="role" value="member" required> メンバー</label>`,
+		`<label><input type="radio" name="role" value="admin" checked required> &lt;i&gt;管理者&lt;/i&gt;</label>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	c.Multiple, c.Error = true, ""
+	if got := renderComponent(t, `{{template "choices" .}}`, c); !strings.Contains(got, `type="checkbox" name="role" value="member">`) {
+		t.Fatalf("checkbox group: %s", got)
+	}
+}
+
+func TestComponents_ConfirmActions(t *testing.T) {
+	got := renderComponent(t, `{{template "confirm-actions" .}}`, form.Confirm{Action: "/admin/x/1/delete", Back: "/admin/x/1", CSRFToken: `t"ok`})
+	for _, want := range []string{
+		`<form method="post" action="/admin/x/1/delete" class="inline-form">`,
+		`<input type="hidden" name="csrf_token" value="t&#34;ok">`,
+		`<button type="submit" class="btn btn-danger">削除する</button>`,
+		`<a href="/admin/x/1" class="btn btn-secondary">削除せずに戻る</a>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	if got := renderComponent(t, `{{template "confirm-actions" .}}`, form.Confirm{Submit: "停止する"}); !strings.Contains(got, ">停止する</button>") {
+		t.Fatalf("submit label: %s", got)
+	}
+}
+
 func TestComponents_Combobox(t *testing.T) {
 	field := form.Combobox{ID: "tags", Name: "tag", Label: "タグ<b>", Hint: "20個まで", Limit: 20, Options: []form.Option{
 		{Value: "1", Label: "設計"}, {Value: "2 x", Label: "<script>", Selected: true},

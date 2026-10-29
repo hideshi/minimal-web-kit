@@ -66,6 +66,16 @@ func (m *IsolatedMux) HandleFunc(pattern string, handler http.HandlerFunc) {
 	m.Handle(pattern, handler)
 }
 
+// Patterns は登録された経路のパターン（例: "GET /admin/news/{id}"）を登録順に返します。
+// 全画面の検査など、テストで経路を列挙するために使います。
+func (m *IsolatedMux) Patterns() []string {
+	patterns := make([]string, len(m.routes))
+	for i, r := range m.routes {
+		patterns[i] = r.pattern
+	}
+	return patterns
+}
+
 // Routes はCoreのルーティングを構築し、登録されたFeatureのルートを合成します。
 func (h *Handler) Routes(rootHandler http.HandlerFunc, registerFeatures func(mux *http.ServeMux, sm *SessionManager)) http.Handler {
 	handler, err := h.RoutesWithIsolated(rootHandler, registerFeatures, nil)
