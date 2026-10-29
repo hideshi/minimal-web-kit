@@ -111,9 +111,18 @@ type ContactLinkConsumer interface {
 
 // NavLinkConsumer は、独自のナビゲーションを描画する機能（例: Site）が実装します。
 // 起動時に、有効な全機能のリンクを受け取ります。
+// links は描画のたびに呼び、その時点のリンクを返します（固定ページの公開・非公開を再起動なしで反映するため）。
 type NavLinkConsumer interface {
 	Feature
-	SetNavLinks(links []web.NavLink)
+	SetNavLinks(links func() []web.NavLink)
+}
+
+// DynamicNavLinkFeature は、公開ナビのリンクが実行中に変わる機能（例: 固定ページ）が実装します。
+// DynamicNavLinks は描画のたびに呼ばれるため、DBを読まず、メモリに持った値を返します。
+// 書式の検査は起動時に行わないため、リンクの書式（/ で始まるサイト内のパス）は機能が保証します。
+type DynamicNavLinkFeature interface {
+	Feature
+	DynamicNavLinks() []web.NavLink
 }
 
 // LayoutFeature は、サイト全体のレイアウト（ヘッダー・フッター）を提供する機能（例: Site）が実装します。
@@ -228,6 +237,31 @@ func (r *Registry) All() []Feature {
 
 // NavLinks は、有効な機能が宣言したナビゲーションのリンクを登録順に返します。
 // リンク先はサイト内のパス（"/" で始まり "//" で始まらない）に限ります。
+// NavLinkSource は、静的なリンク（NavLinks。起動時に検査する）に、実行中に変わるリンク（DynamicNavLinks）を
+// 後ろに足して返す関数を作ります。
+func (r *Registry) NavLinkSource() (func() []web.NavLink, error) {
+	static, err := r.NavLinks()
+	if err != nil {
+		return nil, err
+	}
+	var dynamic []DynamicNavLinkFeature
+	for _, f := range r.features {
+		if d, ok := f.(DynamicNavLinkFeature); ok {
+			dynamic = append(dynamic, d)
+		}
+	}
+	if len(dynamic) == 0 {
+		return func() []web.NavLink { return static }, nil
+	}
+	return func() []web.NavLink {
+		links := append([]web.NavLink{}, static...)
+		for _, d := range dynamic {
+			links = append(links, d.DynamicNavLinks()...)
+		}
+		return links
+	}, nil
+}
+
 func (r *Registry) NavLinks() ([]web.NavLink, error) {
 	var links []web.NavLink
 	for _, f := range r.features {

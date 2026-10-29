@@ -54,3 +54,29 @@ func TestRegistry_NavLinks(t *testing.T) {
 		}
 	}
 }
+
+type dynamicFeature struct {
+	linkFeature
+	current []web.NavLink
+}
+
+func (f *dynamicFeature) DynamicNavLinks() []web.NavLink { return f.current }
+
+// 実行中に変わるリンクは、静的なリンクの後ろに、呼ぶたびのその時点の値で並ぶ。
+func TestRegistry_NavLinkSource(t *testing.T) {
+	r := NewRegistry()
+	r.Register(&linkFeature{name: "a", links: []web.NavLink{{Label: "お知らせ", Href: "/news"}}})
+	d := &dynamicFeature{linkFeature: linkFeature{name: "pages"}}
+	r.Register(d)
+	src, err := r.NavLinkSource()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := src(); len(got) != 1 || got[0].Href != "/news" {
+		t.Fatalf("static only: %v", got)
+	}
+	d.current = []web.NavLink{{Label: "会社概要", Href: "/about"}}
+	if got := src(); len(got) != 2 || got[1].Href != "/about" {
+		t.Fatalf("dynamic links must follow static ones: %v", got)
+	}
+}

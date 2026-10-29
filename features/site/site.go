@@ -31,7 +31,7 @@ type Feature struct {
 	contactFormURL string
 	contact        *web.ContactLink
 	siteURL        string
-	navLinks       []web.NavLink
+	navLinks       func() []web.NavLink
 	sitemapSources []features.SitemapFeature
 }
 
@@ -112,8 +112,16 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {
 }
 
 // SetNavLinks は、有効な他の機能（例: お知らせ機能の「お知らせ」）のリンクをナビゲーションに加えます。
-func (f *Feature) SetNavLinks(links []web.NavLink) {
+func (f *Feature) SetNavLinks(links func() []web.NavLink) {
 	f.navLinks = links
+}
+
+// currentNavLinks は、その時点のナビのリンクです（受け取っていなければ空）。
+func (f *Feature) currentNavLinks() []web.NavLink {
+	if f.navLinks == nil {
+		return nil
+	}
+	return f.navLinks()
 }
 
 // ContactLink は、CONTACT_FORM_URL（外部のフォーム）を設定していれば、お問い合わせの行き先として申告します。
@@ -166,7 +174,7 @@ func (f *Feature) Layout() web.Layout {
 
 // layoutData は、レイアウトが必要とする値を加えます。画面が設定済みの値は上書きしません。
 func (f *Feature) layoutData(data map[string]any) {
-	data["NavLinks"] = f.navLinks
+	data["NavLinks"] = f.currentNavLinks()
 	data["SiteURL"] = f.siteURL
 	data["OGImagePath"] = ogImagePath
 	data["OGImageAlt"] = ogImageAlt
@@ -218,7 +226,7 @@ func (f *Feature) handleSitemap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	entries := []web.SitemapEntry{{Path: "/"}, {Path: "/privacy"}}
-	for _, l := range f.navLinks {
+	for _, l := range f.currentNavLinks() {
 		entries = append(entries, web.SitemapEntry{Path: l.Href})
 	}
 	for _, src := range f.sitemapSources {

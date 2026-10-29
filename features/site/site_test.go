@@ -244,8 +244,8 @@ func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
 	}
 
 	links := []web.NavLink{{Label: "お知らせ", Href: "/news"}}
-	feat.SetNavLinks(links)
-	h.SetNavLinks(links)
+	feat.SetNavLinks(func() []web.NavLink { return links })
+	h.SetNavLinks(func() []web.NavLink { return links })
 	body := get("/")
 	news, contact := strings.Index(body, `<a href="/news">お知らせ</a>`), strings.Index(body, `<a href="/#contact">お問い合わせ</a>`)
 	if news < 0 || contact < 0 || news > contact {

@@ -25,7 +25,7 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 
 	// 有効な機能が宣言したナビゲーションのリンクを、Coreの画面と独自のナビを持つ機能に配る
 	{
-		links, err := reg.NavLinks()
+		links, err := reg.NavLinkSource()
 		if err != nil {
 			logger.Error("feature nav links invalid")
 			return nil, fmt.Errorf("init nav links: %w", err)

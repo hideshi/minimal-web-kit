@@ -21,7 +21,7 @@ type Handler struct {
 	sm        *SessionManager
 	templates map[string]*template.Template
 	logger    *slog.Logger
-	navLinks  []NavLink
+	navLinks  func() []NavLink
 	layout    *Layout
 	privacy   []PrivacyNotice
 	contact   *ContactLink
@@ -241,7 +241,7 @@ func (h *Handler) SetPrivacyNotices(notices []PrivacyNotice) {
 }
 
 // SetNavLinks は、Coreの画面のナビゲーションに表示する機能のリンクを設定します。起動時に1回だけ呼びます。
-func (h *Handler) SetNavLinks(links []NavLink) {
+func (h *Handler) SetNavLinks(links func() []NavLink) {
 	h.navLinks = links
 }
 
@@ -297,7 +297,9 @@ func ParseWithComponents(fsys fs.FS, patterns ...string) (*template.Template, er
 
 func (h *Handler) Render(w http.ResponseWriter, page string, data any) {
 	if m, ok := data.(map[string]any); ok {
-		m["NavLinks"] = h.navLinks
+		if h.navLinks != nil {
+			m["NavLinks"] = h.navLinks()
+		}
 		if h.layout != nil && h.layout.Data != nil {
 			h.layout.Data(m)
 		}
