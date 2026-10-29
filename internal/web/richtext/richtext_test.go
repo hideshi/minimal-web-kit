@@ -2,9 +2,12 @@ package richtext
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // dump は構造を、比べやすい1つの文字列にします。
@@ -116,6 +119,16 @@ func TestParse_SpecExamples(t *testing.T) {
 		{`\[文字\](/about)`, "p([文字](/about))"},
 		{`文字\`, `p(文字\)`},
 		{`\\`, `p(\)`},
+		{`\- x`, "p(- x)"},
+		{`1\. x`, "p(1. x)"},
+		{`\1. x`, `p(\1. x)`},
+		{"***x***", "p(«S:*x»*)"},
+		{"##  x", "h2(x)"},
+		{"-  x", "ul(x)"},
+		{"| h |\n|\\-\\-\\-|", "p(| h |⏎|---|)"},
+		{"| a | b |\n|---|---|\n|---|---|", "table[表1](a¦b)(---¦---)"},
+		{"## [会社](/about) **強**\n" + tbl, "h2(«L:/about:会社» «S:強»)\ntable[表1（会社 強）](項目¦内容)(社名¦例)"},
+		{"表: **x** [a](/b)\n" + tbl, "table[**x** [a](/b)](項目¦内容)(社名¦例)"},
 		{`\a`, `p(\a)`},
 		{"<script>", "p(<script>)"},
 		// リンクのURL
@@ -176,13 +189,15 @@ func TestParse_Limits(t *testing.T) {
 // TestParse_LinearTime は、閉じる記号が多い・失敗する入力でも、読む時間が長さに比例することを確かめる。
 func TestParse_LinearTime(t *testing.T) {
 	for name, in := range map[string]string{
-		"brackets":   strings.Repeat("[", 50000) + "]",
-		"open links": strings.Repeat("[a](x", 10000),
-		"space urls": strings.Repeat("[a](x ", 10000) + ")",
-		"stars":      strings.Repeat("**", 25000),
-		"long url":   strings.Repeat("[a](/"+strings.Repeat("x", 3000), 15) + ")",
-		"pipes":      strings.Repeat("|", 50000),
-		"table rows": "| a | b |\n|---|---|" + strings.Repeat("\n|", 150),
+		"brackets":     strings.Repeat("[", 50000) + "]",
+		"open links":   strings.Repeat("[a](x", 10000),
+		"space urls":   strings.Repeat("[a](x ", 10000) + ")",
+		"stars":        strings.Repeat("**", 25000),
+		"long url":     strings.Repeat("[a](/"+strings.Repeat("x", 3000), 15) + ")",
+		"pipes":        strings.Repeat("|", 50000),
+		"table rows":   "| a | b |\n|---|---|" + strings.Repeat("\n|", 150),
+		"shared paren": strings.Repeat(strings.Repeat("[](", 680)+")", 24),
+		"https shared": strings.Repeat("[a](https://x", 4000) + ")",
 	} {
 		start := time.Now()
 		if _, err := Parse(in); err != nil && !errors.Is(err, ErrLimit) {
@@ -207,4 +222,120 @@ func TestAllowedURL(t *testing.T) {
 			t.Errorf("AllowedURL(%q) = %v, want %v", raw, got, ok)
 		}
 	}
+}
+
+// checkDoc は、構造が規則どおりかを確かめる（表の大きさ、リンクの許可、空の強調・リンクが無い、決まった種類だけ）。
+func checkDoc(t *testing.T, doc Doc) {
+	t.Helper()
+	inline := func(xs []Inline) {
+		for _, x := range xs {
+			switch x.Kind {
+			case "text":
+			case "strong", "link":
+				if strings.TrimSpace(x.Text) == "" {
+					t.Fatalf("empty %s", x.Kind)
+				}
+				if x.Kind == "link" && (x.Href == "" || AllowedURL(x.Href) != x.Href) {
+					t.Fatalf("link not allowed: %q", x.Href)
+				}
+			default:
+				t.Fatalf("unknown inline %q", x.Kind)
+			}
+		}
+	}
+	for _, b := range doc.Blocks {
+		if !slices.Contains([]string{"h2", "h3", "p", "ul", "ol", "table"}, b.Kind) {
+			t.Fatalf("unknown block %q", b.Kind)
+		}
+		inline(b.Inlines)
+		for _, l := range append(b.Lines, b.Items...) {
+			inline(l)
+		}
+		if b.Kind == "table" {
+			if len(b.Head) == 0 || len(b.Head) > MaxColumns || len(b.Rows) > MaxRows || b.Caption == "" {
+				t.Fatalf("table size: %d cols, %d rows", len(b.Head), len(b.Rows))
+			}
+			for _, c := range b.Head {
+				inline(c)
+			}
+			for _, r := range b.Rows {
+				if len(r) != len(b.Head) {
+					t.Fatalf("row width %d != %d", len(r), len(b.Head))
+				}
+				for _, c := range r {
+					inline(c)
+				}
+			}
+		}
+	}
+}
+
+// flatten は、構造の文字を入力と同じ順（リンクは文字の後にURL、表は説明・見出し・行の順）でつなぎます。
+func flatten(doc Doc) string {
+	var b strings.Builder
+	in := func(xs []Inline) {
+		for _, x := range xs {
+			b.WriteString(x.Text + " " + x.Href + " ")
+		}
+	}
+	for _, bl := range doc.Blocks {
+		b.WriteString(bl.Caption + " ")
+		in(bl.Inlines)
+		for _, l := range append(bl.Lines, bl.Items...) {
+			in(l)
+		}
+		for _, c := range bl.Head {
+			in(c)
+		}
+		for _, r := range bl.Rows {
+			for _, c := range r {
+				in(c)
+			}
+		}
+	}
+	return b.String()
+}
+
+// letters は、比べる文字（字。記号・数字・空白と、表の説明の接頭辞に使う「表」を除く）です。
+func letters(s string) []rune {
+	var out []rune
+	for _, r := range s {
+		if unicode.IsLetter(r) && r != '表' {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
+// FuzzParse は、どんな本文でも、構造が規則どおりで、入力の字を落とさない（入力の字が出力の字の部分列になる）ことを確かめる。
+func FuzzParse(f *testing.F) {
+	for _, seed := range []string{
+		"## 見出し\n本文 **強調** [リンク](/about)\n\n- a\n1. b\n\n表: 説明\n| a | b |\n|---|---|\n| [x](https://example.com) | y |",
+		strings.Repeat("[", 3000) + "]", strings.Repeat("[](", 500) + ")", strings.Repeat("**", 2000), "\\| \\- 1\\. ***x***",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, body string) {
+		if !utf8.ValidString(body) || len(body) > 20000 {
+			return
+		}
+		doc, err := Parse(body)
+		if err != nil {
+			if !errors.Is(err, ErrLimit) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			return
+		}
+		checkDoc(t, doc)
+		in, out := letters(body), letters(flatten(doc))
+		k := 0
+		for _, r := range out {
+			if k < len(in) && in[k] == r {
+				k++
+			}
+		}
+		if k != len(in) {
+			t.Fatalf("letters dropped: %q", string(in[k:]))
+		}
+	})
 }

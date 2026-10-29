@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -70,14 +71,14 @@ func Parse(body string) (Doc, error) {
 	tables := 0
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
+		kind := headingLevel(line)
+		ul, ol := listItem(line, "ul"), listItem(line, "ol")
 		switch {
 		case line == "":
 			closeBlock()
-		case headingLevel(line) != "":
+		case kind != "":
 			closeBlock()
-			kind := headingLevel(line)
-			prefix := map[string]int{"h2": len("## "), "h3": len("### ")}[kind]
-			inl := inlines(lex(line[prefix:]))
+			inl := inlines(trimTokens(lex(line[len(kind)+1:]))) // "## " は3バイト、"### " は4バイト
 			doc.Blocks = append(doc.Blocks, Block{Kind: kind, Inlines: inl})
 			lastHeading = plain(inl)
 		case strings.HasPrefix(line, "表: ") && len(line) > len("表: ") && i+2 < len(lines) && isTableStart(lines[i+1], lines[i+2]):
@@ -99,18 +100,18 @@ func Parse(body string) (Doc, error) {
 			}
 			doc.Blocks = append(doc.Blocks, b)
 			i = next - 1
-		case listItem(line, "ul") != "":
+		case ul != "":
 			if cur == nil || cur.Kind != "ul" {
 				closeBlock()
 				cur = &Block{Kind: "ul"}
 			}
-			cur.Items = append(cur.Items, inlines(lex(listItem(line, "ul"))))
-		case listItem(line, "ol") != "":
+			cur.Items = append(cur.Items, inlines(trimTokens(lex(ul))))
+		case ol != "":
 			if cur == nil || cur.Kind != "ol" {
 				closeBlock()
 				cur = &Block{Kind: "ol"}
 			}
-			cur.Items = append(cur.Items, inlines(lex(listItem(line, "ol"))))
+			cur.Items = append(cur.Items, inlines(trimTokens(lex(ol))))
 		default:
 			if cur == nil || cur.Kind != "p" {
 				closeBlock()
@@ -229,6 +230,11 @@ func isTableStart(line, next string) bool {
 		return false
 	}
 	for _, c := range sep {
+		for _, t := range c {
+			if t.escaped {
+				return false // \ で作った文字は区切りの記号にならない
+			}
+		}
 		if !separatorCell.MatchString(joinTokens(c)) {
 			return false
 		}
@@ -288,8 +294,18 @@ func inlines(ts []token) []Inline {
 		return next
 	}
 	nextBracket, nextParen := nextClose(']'), nextClose(')')
-	nextStars := make([]int, n+2)
-	nextStars[n], nextStars[n+1] = -1, -1
+	// nextBad は、URLに使えない文字（\ で作った文字・空白・制御文字・書式文字・\）の次の位置。URLの文字種の検査を表引きにする
+	nextBad := make([]int, n+1)
+	nextBad[n] = n
+	for i := n - 1; i >= 0; i-- {
+		if r := ts[i].r; ts[i].escaped || badURLRune(r) {
+			nextBad[i] = i
+		} else {
+			nextBad[i] = nextBad[i+1]
+		}
+	}
+	nextStars := make([]int, n+1)
+	nextStars[n] = -1
 	for i := n - 1; i >= 0; i-- {
 		if i+1 < n && ts[i].sym && ts[i].r == '*' && ts[i+1].sym && ts[i+1].r == '*' {
 			nextStars[i] = i
@@ -309,7 +325,7 @@ func inlines(ts []token) []Inline {
 	for i := 0; i < n; {
 		t := ts[i]
 		if t.sym && t.r == '*' && i+1 < n && ts[i+1].sym && ts[i+1].r == '*' {
-			if j := nextStars[i+2]; j >= 0 && !blank(ts[i+2:j]) {
+			if j := nextStars[min(i+2, n)]; j >= 0 && !blank(ts[i+2:j]) {
 				flush()
 				out = append(out, Inline{Kind: "strong", Text: joinTokens(ts[i+2 : j])})
 				i = j + 2
@@ -321,10 +337,10 @@ func inlines(ts []token) []Inline {
 		}
 		if t.sym && t.r == '[' {
 			if j := nextBracket[i+1]; j >= 0 && j+1 < n && ts[j+1].sym && ts[j+1].r == '(' {
-				if k := nextParen[j+2]; k >= 0 && k-(j+2) <= maxURL {
+				if k := nextParen[j+2]; k >= 0 && k-(j+2) <= maxURL && nextBad[j+2] >= k {
 					href, done := urlOK[j]
 					if !done {
-						href = linkURL(ts[j+2 : k])
+						href = AllowedURL(joinTokens(ts[j+2 : k]))
 						urlOK[j] = href
 					}
 					if href != "" && !blank(ts[i+1:j]) {
@@ -363,23 +379,18 @@ func plain(in []Inline) string {
 
 // ---- リンクのURL（docs/richtext.md 5節） ----
 
-// linkURL は、許可するURLならその文字を、許可しないなら空を返します。
-func linkURL(ts []token) string {
-	for _, t := range ts {
-		if t.escaped {
-			return ""
-		}
-	}
-	return AllowedURL(joinTokens(ts))
+// badURLRune は、URLに使えない文字（空白・\・制御文字・書式文字）かを返します。
+func badURLRune(r rune) bool {
+	return unicode.IsSpace(r) || r == '\\' || unicode.IsControl(r) || unicode.Is(unicode.Cf, r)
 }
 
 // AllowedURL は、リンクに使ってよいURL（小文字の https:// の外部か、/ で始まるサイト内のパス）ならそのまま、そうでなければ空を返します。
 func AllowedURL(raw string) string {
-	if raw == "" || len([]rune(raw)) > maxURL {
+	if raw == "" || utf8.RuneCountInString(raw) > maxURL {
 		return ""
 	}
 	for _, r := range raw {
-		if unicode.IsSpace(r) || r == '\\' || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+		if badURLRune(r) {
 			return ""
 		}
 	}
