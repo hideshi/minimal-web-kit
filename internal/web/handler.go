@@ -25,6 +25,8 @@ type Handler struct {
 	layout    *Layout
 	privacy   []PrivacyNotice
 	contact   *ContactLink
+	fallback  http.Handler
+	taken     func(path string) bool
 }
 
 // corePages はCoreが描画する画面です。
@@ -146,7 +148,28 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 		PublicCache(w, staticCacheSeconds)
 		http.ServeFileFS(w, r, staticFS, "img/favicon-32.png")
 	})
-	rootMux.Handle("/", appHandler)
+	rootMux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// どの経路にも当たらないGET・HEADは、受け皿（固定ページ等）に渡す。セッションは照合しない。
+		// 405（同じパスの別メソッドの経路がある）もパターンが空になるため、GET・HEADだけに限る。
+		if h.fallback != nil && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			if _, pattern := appMux.Handler(r); pattern == "" {
+				h.fallback.ServeHTTP(w, r)
+				return
+			}
+		}
+		appHandler.ServeHTTP(w, r)
+	}))
+	h.taken = func(path string) bool {
+		req, err := http.NewRequest(http.MethodGet, path, nil)
+		if err != nil {
+			return true
+		}
+		if _, pattern := rootMux.Handler(req); pattern != "/" {
+			return true
+		}
+		_, pattern := appMux.Handler(req)
+		return pattern != ""
+	}
 
 	if registerIsolated != nil {
 		isolated := &IsolatedMux{}
@@ -191,6 +214,20 @@ type PrivacyNotice struct {
 // PrivacyRow は、PrivacyNotice の表の1行です。内容は docs/data-inventory.md と揃えます。
 type PrivacyRow struct {
 	Kind, Items, Purpose, Retention string
+}
+
+// SetFallback は、どの経路にも当たらなかったGET・HEADを受ける処理（受け皿）を設定します。経路を作る前に呼びます。
+// 受け皿はCoreのセッションの照合を通りません（公開ページ用）。
+func (h *Handler) SetFallback(fallback http.Handler) {
+	h.fallback = fallback
+}
+
+// RouteTaken は、GET path がCoreか機能の経路に当たるかを返します（受け皿に落ちるなら false）。経路を作った後に使います。
+func (h *Handler) RouteTaken(path string) bool {
+	if h.taken == nil {
+		return true
+	}
+	return h.taken(path)
 }
 
 // SetContactLink は、お問い合わせの行き先を設定します。外部のフォームのとき、プライバシーポリシーに外部フォームの節を出します。

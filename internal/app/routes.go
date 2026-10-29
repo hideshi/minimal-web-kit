@@ -156,6 +156,32 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
+	// 受け皿（どの経路にも当たらないGET・HEAD）と、404の画面を配る
+	{
+		var fallback features.FallbackFeature
+		notFound := http.NotFound
+		for _, f := range reg.All() {
+			if fb, ok := f.(features.FallbackFeature); ok {
+				if fallback != nil {
+					logger.Error("fallback declared twice", slog.String("feature", fallback.Name()), slog.String("other", f.Name()))
+					return nil, fmt.Errorf("both %s and %s handle unmatched paths; enable only one", fallback.Name(), f.Name())
+				}
+				fallback = fb
+			}
+			if nf, ok := f.(features.NotFoundFeature); ok {
+				notFound = nf.HandleNotFound
+			}
+		}
+		for _, f := range reg.All() {
+			if c, ok := f.(features.NotFoundConsumer); ok {
+				c.SetNotFound(notFound)
+			}
+		}
+		if fallback != nil {
+			handler.SetFallback(http.HandlerFunc(fallback.HandleFallback))
+		}
+	}
+
 	// ルーティング構築
 	httpHandler, err := handler.RoutesWithIsolated(rootHandler, func(mux *http.ServeMux, sm *web.SessionManager) {
 		{
@@ -174,6 +200,11 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init routes: %w", err)
+	}
+	for _, f := range reg.All() {
+		if c, ok := f.(features.RouteCheckConsumer); ok {
+			c.SetRouteTaken(handler.RouteTaken)
+		}
 	}
 	return httpHandler, nil
 }

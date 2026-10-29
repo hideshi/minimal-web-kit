@@ -75,6 +75,27 @@ type PrivacyFeature interface {
 	PrivacyNotices() []web.PrivacyNotice
 }
 
+// FallbackFeature は、どの経路にも当たらなかったGET・HEADを受ける機能が実装します（例: 固定ページの /{slug}）。
+// 独立経路に1階層のワイルドカードを登録すると、Coreの経路（/privacy 等）を取ってしまうため、この口で受けます。
+// 受け皿は1つまでで、2つ以上あると起動時にエラーになります。Cookieを照合しません。
+type FallbackFeature interface {
+	Feature
+	HandleFallback(w http.ResponseWriter, r *http.Request)
+}
+
+// NotFoundConsumer は、404の画面（Siteがあればその画面）を受け取る機能が実装します。Siteが無ければ http.NotFound を受け取ります。
+type NotFoundConsumer interface {
+	Feature
+	SetNotFound(handler http.HandlerFunc)
+}
+
+// RouteCheckConsumer は、パスが既存の経路に当たるかを確かめる関数を受け取る機能が実装します（例: 固定ページのスラッグの予約語）。
+// 経路を作った後に渡されます。
+type RouteCheckConsumer interface {
+	Feature
+	SetRouteTaken(taken func(path string) bool)
+}
+
 // ContactLinkFeature は、お問い合わせの行き先を申告する機能が実装します（Siteの外部フォームのURL、お問い合わせ機能の /contact）。
 // ok が false なら申告しません。2つ以上の機能が申告した場合は、受付の口が二重になるため起動時にエラーになります。
 type ContactLinkFeature interface {
