@@ -263,9 +263,12 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   flex-direction: column;
 }
 
-/* 縦のflexでボタンが全幅に伸びないよう、.action-bar の中のボタンと同じ文字の幅にする */
-form.card > .btn {
-  align-self: flex-start;
+/* 狭い画面のボタンは、どちらの手でも押せるよう全幅にする（.card の縦のflexの既定）。
+   広い画面では、入力欄の左端にそろえ、.action-bar の中のボタンと同じ文字の幅にする */
+@media (min-width: 40rem) {
+  form.card > .btn {
+    align-self: flex-start;
+  }
 }
 
 .card-badge {
@@ -621,6 +624,15 @@ footer {
 
 .action-bar-center {
   justify-content: center;
+}
+
+/* 狭い画面では、並びの中のボタンも全幅にする（form.card の直下のボタンとそろえる） */
+@media (max-width: 39.99rem) {
+  .action-bar > .btn,
+  .action-bar > .inline-form,
+  .action-bar > .inline-form > .btn {
+    width: 100%;
+  }
 }
 
 .text-center {

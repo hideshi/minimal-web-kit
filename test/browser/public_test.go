@@ -110,6 +110,33 @@ func TestPublicScreens(t *testing.T) {
 	}
 }
 
+// TestButtons_Width は、狭い画面ではボタンが全幅で、広い画面では文字の幅になることを確かめます。
+// フォームの直下のボタン（お問い合わせ）と、並びの中のボタン（カタログの絞り込み）の両方を見ます。
+func TestButtons_Width(t *testing.T) {
+	srv, _ := newPublicServer(t)
+	b := newBrowser(t)
+	for path, button := range map[string]string{
+		"/contact": `document.querySelector('form.card > .btn')`,
+		"/catalog": `document.querySelector('form.card .action-bar > .btn')`,
+	} {
+		b.do(t, chromedp.Navigate(srv.URL+path))
+		// フォームの内側の幅（枠と余白を除く）に対するボタンの幅の割合
+		ratio := `(() => { const f = ` + button + `.closest("form"); const s = getComputedStyle(f);
+			return ` + button + `.getBoundingClientRect().width / (f.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)) })()`
+		for width, full := range map[int64]bool{360: true, 639: true, 640: false, 1100: false} {
+			ctx, cancel := context.WithTimeout(b.ctx, 20*time.Second)
+			_, err := chromedp.Run(ctx, chromedp.EmulateViewport(width, 800))
+			cancel()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := evaluate[float64](t, b, ratio); (got > 0.99) != full {
+				t.Errorf("%s: 幅%dpxでボタンの割合が %.2f", path, width, got)
+			}
+		}
+	}
+}
+
 // TestNav_States は、ナビの3つの状態（今いるページ・マウスを乗せる・フォーカス）が見分けられ、
 // マウスを乗せてもリンクの大きさが変わらないことを確かめます。
 func TestNav_States(t *testing.T) {

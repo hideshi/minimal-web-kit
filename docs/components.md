@@ -95,10 +95,10 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 |---|---|---|
 | ボタン | `btn` ＋ `btn-primary`・`btn-secondary`・`btn-danger` | `<button>` にも `<a>` にも使える（高さは揃う）。削除等の取り消せない操作は `btn-danger` |
 | お知らせ | `alert` ＋ `alert-info`・`alert-warning` | 直接書くより、部品の `notice`・`error` を使う |
-| カード | `card`、`card-title`、`card-content`、`card-badge` | 囲みの枠。`<form class="card">` のようにフォームにも使える。直下の `btn` は文字の幅になる |
+| カード | `card`、`card-title`、`card-content`、`card-badge` | 囲みの枠。`<form class="card">` のようにフォームにも使える。直下の `btn` は、幅40rem未満では全幅、それ以上では文字の幅で左寄せになる |
 | タグの並び | `tag-list` | 印の無い横並びの `<ul>`。`role="list"` を付ける |
 | 並べる | `grid-2`、`grid-3` | 狭い画面では1列になる |
-| ボタンの並び | `action-bar`（中央寄せは `action-bar-center`） | 送信と取り消しのボタン等。フォームを並べるときは `inline-form` |
+| ボタンの並び | `action-bar`（中央寄せは `action-bar-center`） | 送信と取り消しのボタン等。フォームを並べるときは `inline-form`。幅40rem未満ではボタンが全幅になる |
 | 表 | `table-container` で `<table>` を囲む | 狭い画面では表だけが横に動く。`<th scope="col">` と `<caption>` を付ける。列には最小の幅があり、`<td>` の中の `<time>` は折り返さない |
 | 入力 | `form-group`、`field-hint`、`field-error` | 直接書くより、部品の `field` を使う |
 | ページ送り | `pagination` | 部品の `pagination` を使う |
