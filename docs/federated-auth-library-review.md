@@ -15,7 +15,7 @@ OIDC提供側の経路・検証・応答全体を独自に組む範囲を減ら�
 | [x/oauth2 v0.37.0](https://github.com/golang/oauth2/tree/v0.37.0) | 認可URL・コード交換・PKCEの補助、BSD-3-Clause | 1 / 0、Go 1.26.0 | Bでコード交換とBasic認証を明示する。トークンの自動更新機能は使わない |
 | [go-jose v4.1.6](https://github.com/go-jose/go-jose/tree/v4.1.6) | JOSE/JWK、Apache-2.0 | 0 / 0、Go 1.24.0 | Aの署名アダプターと推移依存の修正版として明示 |
 | 標準ライブラリ＋限定した自前OIDC | HTTP・乱数・暗号は標準 | 追加0 | 全プロトコルの適合・攻撃対策・更新を自分で保守する負担が大きいため第一候補にしない |
-| A/BともzitadelのOP/RP | 上記SDKを共用 | 同じSDKの宣言 | 次点。直接依存を1本減らせる可能性があるが、BにもSDK側の依存・既定のCookie処理との接続が必要になる |
+| A/BともzitadelのOP/RP | 上記SDKを共用 | 同じSDKの宣言 | 次点。構成次第で直接依存を最大2本減らせるが（Basic認証等を明示するためx/oauth2を直接importするなら1本の削減）、BにもSDK側の依存・既定のCookie処理との接続が必要になる |
 | 独立した既存IdPを置く | 別サービス | キットへの組込みとは別 | 運用サービスが増え、Aの既存アカウント管理をそのまま提供者にする要望とは異なるため今回は選ばない |
 
 数値は版付きgo.modのrequire行を数えたもので、テスト・ツールを含む。実際にリンクされるモジュール数でも、完全な推移依存グラフの数でもない。将来のRoot go.modの非indirect行数は最大5本（既存SQLite＋上記4本）と見込む。x/oauth2は上流同士の要求の高い方に合わせてv0.37.0を候補にしたが、全体のバージョン選択・互換性は組込み時に再確認する。
@@ -42,7 +42,7 @@ OIDC提供側の経路・検証・応答全体を独自に組む範囲を減ら�
 | JWT/JWKの標準処理 | 許可アルゴリズムES256、鍵取得先とサイズ・タイムアウト・更新頻度の制限 |
 | discovery・署名・issuer/audience/期限等の検証機能 | 設定と試行に結び付いたissuer・nonce・PKCE、auth_time・独自の失効世代の確認 |
 | コード交換のHTTP処理 | Basic認証を固定、戻り先固定、Cookie/state照合、一回限りの試行、元画面への安全な復帰 |
-| Storageインターフェース | コード消費・発行・失効の原子性、停止・復旧・GC、トークンIDのハッシュ保存 |
+| Storageインターフェース | コード消費・発行・失効の原子性、停止・復旧・GC、初版では不要なUserInfo/トークン保存を実装しないこと |
 
 [zitadelのStorage](https://github.com/zitadel/oidc/blob/v3.51.16/pkg/op/storage.go)と[トークン生成](https://github.com/zitadel/oidc/blob/v3.51.16/pkg/op/token.go)は、保存メソッドの分割を確認する根拠。SDKがDeleteAuthRequestを呼ぶタイミングと、消費済みコードの墓標保持をアダプターで調整する必要がある。署名に使うclaimの世代を最新値に差し替えると古いログインが復活するため、認証済み要求のスナップショットを使う。
 
@@ -50,7 +50,7 @@ OIDC提供側の経路・検証・応答全体を独自に組む範囲を減ら�
 
 ## 4. 採用の条件
 
-1. 利用者が依存の増加と、単一モジュールに入れる範囲を承認する。最小のBaseまで不要なライブラリをリンクさせない。
+1. 利用者が依存の増加と、単一モジュールに入れる範囲を承認する。最小のBaseや通常authに不要なライブラリをリンクさせない。SDKは子パッケージとB機能だけでimportし、登録ファイルで構成を選ぶ。require行数とリンク済みモジュール数を区別する。
 2. 版を固定した結合検証で、コードの二重交換・停止・ロール変更・再開・SDKの生成失敗でも原子性が保たれる。
 3. Base／ローカルauth／A／Bごとに、実際のビルドでリンク済みモジュール・推移依存・CGO非使用・バイナリサイズを記録する。go.modの宣言数で代用しない。
 4. ライセンスのNOTICE等の必要事項を一覧化し、承認後に依存検査の許可リスト・READMEを更新する。
@@ -65,3 +65,9 @@ OIDC提供側の経路・検証・応答全体を独自に組む範囲を減ら�
 - [x/oauth2のgo.mod](https://github.com/golang/oauth2/blob/v0.37.0/go.mod)、[LICENSE](https://github.com/golang/oauth2/blob/v0.37.0/LICENSE)。
 - [go-joseのリリース](https://github.com/go-jose/go-jose/releases/tag/v4.1.6)、[go.mod](https://github.com/go-jose/go-jose/blob/v4.1.6/go.mod)、[LICENSE](https://github.com/go-jose/go-jose/blob/v4.1.6/LICENSE)。
 - [OIDC Core](https://openid.net/specs/openid-connect-core-1_0.html)、[OAuth Security BCP](https://www.rfc-editor.org/rfc/rfc9700.html)。
+
+## 6. FableレビューP-64後の修正
+
+候補と版の根拠はレビューでも一致した。SDKの認証順・PKCE必須化・discovery広告はアプリ側で補う。直接依存は最大5本のままだが、単一モジュール内のパッケージ分割でBase/通常authへのSDKリンクを防ぐ案へ具体化した。同一SDK案の直接依存削減は最大2本に訂正。コード再利用の失効は事前のクライアント認証とコード束縛検査の後だけに限定する。
+
+IDトークンの世代スナップショットは、GetPrivateClaimsFromRequestではなくIDトークン用のSetUserinfoFromRequest経路を使う。トークン生成ソースで用途を区別したが、実装承認後にopenidだけのscopeでの動作を確認する。
