@@ -3,6 +3,7 @@ package contact
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -285,6 +287,53 @@ func TestAdmin_ProcessSubmittedMessage(t *testing.T) {
 		if strings.Contains(inbox, "未読 1件") != (status == statusUnread) || strings.Contains(inbox, "スパムをまとめて削除する") != (status == statusSpam) {
 			t.Fatalf("the inbox does not show %s", status)
 		}
+	}
+}
+
+// 1日の上限は直近24時間の件数で数えること。
+// 不変条件: CONTACT-INV-5
+func TestSave_DailyLimitIsARollingWindow(t *testing.T) {
+	f, _, _, _, clock := setup(t)
+	limits := Limits{Hourly: 100, Daily: 2, Unread: 100}
+	save := func() error {
+		_, err := f.store.Save(context.Background(), Input{Body: "本文"}, limits)
+		return err
+	}
+	for i := range 2 {
+		if err := save(); err != nil {
+			t.Fatalf("save %d: %v", i, err)
+		}
+	}
+	*clock = clock.Add(23 * time.Hour)
+	if err := save(); !errors.Is(err, ErrOverLimit) {
+		t.Fatalf("within 24 hours: %v", err)
+	}
+	*clock = clock.Add(time.Hour + time.Second)
+	if err := save(); err != nil {
+		t.Fatalf("after 24 hours: %v", err)
+	}
+}
+
+// 同時に送られても、上限を超えて保存しないこと。
+// 不変条件: CONTACT-INV-5
+func TestSave_ConcurrentSubmissionsKeepTheLimit(t *testing.T) {
+	f, _, core, _, _ := setup(t)
+	limits := Limits{Hourly: 3, Daily: 100, Unread: 100}
+	var wg sync.WaitGroup
+	errs := make([]error, 12)
+	for i := range errs {
+		wg.Go(func() {
+			_, errs[i] = f.store.Save(context.Background(), Input{Body: "本文"}, limits)
+		})
+	}
+	wg.Wait()
+	for _, err := range errs {
+		if err != nil && !errors.Is(err, ErrOverLimit) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if got := count(t, core); got != 3 {
+		t.Fatalf("saved %d, want 3", got)
 	}
 }
 

@@ -2,10 +2,12 @@ package pages
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web"
@@ -258,9 +260,16 @@ func (f *Feature) handleDelete(w http.ResponseWriter, r *http.Request, s feature
 	notice.Redirect(w, r, "/admin/pages", "deleted")
 }
 
-// afterChange は、ナビのスナップショットを作り直します。失敗は記録し、次の変更か再起動で直る。
+// afterChange は、ナビのスナップショットを作り直します。変更はコミット済みなので、利用者が接続を切っても続けます。
+// 失敗したら、非公開にしたページのリンクを残さないよう、固定ページのリンクをナビから外します（PAGES-INV-6）。
+// 定期のGC（Purge）か、次の変更で戻ります。
 func (f *Feature) afterChange(r *http.Request) {
-	if err := f.refreshNav(r.Context()); err != nil {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+	defer cancel()
+	if err := f.refreshNav(ctx); err != nil {
+		f.mu.Lock()
+		f.nav = nil
+		f.mu.Unlock()
 		f.logger.Error("pages nav refresh failed")
 	}
 }

@@ -186,11 +186,17 @@ func (u *upstream) check(ctx context.Context, subject string, epochs federation.
 	if err := federation.Decode(raw, &answer); err != nil {
 		return checkUnavailable
 	}
-	if !answer.Active {
-		if answer != (federation.CheckResponse{}) {
-			return checkUnavailable
-		}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return checkUnavailable
+	}
+	// 構造体のゼロ値では、項目の欠落やnullと、明示の false を区別できない。
+	// セッションを消してよいのは、active:false の1項目だけの応答です。
+	if len(fields) == 1 && string(fields["active"]) == "false" {
 		return checkInactive
+	}
+	if string(fields["active"]) != "true" {
+		return checkUnavailable
 	}
 	if answer.Issuer != u.issuer || answer.Subject != subject || answer.ClientID != u.clientID || answer.Auth == nil || *answer.Auth != epochs {
 		return checkUnavailable

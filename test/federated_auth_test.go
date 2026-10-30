@@ -530,7 +530,7 @@ func TestFederatedAuth_LocalChangesKeepLogin(t *testing.T) {
 
 // 認証基盤の障害中は503で、業務の処理をせず、セッションを残すこと。回復すれば再確認で使えること。
 //
-// 不変条件: FEDAUTH-INV-2
+// 不変条件: FEDAUTH-INV-2, FEDAUTH-INV-5
 // ユースケース: UC-FEDAUTH-4
 func TestFederatedAuth_UnavailableKeepsSession(t *testing.T) {
 	p := newFedPair(t)

@@ -523,6 +523,21 @@ func TestClassificationRoutesAndDeletionWorkflow(t *testing.T) {
 	}
 }
 
+// 削除した分類のIDを再利用しないこと。
+// 不変条件: CATALOG-INV-6
+func TestClassificationIDsAreNotReused(t *testing.T) {
+	fx := setup(t, false)
+	for _, kind := range []string{"categories", "tags"} {
+		first := classification(t, fx.f.store, kind, "最初の分類")
+		if err := fx.f.store.DeleteClassification(context.Background(), kind, first); err != nil {
+			t.Fatal(err)
+		}
+		if next := classification(t, fx.f.store, kind, "次の分類"); next <= first {
+			t.Fatalf("%s reused an ID: %d after %d", kind, next, first)
+		}
+	}
+}
+
 // 閲覧者は、カテゴリとタグとキーワードで公開項目を絞り込めること。条件は組み合わせられること。
 //
 // ユースケース: UC-CATALOG-1
