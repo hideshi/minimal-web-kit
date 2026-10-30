@@ -86,7 +86,8 @@ func (f *Feature) renderForm(w http.ResponseWriter, status int, v contactForm, p
 		"Trap":          trapField,
 		"Error":         pageError,
 		"Notice":        sent,
-		"RetentionDays": int(f.cfg.Retention.Hours() / 24),
+		"RetentionDays": days(f.cfg.Retention.Base),
+		"ActiveMaxDays": days(f.cfg.Retention.ActiveMax),
 	}
 	if f.layout != nil && f.layout.Data != nil {
 		f.layout.Data(data)

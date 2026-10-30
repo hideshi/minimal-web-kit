@@ -154,7 +154,8 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	limits := contact.Limits{Hourly: 100, Daily: 100, Unread: 100}
 	for key, in := range map[string]contact.Input{
 		"msg_unread": {Name: "未読の人", ReplyTo: "reply@example.com", Body: "未読の本文"},
-		"msg_read":   {Name: "既読の人", Body: "既読の本文"},
+		"msg_active": {Name: "対応中の人", Body: "対応中の本文"},
+		"msg_done":   {Name: "完了の人", Body: "完了の本文"},
 		"msg_spam":   {Body: "スパムの本文"},
 		"msg_anon":   {Body: "無記名の本文"},
 	} {
@@ -164,7 +165,7 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 		}
 		ui.ids[key] = itoa(id)
 	}
-	for key, status := range map[string]string{"msg_read": "read", "msg_spam": "spam"} {
+	for key, status := range map[string]string{"msg_active": "active", "msg_done": "done", "msg_spam": "spam"} {
 		id, _ := strconv.ParseInt(ui.ids[key], 10, 64)
 		if err := inbox.SetStatus(ctx, id, status); err != nil {
 			t.Fatal(err)
@@ -261,11 +262,13 @@ var adminSamples = []adminSample{
 	{"GET /admin/catalog/classifications/tags/{id}", "/admin/catalog/classifications/tags/{tag}", "admin", "admin_classification.html", kindForm},
 	{"GET /admin/catalog/classifications/tags/{id}/delete", "/admin/catalog/classifications/tags/{tag_unused}/delete", "admin", "admin_classification.html", kindConfirm},
 	{"GET /admin/contact", "/admin/contact", "admin", "admin_messages.html", kindList},
+	{"GET /admin/contact/all", "/admin/contact/all", "admin", "admin_messages.html", kindList},
 	{"GET /admin/contact/{id}", "/admin/contact/{msg_unread}", "admin", "admin_message.html", kindDetail},
-	{"GET /admin/contact/{id}", "/admin/contact/{msg_read}", "admin", "admin_message.html", kindDetail},
+	{"GET /admin/contact/{id}", "/admin/contact/{msg_active}", "admin", "admin_message.html", kindDetail},
+	{"GET /admin/contact/{id}", "/admin/contact/{msg_done}", "admin", "admin_message.html", kindDetail},
 	{"GET /admin/contact/{id}", "/admin/contact/{msg_spam}", "admin", "admin_message.html", kindDetail},
 	{"GET /admin/contact/{id}", "/admin/contact/{msg_anon}", "admin", "admin_message.html", kindDetail},
-	{"GET /admin/contact/{id}/delete", "/admin/contact/{msg_read}/delete", "admin", "admin_message_delete.html", kindConfirm},
+	{"GET /admin/contact/{id}/delete", "/admin/contact/{msg_done}/delete", "admin", "admin_message_delete.html", kindConfirm},
 	{"GET /admin/contact/spam/delete", "/admin/contact/spam/delete", "admin", "admin_spam_delete.html", kindConfirm},
 	{"GET /admin/pages", "/admin/pages", "member", "admin_pages.html", kindList},
 	{"GET /admin/pages/new", "/admin/pages/new", "admin", "admin_page_form.html", kindForm},
@@ -311,6 +314,7 @@ var adminFailures = []adminFailure{
 	{"/admin/pages/{page_draft}", url.Values{"slug": {"about"}, "title": {"題"}, "body": {"残す本文"}}, 400, "固定ページの編集", "page-slug", "残す本文"},
 	{"/admin/pages/preview", url.Values{"slug": {"new-page"}, "title": {""}, "body": {"残す本文"}}, 400, "固定ページの作成", "page-title", "残す本文"},
 	{"/admin/pages", url.Values{"slug": {"wide"}, "title": {"題"}, "body": {"| a |\n|---|\n| x | y |"}}, 400, "固定ページの作成", "page-body", ""},
+	{"/admin/contact/{msg_active}/note", url.Values{"note": {strings.Repeat("長", 2001)}}, 400, "お問い合わせ: 対応中の人", "contact-note", strings.Repeat("長", 2001)},
 }
 
 // ---- HTMLの解析 ----

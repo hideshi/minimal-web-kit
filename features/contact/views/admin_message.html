@@ -6,6 +6,7 @@
     <tbody>
       <tr><th scope="row">受付日時</th><td>{{template "datetime" .Message.CreatedAt}}</td></tr>
       <tr><th scope="row">状態</th><td>{{.Message.StatusLabel}}</td></tr>
+      <tr><th scope="row">削除の予定</th><td>{{template "datetime" .DeleteAt}}</td></tr>
       <tr><th scope="row">お名前</th><td>{{.Message.DisplayName}}</td></tr>
       <tr><th scope="row">返信先</th><td>{{if .Message.ReplyTo}}{{.Message.ReplyTo}}{{else}}（なし）{{end}}</td></tr>
     </tbody>
@@ -13,9 +14,17 @@
 </div>
 <h2>内容</h2>
 <div class="card">{{template "paragraphs" .Paragraphs}}</div>
+<h2>メモ</h2>
+<form method="post" action="/admin/contact/{{.Message.ID}}/note" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{template "field" .NoteField}}
+  <button type="submit" class="btn btn-primary">メモを保存する</button>
+</form>
 <h2>状態の変更</h2>
+{{if .DeleteOnChange}}<p>受付から保持期間を過ぎています。対応中以外にすると、1時間以内に削除されます。</p>{{end}}
 <div class="action-bar">
-  {{if ne .Message.Status "read"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="read"><button type="submit" class="btn btn-secondary">既読にする</button></form>{{end}}
+  {{if ne .Message.Status "active"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="active"><button type="submit" class="btn btn-secondary">対応中にする</button></form>{{end}}
+  {{if ne .Message.Status "done"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="done"><button type="submit" class="btn btn-secondary">完了にする</button></form>{{end}}
   {{if ne .Message.Status "unread"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="unread"><button type="submit" class="btn btn-secondary">未読に戻す</button></form>{{end}}
   {{if ne .Message.Status "spam"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="spam"><button type="submit" class="btn btn-secondary">スパムにする</button></form>{{end}}
 </div>

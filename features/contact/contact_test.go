@@ -275,7 +275,7 @@ func TestAdmin_ProcessSubmittedMessage(t *testing.T) {
 		t.Fatal("the detail must show the message and the reply address")
 	}
 	csrf := authtest.CSRFToken(t, routes, path, admin)
-	for _, status := range []string{statusRead, statusSpam, statusUnread} {
+	for _, status := range []string{statusActive, statusDone, statusSpam, statusUnread} {
 		if w := adminRequest(routes, http.MethodPost, path+"/status", admin, url.Values{"status": {status}, "csrf_token": {csrf}}); w.Code != http.StatusSeeOther {
 			t.Fatalf("status %s: %d", status, w.Code)
 		}
@@ -337,30 +337,6 @@ func TestSave_ConcurrentSubmissionsKeepTheLimit(t *testing.T) {
 	}
 }
 
-// TestPurge_RemovesExpiredRegardlessOfStatus は、保持期間を過ぎたものだけが、状態に関係なく削除されることを確かめる。
-// 不変条件: CONTACT-INV-2
-func TestPurge_RemovesExpiredRegardlessOfStatus(t *testing.T) {
-	f, _, core, _, clock := setup(t)
-	old := clock.Add(-91 * 24 * time.Hour).Unix()
-	recent := clock.Add(-89 * 24 * time.Hour).Unix()
-	for _, row := range []struct {
-		status string
-		at     int64
-	}{{"unread", old}, {"read", old}, {"spam", old}, {"unread", recent}, {"spam", recent}} {
-		if _, err := core.DB().Exec("INSERT INTO contact_messages (body, status, created_at) VALUES ('x', ?, ?)", row.status, row.at); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := f.Purge(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	var left, stale int
-	_ = core.DB().QueryRow("SELECT COUNT(*), COUNT(CASE WHEN created_at = ? THEN 1 END) FROM contact_messages", old).Scan(&left, &stale)
-	if left != 2 || stale != 0 {
-		t.Fatalf("left=%d stale=%d", left, stale)
-	}
-}
-
 func adminRequest(routes http.Handler, method, path string, cookie *http.Cookie, values url.Values) *httptest.ResponseRecorder {
 	var body *strings.Reader
 	if values != nil {
@@ -419,7 +395,7 @@ func TestAdmin_InboxIsAdminOnlyAndGetDoesNotChangeState(t *testing.T) {
 		t.Fatal("GET must not mark as read")
 	}
 	token := authtest.CSRFToken(t, routes, path, admin)
-	for _, status := range []string{"read", "spam"} {
+	for _, status := range []string{"active", "done", "spam"} {
 		if w := adminRequest(routes, http.MethodPost, path+"/status", admin, url.Values{"status": {status}, "csrf_token": {token}}); w.Code != http.StatusSeeOther {
 			t.Fatalf("status %s: %d", status, w.Code)
 		}
@@ -427,7 +403,10 @@ func TestAdmin_InboxIsAdminOnlyAndGetDoesNotChangeState(t *testing.T) {
 	if w := adminRequest(routes, http.MethodPost, path+"/status", admin, url.Values{"status": {"other"}, "csrf_token": {token}}); w.Code != http.StatusBadRequest {
 		t.Fatalf("unknown status: %d", w.Code)
 	}
-	if w := adminRequest(routes, http.MethodPost, path+"/status", member, url.Values{"status": {"read"}, "csrf_token": {token}}); w.Code == http.StatusSeeOther {
+	if w := adminRequest(routes, http.MethodPost, path+"/status", admin, url.Values{"status": {"read"}, "csrf_token": {token}}); w.Code != http.StatusBadRequest {
+		t.Fatalf("the old status: %d", w.Code)
+	}
+	if w := adminRequest(routes, http.MethodPost, path+"/status", member, url.Values{"status": {"done"}, "csrf_token": {token}}); w.Code == http.StatusSeeOther {
 		t.Fatal("member must not change status")
 	}
 	if w := adminRequest(routes, http.MethodGet, "/admin/contact/spam/delete", admin, nil); w.Code != http.StatusOK || !strings.Contains(w.Body.String(), "1件") {
@@ -453,11 +432,12 @@ func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 func TestLoadConfig(t *testing.T) {
 	env := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 	cfg, err := LoadConfig(env(nil))
-	if err != nil || cfg.Retention != 90*24*time.Hour || cfg.Limits != (Limits{Hourly: 20, Daily: 100, Unread: 500}) || cfg.Origin != defaultOrigin {
+	if err != nil || cfg.Retention != (Retention{Base: 90 * 24 * time.Hour, ActiveMax: 365 * 24 * time.Hour}) || cfg.Limits != (Limits{Hourly: 20, Daily: 100, Unread: 500}) || cfg.Origin != defaultOrigin {
 		t.Fatalf("defaults: %+v %v", cfg, err)
 	}
 	for _, bad := range []map[string]string{
 		{"CONTACT_RETENTION_DAYS": "0"}, {"CONTACT_RETENTION_DAYS": "366"}, {"CONTACT_RETENTION_DAYS": "abc"},
+		{"CONTACT_ACTIVE_MAX_DAYS": "0"}, {"CONTACT_ACTIVE_MAX_DAYS": "366"}, {"CONTACT_ACTIVE_MAX_DAYS": "89"},
 		{"CONTACT_HOURLY_LIMIT": "0"}, {"CONTACT_DAILY_LIMIT": "x"}, {"CONTACT_UNREAD_LIMIT": "-1"}, {"AUTH_ORIGIN": "ftp://x"},
 	} {
 		if _, err := LoadConfig(env(bad)); err == nil {
@@ -470,8 +450,12 @@ func TestLoadConfig(t *testing.T) {
 			}
 		}
 	}
-	if cfg, err := LoadConfig(env(map[string]string{"CONTACT_RETENTION_DAYS": "30"})); err != nil || cfg.Retention != 30*24*time.Hour {
+	if cfg, err := LoadConfig(env(map[string]string{"CONTACT_RETENTION_DAYS": "30"})); err != nil || cfg.Retention.Base != 30*24*time.Hour {
 		t.Fatal("custom retention")
+	}
+	// 保持期間と同じ値は認める（延長は効かない）
+	if cfg, err := LoadConfig(env(map[string]string{"CONTACT_RETENTION_DAYS": "30", "CONTACT_ACTIVE_MAX_DAYS": "30"})); err != nil || cfg.Retention.ActiveMax != 30*24*time.Hour {
+		t.Fatal("the same days must be accepted")
 	}
 }
 

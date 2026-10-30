@@ -46,7 +46,7 @@ func (f *Feature) Init(db *sql.DB) error {
 		f.logger.Error("contact config invalid", slog.String("reason", err.Error()))
 		return fmt.Errorf("contact config: %w", err)
 	}
-	if _, err := db.Exec(migrationSQL); err != nil {
+	if err := migrate(db); err != nil {
 		return fmt.Errorf("contact migration: %w", err)
 	}
 	f.cfg = cfg
@@ -80,17 +80,19 @@ func (f *Feature) Purge(ctx context.Context) error {
 	return f.store.Purge(ctx, f.cfg.Retention)
 }
 
+// days は期間を日数で返します。
+func days(d time.Duration) int { return int(d / (24 * time.Hour)) }
+
 // PrivacyNotices は、プライバシーポリシーの画面に、お問い合わせで保存する情報を載せます。
 func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
-	days := int(f.cfg.Retention / (24 * time.Hour))
 	return []web.PrivacyNotice{{
 		Title: "お問い合わせで保存する情報",
 		Lead:  "お問い合わせのフォームから送られた次の情報を保存します。お名前と返信先は、返信が必要な場合だけ任意で書いていただくものです。IPアドレス・ブラウザの種類・Cookieは保存せず、メールも送りません。",
 		Rows: []web.PrivacyRow{{
 			Kind:      "お問い合わせ",
-			Items:     "お問い合わせ内容、お名前（任意）、返信先（任意）、受付日時、対応の状態",
+			Items:     "お問い合わせ内容、お名前（任意）、返信先（任意）、受付日時、対応の状態、対応の記録（運営者のメモ）",
 			Purpose:   "お問い合わせへの回答と対応",
-			Retention: fmt.Sprintf("受付から%d日で自動で削除。管理者が先に削除することもあります。削除前のバックアップの複製には、その保持期間のあいだ残ります", days),
+			Retention: fmt.Sprintf("受付から%d日で自動で削除。対応を続けている間は、最後の対応から%d日、受付から最長%d日まで保存します。管理者が先に削除することもあります。削除前のバックアップの複製には、その保持期間のあいだ残ります", days(f.cfg.Retention.Base), days(f.cfg.Retention.Base), days(f.cfg.Retention.ActiveMax)),
 		}},
 	}}
 }

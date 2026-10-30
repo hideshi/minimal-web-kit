@@ -1,6 +1,7 @@
 package contact
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -15,7 +16,7 @@ const defaultOrigin = "http://localhost:8080"
 type Config struct {
 	// Origin は、送信を受け付けるサイトのオリジンです。管理者認証と同じ AUTH_ORIGIN を使います。
 	Origin    string
-	Retention time.Duration
+	Retention Retention
 	Limits    Limits
 }
 
@@ -39,7 +40,15 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	cfg.Retention = time.Duration(days) * 24 * time.Hour
+	cfg.Retention.Base = time.Duration(days) * 24 * time.Hour
+	maxDays, err := intSetting(getenv, "CONTACT_ACTIVE_MAX_DAYS", 365, 1, 365)
+	if err != nil {
+		return Config{}, err
+	}
+	if maxDays < days {
+		return Config{}, errors.New("CONTACT_ACTIVE_MAX_DAYS must not be less than CONTACT_RETENTION_DAYS")
+	}
+	cfg.Retention.ActiveMax = time.Duration(maxDays) * 24 * time.Hour
 	if cfg.Limits.Hourly, err = intSetting(getenv, "CONTACT_HOURLY_LIMIT", 20, 1, 10000); err != nil {
 		return Config{}, err
 	}

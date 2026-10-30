@@ -1,11 +1,11 @@
 {{define "content"}}
 <h1>お問い合わせの管理</h1>{{template "notice" .Notice}}
-<p>未読 {{.Unread}}件。受付から{{.RetentionDays}}日で、状態に関係なく自動で削除します。返信先へは、各自の手段で連絡してください（この画面からは送りません）。</p>
-{{if .Spam}}<div class="action-bar"><a href="/admin/contact/spam/delete">スパムをまとめて削除する（{{.Spam}}件）</a></div>{{end}}
+<p>未読 {{.Unread}}件、対応中 {{.Active}}件。受付から{{.RetentionDays}}日で自動で削除します。対応中のものは、最後の更新から{{.RetentionDays}}日、受付から最長{{.ActiveMaxDays}}日まで残します。返信先へは、各自の手段で連絡してください（この画面からは送りません）。</p>
+<div class="action-bar">{{if .OpenOnly}}<a href="/admin/contact/all">すべてのお問い合わせを見る</a>{{else}}<a href="/admin/contact">未読と対応中だけを見る</a>{{end}}{{if .Spam}}<a href="/admin/contact/spam/delete">スパムをまとめて削除する（{{.Spam}}件）</a>{{end}}</div>
 {{if .Messages}}
 <div class="table-container">
   <table>
-    <caption class="admin-caption">お問い合わせの一覧（受付の新しい順）</caption>
+    <caption class="admin-caption">{{if .OpenOnly}}未読と対応中のお問い合わせ{{else}}すべてのお問い合わせ{{end}}（受付の新しい順）</caption>
     <thead>
       <tr>
         <th scope="col">受付日時</th>
@@ -18,7 +18,7 @@
       {{range .Messages}}
       <tr>
         <td><a href="/admin/contact/{{.ID}}">{{template "datetime" .CreatedAt}}</a></td>
-        <td>{{.StatusLabel}}</td>
+        <td>{{.StatusLabel}}{{if .DeleteSoon}}（{{.DeleteSoon}}）{{end}}</td>
         <td>{{.DisplayName}}</td>
         <td>{{.Excerpt}}</td>
       </tr>
@@ -27,7 +27,7 @@
   </table>
 </div>
 {{else}}
-<p>お問い合わせはまだありません。</p>
+<p>{{if .OpenOnly}}未読と対応中のお問い合わせはまだありません。{{else}}お問い合わせはまだありません。{{end}}</p>
 {{end}}
 {{template "pagination" .Page}}
 {{end}}
