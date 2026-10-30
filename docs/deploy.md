@@ -163,20 +163,38 @@ sudo -u mwk sh -c 'set -a; . /etc/minimal-web-kit/env; exec minimal-web-kit back
 minimal-web-kit verify-backup /path/to/backup.db
 ```
 
-戻す手順です。**複製を取っただけでは戻せるか分かりません。** 数か月に1回、手元や別のサーバーで2〜4を試してください。
+戻す手順です。**複製を取っただけでは戻せるか分かりません。** 数か月に1回、手元や別のサーバーで試してください。
 
-1. サーバーを止める: `sudo systemctl stop minimal-web-kit`
-2. 複製を検査する: `minimal-web-kit verify-backup /path/to/backup.db`
-3. 今のDBを別名で残し、複製を置く。`-wal`・`-shm` のファイルも一緒に動かす（古いDBの続きとして読まれないように）。
+次の手順は、途中で失敗すると止まり、それ以降を実行しません。サーバーを止め、複製を検査し、今のDBを一式残してから戻します。戻す間は、運用コマンドを含めて、他のプロセスからDBを開かないでください。`-wal`・`-shm` のファイルが残ると、古いDBの続きとして読まれ、戻した内容が壊れます。
 
-   ```sh
-   cd /var/lib/minimal-web-kit
-   sudo -u mwk sh -c 'mv app.db app.db.broken; mv app.db-wal app.db-wal.broken 2>/dev/null; mv app.db-shm app.db-shm.broken 2>/dev/null; true'
-   sudo install -m 0600 -o mwk -g mwk /path/to/backup.db /var/lib/minimal-web-kit/app.db
-   ```
+```sh
+sudo sh -eu -s -- /path/to/backup.db <<'EOF'
+systemctl stop minimal-web-kit
+if systemctl is-active --quiet minimal-web-kit; then exit 1; fi
+/usr/local/bin/minimal-web-kit verify-backup "$1"
+cd /var/lib/minimal-web-kit
+saved=before-restore-$(date +%Y%m%d-%H%M%S)
+mkdir -m 0700 "$saved"
+cp -p app.db "$saved/"
+for f in app.db-wal app.db-shm; do
+  if [ -e "$f" ]; then cp -p "$f" "$saved/"; fi
+done
+install -m 0600 -o mwk -g mwk "$1" app.db.restore
+rm -f app.db-wal app.db-shm
+mv app.db.restore app.db
+EOF
+```
 
-4. サーバーを起動する: `sudo systemctl start minimal-web-kit`。古い版の複製でも、起動時に今の表へ移行します。
-5. 画面を確かめ、残した `.broken` のファイルを消す。個人情報を含むため、残し続けないでください。
+起動の前に、次を確かめます。
+
+- 複製より後に、アカウントの停止、ロールの変更、パスキーの削除をしていたら、複製の時点に戻ります。戻した後でやり直してください。急ぐなら、外からの経路を閉じたまま起動して行います。
+- 共通認証の提供機能を使っているなら、起動の前に全連携先のログインを失効させます。
+
+```sh
+sudo -u mwk sh -c 'set -a; . /etc/minimal-web-kit/env; exec minimal-web-kit oidc-revoke-all -yes'
+```
+
+起動して画面を確かめます: `sudo systemctl start minimal-web-kit`。古い版の複製でも、起動時に今の表へ移行します。確かめたら、残した `before-restore-...` のディレクトリを消します。個人情報を含むため、残し続けないでください。
 
 複製より後の書き込みは戻りません。別のサーバーへ戻すときは、環境ファイルと、共通認証の鍵のファイルも必要です。これらは複製に入らないため、別に保管してください。
 
@@ -200,24 +218,23 @@ sudo systemctl restart minimal-web-kit
 
 ### 戻し方
 
-表の形が変わっていない更新は、実行ファイルだけを戻します。
+更新の前に、前の版が更新後のDBを読み書きできるかを確かめておきます。起動できるだけでは足りません。主な読み書きを、DBの複製で試します。
+
+| 前の版との関係 | 戻し方 |
+|---|---|
+| 読み書きできると確かめた（表の追加だけの更新は、ここに当たることが多い） | 実行ファイルだけを戻す。データは失わない |
+| 読み書きできない（列の必須化、値の意味の変更、表の作り直し等） | 8節の手順で更新の前の複製を戻し、前の版で起動する。複製より後のデータは失う |
+| 分からない、移行の途中で止まった | 複製を戻す扱いにする。先に、失うデータを確かめる |
+| 設定の誤りで起動しない | 戻さずに、設定を直す |
+
+実行ファイルを戻す手順です。
 
 ```sh
 sudo install -m 0755 /usr/local/bin/minimal-web-kit.prev /usr/local/bin/minimal-web-kit
 sudo systemctl restart minimal-web-kit
 ```
 
-表の形が変わった更新は、新しい表を前の版で読めるとは限りません。サービスを止め、更新の前のバックアップからDBを戻し、前の版で起動します。バックアップより後に増えたデータは失います。
-
-```sh
-sudo systemctl stop minimal-web-kit
-sudo -u mwk cp -p /var/lib/minimal-web-kit/backup-YYYY-MM-DD.db /var/lib/minimal-web-kit/app.db
-sudo -u mwk rm -f /var/lib/minimal-web-kit/app.db-wal /var/lib/minimal-web-kit/app.db-shm
-sudo install -m 0755 /usr/local/bin/minimal-web-kit.prev /usr/local/bin/minimal-web-kit
-sudo systemctl start minimal-web-kit
-```
-
-`-wal`・`-shm` のファイルを残すと、戻したDBと合わない内容が読まれます。戻す前のDBも、念のため別の名前で残してください。共通認証の提供機能を使っているときは、公開の前に `oidc-revoke-all -yes` を実行します。
+複製も戻すときは、8節の手順の後、起動の前に、実行ファイルを戻します。実行ファイルと一緒に、環境ファイルとsystemdの設定も前の組み合わせに戻します。漏洩した秘密の値は、前の値に戻さないでください。
 
 ## 10. 公開前の確認
 
