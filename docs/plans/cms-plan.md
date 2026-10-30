@@ -6,7 +6,7 @@
 
 > 改名の注記: 2026-10-26 に、機能の名前を `cms` から `news`（お知らせ機能）に改めた。経路 `/admin/posts` は `/admin/news`、表 `cms_posts` は `news_posts`、設定 `CMS_CORS_ORIGINS` は `NEWS_CORS_ORIGINS`、コマンドは `add-news`／`remove-news` である。この計画書は旧称のまま残す。
 >
-> 正本の注記: 今の仕様の正本は [docs/domain/cms.md](../domain/news.md)（ドメインモデル）で、この計画書は経緯の記録として残す。
+> 正本の注記: 今の仕様の正本は [docs/domain/news.md](../domain/news.md)（ドメインモデル）で、この計画書は経緯の記録として残す。
 
 最終更新: 2026-10-25（Fable（claude-fable-5-1）のレビュー、challenge・端末固定の認証器・異常時の案内・Origin検査・実機確認に関する利用者の決定を反映）
 
