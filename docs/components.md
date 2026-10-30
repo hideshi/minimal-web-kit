@@ -99,12 +99,22 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | タグの並び | `tag-list` | 印の無い横並びの `<ul>`。`role="list"` を付ける |
 | 並べる | `grid-2`、`grid-3` | 狭い画面では1列になる |
 | ボタンの並び | `action-bar`（中央寄せは `action-bar-center`） | 送信と取り消しのボタン等。フォームを並べるときは `inline-form`。幅40rem未満ではボタンが全幅になる |
-| 表 | `table-container` で `<table>` を囲む | 狭い画面では表だけが横に動く。`<th scope="col">` と `<caption>` を付ける。列には最小の幅があり、`<td>` の中の `<time>` は折り返さない |
+| 表 | `table-container` で `<table>` を囲む | 狭い画面では表だけが横に動く。`<th scope="col">` と `<caption>` を付ける。下の「表の横スクロール」を参照 |
 | 入力 | `form-group`、`field-hint`、`field-error` | 直接書くより、部品の `field` を使う |
 | ページ送り | `pagination` | 部品の `pagination` を使う |
 | 区切り | `section`、`section-header`、`section-lead` | LP等の大きな区切り |
 | 読み上げ専用 | `visually-hidden` | 画面には出さず、読み上げソフトにだけ伝える文字（表の中の入力欄のラベル等） |
 | 開閉 | `faq-list`、`faq-item`、`faq-answer` | `<details>` と組み合わせる |
+
+**表の横スクロール**: 表はまず折り返して画面に収め、列の下限の合計が画面より広いときだけ `table-container` の中で横に動かします。CSSだけでは「何px超えたら」と判定できないため、しきい値は列の下限で決めます。
+
+- 列の下限は `--table-col-min`（3.75em）、表の中の入力欄の列は `--table-input-min`（10rem）。どちらも `style.css` の `:root` にあり、値を変えるのはここだけです。列ごとに幅を指定しません。
+- 日時は、日付と時刻の間でだけ折り返します。
+- 幅40rem未満では、セルの左右の余白を詰めます。
+- 目安は、幅600px以上で全部の表、幅360px以上で4列までの表が、横に動かずに収まることです。`make test-ui`（`test/browser/shots_test.go`）が同梱の管理画面の表で確かめます。
+- 本文の表（`richtext`）は、長いURLやコマンドを割らないよう、列の下限を6emのままにし、この目安の対象にしません。
+
+列の下限の合計が画面幅をわずかに超える幅では、数pxだけ横に動くことがあります。JavaScriptを使わない限り、この境目は無くせません。
 
 インラインの `style` 属性と、新しいCSSファイルは使えません。必要な見た目は `style.css` にクラスを追加します（新しいファイルの追加は承認境界4）。
 

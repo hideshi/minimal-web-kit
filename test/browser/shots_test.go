@@ -83,6 +83,26 @@ func TestAdminScreenshots(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
+		// 表の横スクロールのしきい値（docs/components.md の3節）: 幅600px以上は全部の表、
+		// 360px以上は4列までの表を、折り返して収める。本文の表は長いURL等があるため対象にしない
+		for _, width := range []int64{1100, 768, 600, 390, 360} {
+			ctx, cancel := context.WithTimeout(b.ctx, 20*time.Second)
+			_, err := chromedp.Run(ctx, chromedp.EmulateViewport(width, 800))
+			cancel()
+			if err != nil {
+				t.Fatal(err)
+			}
+			maxColumns := 4
+			if width >= 600 {
+				maxColumns = 99
+			}
+			got := evaluate[string](t, b, fmt.Sprintf(`Array.from(document.querySelectorAll(".table-container"))
+				.filter(c => !c.closest(".richtext") && c.querySelector("table").rows[0].cells.length <= %d && c.scrollWidth > c.clientWidth)
+				.map(c => c.querySelector("caption").textContent + ": " + (c.scrollWidth - c.clientWidth) + "px").join(", ")`, maxColumns))
+			if got != "" {
+				t.Errorf("%s: 幅%dpxで表が横に動く（%s）", name, width, got)
+			}
+		}
 	}
 
 	// 空の状態

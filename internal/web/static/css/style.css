@@ -26,6 +26,11 @@
   --space-2xl: 4rem;
   --radius: 4px;
   --radius-pill: 999px;
+
+  /* 表の横スクロールのしきい値。ふだんは折り返して画面に収め、
+     列の下限の合計が画面より広いときだけ横に動かす */
+  --table-col-min: 3.75em; /* 列の下限（「状態」「未読」等が1文字ずつ折れない幅） */
+  --table-input-min: 10rem; /* 表の中の入力欄の列の下限 */
 }
 
 *, *::before, *::after {
@@ -574,18 +579,24 @@ table {
   border-collapse: collapse;
 }
 
-/* 最小の幅は、狭い画面で「状態」等の短い列が1文字ずつ折り返されないように付ける。
-   入りきらない分は .table-container の横スクロールで見る。 */
+/* 下限は :root の --table-col-min。入りきらない分は .table-container の横スクロールで見る */
 th, td {
   border: 1px solid var(--color-border);
   padding: var(--space-sm) var(--space-md);
   text-align: left;
-  min-width: 5em;
+  min-width: var(--table-col-min);
 }
 
-/* 日時は途中で折らず、狭い画面では表を横に動かす */
+/* 狭い画面では余白を詰めて、横に動かさずに収まる表を増やす */
+@media (max-width: 39.99rem) {
+  th, td {
+    padding-inline: var(--space-sm);
+  }
+}
+
+/* 日時は、日付と時刻の間でだけ折り返す（「2026年10月30日」の途中では折らない） */
 td time {
-  white-space: nowrap;
+  word-break: keep-all;
 }
 
 th {
@@ -746,7 +757,7 @@ select[aria-invalid="true"] {
   flex-wrap: wrap;
   gap: var(--space-sm);
   margin-bottom: 0;
-  min-width: 14rem; /* 狭い画面では列を潰さず、表を横に動かす */
+  min-width: var(--table-input-min);
 }
 
 .label-form .form-group {
