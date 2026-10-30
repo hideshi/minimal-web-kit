@@ -3,6 +3,7 @@ package contact
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -212,6 +213,21 @@ func columns(t *testing.T, db *sql.DB) string {
 	return b.String()
 }
 
+// preMigrationFiles は、DBと同じ場所にある移行の前の複製を返します。
+func preMigrationFiles(t *testing.T, db *sql.DB) []string {
+	t.Helper()
+	var seq int
+	var name, file string
+	if err := db.QueryRow("PRAGMA database_list").Scan(&seq, &name, &file); err != nil {
+		t.Fatal(err)
+	}
+	got, err := filepath.Glob(filepath.Join(filepath.Dir(file), "pre-migration-contact-*.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
 // 移行で、既読は完了になり、最終更新は受付と同じで削除の時期が延びず、採番も巻き戻らず、列は新規のDBと同じになること。
 // 2回起動しても変わらないこと。
 // 不変条件: CONTACT-INV-12
@@ -231,14 +247,23 @@ func TestMigrate_FromLegacy(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if err := migrate(db); err != nil {
+		if err := migrate(db, slog.Default()); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	fresh := openDB(t)
-	if err := migrate(fresh); err != nil {
+	if err := migrate(fresh, slog.Default()); err != nil {
 		t.Fatal(err)
+	}
+	// 表を作り直す前に複製が1つだけでき、新規のDBでは作らない
+	if got := preMigrationFiles(t, db); len(got) != 1 {
+		t.Fatalf("backup before migration: %v", got)
+	} else if tables, err := store.VerifyBackup(context.Background(), got[0]); err != nil || len(tables) == 0 {
+		t.Fatalf("the backup must be usable: %v", err)
+	}
+	if got := preMigrationFiles(t, fresh); len(got) != 0 {
+		t.Fatalf("a new database needs no backup: %v", got)
 	}
 	if got, want := columns(t, db), columns(t, fresh); got != want {
 		t.Fatalf("列が新規のDBと違う:\n%s\nwant:\n%s", got, want)
@@ -279,7 +304,7 @@ func TestMigrate_EmptyLegacy(t *testing.T) {
 	if _, err := db.Exec(legacySchema); err != nil {
 		t.Fatal(err)
 	}
-	if err := migrate(db); err != nil {
+	if err := migrate(db, slog.Default()); err != nil {
 		t.Fatal(err)
 	}
 	id, err := NewStore(db).Save(context.Background(), Input{Body: "最初"}, Limits{Hourly: 10, Daily: 10, Unread: 10})
@@ -299,7 +324,7 @@ func TestMigrate_FailureLeavesTheTable(t *testing.T) {
 	if _, err := db.Exec("INSERT INTO contact_messages (body, status, created_at) VALUES ('残す', 'broken', 1)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := migrate(db); err == nil {
+	if err := migrate(db, slog.Default()); err == nil {
 		t.Fatal("must fail")
 	}
 	var body string
@@ -321,7 +346,7 @@ func TestMigrate_StopsOnLeftover(t *testing.T) {
 	if _, err := db.Exec("CREATE TABLE " + legacyTable + " (id INTEGER)"); err != nil {
 		t.Fatal(err)
 	}
-	if err := migrate(db); err == nil || strings.Contains(err.Error(), "SELECT") {
+	if err := migrate(db, slog.Default()); err == nil || strings.Contains(err.Error(), "SELECT") {
 		t.Fatalf("must stop: %v", err)
 	}
 }

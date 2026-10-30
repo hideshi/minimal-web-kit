@@ -46,7 +46,7 @@ func (f *Feature) Init(db *sql.DB) error {
 		f.logger.Error("contact config invalid", slog.String("reason", err.Error()))
 		return fmt.Errorf("contact config: %w", err)
 	}
-	if err := migrate(db); err != nil {
+	if err := migrate(db, f.logger); err != nil {
 		return fmt.Errorf("contact migration: %w", err)
 	}
 	f.cfg = cfg

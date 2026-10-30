@@ -228,6 +228,8 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make auth-setup` | 最初の管理者のパスキーの登録用URLを表示（有効なパスキーが1件も無いときだけ）。本番は `minimal-web-kit auth-setup` |
 | `go run ./cmd/server export-static <dir>` | Siteの公開ページ（`/`・`/privacy`）とCSS、セキュリティヘッダーの `_headers` を静的ファイルとして書き出す（Siteのみ有効な場合）。本番は `minimal-web-kit export-static <dir>` |
 | `make auth-recover ARGS="-account <ID>"` | 全アカウントのパスキーとセッションを削除し、指定した管理者の登録用URLを再発行（確認あり）。`-only <ID>` で1人分だけ、`-reset-schema` で古い形式の表を作り直す |
+| `minimal-web-kit backup <file>` | 稼働中のDBの整合した複製を作り、検査する（`sqlite3` コマンドは要らない。上書きしない。手元では `go run ./cmd/server backup <file>`） |
+| `minimal-web-kit verify-backup <file>` | 複製が壊れていないことを確かめ、表ごとの行数を表示する（中身は表示しない） |
 | `make` / `make all` | テスト後にビルド（サーバーは起動しない） |
 | `make clean` | `bin/` と **`data/`（既定のDBを含む）を削除** |
 
@@ -248,6 +250,8 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `CONTACT_HOURLY_LIMIT` / `CONTACT_DAILY_LIMIT` / `CONTACT_UNREAD_LIMIT` | 20 / 100 / 500。お問い合わせの全体の受付上限（保存した件数で数える） |
 
 `make build` はテンプレート・CSS・JS・マイグレーションを埋め込んだ単一実行ファイルを作ります。対象OS・CPUに合わせたビルドが必要で、サイズはGoバージョン・構成・対象環境により変わります。SQLiteのデータはバイナリの外に保存されます。
+
+データベースはSQLiteだけを対象にします。小さな企業・団体が1台のサーバーで動かす前提で、MySQL・PostgreSQLへの対応、複数台の構成、自動の切り替えは提供しません。必要な規模なら、キットを使わない構成を検討してください。障害には、毎日サーバーの外へ複製を送り、そこから戻すことで備えます。毎日送っていれば、1台の障害で失うのは最大1日分です（[バックアップの手順](docs/deploy.md)の8節）。
 
 本番公開には、HTTPS終端、Secure Cookie、待受・公開範囲、DBと保存ディレクトリの権限、バックアップ、ログの保持・削除方針等の設定が必要です。Linuxサーバー（VPS・EC2等）へのビルド・配置・systemd・リバースプロキシ・バックアップの手順例と、Siteだけを静的ホスティング（Cloudflare等）に置く手順は [docs/deploy.md](docs/deploy.md) を参照してください。公開範囲の変更や外部通信等は `AGENTS.md` の承認境界に従ってください。
 

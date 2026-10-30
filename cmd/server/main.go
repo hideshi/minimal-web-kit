@@ -23,7 +23,17 @@ func main() {
 		os.Exit(runExportStatic(os.Args[2:], setupFeatures(nil, logger), logger, os.Stdout, os.Stderr))
 	}
 
+	// 複製の検査は、DB_PATH のDBを開かずに行う
+	if len(os.Args) > 1 && os.Args[1] == "verify-backup" {
+		os.Exit(runVerifyBackup(os.Args[2:], os.Stdout, os.Stderr))
+	}
+
 	cfg := app.LoadConfig()
+
+	// バックアップは、機能の初期化（表の作成や移行）を走らせずに行う
+	if len(os.Args) > 1 && os.Args[1] == "backup" {
+		os.Exit(runBackup(os.Args[2:], cfg.DBPath, os.Stdout, os.Stderr))
+	}
 
 	s, err := store.NewSQLiteStore(cfg.DBPath)
 	if err != nil {
