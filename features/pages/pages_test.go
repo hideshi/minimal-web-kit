@@ -345,12 +345,13 @@ func TestNav_RefreshFailureDoesNotKeepOldLinks(t *testing.T) {
 	}
 
 	// 接続が切れた要求でも、コミット済みの変更をナビに反映する
-	mustExec("UPDATE pages SET status = 'draft'")
+	fx.create("recruit", "採用情報", "本文", "20", true)
+	mustExec("UPDATE pages SET status = 'draft' WHERE slug = 'about'")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	fx.f.afterChange(httptest.NewRequest(http.MethodPost, "/admin/pages", nil).WithContext(ctx))
-	if strings.Contains(nav(), `href="/about"`) {
-		t.Fatal("a cancelled request must still refresh the nav")
+	if got := nav(); strings.Contains(got, `href="/about"`) || !strings.Contains(got, `href="/recruit"`) {
+		t.Fatal("a cancelled request must still rebuild the nav from the database")
 	}
 }
 
