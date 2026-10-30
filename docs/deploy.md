@@ -155,9 +155,10 @@ sudo -u mwk sqlite3 /var/lib/minimal-web-kit/app.db ".backup '/var/lib/minimal-w
 
 1. 開発機でテストとビルドを行う（2節）。
 2. サーバーでバックアップを取る（8節）。
-3. 実行ファイルを置き換えて再起動する。
+3. 戻せるように今の実行ファイルを残し、置き換えて再起動する。
 
 ```sh
+sudo cp -p /usr/local/bin/minimal-web-kit /usr/local/bin/minimal-web-kit.prev
 sudo install -m 0755 /tmp/minimal-web-kit /usr/local/bin/minimal-web-kit
 sudo systemctl restart minimal-web-kit
 ```
@@ -165,6 +166,27 @@ sudo systemctl restart minimal-web-kit
 テーブルの追加は起動時に自動で行います。既存のテーブル・データは原則として変更しません。例外は、旧形式の表の移行です。お問い合わせの表 `contact_messages` は、状態が既読（`read`）の版から更新すると、起動時に作り直します（既読は完了になり、行は残ります）。この更新の後は古い実行ファイルに戻せないため、戻すときは更新の前のバックアップからDBごと戻してください。再起動が終わるまで、別のバックアップを重ねないでください。お知らせ機能の旧称「CMS」の版から更新する場合は、環境ファイルの `CMS_CORS_ORIGINS` を `NEWS_CORS_ORIGINS` に改名してください（旧名が残っていると起動を止めます）。記事の表は起動時に自動で改名し、記事は残ります。ただし、管理者認証がアカウント導入前の版だった場合は、起動を止めてログに `auth old schema found` を出します。バックアップの後に `auth-recover -reset-schema` を7節と同じ形で実行し、表示されたURLでパスキーを登録し直してください（管理者認証の表だけを作り直し、お知らせの記事等は残ります）。管理者のログイン状態は再起動後も続きますが、ログインの途中だった操作や、再起動前に開いた管理画面のフォームの送信は失敗します。ページを開き直してください。
 
 お問い合わせの表の作り直しの途中で止まると、作業用の表 `contact_messages_legacy` が残り、起動を止めます。この場合はバックアップから戻してください。
+
+### 戻し方
+
+表の形が変わっていない更新は、実行ファイルだけを戻します。
+
+```sh
+sudo install -m 0755 /usr/local/bin/minimal-web-kit.prev /usr/local/bin/minimal-web-kit
+sudo systemctl restart minimal-web-kit
+```
+
+表の形が変わった更新は、新しい表を前の版で読めるとは限りません。サービスを止め、更新の前のバックアップからDBを戻し、前の版で起動します。バックアップより後に増えたデータは失います。
+
+```sh
+sudo systemctl stop minimal-web-kit
+sudo -u mwk cp -p /var/lib/minimal-web-kit/backup-YYYY-MM-DD.db /var/lib/minimal-web-kit/app.db
+sudo -u mwk rm -f /var/lib/minimal-web-kit/app.db-wal /var/lib/minimal-web-kit/app.db-shm
+sudo install -m 0755 /usr/local/bin/minimal-web-kit.prev /usr/local/bin/minimal-web-kit
+sudo systemctl start minimal-web-kit
+```
+
+`-wal`・`-shm` のファイルを残すと、戻したDBと合わない内容が読まれます。戻す前のDBも、念のため別の名前で残してください。共通認証の提供機能を使っているときは、公開の前に `oidc-revoke-all -yes` を実行します。
 
 ## 10. 公開前の確認
 
