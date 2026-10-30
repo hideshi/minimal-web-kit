@@ -14,16 +14,70 @@
 
 ## 2. ログインの流れ
 
-ブラウザのCookieとCSPの制約から、次の形にしています。
+```mermaid
+sequenceDiagram
+    actor U as 利用者のブラウザ
+    participant B as 連携先B
+    participant A as 認証基盤A
 
-1. 連携先の案内画面で「ログインする」を押す（POST `/admin/sso/start`）。
-2. 連携先は中継のページを返す（`Refresh` ヘッダーと通常のリンク）。CSPの `form-action 'self'` はフォーム送信の後の別サイトへの転送を止めるため、303は使わない。
-3. 認証基盤は認可要求を検査して保存し、継続ページを返す。別サイトからの到着には `SameSite=Strict` のCookieが付かないため、ここではログイン状態を判定しない。
-4. 利用者が「続ける」を押す。同じサイトの操作なのでCookieが付く。未ログインならパスキーでログインし、固定の `/admin/oidc/continue` へ戻る。
-5. 「ログインする」を押す。世代を固定してコードを発行し、中継のページで連携先へ戻る。
-6. 連携先はstateと試行のCookieを照合し、コードを交換し、IDトークンを検証し、初回の照会を通してセッションを作る。
+    U->>B: 保護された画面を開く
+    B-->>U: ログインの案内へ移す
+    U->>B: 「ログインする」（POST /admin/sso/start）
+    Note over B: 試行を作る（state・nonce・PKCE）
+    B-->>U: 中継のページ
+    U->>A: 自動で移動（GET /admin/oidc/authorize）
+    Note over A: 要求を検査して保存する
+    A-->>U: 継続ページと手続きのCookie
+    U->>A: 「続ける」（GET /admin/oidc/continue）
+    opt Aに未ログイン
+        A-->>U: パスキーの画面
+        U->>A: パスキーで本人確認
+    end
+    A-->>U: ログイン先の確認画面
+    U->>A: 「ログインする」（POST /admin/oidc/approve）
+    Note over A: 利用許可を確かめ、世代を固定して、コードを発行する
+    A-->>U: 中継のページ（コード付き）
+    U->>B: 自動で移動（GET /admin/sso/callback）
+    Note over B: stateと試行のCookieを照合する（一回限り）
+    B->>A: コードの交換（POST /oidc/token）
+    Note over A: クライアント認証の後で、コードを消費する
+    A-->>B: IDトークン
+    Note over B: 署名・issuer・audience・nonce・世代を検証する
+    B->>A: 初回の照会（POST /oidc/check）
+    A-->>B: 有効
+    Note over B: セッションを作る
+    B-->>U: 元の画面へ移す
+```
+
+- 中継のページは、`Refresh` ヘッダーと通常のリンクで移動する。CSPの `form-action 'self'` はフォーム送信の後の別サイトへの転送を止めるため、303は使わない。
+- 別サイトからの到着には `SameSite=Strict` のCookieが付かないため、`/admin/oidc/authorize` ではログイン状態を判定しない。利用者が「続ける」を押すと、同じサイトの操作としてCookieが付く。
+- 交換と照会はサーバー間の通信で、ブラウザを通らない。
+- 中止したとき、利用許可が無いときは、コードの代わりに `error=access_denied` を付けて連携先へ戻す。
 
 ## 3. 照会の結果と連携先の動作
+
+```mermaid
+sequenceDiagram
+    actor U as 利用者のブラウザ
+    participant B as 連携先B
+    participant A as 認証基盤A
+
+    U->>B: 保護された画面・操作
+    Note over B: セッションの期限と、利用者の停止を確かめる
+    B->>A: 照会（subと、ログイン時の3つの世代）
+    Note over A: 最新の状態を1つの文で読んで照合する
+    alt 有効
+        A-->>B: active:true
+        B-->>U: 処理を実行する
+    else 無効
+        A-->>B: active:false
+        Note over B: セッションを削除する
+        B-->>U: ログインの案内へ移す
+    else 確認不能
+        A--xB: 障害・不正な応答など
+        B-->>U: 503（処理をせず、セッションは残す）
+    end
+```
 
 | 認証基盤の応答 | 連携先の動作 |
 |---|---|
@@ -33,6 +87,29 @@
 | 2xxの他・4xx・5xx・タイムアウト・TLSの失敗・Content-Typeの不一致・不正な本文 | 確認不能 |
 
 確認不能は503で、セッションを残し、業務の処理をしない。接続の失敗と5xxの後の5秒は問い合わせず、同時照会は32件までで待ち行列を作らない。
+
+### 停止の反映
+
+```mermaid
+sequenceDiagram
+    actor O as 運用者
+    participant A as 認証基盤A
+    participant B as 連携先B
+    actor U as 利用者のブラウザ
+
+    O->>A: アカウントを停止する
+    Note over A: 同じトランザクションで、停止の記録、世代の更新、進行中の要求とコードの削除を行う
+    U->>B: 次の操作
+    B->>A: 照会（ログイン時の世代）
+    A-->>B: active:false
+    Note over B: セッションを削除する
+    B-->>U: ログインの案内へ移す
+    O->>A: アカウントを再開する
+    Note over A: 世代は戻さない
+    Note over B,U: 古いログインは使えず、ログインし直す
+```
+
+再開しても世代は戻らないため、古いログインは一致せず、復活しない。
 
 ## 4. 不変条件
 
