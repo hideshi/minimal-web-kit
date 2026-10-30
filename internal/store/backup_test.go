@@ -110,6 +110,47 @@ func TestBackup_RemovesFileOnFailure(t *testing.T) {
 	}
 }
 
+// breakIndex は、索引の定義をいったん外して表に行を足し、定義を戻します。
+// ファイルは開けるのに、表と索引が合わなくなり、整合性の検査だけが問題を報告します。
+func breakIndex(t *testing.T, path string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := db.Exec(q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec("CREATE TABLE t (a INTEGER)")
+	exec("CREATE INDEX t_a ON t (a)")
+	exec("INSERT INTO t VALUES (1)")
+	var root int
+	var definition string
+	if err := db.QueryRow("SELECT rootpage, sql FROM sqlite_master WHERE name = 't_a'").Scan(&root, &definition); err != nil {
+		t.Fatal(err)
+	}
+	exec("PRAGMA writable_schema = ON")
+	exec("DELETE FROM sqlite_master WHERE name = 't_a'")
+	exec("PRAGMA writable_schema = OFF")
+	db.Close()
+
+	db, err = sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	exec("INSERT INTO t VALUES (2)")
+	exec("PRAGMA writable_schema = ON")
+	exec("INSERT INTO sqlite_master VALUES ('index', 't_a', 't', ?, ?)", root, definition)
+	exec("PRAGMA writable_schema = OFF")
+}
+
 // 壊れたファイル、無いファイル、別のDB、外部キーの違反は、検査で失敗すること。
 func TestVerifyBackup_RejectsBadFiles(t *testing.T) {
 	ctx := context.Background()
@@ -153,14 +194,7 @@ func TestVerifyBackup_RejectsBadFiles(t *testing.T) {
 	if err := Backup(ctx, s.DB(), invalid); err != nil {
 		t.Fatal(err)
 	}
-	checked, err := sql.Open("sqlite", invalid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := checked.Exec("CREATE TABLE t (x INTEGER CHECK (x > 0)); PRAGMA ignore_check_constraints = ON; INSERT INTO t VALUES (-1)"); err != nil {
-		t.Fatal(err)
-	}
-	checked.Close()
+	breakIndex(t, invalid)
 	if _, err := VerifyBackup(ctx, invalid); err == nil || !strings.Contains(err.Error(), "corrupted") {
 		t.Fatalf("an integrity problem must fail: %v", err)
 	}
