@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -109,6 +110,7 @@ func mustPublish(t *testing.T, s *Store, id int64) {
 	}
 }
 
+// ユースケース: UC-CATALOG-2
 // 不変条件: CATALOG-INV-1, CATALOG-INV-2, CATALOG-INV-7, CATALOG-INV-10, CATALOG-INV-12
 func TestPublicRoutesPrivacyAndRepresentations(t *testing.T) {
 	for _, withSite := range []bool{false, true} {
@@ -318,6 +320,7 @@ func TestConcurrentTagCreationUsesExistingTag(t *testing.T) {
 	}
 }
 
+// ユースケース: UC-CATALOG-1
 // 不変条件: CATALOG-INV-1, CATALOG-INV-10, CATALOG-INV-12
 func TestSearchANDLiteralLikeAndPaging(t *testing.T) {
 	fx := setup(t, false)
@@ -474,6 +477,7 @@ func TestApprovedLibraryAndConfiguration(t *testing.T) {
 	}
 }
 
+// ユースケース: UC-CATALOG-7
 // 不変条件: CATALOG-INV-3, CATALOG-INV-5, CATALOG-INV-9
 func TestClassificationRoutesAndDeletionWorkflow(t *testing.T) {
 	fx := setup(t, false)
@@ -519,6 +523,103 @@ func TestClassificationRoutesAndDeletionWorkflow(t *testing.T) {
 	}
 }
 
+// 閲覧者は、カテゴリとタグとキーワードで公開項目を絞り込めること。条件は組み合わせられること。
+//
+// ユースケース: UC-CATALOG-1
+func TestPublicFilterNarrowsItems(t *testing.T) {
+	fx := setup(t, false)
+	s := fx.f.store
+	house := classification(t, s, "categories", "住宅")
+	shop := classification(t, s, "categories", "店舗")
+	wood := classification(t, s, "tags", "木造")
+	mustPublish(t, s, mustSave(t, s, Input{Title: "木の家", CategoryID: house, TagIDs: []int64{wood}}))
+	mustPublish(t, s, mustSave(t, s, Input{Title: "石の家", CategoryID: house}))
+	mustPublish(t, s, mustSave(t, s, Input{Title: "木の店", CategoryID: shop, TagIDs: []int64{wood}}))
+	for _, c := range []struct {
+		query string
+		want  []string
+	}{
+		{"category=" + idString(house), []string{"木の家", "石の家"}},
+		{"tag=" + idString(wood), []string{"木の家", "木の店"}},
+		{"category=" + idString(house) + "&tag=" + idString(wood), []string{"木の家"}},
+		{"q=" + url.QueryEscape("店"), []string{"木の店"}},
+		{"category=" + idString(shop) + "&q=" + url.QueryEscape("家"), nil},
+	} {
+		w := fx.send("GET", "/catalog?"+c.query, nil, nil, nil)
+		if w.Code != 200 {
+			t.Fatalf("%s: %d", c.query, w.Code)
+		}
+		for _, title := range []string{"木の家", "石の家", "木の店"} {
+			if strings.Contains(w.Body.String(), title) != slices.Contains(c.want, title) {
+				t.Errorf("%s: %s の有無が違う", c.query, title)
+			}
+		}
+	}
+}
+
+// 管理画面の利用者は、下書きを作って整え、公開し、公開をやめ、確認のうえで削除できること。
+//
+// ユースケース: UC-CATALOG-3, UC-CATALOG-4, UC-CATALOG-5, UC-CATALOG-6
+func TestAdminItemLifecycle(t *testing.T) {
+	fx := setup(t, false)
+	ctx := context.Background()
+	cookie := authtest.NewSessionWithRole(t, fx.core.DB(), "member")
+	token := authtest.CSRFToken(t, fx.routes, "/admin/catalog/new", cookie)
+	headers := map[string]string{"Origin": "null", "Sec-Fetch-Site": "same-origin"}
+	post := func(path string, values url.Values) {
+		t.Helper()
+		values.Set("csrf_token", token)
+		if w := fx.send("POST", path, values, cookie, headers); w.Code != 303 {
+			t.Fatalf("POST %s: %d %s", path, w.Code, w.Body.String())
+		}
+	}
+
+	post("/admin/catalog", url.Values{"title": {"下書きの題"}, "body": {"下書きの本文"}})
+	list, err := fx.f.store.List(ctx, false, Filter{}, 20, 0)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("created: %v %v", list, err)
+	}
+	id := idString(list[0].ID)
+	path := "/admin/catalog/" + id
+	public := "/catalog/" + id
+	if w := fx.send("GET", public, nil, nil, nil); w.Code != 404 {
+		t.Fatalf("a draft must stay private: %d", w.Code)
+	}
+
+	post(path, url.Values{"title": {"整えた題"}, "body": {"整えた本文"}})
+	if w := fx.send("GET", path, nil, cookie, nil); !strings.Contains(w.Body.String(), "整えた題") || !strings.Contains(w.Body.String(), "整えた本文") {
+		t.Fatal("the edit was not saved")
+	}
+	if w := fx.send("GET", public, nil, nil, nil); w.Code != 404 {
+		t.Fatalf("editing must not publish: %d", w.Code)
+	}
+
+	post(path+"/publish", url.Values{})
+	if w := fx.send("GET", public, nil, nil, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "整えた本文") {
+		t.Fatalf("publish: %d", w.Code)
+	}
+
+	post(path+"/unpublish", url.Values{})
+	if w := fx.send("GET", public, nil, nil, nil); w.Code != 404 {
+		t.Fatalf("unpublish: %d", w.Code)
+	}
+	if w := fx.send("GET", path, nil, cookie, nil); w.Code != 200 {
+		t.Fatalf("an unpublished item must stay in the admin: %d", w.Code)
+	}
+
+	if w := fx.send("GET", path+"/delete", nil, cookie, nil); w.Code != 200 || !strings.Contains(w.Body.String(), "整えた題") || !strings.Contains(w.Body.String(), "元に戻せません") {
+		t.Fatalf("delete confirmation: %d", w.Code)
+	}
+	post(path+"/delete", url.Values{})
+	if w := fx.send("GET", path, nil, cookie, nil); w.Code != 404 {
+		t.Fatalf("deleted item in the admin: %d", w.Code)
+	}
+	if w := fx.send("GET", public, nil, nil, nil); w.Code != 404 {
+		t.Fatalf("deleted item in public: %d", w.Code)
+	}
+}
+
+// ユースケース: UC-CATALOG-7
 // TestClassificationAdminPages は、分類の一覧が使用件数つきの表になり、追加・編集の失敗が理由つきで同じ画面に出ることを確かめる。
 func TestClassificationAdminPages(t *testing.T) {
 	fx := setup(t, false)
