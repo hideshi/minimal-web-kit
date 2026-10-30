@@ -347,7 +347,8 @@ func (s *FederationStore) Flow(ctx context.Context, flowToken string) (Federatio
 }
 
 // Bind は、管理者セッションの本人を要求に結びつけ、その時点の世代を固定します。
-// 停止中・許可なしなら sql.ErrNoRows です。ConfirmFederationAuth の中で読むことで、停止との順序を1つに決めます。
+// 「ログインする」の二度押しに備え、未交換のコードがあれば無効にします（新しいコードだけが使える）。
+// 停止中・許可なしなら sql.ErrNoRows です。トランザクションの中で読み、停止との順序を1つに決めます。
 func (s *FederationStore) Bind(ctx context.Context, requestID, sessionToken string) error {
 	return s.Atomic(ctx, func(ctx context.Context) error {
 		x := s.executor(ctx)
@@ -372,8 +373,8 @@ func (s *FederationStore) Bind(ctx context.Context, requestID, sessionToken stri
 			return err
 		}
 		res, err := x.ExecContext(ctx,
-			`UPDATE auth_oidc_requests SET sub = ?, account_epoch = ?, client_epoch = ?, grant_epoch = ?, auth_time = ?
-			 WHERE request_id = ? AND expires_at > ? AND consumed_at = 0 AND code_hash IS NULL`,
+			`UPDATE auth_oidc_requests SET sub = ?, account_epoch = ?, client_epoch = ?, grant_epoch = ?, auth_time = ?, code_hash = NULL, code_expires_at = 0
+			 WHERE request_id = ? AND expires_at > ? AND consumed_at = 0`,
 			subject, epochs.Account, epochs.Client, epochs.Grant, authTime, requestID, now.Unix())
 		return affectedOne(res, err, ErrFederationInvalid)
 	})

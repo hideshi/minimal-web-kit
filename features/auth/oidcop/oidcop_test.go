@@ -76,6 +76,8 @@ type exchangeFixture struct {
 	client   auth.FederationClient
 	secret   string
 	verifier string
+	session  string
+	code     string
 }
 
 func privateFile(t *testing.T, data []byte) string {
@@ -137,11 +139,11 @@ func newExchangeFixture(t *testing.T) *exchangeFixture {
 	if err := f.store.SaveCode(ctx, "request", "the-code"); err != nil {
 		t.Fatal(err)
 	}
-	return &exchangeFixture{f: f, db: s.DB(), client: client, secret: secret, verifier: verifier}
+	return &exchangeFixture{f: f, db: s.DB(), client: client, secret: secret, verifier: verifier, session: cookie.Value, code: "the-code"}
 }
 
 func (x *exchangeFixture) request() *http.Request {
-	form := url.Values{"grant_type": {"authorization_code"}, "code": {"the-code"}, "redirect_uri": {x.client.Redirect}, "code_verifier": {x.verifier}}
+	form := url.Values{"grant_type": {"authorization_code"}, "code": {x.code}, "redirect_uri": {x.client.Redirect}, "code_verifier": {x.verifier}}
 	r := httptest.NewRequest(http.MethodPost, "/oidc/token", strings.NewReader(form.Encode()))
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.SetBasicAuth(url.QueryEscape(x.client.ID), url.QueryEscape(x.secret))
@@ -221,20 +223,42 @@ func TestToken_ExpiredCode(t *testing.T) {
 	}
 }
 
-// 署名済みのIDトークンの世代は、固定した値で、後の変更で差し替えないこと。
+// 発行の後で世代が進んだら、行が残っていても、コードを交換しないこと。
 //
-// 不変条件: AUTH-INV-17
+// 不変条件: AUTH-INV-17, AUTH-INV-18
 func TestToken_ChangedEpochRejected(t *testing.T) {
 	x := newExchangeFixture(t)
-	if err := x.f.store.SetClientEnabled(context.Background(), x.client.ID, false); err != nil {
+	if _, err := x.db.Exec("UPDATE auth_oidc_grants SET grant_epoch = grant_epoch + 1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := x.f.store.SetClientEnabled(context.Background(), x.client.ID, true); err != nil {
+	w := httptest.NewRecorder()
+	x.f.token(w, x.request())
+	if w.Code != http.StatusBadRequest || x.consumed(t) {
+		t.Fatalf("exchange after the epoch changed: %d consumed=%v", w.Code, x.consumed(t))
+	}
+}
+
+// 「ログインする」の二度押しでは、後のコードだけが使え、前のコードは使えないこと。
+//
+// 不変条件: AUTH-INV-18
+func TestApprove_SecondCodeReplacesFirst(t *testing.T) {
+	x := newExchangeFixture(t)
+	ctx := context.Background()
+	if err := x.f.store.Bind(ctx, "request", x.session); err != nil {
+		t.Fatal(err)
+	}
+	if err := x.f.store.SaveCode(ctx, "request", "second-code"); err != nil {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
 	x.f.token(w, x.request())
 	if w.Code != http.StatusBadRequest {
-		t.Fatalf("exchange after the epoch changed: %d", w.Code)
+		t.Fatalf("first code: %d", w.Code)
+	}
+	x.code = "second-code"
+	w = httptest.NewRecorder()
+	x.f.token(w, x.request())
+	if w.Code != http.StatusOK {
+		t.Fatalf("second code: %d %s", w.Code, w.Body.String())
 	}
 }

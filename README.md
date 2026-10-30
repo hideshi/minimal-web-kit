@@ -134,6 +134,8 @@ minimal-web-kit federated-account -sub <sub> -role admin
 
 - Aの役割の管理者が、そのままBの管理者になることはありません。Bの権限はBのコマンドで決めます。
 - Bは保護された要求のたびにAへ確認します。Aが止まっている間、Bの保護された機能は503になります（ログアウトはできます）。可用性をAに依存することを前提に使ってください。
+- 連携先を止めている間も、Bは認証基盤の障害と区別できず503になります。`-rotate -compromised` の後も、Bの秘密ファイルを更新するまで全員503です。
+- リバースプロキシのアクセスログには、Bの `/admin/sso/callback` のコードとstate、Aの `/admin/oidc/authorize` のstate・nonceが残ります。この2つの経路はクエリを記録しない設定にしてください。
 - 秘密値の更新は `oidc-client -client <ID> -rotate`（旧値は24時間有効）、漏洩時は `-rotate -compromised` です。連携先の停止は `-disable`、利用許可の取り消しは `oidc-grant -revoke` です。どれも、戻しても古いログインは復活しません。
 - 署名鍵の更新は、新しい鍵に替え、旧公開鍵をJWKSのファイル（`OIDC_OLD_JWKS_FILE`）で7分以上公開し続けます。漏洩時とバックアップからの復元の後は `oidc-revoke-all -yes` を実行します。
 - 対応するのはサーバー側でセッションを持つ自社のWebアプリだけです。SPA・モバイル・refresh token・第三者への開放は対象外です。キット以外のシステムをつなぐ場合は、OIDCに加えて、要求ごとの照会（`POST /oidc/check`）の実装が必要です。

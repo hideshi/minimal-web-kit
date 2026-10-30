@@ -94,6 +94,13 @@ func (s *attempts) take(cookie, state string) (*attempt, bool) {
 	return a, true
 }
 
+// discard は、Cookieの試行を消します。
+func (s *attempts) discard(cookie string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.items, federation.Hash(cookie))
+}
+
 // validNext は、ログイン後の戻り先として認める管理画面のパスかを確かめます。符号化による迂回を避けるため、% も認めません。
 func validNext(next string) bool {
 	if next != "/admin" && !strings.HasPrefix(next, "/admin/") && !strings.HasPrefix(next, "/admin?") {

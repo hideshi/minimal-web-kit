@@ -87,11 +87,12 @@ func (n *fedNotes) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 }
 
 type fedServer struct {
-	origin string
-	db     *sql.DB
-	server *httptest.Server
-	logs   *safeBuffer
-	down   atomic.Bool // true の間、すべての要求に500を返す
+	origin  string
+	db      *sql.DB
+	server  *httptest.Server
+	logs    *safeBuffer
+	down    atomic.Bool // true の間、すべての要求に500を返す
+	noCheck atomic.Bool // true の間、照会にだけ500を返す
 }
 
 func newFedListener(t *testing.T) (net.Listener, string) {
@@ -117,7 +118,7 @@ func startFedServer(t *testing.T, ln net.Listener, origin string, s *store.SQLit
 	}
 	fs := &fedServer{origin: origin, db: s.DB(), logs: logs}
 	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if fs.down.Load() {
+		if fs.down.Load() || (fs.noCheck.Load() && r.URL.Path == "/oidc/check") {
 			http.Error(w, "down", http.StatusInternalServerError)
 			return
 		}
@@ -792,6 +793,67 @@ func TestFederatedAuth_CallbackBinding(t *testing.T) {
 		if res.StatusCode != http.StatusOK || !strings.Contains(body, `name="next" value="/admin"`) {
 			t.Errorf("next %q was kept", next)
 		}
+	}
+}
+
+// コード交換が成功しても、初回の照会で有効と確認できなければ、セッションを作らないこと。
+//
+// 不変条件: FEDAUTH-INV-1, FEDAUTH-INV-2
+func TestFederatedAuth_FirstCheckGuardsLogin(t *testing.T) {
+	p := newFedPair(t)
+	br, _, _ := p.member(t)
+	callback := p.approveAtA(t, br, p.beginLogin(t, br))
+	p.a.noCheck.Store(true)
+	res, _ := br.do(http.MethodGet, callback, nil)
+	if res.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("callback while the check fails: %d", res.StatusCode)
+	}
+	if got := countRows(t, p.b.db, "SELECT COUNT(*) FROM federated_sessions"); got != 0 {
+		t.Fatalf("session created without a check: %d", got)
+	}
+}
+
+// ログイン中は、開始でもコールバックでもセッションを置き換えないこと。
+// 別人のログインの結果を踏まされても、今のログインのままであること。
+//
+// 不変条件: FEDAUTH-INV-3
+func TestFederatedAuth_LoggedInSessionIsNotReplaced(t *testing.T) {
+	p := newFedPair(t)
+	br, _, _ := p.member(t)
+	p.login(t, br)
+	res, _ := br.do(http.MethodPost, p.b.origin+"/admin/sso/start", url.Values{"next": {"/admin"}})
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/admin" {
+		t.Fatalf("start while logged in: %d %s", res.StatusCode, res.Header.Get("Location"))
+	}
+	for _, c := range res.Cookies() {
+		if c.Name == "sso_attempt" {
+			t.Fatal("start while logged in created an attempt")
+		}
+	}
+
+	// 別のブラウザで得た攻撃者のコールバックと試行Cookieを、ログイン中のブラウザに植える
+	attacker, _, _ := p.member(t)
+	callback := p.approveAtA(t, attacker, p.beginLogin(t, attacker))
+	target, err := url.Parse(p.b.origin + "/admin/sso/callback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var planted bool
+	for _, c := range attacker.client.Jar.Cookies(target) {
+		if c.Name == "sso_attempt" {
+			br.client.Jar.SetCookies(target, []*http.Cookie{{Name: c.Name, Value: c.Value, Path: "/admin/sso", Secure: true}})
+			planted = true
+		}
+	}
+	if !planted {
+		t.Fatal("attempt cookie not found")
+	}
+	res, _ = br.do(http.MethodGet, callback, nil)
+	if res.StatusCode != http.StatusSeeOther || res.Header.Get("Location") != "/admin" {
+		t.Fatalf("callback while logged in: %d %s", res.StatusCode, res.Header.Get("Location"))
+	}
+	if got := countRows(t, p.b.db, "SELECT COUNT(*) FROM federated_sessions"); got != 1 {
+		t.Fatalf("sessions: %d", got)
 	}
 }
 

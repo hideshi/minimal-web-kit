@@ -421,6 +421,14 @@ func (f *Feature) handleCallback(w http.ResponseWriter, r *http.Request) {
 	setCookie(w, attemptCookieName, "", "/admin/sso", 0)
 	q := r.URL.Query()
 	c, err := r.Cookie(attemptCookieName)
+	// ログイン中はセッションを置き換えない（植えられたCookieで別人に切り替えさせない）
+	if _, _, sessionErr := f.current(r); sessionErr == nil {
+		if err == nil {
+			f.attempts.discard(c.Value)
+		}
+		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		return
+	}
 	if err != nil || len(q["state"]) != 1 || len(q["code"]) > 1 || len(q["error"]) > 1 {
 		f.renderLogin(w, http.StatusBadRequest, "/admin", "ログインの手続きが無効か、期限切れです。もう一度ログインしてください。")
 		return
