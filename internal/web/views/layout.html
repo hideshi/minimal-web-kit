@@ -11,13 +11,17 @@
   <a href="#main-content" class="skip-link">本文へ移動</a>
 
   <header>
-    <div class="site-title">minimal-web-kit</div>
-    <div class="site-subtitle">個人情報・外部依存を最小限に抑えたWebアプリのひな形</div>
-    <nav aria-label="メインナビゲーション">
-      <a href="/">ホーム</a>
-      {{range .NavLinks}}<a href="{{.Href}}">{{.Label}}</a>
-      {{end}}      <a href="/privacy">プライバシーポリシー</a>
-    </nav>
+    <div class="site-header-inner">
+      <div>
+        <div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
+        <div class="site-subtitle">個人情報・外部依存を最小限に抑えたWebアプリのひな形</div>
+      </div>
+      <nav aria-label="メインナビゲーション">
+        <a href="/">ホーム</a>
+        {{range .NavLinks}}<a href="{{.Href}}">{{.Label}}</a>
+        {{end}}<a href="/privacy">プライバシーポリシー</a>
+      </nav>
+    </div>
   </header>
 
   <main id="main-content" tabindex="-1">
@@ -25,12 +29,14 @@
   </main>
 
   <footer>
-    <p>minimal-web-kit: 閲覧のために氏名や連絡先の登録は必要ありません。</p>
-    {{if .SiteMode}}
-    <p>公開ページの閲覧ではセッションCookieを使用しません。</p>
-    {{else}}
-    <p>セッションCookieを削除すると、この端末からのアクセス識別が切断されます。サーバー上の関連レコードは最終アクセスから30日経過後の自動削除対象になります。</p>
-    {{end}}
+    <div class="footer-inner">
+      <p>minimal-web-kit: 閲覧のために氏名や連絡先の登録は必要ありません。</p>
+      {{if .SiteMode}}
+      <p>公開ページの閲覧ではセッションCookieを使用しません。</p>
+      {{else}}
+      <p>セッションCookieを削除すると、この端末からのアクセス識別が切断されます。サーバー上の関連レコードは最終アクセスから30日経過後の自動削除対象になります。</p>
+      {{end}}
+    </div>
   </footer>
 </body>
 </html>
