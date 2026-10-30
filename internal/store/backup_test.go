@@ -148,6 +148,23 @@ func TestVerifyBackup_RejectsBadFiles(t *testing.T) {
 		t.Fatal("a corrupted backup must fail")
 	}
 
+	// ファイルは読めるが、整合性の検査が問題を報告する複製
+	invalid := filepath.Join(dir, "invalid.db")
+	if err := Backup(ctx, s.DB(), invalid); err != nil {
+		t.Fatal(err)
+	}
+	checked, err := sql.Open("sqlite", invalid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := checked.Exec("CREATE TABLE t (x INTEGER CHECK (x > 0)); PRAGMA ignore_check_constraints = ON; INSERT INTO t VALUES (-1)"); err != nil {
+		t.Fatal(err)
+	}
+	checked.Close()
+	if _, err := VerifyBackup(ctx, invalid); err == nil || !strings.Contains(err.Error(), "corrupted") {
+		t.Fatalf("an integrity problem must fail: %v", err)
+	}
+
 	other := filepath.Join(dir, "other.db")
 	db, err := sql.Open("sqlite", other)
 	if err != nil {

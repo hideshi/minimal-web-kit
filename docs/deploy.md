@@ -184,9 +184,10 @@ minimal-web-kit verify-backup /path/to/backup.db
 
 1. 開発機でテストとビルドを行う（2節）。
 2. サーバーでバックアップを取る（8節）。
-3. 実行ファイルを置き換えて再起動する。
+3. 戻せるように今の実行ファイルを残し、置き換えて再起動する。
 
 ```sh
+sudo cp -p /usr/local/bin/minimal-web-kit /usr/local/bin/minimal-web-kit.prev
 sudo install -m 0755 /tmp/minimal-web-kit /usr/local/bin/minimal-web-kit
 sudo systemctl restart minimal-web-kit
 ```
@@ -196,6 +197,27 @@ sudo systemctl restart minimal-web-kit
 お問い合わせの表の作り直しの途中で止まると、作業用の表 `contact_messages_legacy` が残り、起動を止めます。この場合はバックアップから戻してください。
 
 表を作り直す移行は、その前に、DBと同じ場所へ `pre-migration-<機能>-<日時>.db` の複製を自動で作ります。複製に失敗したら移行せず、起動を止めます。この複製は自動では消えません。個人情報を含むため、更新を確かめたら削除してください。
+
+### 戻し方
+
+表の形が変わっていない更新は、実行ファイルだけを戻します。
+
+```sh
+sudo install -m 0755 /usr/local/bin/minimal-web-kit.prev /usr/local/bin/minimal-web-kit
+sudo systemctl restart minimal-web-kit
+```
+
+表の形が変わった更新は、新しい表を前の版で読めるとは限りません。サービスを止め、更新の前のバックアップからDBを戻し、前の版で起動します。バックアップより後に増えたデータは失います。
+
+```sh
+sudo systemctl stop minimal-web-kit
+sudo -u mwk cp -p /var/lib/minimal-web-kit/backup-YYYY-MM-DD.db /var/lib/minimal-web-kit/app.db
+sudo -u mwk rm -f /var/lib/minimal-web-kit/app.db-wal /var/lib/minimal-web-kit/app.db-shm
+sudo install -m 0755 /usr/local/bin/minimal-web-kit.prev /usr/local/bin/minimal-web-kit
+sudo systemctl start minimal-web-kit
+```
+
+`-wal`・`-shm` のファイルを残すと、戻したDBと合わない内容が読まれます。戻す前のDBも、念のため別の名前で残してください。共通認証の提供機能を使っているときは、公開の前に `oidc-revoke-all -yes` を実行します。
 
 ## 10. 公開前の確認
 
