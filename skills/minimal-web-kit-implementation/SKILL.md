@@ -30,7 +30,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。
 4. **任意のインターフェース**: 口の一覧の正本は `features/feature.go` で、使う前にそこから選ぶ。例: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`（再起動なしで変わるなら `DynamicNavLinkFeature`）、サイト全体のヘッダー・フッターは `LayoutFeature` と `LayoutConsumer`、どの経路にも当たらないGET・HEADを受けるのは `FallbackFeature`、運用コマンドは `CommandFeature`、管理画面の利用者等の保存情報をプライバシーポリシーに載せるのは `PrivacyFeature`。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。
 5. **型**: 機密や本文を含む型には `slog.LogValuer` を実装する。
-6. **仕様との同期**: 挙動を変える `feat`・`fix` では、同じコミットで `docs/domain/<機能>.md` を更新する（条件・文言・拒否の仕方が変わるなら表も直す）。守り続ける挙動にはテストを書き、不変条件の番号を足す。リファクタリングで挙動が変わらないなら更新しない。
+6. **仕様との同期**: 挙動を変える `feat`・`fix` では、同じコミットで `docs/domain/<機能>.md` を更新する（条件・文言・拒否の仕方が変わるなら表も直す）。実装が仕様と違うと分かったら、実装に文書を合わせて済ませず、不具合か要件の変更かを判断する（`docs/README.md`）。守り続ける挙動にはテストを書き、不変条件の番号を足す。リファクタリングで挙動が変わらないなら更新しない。
 7. **不変条件**: `docs/domain/<機能>.md` の不変条件を確かめるテスト関数の説明コメントに、`// 不変条件: AUTH-INV-1, AUTH-INV-2` の形で番号を書く。原子性が要る条件はSQLの1つの文かトランザクションで守り、その関数のコメントにも番号を書く。
 8. **画面とCSS**: テンプレートは機能の `views/` に置き、`html/template` で描画する。インライン `style`・`<style>`・`<script>` を書かず、意匠は `style.css` のクラスかセマンティックなHTMLで表す。フォーカス表示（`:focus-visible`）とコントラストを維持する。
 9. **CSS・アイコン・JSの読み込み**: レイアウトの `<head>` には `{{template "static-head"}}` を書き、`/static/` の他のファイルは `{{asset "..."}}`（引数は文字列だけ）で読み込む。`/static/...` を直接書かない。決まりの正本は `docs/components.md` の2節。テストでHTMLの中の参照を期待値にするときは、URLを直接書かずに `web.AssetURL` を使う。

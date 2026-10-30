@@ -429,6 +429,28 @@ func TestAdmin_InboxIsAdminOnlyAndGetDoesNotChangeState(t *testing.T) {
 
 func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 
+// 送った人が書いたURLやメールアドレスを、管理画面でリンクにしないこと。
+// 不変条件: CONTACT-INV-13
+func TestAdmin_SubmittedValuesAreNotLinked(t *testing.T) {
+	f, routes, core, _, _ := setup(t)
+	id, err := f.store.Save(context.Background(), Input{Name: "https://name.example/", ReplyTo: "reply@example.com", Body: "https://body.example/"}, Limits{Hourly: 10, Daily: 10, Unread: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin := authtest.NewSession(t, core.DB())
+	for _, path := range []string{"/admin/contact", "/admin/contact/" + itoa(id)} {
+		body := adminRequest(routes, http.MethodGet, path, admin, nil).Body.String()
+		if !strings.Contains(body, "https://body.example/") {
+			t.Fatalf("%s must show the text", path)
+		}
+		for _, link := range []string{`href="https://body.example`, `href="https://name.example`, `href="mailto:`} {
+			if strings.Contains(body, link) {
+				t.Errorf("%s must not contain %s", path, link)
+			}
+		}
+	}
+}
+
 func TestLoadConfig(t *testing.T) {
 	env := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
 	cfg, err := LoadConfig(env(nil))
