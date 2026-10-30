@@ -368,6 +368,7 @@ func countRows(t *testing.T, db *sql.DB, query string, args ...any) int {
 // 実際の往復でBにログインでき、AのロールをコピーせずBのメンバーになること。停止すると次の要求から拒否されること。
 //
 // 不変条件: AUTH-INV-17, FEDAUTH-INV-1, FEDAUTH-INV-3, FEDAUTH-INV-4
+// ユースケース: UC-FEDAUTH-2
 func TestFederatedAuth_LoginThenStopRejectsNextRequest(t *testing.T) {
 	p := newFedPair(t)
 	adminCookie, adminID := authtest.NewAccountSession(t, p.a.db, "admin")
@@ -409,6 +410,7 @@ func TestFederatedAuth_LoginThenStopRejectsNextRequest(t *testing.T) {
 // 失効の各操作で、Bの既存のログインが拒否され、操作を戻しても復活しないこと。
 //
 // 不変条件: AUTH-INV-17, FEDAUTH-INV-1
+// ユースケース: UC-FEDAUTH-3
 func TestFederatedAuth_RevocationsDoNotRevive(t *testing.T) {
 	ctx := context.Background()
 	cases := []struct {
@@ -529,6 +531,7 @@ func TestFederatedAuth_LocalChangesKeepLogin(t *testing.T) {
 // 認証基盤の障害中は503で、業務の処理をせず、セッションを残すこと。回復すれば再確認で使えること。
 //
 // 不変条件: FEDAUTH-INV-2
+// ユースケース: UC-FEDAUTH-4
 func TestFederatedAuth_UnavailableKeepsSession(t *testing.T) {
 	p := newFedPair(t)
 	br, _, _ := p.member(t)
@@ -1094,6 +1097,7 @@ func TestFederatedAuth_TwoProvidersAreRejected(t *testing.T) {
 }
 
 // 提供機能のコマンドは、連携先と利用許可を管理し、秘密値を標準出力に1度だけ出すこと。
+// ユースケース: UC-FEDAUTH-1
 func TestFederatedAuth_ProviderCommands(t *testing.T) {
 	p := newFedPair(t)
 	f := oidcop.NewFeature(slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -1143,6 +1147,7 @@ func TestFederatedAuth_ProviderCommands(t *testing.T) {
 }
 
 // 利用側のコマンドは、ログイン済みの利用者のロールを変え、認証基盤の確認を迂回しないこと。
+// ユースケース: UC-FEDAUTH-5
 func TestFederatedAuth_ConsumerCommand(t *testing.T) {
 	p := newFedPair(t)
 	br, id, sub := p.member(t)

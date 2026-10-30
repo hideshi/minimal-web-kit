@@ -204,6 +204,7 @@ func (b *browser) waitLong(t *testing.T, expr string) {
 
 // 実際のパスキーでAにログインして、別サイトのBへログインし、Aで停止すると次の要求からBが拒否すること。
 // 別サイトの遷移でCookieが届き、CSPの form-action を緩めずに往復できることも確かめます。
+// ユースケース: UC-FEDAUTH-2, UC-FEDAUTH-3
 func TestFederatedLogin_PasskeyRoundTripAndStop(t *testing.T) {
 	b := newFederatedBrowser(t)
 	aOrigin, bOrigin, aDB, fed, clientID := federatedSites(t)

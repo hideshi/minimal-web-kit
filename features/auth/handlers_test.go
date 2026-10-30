@@ -92,6 +92,7 @@ func adminCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 }
 
 // 不変条件: AUTH-INV-14
+// ユースケース: UC-AUTH-1, UC-AUTH-2
 func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()
@@ -273,6 +274,7 @@ func TestAdmin_SyncedPasskeyAllowedBySetting(t *testing.T) {
 }
 
 // 不変条件: AUTH-INV-8
+// ユースケース: UC-AUTH-9
 func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()

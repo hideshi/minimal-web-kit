@@ -43,6 +43,7 @@ func mustFirstCredential(t *testing.T, fx *fixture) credentialInfo {
 }
 
 // 不変条件: AUTH-INV-4, AUTH-INV-13, AUTH-INV-14
+// ユースケース: UC-AUTH-3
 func TestAdminPasskeys_AddRenameDelete(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()

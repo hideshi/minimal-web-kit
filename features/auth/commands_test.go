@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ユースケース: UC-AUTH-10
 func TestCommands_SetupAndRecover(t *testing.T) {
 	_, db := newTestDB(t)
 	ctx := context.Background()

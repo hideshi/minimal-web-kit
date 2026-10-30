@@ -145,6 +145,7 @@ var setupTokenPattern = regexp.MustCompile(`/admin/setup#token=([A-Za-z0-9_-]+)`
 // 管理者がアカウントを作って登録URLを渡し、メンバーがパスキーを登録してログインするまで。
 // メンバーはアカウントの管理を使えず、停止されるとログイン状態が解除されること。
 // 不変条件: AUTH-INV-2, AUTH-INV-5, AUTH-INV-7, AUTH-INV-10, AUTH-INV-13
+// ユースケース: UC-AUTH-4, UC-AUTH-6, UC-AUTH-7, UC-AUTH-8
 func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 	fx := newFixture(t)
 	_, admin := fx.loggedIn(t)
@@ -261,6 +262,47 @@ func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 		if rec := fx.do(t, http.MethodGet, "/admin/accounts/"+raw, nil, admin); rec.Code != http.StatusNotFound {
 			t.Fatalf("invalid id %q: %d", raw, rec.Code)
 		}
+	}
+}
+
+// 管理者は他のアカウントのロールを変えられ、変更はログインし直した後の権限に効くこと。
+//
+// 不変条件: AUTH-INV-5, AUTH-INV-6
+// ユースケース: UC-AUTH-5
+func TestAccountsHTTP_ChangeRole(t *testing.T) {
+	fx := newFixture(t)
+	_, admin := fx.loggedIn(t)
+	rec := fx.postForm(t, "/admin/accounts", withCSRF(fx, admin, url.Values{"name": {"編集担当"}, "role": {roleMember}}), "same-origin", admin)
+	m := setupTokenPattern.FindStringSubmatch(rec.Body.String())
+	if m == nil {
+		t.Fatalf("create: %d", rec.Code)
+	}
+	member := newFakeAuthenticator(t, algES256)
+	if rec := fx.registerViaHTTP(t, member, m[1]); rec.Code != http.StatusOK {
+		t.Fatalf("register: %d", rec.Code)
+	}
+	login := func() *http.Cookie { return adminCookie(t, fx.loginViaHTTP(t, member, fx.userID(t, 2))) }
+	before := login()
+	if rec := fx.do(t, http.MethodGet, "/admin/accounts", nil, before); rec.Code != http.StatusForbidden {
+		t.Fatalf("member before the change: %d", rec.Code)
+	}
+
+	if rec := fx.postForm(t, "/admin/accounts/2/role", withCSRF(fx, admin, url.Values{"role": {roleAdmin}}), "same-origin", admin); rec.Code != http.StatusSeeOther {
+		t.Fatalf("promote: %d", rec.Code)
+	}
+	assertRows(t, fx.db, "SELECT COUNT(*) FROM auth_accounts WHERE id = 2 AND role = 'admin'", 1)
+	if rec := fx.do(t, http.MethodGet, "/admin/notes", nil, before); rec.Code != http.StatusSeeOther {
+		t.Fatalf("the old session must end with the role change: %d", rec.Code)
+	}
+	if rec := fx.do(t, http.MethodGet, "/admin/accounts", nil, login()); rec.Code != http.StatusOK {
+		t.Fatalf("admin after the change: %d", rec.Code)
+	}
+
+	if rec := fx.postForm(t, "/admin/accounts/2/role", withCSRF(fx, admin, url.Values{"role": {roleMember}}), "same-origin", admin); rec.Code != http.StatusSeeOther {
+		t.Fatalf("demote: %d", rec.Code)
+	}
+	if rec := fx.do(t, http.MethodGet, "/admin/accounts", nil, login()); rec.Code != http.StatusForbidden {
+		t.Fatalf("member after the demotion: %d", rec.Code)
 	}
 }
 

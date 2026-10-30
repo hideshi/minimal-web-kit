@@ -15,6 +15,7 @@ import (
 	"minimal-web-kit/internal/web"
 )
 
+// ユースケース: UC-SITE-1
 func TestSiteFeature_HandleRoot(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	feat := site.NewFeature(logger)
@@ -86,6 +87,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 	}
 }
 
+// ユースケース: UC-SITE-1
 func TestSiteFeature_CustomContactFormURL(t *testing.T) {
 	customURL := "https://example.com/inquiry"
 	t.Setenv("CONTACT_FORM_URL", customURL)
@@ -259,6 +261,7 @@ func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
 	}
 }
 
+// ユースケース: UC-SITE-2
 func TestSiteFeature_SEOAndOGP(t *testing.T) {
 	t.Setenv("SITE_URL", "https://example.workers.dev/")
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

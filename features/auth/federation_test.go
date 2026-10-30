@@ -167,6 +167,7 @@ func TestFederationPurge_KeepsTombstonesUntilTheyExpire(t *testing.T) {
 // 秘密値の更新は24時間だけ旧値を併用し、漏洩時は直ちに無効にして世代を進めること。
 //
 // 不変条件: AUTH-INV-17
+// ユースケース: UC-FEDAUTH-6
 func TestFederationSecrets_Rotation(t *testing.T) {
 	_, db := newTestDB(t)
 	ctx := context.Background()

@@ -111,6 +111,7 @@ func (fx *publicFixture) publish(t *testing.T, title, body string) int64 {
 }
 
 // 不変条件: NEWS-INV-1, NEWS-INV-5
+// ユースケース: UC-NEWS-1
 func TestNewsPages_ListShowAndEscape(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	id := fx.publish(t, "<script>alert(1)</script>見出し", "一行目\n二行目\n\n<b>段落</b>")
@@ -159,6 +160,7 @@ func TestNewsPages_ListShowAndEscape(t *testing.T) {
 	}
 }
 
+// ユースケース: UC-NEWS-1
 func TestNewsPages_Pagination(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	for i := 0; i < newsPageSize+1; i++ {
@@ -208,6 +210,7 @@ func TestPublicRoutes_IgnoreCoreSessions(t *testing.T) {
 }
 
 // 不変条件: NEWS-INV-1, NEWS-INV-7
+// ユースケース: UC-NEWS-2
 func TestAPI_ListAndShow(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	first := fx.publish(t, "first", "body-1")

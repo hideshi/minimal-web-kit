@@ -26,6 +26,7 @@ func siteRegistry() *features.Registry {
 }
 
 // TestExportStatic_Site は、Siteの公開ページがGoのサーバーと同じ内容・同じセキュリティヘッダーで書き出されることを検証します。
+// ユースケース: UC-SITE-3
 func TestExportStatic_Site(t *testing.T) {
 	t.Setenv("CONTACT_FORM_URL", "https://forms.example.com/contact")
 	dir := filepath.Join(t.TempDir(), "dist")

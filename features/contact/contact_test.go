@@ -89,6 +89,7 @@ func valid(token, body string) url.Values {
 // TestPublicForm_NoCookieNoStoreAndSaves は、公開のフォームがCookieを使わず、キャッシュさせず、IP等を保存しないことと、
 // 送信が保存されて完了の画面へ移り、ログに中身が出ないことを確かめる。
 // 不変条件: CONTACT-INV-1, CONTACT-INV-6
+// ユースケース: UC-CONTACT-1
 func TestPublicForm_NoCookieNoStoreAndSaves(t *testing.T) {
 	_, routes, core, logs, clock := setup(t)
 	w, token := getForm(t, routes)
@@ -246,6 +247,45 @@ func TestSubmit_LimitsCountSavedOnly(t *testing.T) {
 	}
 }
 
+// 送られたお問い合わせは受信箱に未読で届き、管理者が読んで既読やスパムに変えられること。
+//
+// ユースケース: UC-CONTACT-2, UC-CONTACT-3
+func TestAdmin_ProcessSubmittedMessage(t *testing.T) {
+	f, routes, core, _, clock := setup(t)
+	admin := authtest.NewSessionWithRole(t, core.DB(), "admin")
+	_, token := getForm(t, routes)
+	*clock = clock.Add(5 * time.Second)
+	if w := submit(routes, valid(token, "届いた内容"), "same-origin"); w.Code != http.StatusSeeOther {
+		t.Fatalf("submit: %d", w.Code)
+	}
+	var id int64
+	if err := core.DB().QueryRow("SELECT id FROM contact_messages").Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	path := "/admin/contact/" + itoa(id)
+	inbox := adminRequest(routes, http.MethodGet, "/admin/contact", admin, nil).Body.String()
+	if !strings.Contains(inbox, "届いた内容") || !strings.Contains(inbox, "未読 1件") {
+		t.Fatalf("the message must reach the inbox as unread: %s", inbox)
+	}
+	if body := adminRequest(routes, http.MethodGet, path, admin, nil).Body.String(); !strings.Contains(body, "届いた内容") || !strings.Contains(body, "返信先カナリア") {
+		t.Fatal("the detail must show the message and the reply address")
+	}
+	csrf := authtest.CSRFToken(t, routes, path, admin)
+	for _, status := range []string{statusRead, statusSpam, statusUnread} {
+		if w := adminRequest(routes, http.MethodPost, path+"/status", admin, url.Values{"status": {status}, "csrf_token": {csrf}}); w.Code != http.StatusSeeOther {
+			t.Fatalf("status %s: %d", status, w.Code)
+		}
+		m, err := f.store.Get(context.Background(), id)
+		if err != nil || m.Status != status {
+			t.Fatalf("status %s was not saved: %q %v", status, m.Status, err)
+		}
+		inbox := adminRequest(routes, http.MethodGet, "/admin/contact", admin, nil).Body.String()
+		if strings.Contains(inbox, "未読 1件") != (status == statusUnread) || strings.Contains(inbox, "スパムをまとめて削除する") != (status == statusSpam) {
+			t.Fatalf("the inbox does not show %s", status)
+		}
+	}
+}
+
 // TestPurge_RemovesExpiredRegardlessOfStatus は、保持期間を過ぎたものだけが、状態に関係なく削除されることを確かめる。
 // 不変条件: CONTACT-INV-2
 func TestPurge_RemovesExpiredRegardlessOfStatus(t *testing.T) {
@@ -294,6 +334,7 @@ func adminRequest(routes http.Handler, method, path string, cookie *http.Cookie,
 // TestAdmin_InboxIsAdminOnlyAndGetDoesNotChangeState は、受信箱が管理者だけに見え、GETで状態が変わらず、
 // 状態の変更・削除・スパムのまとめての削除ができることを確かめる。
 // 不変条件: CONTACT-INV-3, CONTACT-INV-7
+// ユースケース: UC-CONTACT-4, UC-CONTACT-5
 func TestAdmin_InboxIsAdminOnlyAndGetDoesNotChangeState(t *testing.T) {
 	f, routes, core, _, _ := setup(t)
 	id, err := f.store.Save(context.Background(), Input{Body: "<b>本文</b>", ReplyTo: "mailto:x@example.com"}, Limits{Hourly: 10, Daily: 10, Unread: 10})

@@ -133,6 +133,7 @@ func (fx *fixture) create(slug, title, body, nav string, publish bool) int64 {
 // TestPublic_PublishedOnlyAndCoreRoutesKept は、公開中のページだけが /{slug} で見え、それ以外は同じ404で、
 // Cookieを使わず、Coreと機能の経路が取られないことを確かめる。
 // 不変条件: PAGES-INV-1, PAGES-INV-5
+// ユースケース: UC-PAGES-1
 func TestPublic_PublishedOnlyAndCoreRoutesKept(t *testing.T) {
 	fx := setup(t)
 	fx.create("about", "会社概要", "## 概要\n本文です。", "", true)
@@ -185,6 +186,7 @@ func TestPublic_LoadFailureIsNot404(t *testing.T) {
 
 // TestPublic_BodyIsRenderedAsText は、本文の利用者の入力がHTMLとして出ず、許可したリンクだけが出ることを確かめる。
 // 不変条件: PAGES-INV-2
+// ユースケース: UC-PAGES-1
 func TestPublic_BodyIsRenderedAsText(t *testing.T) {
 	fx := setup(t)
 	fx.create("about", "<b>題</b>", "<script>alert(1)</script>\n[会社](/about) [危険](javascript:alert(1)) [外部](https://example.com)\n\n| 項目 | 内容 |\n|---|---|\n| 社名 | <i>例</i> |", "", true)
@@ -227,6 +229,7 @@ func TestSlugRules(t *testing.T) {
 
 // TestAdmin_ProtectedPreviewAndLifecycle は、管理画面の守り、プレビュー（保存しない）、公開・非公開・削除を確かめる。
 // 不変条件: PAGES-INV-4, PAGES-INV-9
+// ユースケース: UC-PAGES-2, UC-PAGES-3, UC-PAGES-4, UC-PAGES-5, UC-PAGES-6
 func TestAdmin_ProtectedPreviewAndLifecycle(t *testing.T) {
 	fx := setup(t)
 	if w := fx.get("/admin/pages", nil); w.Code != http.StatusSeeOther {
@@ -281,6 +284,7 @@ func TestAdmin_ProtectedPreviewAndLifecycle(t *testing.T) {
 
 // TestNavAndSitemap_ReflectWithoutRestart は、公開中で順のあるページだけがナビとsitemapに出て、変更が再起動なしで反映されることを確かめる。
 // 不変条件: PAGES-INV-6
+// ユースケース: UC-PAGES-7
 func TestNavAndSitemap_ReflectWithoutRestart(t *testing.T) {
 	fx := setup(t)
 	about := fx.create("about", "会社概要", "", "2", true)

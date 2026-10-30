@@ -44,6 +44,7 @@ func withCSRF(fx *publicFixture, cookie *http.Cookie, form url.Values) url.Value
 }
 
 // 不変条件: NEWS-INV-4, NEWS-INV-5, NEWS-INV-11, NEWS-INV-12
+// ユースケース: UC-NEWS-3, UC-NEWS-4, UC-NEWS-5, UC-NEWS-6
 func TestAdminPosts_CreateEditPublishDelete(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
@@ -230,6 +231,7 @@ func TestAdminPosts_PublishedAt(t *testing.T) {
 }
 
 // 不変条件: NEWS-INV-1, NEWS-INV-2
+// ユースケース: UC-NEWS-7
 func TestAdminPosts_ScheduledPublishing(t *testing.T) {
 	fx := newPublicFixture(t, "")
 	_, cookie := fx.loggedIn(t)
