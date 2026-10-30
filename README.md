@@ -1,10 +1,10 @@
 # minimal-web-kit
 
-個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ、固定ページ）、3本のAI開発スキル、規約を検査するテストを同梱しています。
+個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ、固定ページ、自社システム間の共通認証）、3本のAI開発スキル、規約を検査するテストを同梱しています。
 
 ## 特徴と提供範囲
 
-- **Go標準機能を中心とした構成**：`net/http`、`html/template`、`embed.FS`、`log/slog` を使用します。直接依存は純Go版SQLiteドライバ1件で、間接依存もあります（[一覧](#依存モジュール)）。Node.js/npmや外部CSSフレームワークは使用しません。
+- **Go標準機能を中心とした構成**：`net/http`、`html/template`、`embed.FS`、`log/slog` を使用します。BaseとSite・管理者認証等の直接依存は純Go版SQLiteドライバ1件で、間接依存もあります（[一覧](#依存モジュール)）。任意の共通認証を登録したときだけ、OIDCのライブラリが組み込まれます。Node.js/npmや外部CSSフレームワークは使用しません。
 - **機能ごとの分離**：自作機能は `features/<機能名>/` に配置します。Site・お知らせ機能の切り替えコマンドは登録ファイルだけを変更し、機能ディレクトリ内のファイルは変更しません。
 - **取得データの最小化**：氏名や連絡先は既定で取得しません（お問い合わせ機能を有効にした場合だけ、送る人が任意で書くお名前・返信先を保存します）。必要な情報を追加するときは、利用目的・保存先・保持期間・削除方法を整理し、開発規約に沿って承認を得て台帳と検査を更新します。
 - **セッションとデータ保護の基盤**：ランダムトークンとDBへのSHA-256ハッシュ保存、CSRF保護、セキュリティヘッダー、期限切れセッションの削除処理を備えています。OwnerIDはデータ分離の識別子であり、管理者認証や業務上の権限管理の代わりにはなりません。
@@ -97,6 +97,48 @@ make auth-setup
 - 本番では `AUTH_ORIGIN`・`AUTH_RP_ID` を公開するURLに合わせ、`SECURE_COOKIE=true` にします。手順は [docs/deploy.md](docs/deploy.md) を参照してください。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の4節にあります。用語・状態・不変条件・権限の正本は [docs/domain/auth.md](docs/domain/auth.md)（ドメインモデル）です。
 - お知らせ機能が有効な間は `make remove-auth` で外せません。登録を外しても、DBのデータは残ります。
 
+### 共通認証（自社の別システムでのログイン）
+
+管理者認証のアカウントとパスキーで、自社の別システムにログインできるようにします。アカウントを持つシステムA（認証基盤）と、ログインを任せるシステムB（連携先）で、それぞれ機能を登録します。AとBは別のドメインで構いません。Aで利用者を停止すると、Bのログイン済みの人も次の要求から使えなくなります。
+
+```bash
+# A（認証基盤）: 管理者認証を、提供機能付きに置き換える。アカウントとパスキーはそのまま使える
+make add-oidcop
+
+# B（連携先）: 管理者認証を、Aでのログインに置き換える。お知らせ等の管理画面はそのまま動く
+make add-federatedauth
+```
+
+Aの設定（`AUTH_ORIGIN` はHTTPSのオリジンで、これが issuer になります）:
+
+```bash
+openssl ecparam -name prime256v1 -genkey -noout -out oidc-signing.pem   # 署名鍵（P-256）
+head -c 32 /dev/urandom > oidc-crypto.key                               # コードの暗号化鍵（32バイト）
+chmod 600 oidc-signing.pem oidc-crypto.key                              # 所有者だけが読めないと起動しない
+export OIDC_SIGNING_KEY_FILE=/path/oidc-signing.pem OIDC_CRYPTO_KEY_FILE=/path/oidc-crypto.key
+
+# 連携先を登録する。client_secret は1度だけ表示する。出力をログや共有の画面に残さない
+minimal-web-kit oidc-client -create -label "業務アプリB" -redirect https://b.example.com/admin/sso/callback
+# 利用を許可する。sub（連携先に渡す識別子）を表示する
+minimal-web-kit oidc-grant -client <client_id> -account <アカウントのID>
+```
+
+Bの設定（`AUTH_ORIGIN` はBのHTTPSのオリジン）:
+
+```bash
+export OIDC_ISSUER=https://a.example.com OIDC_CLIENT_ID=<client_id>
+export OIDC_CLIENT_SECRET_FILE=/path/client-secret   # 所有者だけが読めるファイル
+# 利用者は最初の1回のログインでメンバーになる。その後で管理者を指定する
+minimal-web-kit federated-account -sub <sub> -role admin
+```
+
+- Aの役割の管理者が、そのままBの管理者になることはありません。Bの権限はBのコマンドで決めます。
+- Bは保護された要求のたびにAへ確認します。Aが止まっている間、Bの保護された機能は503になります（ログアウトはできます）。可用性をAに依存することを前提に使ってください。
+- 秘密値の更新は `oidc-client -client <ID> -rotate`（旧値は24時間有効）、漏洩時は `-rotate -compromised` です。連携先の停止は `-disable`、利用許可の取り消しは `oidc-grant -revoke` です。どれも、戻しても古いログインは復活しません。
+- 署名鍵の更新は、新しい鍵に替え、旧公開鍵をJWKSのファイル（`OIDC_OLD_JWKS_FILE`）で7分以上公開し続けます。漏洩時とバックアップからの復元の後は `oidc-revoke-all -yes` を実行します。
+- 対応するのはサーバー側でセッションを持つ自社のWebアプリだけです。SPA・モバイル・refresh token・第三者への開放は対象外です。キット以外のシステムをつなぐ場合は、OIDCに加えて、要求ごとの照会（`POST /oidc/check`）の実装が必要です。
+- 仕様と不変条件は [docs/domain/federatedauth.md](docs/domain/federatedauth.md)、保存内容は[データ台帳](docs/data-inventory.md)の4節と9節にあります。
+
 ### お知らせ機能
 
 お知らせ1種類を管理する同梱機能です。サーバーがHTMLを返す使い方（`/news`）と、別のフロントエンドがJSONを読む使い方（`/api/news`）の両方に対応します。Siteとは別に有効化でき、同時に使うとSiteのナビに「お知らせ」のリンクが出ます。管理画面へのログインには管理者認証を使い、`make add-news` で一緒に有効になります。
@@ -158,7 +200,7 @@ make auth-setup
 
 ### 切り替えコマンドの保護範囲
 
-`features/site`・`features/news`・`features/auth`・`features/catalog` は同梱機能用の予約ディレクトリです。自作機能には別名を使用してください。コマンドは `site.go`・`news.go`・`auth.go`・`catalog.go` 冒頭の識別コメント（例: `// minimal-web-kit: bundled-feature site`）と登録ファイルの構造を確認します。識別できない同名ディレクトリ、シンボリックリンク、マーカーの欠落・重複、部分的な登録、別名import等は書き換えずに拒否します。識別コメントは同梱元の目印で、真正性や未改変を証明するものではありません。
+`features/site`・`features/news`・`features/auth`・`features/catalog`・`features/federatedauth` は同梱機能用の予約ディレクトリです。自作機能には別名を使用してください。コマンドは `site.go`・`news.go`・`auth.go`・`catalog.go` 冒頭の識別コメント（例: `// minimal-web-kit: bundled-feature site`）と登録ファイルの構造を確認します。識別できない同名ディレクトリ、シンボリックリンク、マーカーの欠落・重複、部分的な登録、別名import等は書き換えずに拒否します。識別コメントは同梱元の目印で、真正性や未改変を証明するものではありません。
 
 コマンドはテンプレートをコピー・削除せず、`cmd/server/features.go` のimportと登録行だけを変更します。登録ファイルがgofmt済みなら、変更後もgofmt済みに保ちます。将来コピー機能を追加する場合は、既存のコピー先を上書きしない保護が別途必要です。
 
@@ -176,6 +218,8 @@ make auth-setup
 | `make add-catalog` / `make remove-catalog` | カタログの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-contact` / `make remove-contact` | お問い合わせの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-pages` / `make remove-pages` | 固定ページの登録を有効化・無効化（Authも有効化。データは保持） |
+| `make add-oidcop` / `make remove-oidcop` | 共通認証の提供機能。管理者認証を置き換え、外すと通常の管理者認証に戻る（連携の失効の状態は残る） |
+| `make add-federatedauth` / `make remove-federatedauth` | 共通認証の利用機能。管理者認証を置き換える（お知らせ等が有効な間は無効化できない） |
 | `make add-news` / `make remove-news` | お知らせ機能の登録を有効化・無効化（有効化すると管理者認証も有効になる。無効化してもDBのデータは残る） |
 | `make auth-setup` | 最初の管理者のパスキーの登録用URLを表示（有効なパスキーが1件も無いときだけ）。本番は `minimal-web-kit auth-setup` |
 | `go run ./cmd/server export-static <dir>` | Siteの公開ページ（`/`・`/privacy`）とCSS、セキュリティヘッダーの `_headers` を静的ファイルとして書き出す（Siteのみ有効な場合）。本番は `minimal-web-kit export-static <dir>` |
@@ -216,6 +260,19 @@ make auth-setup
 | `github.com/google/uuid` | UUIDの生成 | BSD系 |
 | `github.com/dustin/go-humanize` | 数値の表示形式 | MIT |
 | `github.com/remyoudompheng/bigfft` | 大きな数の乗算 | BSD系 |
+
+共通認証の機能を登録したときだけ、次のモジュールも組み込まれます。`go.mod` の直接依存には載りますが、組み込まれるかは登録したかで決まり、BaseとSite・通常の管理者認証の実行ファイルには入りません（`TestArchitecture_FederationDependenciesStayOptional`）。実行ファイルの大きさと外部モジュールの数は、Base 約13.9MB・8個、管理者認証 約14.2MB・8個、提供機能 約16.7MB・26個、利用機能 約14.9MB・11個です（Linux amd64、`make build` 相当、2026-10-30）。
+
+| モジュール | 用途 | 組み込まれる構成 | ライセンス |
+|---|---|---|---|
+| `github.com/zitadel/oidc/v3` | OIDCの提供（直接依存） | 提供機能 | Apache-2.0 |
+| `github.com/coreos/go-oidc/v3` | IDトークンの検証（直接依存） | 利用機能 | Apache-2.0 |
+| `golang.org/x/oauth2` | コードの交換（直接依存） | 提供機能・利用機能 | BSD系 |
+| `github.com/go-jose/go-jose/v4` | JWTの署名と検証（直接依存。脆弱性の修正版に固定） | 提供機能・利用機能 | Apache-2.0 |
+| `github.com/go-chi/chi/v5`・`github.com/rs/cors`・`github.com/gorilla/securecookie`・`github.com/zitadel/schema`・`github.com/muhlemmer/httpforwarded`・`github.com/bmatcuk/doublestar/v4`・`github.com/cespare/xxhash/v2` | OIDCのライブラリの内部で使う。公開の経路には使わない | 提供機能 | MIT・BSD系 |
+| `github.com/muhlemmer/gu` | 同上 | 提供機能 | Unlicense |
+| `go.opentelemetry.io/otel` 一式・`go.opentelemetry.io/auto/sdk`・`github.com/go-logr/logr`・`github.com/go-logr/stdr` | 同上。計測のAPIだけで、送信先を設定しないので外部へは送らない | 提供機能 | Apache-2.0 |
+| `golang.org/x/text` | 同上 | 提供機能 | BSD系 |
 
 ライセンスは各モジュールのLICENSEファイルの冒頭で分類したもので、正確な条件は各LICENSEを参照してください。`go.mod` にはこのほか、上記の環境では組み込まれない間接依存（`github.com/mattn/go-isatty`、`github.com/ncruces/go-strftime`）も記載されています。
 
@@ -308,6 +365,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 │   └── kit/               # Site・お知らせ機能・管理者認証の登録の切り替えCLIとテスト
 ├── internal/
 │   ├── app/               # 設定・サーバー管理
+│   ├── federation/        # 共通認証の照会の契約と通信の守り
 │   ├── domain/            # OwnerID等のCoreドメイン型
 │   ├── store/             # メモリ・SQLite・Coreマイグレーション
 │   └── web/               # SSR・セッション・CSRF・ログ・CSS
@@ -318,7 +376,9 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── features/
 │   ├── site/              # 同梱機能: LPテンプレート（Site）
 │   ├── news/              # 同梱機能: お知らせ機能（公開ページ・API・記事の管理画面）
-│   └── auth/              # 同梱機能: 管理者認証（パスキーでのログイン・パスキーの管理）
+│   ├── auth/              # 同梱機能: 管理者認証（パスキーでのログイン・パスキーの管理）
+│   │   └── oidcop/        # 同梱機能: 共通認証の提供（OIDC）
+│   └── federatedauth/     # 同梱機能: 共通認証の利用（別システムの認証基盤でのログイン）
 ├── skills/                # 3本のAI開発スキルの正本（各150行以内）
 └── test/                  # 依存・テンプレート・台帳・ログ等の検査
 ```

@@ -608,7 +608,11 @@ func (f *Feature) handleLoginFinish(w http.ResponseWriter, r *http.Request, body
 	}
 	f.setAdminCookie(w, token)
 	f.logger.Info("auth login succeeded", f.requestID(w), slog.Int64("account_id", cred.AccountID))
-	f.writeJSON(w, http.StatusOK, map[string]string{"next": "/admin"})
+	next := "/admin"
+	if f.loginNext != nil {
+		next = f.loginNext(r)
+	}
+	f.writeJSON(w, http.StatusOK, map[string]string{"next": next})
 }
 
 // verificationReason はログに記録する固定の理由を返します（値は含めない）。

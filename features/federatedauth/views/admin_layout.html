@@ -1,0 +1,47 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{{.Title}} - minimal-web-kit 管理画面</title>
+  {{template "static-head"}}
+  {{block "script" .}}{{end}}
+</head>
+<body>
+  <a href="#main-content" class="skip-link">本文へ移動</a>
+
+  <header>
+    <div class="site-header-inner">
+      <div>
+        <div class="site-title"><a href="/admin" class="brand-link">minimal-web-kit</a></div>
+        <div class="site-subtitle">管理画面</div>
+      </div>
+      <nav aria-label="管理画面のナビゲーション">
+        {{if .LoggedIn}}
+        {{range .AdminNav}}<a href="{{.Href}}"{{if eq $.Current .Href}} aria-current="{{if eq $.RequestPath .Href}}page{{else}}true{{end}}"{{end}}>{{.Label}}</a>
+        {{end}}{{end}}
+        <a href="/">サイトを表示</a>
+        {{if .LoggedIn}}
+        <form method="post" action="/admin/logout" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+          <button type="submit" class="btn btn-secondary">ログアウト</button>
+        </form>
+        {{end}}
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content" class="admin-main" tabindex="-1">
+    {{template "content" .}}
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <p>&copy; 2026 minimal-web-kit</p>
+    </div>
+  </footer>
+</body>
+</html>
+{{end}}

@@ -46,6 +46,30 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Successfully disabled admin authentication feature! Stored passkeys were not modified.")
+	case "add-oidcop":
+		if err := addOIDCProvider(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling the OIDC provider: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled the OIDC provider (it replaces the auth registration and keeps its passkeys and accounts).")
+	case "remove-oidcop":
+		if err := removeOIDCProvider(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling the OIDC provider: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("OIDC provider disabled; admin authentication stays enabled and stored revocation data is kept.")
+	case "add-federatedauth":
+		if err := addFederatedAuth(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling federated login: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled federated login (it replaces the auth registration).")
+	case "remove-federatedauth":
+		if err := removeFederatedAuth(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling federated login: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Federated login disabled; stored data is kept.")
 	case "add-catalog":
 		if err := addCatalog(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling catalog feature: %v\n", err)
@@ -110,6 +134,10 @@ func printUsage() {
 	fmt.Println("  remove-site  Disable the Site (LP template) feature registration")
 	fmt.Println("  add-auth     Enable the admin authentication (passkey) feature")
 	fmt.Println("  remove-auth  Disable admin authentication (refused while news, catalog, contact or pages is enabled; stored passkeys are kept)")
+	fmt.Println("  add-oidcop   Replace auth with auth plus the OIDC provider (other systems can log in with these accounts)")
+	fmt.Println("  remove-oidcop Go back to auth without the provider (stored revocation data is kept)")
+	fmt.Println("  add-federatedauth Replace auth with login at another system's identity provider")
+	fmt.Println("  remove-federatedauth Disable federated login (refused while news, catalog, contact or pages is enabled)")
 	fmt.Println("  add-catalog  Enable Catalog with admin authentication")
 	fmt.Println("  remove-catalog Disable Catalog registration (stored data is kept)")
 	fmt.Println("  add-contact  Enable the contact form and inbox, together with admin authentication")
@@ -124,42 +152,63 @@ func printUsage() {
 }
 
 // bundle は登録を切り替えられる同梱機能です。
-// ディレクトリ features/<name>/、ソース <name>.go、識別コメント marker を持ちます。
+// ディレクトリ features/<dir>/（dir が空なら features/<name>/）、ソース <name>.go、識別コメント marker を持ちます。
+// needsAdmin の機能は、管理画面に管理者認証の提供者を使います。提供者が外れないよう、登録の解除を拒否します。
 type bundle struct {
-	name   string
-	label  string
-	marker string
+	name       string
+	label      string
+	marker     string
+	dir        string
+	needsAdmin bool
+}
+
+func (b bundle) directory() string {
+	if b.dir != "" {
+		return "features/" + b.dir
+	}
+	return "features/" + b.name
+}
+
+func (b bundle) importPath() string {
+	return "minimal-web-kit/" + b.directory()
 }
 
 const (
-	bundledSiteMarker    = "// minimal-web-kit: bundled-feature site"
-	bundledNewsMarker    = "// minimal-web-kit: bundled-feature news"
-	bundledCatalogMarker = "// minimal-web-kit: bundled-feature catalog"
-	bundledAuthMarker    = "// minimal-web-kit: bundled-feature auth"
-	bundledContactMarker = "// minimal-web-kit: bundled-feature contact"
-	bundledPagesMarker   = "// minimal-web-kit: bundled-feature pages"
+	bundledSiteMarker      = "// minimal-web-kit: bundled-feature site"
+	bundledNewsMarker      = "// minimal-web-kit: bundled-feature news"
+	bundledCatalogMarker   = "// minimal-web-kit: bundled-feature catalog"
+	bundledAuthMarker      = "// minimal-web-kit: bundled-feature auth"
+	bundledOIDCMarker      = "// minimal-web-kit: bundled-feature oidcop"
+	bundledFederatedMarker = "// minimal-web-kit: bundled-feature federatedauth"
+	bundledContactMarker   = "// minimal-web-kit: bundled-feature contact"
+	bundledPagesMarker     = "// minimal-web-kit: bundled-feature pages"
 )
 
 var (
-	siteBundle    = bundle{name: "site", label: "Site", marker: bundledSiteMarker}
-	newsBundle    = bundle{name: "news", label: "News", marker: bundledNewsMarker}
-	catalogBundle = bundle{name: "catalog", label: "Catalog", marker: bundledCatalogMarker}
-	authBundle    = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
-	contactBundle = bundle{name: "contact", label: "Contact", marker: bundledContactMarker}
-	pagesBundle   = bundle{name: "pages", label: "Pages", marker: bundledPagesMarker}
+	siteBundle      = bundle{name: "site", label: "Site", marker: bundledSiteMarker}
+	newsBundle      = bundle{name: "news", label: "News", marker: bundledNewsMarker, needsAdmin: true}
+	catalogBundle   = bundle{name: "catalog", label: "Catalog", marker: bundledCatalogMarker, needsAdmin: true}
+	authBundle      = bundle{name: "auth", label: "Auth", marker: bundledAuthMarker}
+	oidcBundle      = bundle{name: "oidcop", label: "OIDC provider", marker: bundledOIDCMarker, dir: "auth/oidcop"}
+	federatedBundle = bundle{name: "federatedauth", label: "Federated login", marker: bundledFederatedMarker}
+	contactBundle   = bundle{name: "contact", label: "Contact", marker: bundledContactMarker, needsAdmin: true}
+	pagesBundle     = bundle{name: "pages", label: "Pages", marker: bundledPagesMarker, needsAdmin: true}
+
+	// bundles は全ての同梱機能です。機能を足したら、ここに加えます。
+	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, authBundle, oidcBundle, federatedBundle}
 )
 
 func addSite() error               { return toggleSite(true) }
 func removeSite() error            { return toggleSite(false) }
 func toggleSite(enable bool) error { return toggleBundle(siteBundle, enable) }
-func addAuth() error               { return toggleBundle(authBundle, true) }
+func addAuth() error               { return ensureAdminProvider() }
 
 // addNews は、お知らせ機能が使う管理者認証も一緒に有効にします。お知らせ機能のソースを先に確認し、拒否する場合は何も変えません。
 func addNews() error {
 	if err := verifyBundle(newsBundle); err != nil {
 		return err
 	}
-	if err := toggleBundle(authBundle, true); err != nil {
+	if err := ensureAdminProvider(); err != nil {
 		return err
 	}
 	return toggleBundle(newsBundle, true)
@@ -170,7 +219,7 @@ func addCatalog() error {
 	if err := verifyBundle(catalogBundle); err != nil {
 		return err
 	}
-	if err := toggleBundle(authBundle, true); err != nil {
+	if err := ensureAdminProvider(); err != nil {
 		return err
 	}
 	return toggleBundle(catalogBundle, true)
@@ -182,7 +231,7 @@ func addContact() error {
 	if err := verifyBundle(contactBundle); err != nil {
 		return err
 	}
-	if err := toggleBundle(authBundle, true); err != nil {
+	if err := ensureAdminProvider(); err != nil {
 		return err
 	}
 	return toggleBundle(contactBundle, true)
@@ -194,33 +243,106 @@ func addPages() error {
 	if err := verifyBundle(pagesBundle); err != nil {
 		return err
 	}
-	if err := toggleBundle(authBundle, true); err != nil {
+	if err := ensureAdminProvider(); err != nil {
 		return err
 	}
 	return toggleBundle(pagesBundle, true)
 }
 func removePages() error { return toggleBundle(pagesBundle, false) }
 
-// removeAuth は、News・Catalog・Contact・Pagesのどれかが有効な間は拒否します。
-func removeAuth() error {
+// enabled は、機能の登録があるかを、登録ファイルの文字列で調べます。
+func enabled(b bundle) (bool, error) {
 	registration, err := os.ReadFile("cmd/server/features.go")
 	if err != nil {
+		return false, err
+	}
+	return strings.Contains(string(registration), strconv.Quote(b.importPath())), nil
+}
+
+// ensureAdminProvider は、管理者認証の提供者が無ければ、通常の管理者認証を登録します。
+// 提供機能や外部認証が登録済みなら、それを使い続けます（提供者が2つあると起動時に拒否される）。
+func ensureAdminProvider() error {
+	for _, b := range []bundle{oidcBundle, federatedBundle} {
+		on, err := enabled(b)
+		if err != nil {
+			return err
+		}
+		if on {
+			return nil
+		}
+	}
+	return toggleBundle(authBundle, true)
+}
+
+// refuseAdminUsers は、管理者認証を使う機能が有効な間は、提供者を外せないようにします。
+func refuseAdminUsers() error {
+	for _, b := range bundles {
+		if !b.needsAdmin {
+			continue
+		}
+		on, err := enabled(b)
+		if err != nil {
+			return err
+		}
+		if on {
+			return fmt.Errorf("%s uses admin authentication; run remove-%s first", b.name, b.name)
+		}
+	}
+	return nil
+}
+
+// removeAuth は、管理者認証を使う機能のどれかが有効な間は拒否します。
+func removeAuth() error {
+	if err := refuseAdminUsers(); err != nil {
 		return err
-	}
-	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+newsBundle.name)) {
-		return fmt.Errorf("news uses admin authentication; run remove-news first")
-	}
-	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+catalogBundle.name)) {
-		return fmt.Errorf("catalog uses admin authentication; run remove-catalog first")
-	}
-	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+contactBundle.name)) {
-		return fmt.Errorf("contact uses admin authentication; run remove-contact first")
-	}
-	if strings.Contains(string(registration), strconv.Quote("minimal-web-kit/features/"+pagesBundle.name)) {
-		return fmt.Errorf("pages uses admin authentication; run remove-pages first")
 	}
 	return toggleBundle(authBundle, false)
 }
+
+// swapAdminProvider は、管理者認証の提供者を from から to へ入れ替えます。両方のソースを先に確認し、拒否する場合は何も変えません。
+func swapAdminProvider(from, to bundle) error {
+	if err := verifyBundle(from); err != nil {
+		return err
+	}
+	if err := verifyBundle(to); err != nil {
+		return err
+	}
+	if err := toggleBundle(from, false); err != nil {
+		return err
+	}
+	return toggleBundle(to, true)
+}
+
+// addOIDCProvider は、管理者認証を、それを包む提供機能に入れ替えます。アカウントとパスキーはそのまま使えます。
+func addOIDCProvider() error {
+	if on, err := enabled(federatedBundle); err != nil {
+		return err
+	} else if on {
+		return fmt.Errorf("federatedauth is enabled; a system cannot both use and provide login, run remove-federatedauth first")
+	}
+	return swapAdminProvider(authBundle, oidcBundle)
+}
+
+// removeOIDCProvider は、提供機能を外して、通常の管理者認証に戻します。
+func removeOIDCProvider() error { return swapAdminProvider(oidcBundle, authBundle) }
+
+// addFederatedAuth は、管理者認証を外部の認証基盤でのログインに入れ替えます。
+func addFederatedAuth() error {
+	if on, err := enabled(oidcBundle); err != nil {
+		return err
+	} else if on {
+		return fmt.Errorf("oidcop is enabled; a system cannot both use and provide login, run remove-oidcop first")
+	}
+	return swapAdminProvider(authBundle, federatedBundle)
+}
+
+func removeFederatedAuth() error {
+	if err := refuseAdminUsers(); err != nil {
+		return err
+	}
+	return toggleBundle(federatedBundle, false)
+}
+
 func removeNews() error { return toggleBundle(newsBundle, false) }
 
 // 実体を確認できない同名ディレクトリと、シンボリックリンクは操作しない。
@@ -237,9 +359,13 @@ func regularPath(path string, directory bool) error {
 
 // verifyBundle は、features/<name>/ が同梱機能の元のソースとして識別できるかを確認します。
 func verifyBundle(b bundle) error {
-	dir := "features/" + b.name
+	dir := b.directory()
 	sourcePath := dir + "/" + b.name + ".go"
-	for _, d := range []string{"features", dir, "cmd", "cmd/server"} {
+	directories := []string{"features", dir, "cmd", "cmd/server"}
+	if b.dir != "" {
+		directories = append(directories, filepath.Dir(dir))
+	}
+	for _, d := range directories {
 		if err := regularPath(d, true); err != nil {
 			return err
 		}
@@ -313,7 +439,7 @@ func toggleBundle(b bundle, enable bool) error {
 		return fmt.Errorf("missing or misplaced registration markers")
 	}
 
-	importPath := "minimal-web-kit/features/" + b.name
+	importPath := b.importPath()
 	registration := "r.Register(" + b.name + ".NewFeature(logger))"
 	imports := 0
 	for _, imp := range file.Imports {

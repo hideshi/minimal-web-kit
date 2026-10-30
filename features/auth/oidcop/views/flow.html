@@ -1,0 +1,16 @@
+{{define "content"}}
+<h1>外部アプリへのログイン</h1>
+{{if .Entry}}
+<p>本人の確認に進みます。</p>
+<p><a href="/admin/oidc/continue" class="btn btn-primary">続ける</a></p>
+{{else}}
+<p>「{{.ClientLabel}}」にログインします。</p>
+<form method="post" action="/admin/oidc/approve">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <div class="form-actions">
+    <button type="submit" name="decision" value="allow" class="btn btn-primary">ログインする</button>
+    <button type="submit" name="decision" value="deny" class="btn btn-secondary">中止する</button>
+  </div>
+</form>
+{{end}}
+{{end}}

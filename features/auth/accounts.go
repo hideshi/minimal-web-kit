@@ -340,7 +340,7 @@ func ResetSchema(ctx context.Context, db *sql.DB) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
-	for _, t := range []string{"auth_setup_tokens", "auth_sessions", "auth_credentials", "auth_settings", "auth_accounts"} {
+	for _, t := range []string{"auth_oidc_requests", "auth_oidc_client_secrets", "auth_oidc_grants", "auth_oidc_clients", "auth_federated_subjects", "auth_setup_tokens", "auth_sessions", "auth_credentials", "auth_settings", "auth_accounts"} {
 		if _, err := tx.ExecContext(ctx, "DROP TABLE IF EXISTS "+t); err != nil {
 			return err
 		}
@@ -449,7 +449,12 @@ func Recover(ctx context.Context, db *sql.DB, now time.Time, opt RecoverOptions)
 			return "", err
 		}
 	} else {
-		for _, q := range []string{"DELETE FROM auth_credentials", "DELETE FROM auth_sessions", "DELETE FROM auth_setup_tokens"} {
+		// 乗っ取りが疑われる全体の復旧では、全アカウントの連携先のログインも失効させる（AUTH-INV-17）
+		for _, q := range []string{
+			"DELETE FROM auth_credentials", "DELETE FROM auth_sessions", "DELETE FROM auth_setup_tokens",
+			"UPDATE auth_federated_subjects SET account_epoch = account_epoch + 1 WHERE deleted_at IS NULL",
+			"DELETE FROM auth_oidc_requests",
+		} {
 			if _, err := tx.ExecContext(ctx, q); err != nil {
 				return "", err
 			}

@@ -1,0 +1,11 @@
+{{define "content"}}
+<h1>管理画面へのログイン</h1>
+{{if .Message}}<p class="alert alert-warning" role="alert">{{.Message}}</p>{{end}}
+<p>認証の画面でログインします。</p>
+<form method="post" action="/admin/sso/start">
+  <input type="hidden" name="next" value="{{.Next}}">
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">ログインする</button>
+  </div>
+</form>
+{{end}}

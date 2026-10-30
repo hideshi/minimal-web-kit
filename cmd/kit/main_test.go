@@ -28,7 +28,7 @@ func custom() {}
 func fixture(t *testing.T, registration string) {
 	t.Helper()
 	t.Chdir(t.TempDir())
-	for _, dir := range []string{"cmd/server", "features/site", "features/news", "features/auth", "features/custom"} {
+	for _, dir := range []string{"cmd/server", "features/site", "features/news", "features/auth", "features/auth/oidcop", "features/federatedauth", "features/custom"} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -37,6 +37,8 @@ func fixture(t *testing.T, registration string) {
 	write(t, "features/site/site.go", bundledSiteMarker+"\npackage site\n")
 	write(t, "features/news/news.go", bundledNewsMarker+"\npackage news\n")
 	write(t, "features/auth/auth.go", bundledAuthMarker+"\npackage auth\n")
+	write(t, "features/auth/oidcop/oidcop.go", bundledOIDCMarker+"\npackage oidcop\n")
+	write(t, "features/federatedauth/federatedauth.go", bundledFederatedMarker+"\npackage federatedauth\n")
 	write(t, "features/custom/custom.go", "package custom\n// keep me\n")
 }
 func write(t *testing.T, path, value string) {
@@ -356,5 +358,63 @@ func TestPagesToggleDependencies(t *testing.T) {
 	}
 	if read(t, "cmd/server/features.go") != original {
 		t.Fatal("registration not restored")
+	}
+}
+
+// 管理者認証の提供者は1つだけになるよう入れ替わり、他の機能を足しても通常の管理者認証が戻らないこと。
+func TestAdminProviderSwap(t *testing.T) {
+	const (
+		authImport      = `"minimal-web-kit/features/auth"`
+		oidcImport      = `"minimal-web-kit/features/auth/oidcop"`
+		federatedImport = `"minimal-web-kit/features/federatedauth"`
+	)
+	has := func(want string) bool { return strings.Contains(read(t, "cmd/server/features.go"), want) }
+
+	fixture(t, baseRegistration)
+	if err := addNews(); err != nil {
+		t.Fatal(err)
+	}
+	if err := addOIDCProvider(); err != nil {
+		t.Fatal(err)
+	}
+	if !has(oidcImport) || !has("oidcop.NewFeature(logger)") || has(authImport) {
+		t.Fatalf("provider was not swapped:\n%s", read(t, "cmd/server/features.go"))
+	}
+	if err := addAuth(); err != nil {
+		t.Fatal(err)
+	}
+	if has(authImport) {
+		t.Fatal("auth came back next to the provider")
+	}
+	if err := addFederatedAuth(); err == nil {
+		t.Fatal("a system must not both use and provide login")
+	}
+	if err := removeOIDCProvider(); err != nil {
+		t.Fatal(err)
+	}
+	if !has(authImport) || has(oidcImport) {
+		t.Fatal("removing the provider must keep admin authentication")
+	}
+
+	if err := addFederatedAuth(); err != nil {
+		t.Fatal(err)
+	}
+	if !has(federatedImport) || has(authImport) {
+		t.Fatalf("consumer was not swapped:\n%s", read(t, "cmd/server/features.go"))
+	}
+	if err := addOIDCProvider(); err == nil {
+		t.Fatal("a system must not both use and provide login")
+	}
+	if err := removeFederatedAuth(); err == nil || !strings.Contains(err.Error(), "remove-news") {
+		t.Fatalf("removing the provider while news is enabled must be refused: %v", err)
+	}
+	if err := removeNews(); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeFederatedAuth(); err != nil {
+		t.Fatal(err)
+	}
+	if has(federatedImport) {
+		t.Fatal("federated login stayed registered")
 	}
 }

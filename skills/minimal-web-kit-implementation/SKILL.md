@@ -38,7 +38,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 ## 3. データ保護とセッションの拡張
 - 取得する入力は形式・UTF-8・長さ・本文サイズをサーバー側で検証し、解析エラーを扱う。文章と1行の値は `internal/web/form`（`form.Text`・`form.Line`）で検査する。`template.HTML` 等による自動エスケープの回避は行わない。
 - Featureの検索・更新・削除は、リクエストの識別子だけを信用せずOwnerIDで絞る。共有・管理者操作は別途権限を検証する。
-- 管理機能には明示的な認証を付ける。同梱の管理者認証（`features/auth`）を使い、`features.AdminConsumer` で受け取った `Admin` の `Page`・`Form` で全経路を守る。無記名セッションを持つだけで管理者にしない。状態変更をGETで実装せず、CSRF保護と認可を両方適用する。
+- 管理機能には明示的な認証を付ける。同梱の管理者認証（`features/auth`。提供機能 `features/auth/oidcop`、利用機能 `features/federatedauth` に置き換えられる）を使い、`features.AdminConsumer` で受け取った `Admin` の `Page`・`Form` で全経路を守る。`auth` のパッケージや表に直接依存しない。無記名セッションを持つだけで管理者にしない。状態変更をGETで実装せず、CSRF保護と認可を両方適用する。
 - SQLiteの接続別PRAGMAを全接続に適用し、外部キーのCASCADE、期限切れ照会、GC、削除後の再アクセスを確認する。
 - `owners` へのCASCADEは、セッション破棄と30日放置のGCで消えてよいブラウザ単位の一時データに限る。お知らせの記事・業務データ等の残すべきデータは `owners` に紐づけず、管理者アカウント等の別の持ち主と保持・削除方法を設計する。
 - 公開ページでは `EnsureSession` を呼ばない。ハンドラ単体でなく、Routes経由でCookie発行と保存件数を確認する。サーバー起動時のDB初期化とページ表示時の保存は区別する。
@@ -46,6 +46,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 - 削除の説明は稼働DB上のレコード削除の範囲に限定し、WAL・バックアップ・外部フォームの保持を別途説明する。
 - 独立経路の状態変更（POST）では、`internal/web/guard` の `guard.SameOrigin` と `guard.CSRF` を使い、自前で書き直さない。`Sec-Fetch-Site: same-origin` を必須にする。`Origin` は、Coreの `Referrer-Policy: no-referrer` により同一オリジンでも `null` になるため、`null` か自サイトとの一致を認める。加えて、セッションに結びつけたCSRFトークンと `SameSite=Strict` のCookieを使う。
 - 日時はUNIX秒で保存し、表示はサーバーのタイムゾーン（`TZ`）で行い、部品 `datetime`・`date`（`<time datetime>` 付き）で描く。
+- フォームの送信の後に別のオリジンへ移すときは、303にしない。CSPの `form-action 'self'` が転送を止めるため、中継のページ（`Refresh` ヘッダーと通常のリンク）で移す。
 - 同じ処理は共通の関数で書く。更新・削除の結果は `store.AffectedOne`（`RowsAffected` のエラーを捨てない）、URLの番号は `web.PathID`（本文の番号は `form.ID`。`01`・`+1` は受け付けない）、書き込みの競合（BUSY・LOCKED）の判定は `store.Busy` を使う。
 - 404は「無い」ときだけ返す。DBの障害を「ページが見つかりません」に見せず、500（競合なら503）にする。
 

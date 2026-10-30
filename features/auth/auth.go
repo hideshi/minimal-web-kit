@@ -41,6 +41,7 @@ type Feature struct {
 	csrf       *guard.CSRF
 	pages      map[string]*template.Template
 	navLinks   []web.NavLink
+	loginNext  func(*http.Request) string
 	now        func() time.Time
 }
 
@@ -144,5 +145,8 @@ func (f *Feature) Purge(ctx context.Context) error {
 		"DELETE FROM auth_setup_tokens WHERE expires_at <= ? OR used_at IS NOT NULL",
 		now.Unix(),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	return (&FederationStore{db: f.db, now: f.now}).Purge(ctx)
 }

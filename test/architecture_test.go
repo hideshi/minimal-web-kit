@@ -17,6 +17,12 @@ func TestArchitecture_DependencyAllowedList(t *testing.T) {
 
 	allowedDirectDeps := map[string]bool{
 		"modernc.org/sqlite": true,
+		// 共通認証の提供機能（features/auth/oidcop）と利用機能（features/federatedauth）だけがimportする。
+		// Baseと通常の管理者認証のバイナリには組み込まない（TestArchitecture_FederationDependenciesStayOptional）。
+		"github.com/zitadel/oidc/v3":    true,
+		"github.com/go-jose/go-jose/v4": true,
+		"github.com/coreos/go-oidc/v3":  true,
+		"golang.org/x/oauth2":           true,
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -107,5 +113,57 @@ func TestArchitecture_LinkedModules(t *testing.T) {
 		if !slices.Equal(got, linkedModules) {
 			t.Errorf("linux/%s: linked modules changed.\n got: %v\nwant: %v\nReview new modules (purpose, license, maintenance), then update linkedModules and README.", arch, got, linkedModules)
 		}
+	}
+}
+
+// federationModules は、共通認証の機能を登録したときだけ組み込まれる直接依存です。
+var federationModules = []string{
+	"github.com/coreos/go-oidc/v3",
+	"github.com/go-jose/go-jose/v4",
+	"github.com/zitadel/oidc/v3",
+	"golang.org/x/oauth2",
+}
+
+const (
+	moduleFormat = "{{if .Module}}{{.Module.Path}}{{end}}"
+	importFormat = "{{.ImportPath}}"
+)
+
+func listDeps(t *testing.T, format, pkg string) []string {
+	t.Helper()
+	cmd := exec.Command("go", "list", "-deps", "-f", format, pkg)
+	cmd.Dir = ".."
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	return strings.Fields(string(out))
+}
+
+// TestArchitecture_FederationDependenciesStayOptional は、OIDCのライブラリが、それを使う機能を登録したときだけ組み込まれることを検証します。
+// go.mod の require 行ではなく、到達するimportで決まります。提供機能と利用機能は互いに依存しません。
+func TestArchitecture_FederationDependenciesStayOptional(t *testing.T) {
+	for _, pkg := range []string{"./cmd/server", "./cmd/kit", "./features/auth", "./internal/app", "./internal/federation"} {
+		for _, m := range listDeps(t, moduleFormat, pkg) {
+			if slices.Contains(federationModules, m) {
+				t.Errorf("%s links %s; only the optional federation features may import it", pkg, m)
+			}
+		}
+	}
+	if deps := listDeps(t, importFormat, "./features/auth"); slices.Contains(deps, "minimal-web-kit/features/auth/oidcop") {
+		t.Error("features/auth must not import its optional provider")
+	}
+	if deps := listDeps(t, importFormat, "./features/auth/oidcop"); slices.Contains(deps, "minimal-web-kit/features/federatedauth") {
+		t.Error("the provider must not import the consumer")
+	}
+	consumer := listDeps(t, importFormat, "./features/federatedauth")
+	for _, pkg := range []string{"minimal-web-kit/features/auth", "github.com/zitadel/oidc/v3/pkg/op"} {
+		if slices.Contains(consumer, pkg) {
+			t.Errorf("the consumer must not import %s", pkg)
+		}
+	}
+	if modules := listDeps(t, moduleFormat, "./features/auth/oidcop"); !slices.Contains(modules, "github.com/zitadel/oidc/v3") {
+		t.Error("the provider no longer uses the OIDC library; update the dependency allow list")
 	}
 }

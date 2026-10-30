@@ -81,10 +81,15 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 	// 管理者認証を、管理画面を持つ機能に配る。管理画面のナビのリンクを管理者認証に集める
 	{
 		var admin features.Admin
+		var provider string
 		var navLinks []web.NavLink
 		for _, f := range reg.All() {
-			if p, ok := f.(features.AdminProvider); ok && admin == nil {
-				admin = p.Admin()
+			if p, ok := f.(features.AdminProvider); ok {
+				if admin != nil {
+					logger.Error("admin authentication declared twice", slog.String("feature", provider), slog.String("other", f.Name()))
+					return nil, fmt.Errorf("admin authentication is provided by both %s and %s; register only one", provider, f.Name())
+				}
+				admin, provider = p.Admin(), f.Name()
 			}
 			if n, ok := f.(features.AdminNavFeature); ok {
 				navLinks = append(navLinks, n.AdminNavLinks()...)

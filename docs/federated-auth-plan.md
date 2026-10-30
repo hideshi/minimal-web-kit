@@ -1,6 +1,6 @@
 # アプリ間の共通認証 計画案
 
-状態: 計画案。方式の試作検証は実施済み（末尾参照）。本書には比較途中の案を含む。現時点の提案は[詳細設計案](federated-auth-detail-plan.md)を優先し、採用済みの仕様とは区別する。実装・依存追加・データ追加・配備は未実施。本書は将来の設計であり、現行仕様の正本 `docs/domain/auth.md` は変更しない。
+状態: 実装済み（2026-10-30）。本書は計画の経緯で、比較途中の案を含む。今の仕様の正本は [docs/domain/federatedauth.md](domain/federatedauth.md) で、実装の差分は[詳細設計](federated-auth-detail-plan.md)の12節にある。
 
 ## 1. 目的と合意した要件
 

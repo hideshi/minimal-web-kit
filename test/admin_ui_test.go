@@ -696,6 +696,10 @@ func TestAdminUI_TemplatesAndRoutesHaveSamples(t *testing.T) {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
 		}
+		// 管理者認証の提供者を置き換える機能の経路は、この見本の構成に入らない（federated_auth_test.go で確かめる）
+		if strings.Contains(filepath.ToSlash(path), "features/auth/oidcop/") || strings.Contains(filepath.ToSlash(path), "features/federatedauth/") {
+			return nil
+		}
 		src, err := os.ReadFile(path)
 		if err != nil {
 			return err

@@ -1,6 +1,6 @@
 # 共通認証の詳細設計案
 
-状態: 実装前の提案（2026-10-30、FableレビューP-64反映）。[全体計画](federated-auth-plan.md)と[方式検証](experiments/federated-auth/README.md)を具体化する。以下の名前・値・表は承認対象の案であり、現行のドメイン仕様や実装・データ台帳を変更したものではない。
+状態: 実装済み（2026-10-30）。今の仕様の正本は [docs/domain/federatedauth.md](domain/federatedauth.md)・[docs/domain/auth.md](domain/auth.md)・[データ台帳](data-inventory.md)で、本書は設計の経緯である。実装で変えた点は12節にある。本書の「案」「未検証」の記述は設計時点のもの。
 
 ## 1. 推奨と対象範囲
 
@@ -226,3 +226,25 @@ Aで唯一のB管理者を停止する操作は妨げない。BのCLIはAの確�
 「最古の試行を捨てる」だけでDoSが解決するとはせず、流量制限・破棄された試行の扱い・残る共有枠占有の制約を追記した。SDKからIDトークンへのスナップショット受け渡し、保存なしのaccess token応答、KeySetラッパー、同一接続Txの結合は依然として未検証であり、実装承認後の最初の検証対象とする。
 
 参照したSDKソース: [コード交換の呼出し順](https://github.com/zitadel/oidc/blob/v3.51.16/pkg/op/token_code.go)、[認可要求と応答](https://github.com/zitadel/oidc/blob/v3.51.16/pkg/op/auth_request.go)、[discovery構成](https://github.com/zitadel/oidc/blob/v3.51.16/pkg/op/discovery.go)、[IDトークンのclaim生成](https://github.com/zitadel/oidc/blob/v3.51.16/pkg/op/token.go)。ソースの読み合わせであり結合の実証ではない。
+
+## 12. 実装で変えた点（2026-10-30）
+
+承認の範囲（依存・保存データ・Cookie・通信・経路）は超えていない。実装と検証で次を変えた。
+
+| 設計 | 実装 | 理由 |
+|---|---|---|
+| Bの開始POST・Aの承認POSTの応答を303で別サイトへ転送する | 200の中継ページ（`Refresh` ヘッダーと通常のリンク）で移動する | Chromiumで、CSPの `form-action 'self'` がフォーム送信後の別オリジンへの転送を止めることを確かめた。CSPは緩めない。`<meta refresh>` は `html/template` の自動エスケープの回避が要るため使わない |
+| Bの開始はOriginの完全一致を必須にする | `guard.SameOrigin`（`Sec-Fetch-Site: same-origin` 必須、Originは空・`null`・一致） | キットの `Referrer-Policy: no-referrer` により、同一オリジンのフォーム送信でもOriginは `null` になる |
+| 既存セッションがあるときの開始はCSRFも検査する | ログイン中の開始では何も作らず `/admin` へ移す | セッションの置き換えの経路そのものを無くした |
+| 同じCookieからの開始は10秒に1回で、超過は429 | 10秒以内の再送は同じ認可要求へ進める | 二度押しをエラーにしない。新しい試行は作らない |
+| 連携の表の列に `created_at`・`key_id`・`scope` を持つ | 持たない | scopeは `openid` 固定で、他は用途が無い（データの最小化） |
+| コードを別の表 `auth_oidc_codes` に置く | 認可要求の行にまとめる | コードの消費と認証時の世代を切り離さない |
+| 停止時の失効は処理の中に書く | `migration.sql` のトリガーで行う（全体の復旧だけは `Recover` の文） | 経路を増やしても漏れないようにする。提供機能を外しても働く |
+| `go-oidc` の鍵の取得をラッパーで包む | 自前の `KeySet` で取得する | 最短間隔・同時1件・本文の上限を同じ場所で守る |
+| Aのコマンドは連携先と利用許可だけ | `oidc-revoke-all` を足す | 3節・8節の「全連携先の世代更新」の運用の口 |
+
+SDKの結合で確かめたこと: `IDTokenUserinfoClaimsAssertion` の経路で世代のclaimが入る（ただし `SetUserinfoFromRequest` で `Subject` も設定しないと `sub` が消える）。保存しないアクセストークンで `at_hash` が検証できる。`op.AuthResponse` は失敗してもエラーの転送を返すので、コードの有無を確かめてロールバックする。
+
+検証の結果: 別のHTTPSサーバー・別のDBのA・Bで、拒否の表、全ての失効の操作と復活の防止、コードの再利用、停止とコード交換の同時実行、署名失敗のロールバック、送信失敗後の再利用の拒否をテストした（`test/federated_auth_test.go`、`features/auth/oidcop`、`features/federatedauth`）。Chromiumで、別サイトの a.test・b.test を、DevToolsの仮想の認証器のパスキーで往復し、Aでの停止でBが拒否し、再開しても復活しないことを確かめた（`test/browser/federated_test.go`）。
+
+未検証: Firefox・Safariの実機、連続送信の下での正常な利用者の完了率、本番のTLS・リバースプロキシの構成、キット以外のシステムの接続。複数の管理者によるGUI操作は無い（CLIだけ）。

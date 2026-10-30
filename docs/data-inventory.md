@@ -119,14 +119,83 @@
 | `expires_at` | INTEGER | NO | 失効の判定 | 同上 | UNIXエポック秒 |
 | `used_at` | INTEGER | YES | 1回限りの使用の記録 | 同上 | UNIXエポック秒 |
 
+### テーブル: `auth_federated_subjects`
+共通認証で他のシステムに渡す仮名の識別子と、アカウント全体の失効世代。提供機能を外しても、通常の管理者認証の停止等で世代を進めます。連携先の間で共通の識別子なので、連携先どうしを突き合わせれば同じ人と分かります。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `sub` | TEXT | NO | 連携先に渡す識別子 | アカウントの削除から12時間2分後のGCまで | 256ビットの乱数。パスキーのリセットでは変えない。アプリのログに出さない |
+| `account_id` | INTEGER | YES | 識別子の持ち主 | 同上 | `auth_accounts.id`。アカウントの削除でNULLになる |
+| `account_epoch` | INTEGER | NO | 過去のログインの失効 | 同上 | 停止・削除・鍵のリセット・複製の疑い・復旧で増やす。戻さない |
+| `deleted_at` | INTEGER | YES | 削除の墓標の期限の判定 | 同上 | UNIXエポック秒 |
+
+### テーブル: `auth_oidc_clients`
+連携先の登録。CLIだけで管理します。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `client_id` | TEXT | NO | 連携先の識別 | 運用者が削除するまで | 256ビットの乱数。再利用しない |
+| `label` | TEXT | NO | ログインの確認画面での表示 | 同上 | 100バイト以内 |
+| `redirect_uri` | TEXT | NO | 戻り先の完全一致の照合 | 同上 | HTTPSのみ。連携先につき1件 |
+| `enabled` | INTEGER | NO | 連携先の停止 | 同上 | 0か1 |
+| `client_epoch` | INTEGER | NO | 連携先の停止・再開、全体の失効 | 同上 | 増やすだけで戻さない |
+
+### テーブル: `auth_oidc_client_secrets`
+連携先の秘密値のハッシュ。新旧2件までです。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `client_id` | TEXT | NO | 持ち主の連携先 | 連携先の削除まで | `auth_oidc_clients.client_id` |
+| `secret_hash` | TEXT | NO | 資格情報の照合 | 更新で旧値は24時間後に失効し、GCで削除。漏洩時は直ちに削除 | SHA-256のみ。生の値は生成時に1度だけ表示する |
+| `expires_at` | INTEGER | NO | 失効の判定 | 同上 | UNIXエポック秒。現用の値は期限なしを表す大きな値 |
+
+### テーブル: `auth_oidc_grants`
+アカウントごとの、連携先の利用許可。取り消しても世代のために行を残します。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `client_id` | TEXT | NO | 許可の対象 | 識別子または連携先の削除まで | `auth_oidc_clients.client_id` |
+| `sub` | TEXT | NO | 許可された人 | 同上 | `auth_federated_subjects.sub` |
+| `allowed` | INTEGER | NO | 利用の可否 | 同上 | 0か1 |
+| `grant_epoch` | INTEGER | NO | 取り消し・コードの再利用時の失効 | 同上 | 増やすだけで戻さない |
+
+### テーブル: `auth_oidc_requests`
+進行中の認可要求とコード。1行にまとめ、コードの消費と認証時の世代を切り離しません。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `request_id` | TEXT | NO | 要求の識別 | 未完了は5分。消費済みは12時間2分 | 256ビットの乱数。単独では続行できない |
+| `flow_hash` | TEXT | NO | ブラウザとの結びつけ | 同上 | Cookie `oidc_flow` のSHA-256 |
+| `client_id` | TEXT | NO | 要求元の連携先 | 同上 | `auth_oidc_clients.client_id` |
+| `redirect_uri` | TEXT | NO | 戻り先 | 同上 | 登録値と完全一致したもの |
+| `state` | TEXT | NO | 連携先への返送 | 同上 | 連携先が発行した一時的な値。ログに出さない |
+| `nonce` | TEXT | NO | IDトークンへの反映 | 同上 | 同上 |
+| `challenge` | TEXT | NO | PKCEの検査 | 同上 | S256の値 |
+| `sub` | TEXT | NO | 本人の固定 | 同上 | 本人の確認の前は空文字 |
+| `account_epoch` | TEXT | NO | 本人の確認の時点の世代の固定 | 同上 | 10進の文字列。確認の前は空文字 |
+| `client_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `grant_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `auth_time` | INTEGER | NO | 本人確認の時刻 | 同上 | UNIXエポック秒。管理者セッションの発行時刻 |
+| `expires_at` | INTEGER | NO | GCの判定 | 同上 | UNIXエポック秒 |
+| `code_hash` | TEXT | YES | コードの照合 | 同上 | SHA-256のみ。生の値は保存しない |
+| `code_expires_at` | INTEGER | NO | コードの期限（60秒） | 同上 | UNIXエポック秒 |
+| `consumed_at` | INTEGER | NO | 一回限りの消費と、再利用の検出 | 同上 | UNIXエポック秒。未消費は0 |
+
 ### Cookie: `admin_session`
 - 管理者セッションの生トークン。`Path=/admin`、HttpOnly、`SameSite=Strict`、`AUTH_ORIGIN` がhttpsならSecure。
 - 公開ページ（`/`、`/news`、`/api/news` 等）には送られず、照合もしません。
+
+### Cookie: `oidc_flow`
+- 共通認証の提供機能を登録した場合だけ、認可要求とブラウザを結びつけるために使います。生のトークンはCookieにだけ置き、DBにはSHA-256ハッシュを保存します。`Path=/admin`、HttpOnly、Secure、`SameSite=Strict`。5分で失効し、完了・中止で削除します。
+
+### DBの外のファイル（共通認証の提供機能）
+- 署名秘密鍵（`OIDC_SIGNING_KEY_FILE`）とSDKの暗号化鍵（`OIDC_CRYPTO_KEY_FILE`）。所有者だけが読める権限でなければ起動しません。バックアップを含めて保護し、公開リポジトリに置かないでください。
 
 ### 管理者認証のデータの削除
 - アカウント: 管理者が管理画面から削除できます（自分自身と、有効な管理者が0人になる場合を除く）。そのアカウントのパスキー・管理者セッション・登録トークンも削除します。
 - パスキー: 本人がパスキーの管理から、管理者がアカウントの詳細から削除できます（最後の有効な1件を除く）。`make auth-recover` で全件と全管理者セッションを削除します（`-only <ID>` ならそのアカウントの分だけ）。アカウントと、他の機能のデータ（お知らせの記事等）は残ります。
 - 管理者セッション・登録トークン: 期限切れ分をサーバー起動時と1時間ごとのGCで削除します。
+- 共通認証: 期限切れの要求・秘密値と、保持期間を過ぎた墓標をGCで削除します。`auth-recover -reset-schema` は連携の表も削除します（連携先を登録し直す）。バックアップから戻したときは、公開の前に `oidc-revoke-all -yes` で全連携先のログインを失効させてください。
 - テーブルごと削除する場合は、サーバー停止後にDBのバックアップを取ったうえで、利用者自身が実施します。WAL・バックアップに残った過去のデータは、この削除の対象外です。
 
 ---
@@ -237,3 +306,49 @@
 | `updated_at` | INTEGER | NO | 更新表示・sitemapのlastmod | 同上 | UNIX秒。プレビューでは変えない |
 
 公開ページはCookieの照合・発行をせず、閲覧の記録を保存しません。削除は稼働DBの物理削除まで。バックアップの複製には、その保持期間のあいだ残ります。
+
+---
+
+## 9. 共通認証の利用側のデータ（`make add-federatedauth` で有効化した場合のみ）
+
+`features/federatedauth` を有効化すると、`features/federatedauth/migration.sql` で以下のテーブルを作成します。ログインは別のシステムの認証基盤で行い、氏名・メールアドレス・パスキーは保存しません。識別子は認証基盤が発行する仮名で、他の連携先と共通です。
+
+この節の要約は `PrivacyNotices`（`features/federatedauth/federatedauth.go`）でプライバシーポリシーの画面に載ります。
+
+### テーブル: `federated_accounts`
+認証基盤の識別子と、このシステムのIDとロールの対応。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | このシステムの利用者の識別 | 運用者が削除するまで | 連番。再利用しない。ログにはこの番号だけを記録する |
+| `issuer` | TEXT | NO | 認証基盤の識別 | 同上 | HTTPSのオリジン |
+| `sub` | TEXT | NO | 認証基盤の利用者の識別 | 同上 | 認証基盤が発行した仮名。ログに記録しない |
+| `role` | TEXT | NO | このシステムの権限の判定 | 同上 | 初回は `member`。`admin` はコマンドで指定する。認証基盤のロールはコピーしない |
+| `disabled_at` | INTEGER | YES | このシステムでの停止 | 同上 | UNIXエポック秒 |
+| `created_at` | INTEGER | NO | 作成日時の記録 | 同上 | UNIXエポック秒 |
+
+### テーブル: `federated_sessions`
+ログイン状態。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `token_hash` | TEXT | NO | セッションの照合 | 無操作2時間または本人確認から12時間。ログアウト・無効の確認・利用者の停止と削除でも削除 | 生トークンはCookie `federated_session` にのみ保持し、SHA-256ハッシュのみ保存 |
+| `account_id` | INTEGER | NO | ログイン中の利用者 | 同上 | `federated_accounts.id` |
+| `account_epoch` | TEXT | NO | 認証基盤への照会 | 同上 | ログイン時の値に固定し、更新しない |
+| `client_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `grant_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `auth_time` | INTEGER | NO | 本人確認の時刻 | 同上 | UNIXエポック秒 |
+| `created_at` | INTEGER | NO | 発行時刻の記録 | 同上 | UNIXエポック秒 |
+| `last_seen_at` | INTEGER | NO | 無操作による失効の判定 | 同上 | UNIXエポック秒 |
+| `expires_at` | INTEGER | NO | 絶対期限による失効の判定 | 同上 | UNIXエポック秒 |
+
+### Cookie: `federated_session`・`sso_attempt`
+- `federated_session`: セッションの生トークン。`Path=/admin`、HttpOnly、Secure、`SameSite=Lax`（認証基盤から戻る別サイトの遷移で必要）。状態を変えるPOSTは同一オリジンの確認とCSRFトークンで守ります。
+- `sso_attempt`: 進行中のログインとブラウザの結びつけ。`Path=/admin/sso`、HttpOnly、Secure、`SameSite=Lax`。5分で失効し、完了・失敗で削除します。
+
+### メモリとDBの外のファイル
+- 進行中のログイン（`state`・`nonce` のハッシュ、PKCEの検証値、戻り先、認可要求のURL）はサーバーのメモリだけに置き、5分で失効します。再起動で失います。複数のインスタンスでは共有しません（初版の対象外）。
+- クライアント秘密値（`OIDC_CLIENT_SECRET_FILE`）。所有者だけが読める権限でなければ起動しません。
+
+### 外部通信
+利用側は、固定したHTTPSのURL（認証基盤の `/oidc/token`・`/oidc/keys`・`/oidc/check`）にだけ通信します。保護された要求のたびに照会するため、認証基盤が止まると保護された機能は503になります。

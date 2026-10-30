@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages
+.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-oidcop remove-oidcop add-federatedauth remove-federatedauth
 
 BIN_NAME := minimal-web-kit
 
@@ -37,6 +37,20 @@ add-auth:
 
 remove-auth:
 	go run ./cmd/kit remove-auth
+
+# 共通認証の提供機能。管理者認証を置き換え、アカウントで別システムにログインできるようにする（外すと通常の管理者認証に戻る）
+add-oidcop:
+	go run ./cmd/kit add-oidcop
+
+remove-oidcop:
+	go run ./cmd/kit remove-oidcop
+
+# 共通認証の利用機能。管理者認証を置き換え、別システムの認証基盤でログインする
+add-federatedauth:
+	go run ./cmd/kit add-federatedauth
+
+remove-federatedauth:
+	go run ./cmd/kit remove-federatedauth
 
 # お知らせ機能の登録切り替え（管理者認証も一緒に有効にする。登録を外してもDBのデータは残る）
 add-news:

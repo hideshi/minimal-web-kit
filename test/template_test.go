@@ -52,7 +52,7 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 // {{asset "..."}}）で読み込むことを検証します。直接書くと、CSS を更新しても古い版がキャッシュに残るためです。
 func TestTemplate_StaticAssetsUseAsset(t *testing.T) {
 	files, _ := filepath.Glob("../internal/web/views/*.html")
-	featureFiles, _ := filepath.Glob("../features/*/views/*.html")
+	featureFiles, _ := featureViews()
 	direct := regexp.MustCompile(`(?:href|src)="/static/`)
 	for _, file := range append(files, featureFiles...) {
 		b, err := os.ReadFile(file)
@@ -75,7 +75,7 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 		t.Fatalf("failed to find core templates: %v", err)
 	}
 
-	featureFiles, _ := filepath.Glob("../features/*/views/*.html")
+	featureFiles, _ := featureViews()
 	files := append(coreFiles, featureFiles...)
 
 	if len(files) == 0 {
@@ -168,7 +168,7 @@ var formControlPattern = regexp.MustCompile(`<(label|input|select|textarea)\b[^>
 // TestTemplate_FormControlsUseComponents は、機能のテンプレートが入力欄を直接書かず、共通の部品を使うことを検証します
 // （docs/admin-ui-standard-plan.md 6.1）。値を送るだけの hidden の入力は除きます。
 func TestTemplate_FormControlsUseComponents(t *testing.T) {
-	files, err := filepath.Glob("../features/*/views/*.html")
+	files, err := featureViews()
 	if err != nil || len(files) == 0 {
 		t.Fatal("no feature templates", err)
 	}
@@ -212,7 +212,7 @@ func TestForm_OptionalMarkUsesField(t *testing.T) {
 // TestTemplate_TablesHaveCaptionAndScope は、全テンプレートの表に caption と th の scope があることを検証します。
 func TestTemplate_TablesHaveCaptionAndScope(t *testing.T) {
 	core, _ := filepath.Glob("../internal/web/views/*.html")
-	feature, _ := filepath.Glob("../features/*/views/*.html")
+	feature, _ := featureViews()
 	for _, f := range append(core, feature...) {
 		raw, err := os.ReadFile(f)
 		if err != nil {
@@ -226,4 +226,14 @@ func TestTemplate_TablesHaveCaptionAndScope(t *testing.T) {
 			t.Errorf("%s: scope の無い th がある", f)
 		}
 	}
+}
+
+// featureViews は、機能のテンプレートを返します（features/auth/oidcop のような入れ子の機能も含む）。
+func featureViews() ([]string, error) {
+	files, err := filepath.Glob("../features/*/views/*.html")
+	if err != nil {
+		return nil, err
+	}
+	nested, err := filepath.Glob("../features/*/*/views/*.html")
+	return append(files, nested...), err
 }
