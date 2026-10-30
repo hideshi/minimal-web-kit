@@ -385,7 +385,6 @@ func TestAdmin_ListViews(t *testing.T) {
 func TestAdmin_Note(t *testing.T) {
 	f, routes, core, logs, clock := setup(t)
 	admin := authtest.NewSessionWithRole(t, core.DB(), "admin")
-	member := authtest.NewSessionWithRole(t, core.DB(), "member")
 	created := clock.Add(-100 * day)
 	id := addRow(t, core.DB(), statusActive, created, clock.Add(-day))
 	path := "/admin/contact/" + itoa(id)
@@ -399,9 +398,6 @@ func TestAdmin_Note(t *testing.T) {
 	}
 	token := authtest.CSRFToken(t, routes, path, admin)
 	const canary = "メモカナリア"
-	if w := adminRequest(routes, http.MethodPost, path+"/note", member, url.Values{"note": {"x"}, "csrf_token": {token}}); w.Code == http.StatusSeeOther {
-		t.Fatal("member must not save the note")
-	}
 	if w := adminRequest(routes, http.MethodPost, path+"/note", admin, url.Values{"note": {canary}}); w.Code == http.StatusSeeOther {
 		t.Fatal("the note requires a CSRF token")
 	}
@@ -435,6 +431,35 @@ func TestAdmin_Note(t *testing.T) {
 	}
 	if m, _ := f.store.Get(context.Background(), id); m.Note != "" {
 		t.Fatal("the note must be cleared")
+	}
+}
+
+// メンバーは、自分の有効なCSRFトークンを送っても、受信箱の書き込みの経路を使えないこと。
+// トークンは管理者のものを使い回さない（CSRFの検査で先に止まり、権限の検査を確かめられないため）。
+// 不変条件: CONTACT-INV-3
+func TestAdmin_MemberCannotWrite(t *testing.T) {
+	f, routes, core, _, clock := setup(t)
+	member := authtest.NewSessionWithRole(t, core.DB(), "member")
+	id := addRow(t, core.DB(), statusSpam, *clock, *clock)
+	path := "/admin/contact/" + itoa(id)
+	token := authtest.CSRFToken(t, routes, "/admin/passkeys", member)
+	for _, c := range []struct {
+		path   string
+		values url.Values
+	}{
+		{path + "/note", url.Values{"note": {"書けない"}}},
+		{path + "/status", url.Values{"status": {statusDone}}},
+		{path + "/delete", url.Values{}},
+		{"/admin/contact/spam/delete", url.Values{}},
+	} {
+		c.values.Set("csrf_token", token)
+		if w := adminRequest(routes, http.MethodPost, c.path, member, c.values); w.Code != http.StatusForbidden {
+			t.Errorf("%s: %d", c.path, w.Code)
+		}
+	}
+	m, err := f.store.Get(context.Background(), id)
+	if err != nil || m.Note != "" || m.Status != statusSpam {
+		t.Fatalf("the message changed: %+v %v", m, err)
 	}
 }
 
