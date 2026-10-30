@@ -25,6 +25,7 @@
   --space-xl: 2.5rem;
   --space-2xl: 4rem;
   --radius: 4px;
+  --radius-card: 8px; /* カード等の囲み。ボタン・入力欄・お知らせ（alert）は --radius */
   --radius-pill: 999px;
 
   /* 表の横スクロールのしきい値。ふだんは折り返して画面に収め、
@@ -179,7 +180,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   padding: var(--space-xl) var(--space-md);
   margin-bottom: var(--space-2xl);
   background-color: var(--color-surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   border: 1px solid var(--color-border);
 }
 
@@ -261,7 +262,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 /* 汎用カード */
 .card {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   padding: var(--space-md);
   background-color: var(--color-surface);
   display: flex;
@@ -315,7 +316,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
   border-left: 5px solid var(--color-primary);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   padding: var(--space-md);
 }
 
@@ -348,7 +349,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 
 .faq-item {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
   background-color: var(--color-surface);
   padding: var(--space-sm) var(--space-md);
 }
@@ -389,7 +390,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   margin-bottom: var(--space-xl);
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-card);
 }
 
 .cta-banner h2 {
@@ -680,12 +681,76 @@ footer {
   margin-bottom: var(--space-lg);
 }
 
-/* お知らせ機能: 公開ページ */
+/* カード全体を押せるリンク（card-link）。HTMLは見出しの中の <a> のままにして読み上げを変えず、
+   ::after で押せる範囲をカード全体に広げる。見出しのリンクは .card-title の中に1つだけ置く。 */
+.card-link {
+  position: relative;
+  padding-right: 3rem; /* 右下の矢印に文字が重ならないように */
+}
 
-.news-meta {
+.card-link .card-title a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* 行き先の印。読み上げには渡さない（/ "" に対応しないブラウザは1つ目の content を使う） */
+.card-link::after {
+  content: "→";
+  content: "→" / "";
+  position: absolute;
+  right: var(--space-md);
+  bottom: var(--space-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  color: var(--color-primary);
+  font-size: 0.875rem;
+  line-height: 1;
+}
+
+.card-link:hover {
+  outline: 3px solid var(--color-primary);
+  outline-offset: -1px;
+}
+
+.card-link:hover .card-title a {
+  color: var(--color-primary-hover);
+  text-decoration-thickness: 3px;
+}
+
+.card-link:hover::after {
+  background-color: var(--color-primary);
+  color: var(--color-bg);
+}
+
+/* フォーカスの枠はカード全体に出す。:has が無いブラウザでは、リンクの枠のままにする */
+@supports selector(:has(a)) {
+  .card-link:has(a:focus-visible) {
+    outline: 3px solid var(--color-focus-inner);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 5px var(--color-focus-outer);
+  }
+
+  .card-link a:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+}
+
+/* 日付・分類などの補足の文字 */
+.text-meta {
   color: #4a5568;
   font-size: 0.9rem;
   margin-bottom: var(--space-md);
+}
+
+.card > .text-meta:last-child {
+  margin-bottom: 0;
 }
 
 /* タグの並び（カタログの詳細） */

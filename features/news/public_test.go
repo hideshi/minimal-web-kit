@@ -168,11 +168,11 @@ func TestNewsPages_Pagination(t *testing.T) {
 		fx.publish(t, "post-"+strconv.Itoa(i), "")
 	}
 	page1 := fx.do(t, http.MethodGet, "/news", nil).Body.String()
-	if strings.Count(page1, `<li class="card">`) != newsPageSize || !strings.Contains(page1, `href="/news?page=2"`) || strings.Contains(page1, `rel="prev"`) {
+	if strings.Count(page1, `<li class="card card-link">`) != newsPageSize || !strings.Contains(page1, `href="/news?page=2"`) || strings.Contains(page1, `rel="prev"`) {
 		t.Fatal("page 1 must show 20 posts and a link to page 2 only")
 	}
 	page2 := fx.do(t, http.MethodGet, "/news?page=2", nil).Body.String()
-	if strings.Count(page2, `<li class="card">`) != 1 || !strings.Contains(page2, `href="/news?page=1"`) || strings.Contains(page2, `rel="next"`) {
+	if strings.Count(page2, `<li class="card card-link">`) != 1 || !strings.Contains(page2, `href="/news?page=1"`) || strings.Contains(page2, `rel="next"`) {
 		t.Fatal("page 2 must show the remaining post and a link back")
 	}
 }

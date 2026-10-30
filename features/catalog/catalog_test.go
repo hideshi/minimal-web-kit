@@ -343,12 +343,12 @@ func TestSearchANDLiteralLikeAndPaging(t *testing.T) {
 		mustPublish(t, s, id)
 	}
 	w := fx.send("GET", "/catalog?q="+url.QueryEscape("ページ項目"), nil, nil, nil)
-	if w.Code != 200 || strings.Count(w.Body.String(), "<h3>") != 20 || !strings.Contains(w.Body.String(), "次のページがあります") || !strings.Contains(w.Body.String(), "page=2") {
+	if w.Code != 200 || strings.Count(w.Body.String(), "<h3 ") != 20 || !strings.Contains(w.Body.String(), "次のページがあります") || !strings.Contains(w.Body.String(), "page=2") {
 		t.Fatal("pagination first page")
 	}
 	full := fx.send("GET", "/catalog?q="+url.QueryEscape("ページ項目")+"&page=2", nil, nil, nil)
 	part := fx.send("GET", "/catalog?q="+url.QueryEscape("ページ項目")+"&page=2", nil, nil, map[string]string{"HX-Request": "true"})
-	if full.Code != 200 || part.Code != 200 || strings.Count(part.Body.String(), "<h3>") != 1 || !strings.Contains(full.Body.String(), part.Body.String()) {
+	if full.Code != 200 || part.Code != 200 || strings.Count(part.Body.String(), "<h3 ") != 1 || !strings.Contains(full.Body.String(), part.Body.String()) {
 		t.Fatal("HTML/fragment mismatch")
 	}
 }

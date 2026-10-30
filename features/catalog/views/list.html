@@ -22,7 +22,7 @@
 {{define "results"}}
 <h2 id="catalog-results-heading" tabindex="-1">検索結果</h2>
 <p id="catalog-summary">このページに{{len .Items}}件{{if .NextURL}}・次のページがあります{{end}}（{{.Page.Number}}ページ目）</p>
-<ul class="card-list" role="list">{{range .Items}}<li class="card"><h3><a href="/catalog/{{.ID}}">{{.Title}}</a></h3>{{if .Category}}<p>{{.Category}}</p>{{end}}</li>{{else}}<li>条件に一致する項目はありません。</li>{{end}}</ul>
+<ul class="card-list" role="list">{{range .Items}}<li class="card card-link"><h3 class="card-title"><a href="/catalog/{{.ID}}">{{.Title}}</a></h3>{{if .Category}}<p class="text-meta">{{.Category}}</p>{{end}}</li>{{else}}<li>条件に一致する項目はありません。</li>{{end}}</ul>
 {{if or .PrevURL .NextURL}}<nav class="pagination" aria-label="カタログのページ送り">
 {{if .PrevURL}}<a href="{{.PrevURL}}" hx-get="{{.PrevURL}}" hx-target="#catalog-results" hx-push-url="true" data-catalog-page rel="prev">前のページ</a>{{end}}
 {{if .NextURL}}<a href="{{.NextURL}}" hx-get="{{.NextURL}}" hx-target="#catalog-results" hx-push-url="true" data-catalog-page rel="next">次のページ</a>{{end}}

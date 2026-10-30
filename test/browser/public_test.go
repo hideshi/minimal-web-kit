@@ -110,6 +110,47 @@ func TestPublicScreens(t *testing.T) {
 	}
 }
 
+// TestCard_Link は、一覧のカードは見出しの外を押しても開き、マウスとキーボードの反応が
+// カード全体に出ることを確かめます。読み上げの対象のリンクは1つのままです。
+func TestCard_Link(t *testing.T) {
+	srv, itemPath := newPublicServer(t)
+	b := newBrowser(t)
+	for path, want := range map[string]string{"/news": "/news/1", "/catalog": itemPath} {
+		b.do(t, chromedp.Navigate(srv.URL+path))
+		ctx, cancel := context.WithTimeout(b.ctx, 20*time.Second)
+		_, err := chromedp.Run(ctx, chromedp.EmulateViewport(1100, 800))
+		cancel()
+		if err != nil {
+			t.Fatal(err)
+		}
+		const card = `document.querySelector('.card-link')`
+		if got := evaluate[int](t, b, card+`.querySelectorAll("a").length`); got != 1 {
+			t.Fatalf("%s: カードの中のリンクが %d 個", path, got)
+		}
+		// 押す位置は、見出しの文字から離れた、カードの下端の右寄り
+		evaluate[any](t, b, card+`.scrollIntoView({block: "center"})`)
+		pointX := evaluate[float64](t, b, `(() => { const r = `+card+`.getBoundingClientRect(); return r.right - 80 })()`)
+		pointY := evaluate[float64](t, b, `(() => { const r = `+card+`.getBoundingClientRect(); return r.bottom - 8 })()`)
+		movePoint(t, b, pointX, pointY)
+		b.waitFor(t, card+`.matches(":hover")`)
+		if got := evaluate[string](t, b, `getComputedStyle(`+card+`).outlineStyle`); got != "solid" {
+			t.Errorf("%s: マウスを乗せたときの枠: %s", path, got)
+		}
+
+		b.press(t, "Tab")
+		evaluate[any](t, b, card+`.querySelector("a").focus()`)
+		b.waitFor(t, card+`.querySelector("a").matches(":focus-visible")`)
+		if got := evaluate[string](t, b, `getComputedStyle(`+card+`).boxShadow`); got == "none" {
+			t.Errorf("%s: フォーカスの枠がカードに出ない", path)
+		}
+		evaluate[any](t, b, `document.activeElement.blur()`)
+
+		clickPoint(t, b, pointX, pointY)
+		b.waitFor(t, `location.pathname === "`+want+`"`)
+	}
+	b.noErrors(t)
+}
+
 // TestButtons_Width は、狭い画面ではボタンが全幅で、広い画面では文字の幅になることを確かめます。
 // フォームの直下のボタン（お問い合わせ）と、並びの中のボタン（カタログの絞り込み）の両方を見ます。
 func TestButtons_Width(t *testing.T) {
@@ -197,8 +238,28 @@ func moveMouse(t *testing.T, b *browser, element string) {
 	t.Helper()
 	x := evaluate[float64](t, b, `(() => { const r = `+element+`.getBoundingClientRect(); return r.left + r.width / 2 })()`)
 	y := evaluate[float64](t, b, `(() => { const r = `+element+`.getBoundingClientRect(); return r.top + r.height / 2 })()`)
+	movePoint(t, b, x, y)
+}
+
+// movePoint は、指定した位置へマウスを動かします。
+func movePoint(t *testing.T, b *browser, x, y float64) {
+	t.Helper()
 	b.do(t, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
 		_, err := cdp.Call(ctx, target, input.DispatchMouseEvent, input.DispatchMouseEventParams{Type: input.DispatchMouseEventTypeMouseMoved, X: x, Y: y})
 		return err
+	}))
+}
+
+// clickPoint は、指定した位置を左ボタンで押します。
+func clickPoint(t *testing.T, b *browser, x, y float64) {
+	t.Helper()
+	b.do(t, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
+		for _, typ := range []input.DispatchMouseEventType{input.DispatchMouseEventTypeMousePressed, input.DispatchMouseEventTypeMouseReleased} {
+			p := input.DispatchMouseEventParams{Type: typ, X: x, Y: y, Button: input.MouseButtonLeft, ClickCount: 1}
+			if _, err := cdp.Call(ctx, target, input.DispatchMouseEvent, p); err != nil {
+				return err
+			}
+		}
+		return nil
 	}))
 }

@@ -4,9 +4,9 @@
 {{if .Posts}}
 <ul class="card-list" role="list">
   {{range .Posts}}
-  <li class="card">
+  <li class="card card-link">
     <h2 class="card-title"><a href="/news/{{.ID}}">{{.Title}}</a></h2>
-    <p class="news-meta">公開日: {{template "date" .PublishedAt}}</p>
+    <p class="text-meta">公開日: {{template "date" .PublishedAt}}</p>
   </li>
   {{end}}
 </ul>

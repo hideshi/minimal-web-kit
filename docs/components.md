@@ -95,7 +95,9 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 |---|---|---|
 | ボタン | `btn` ＋ `btn-primary`・`btn-secondary`・`btn-danger` | `<button>` にも `<a>` にも使える（高さは揃う）。削除等の取り消せない操作は `btn-danger` |
 | お知らせ | `alert` ＋ `alert-info`・`alert-warning` | 直接書くより、部品の `notice`・`error` を使う |
-| カード | `card`、`card-title`、`card-content`、`card-badge` | 囲みの枠。`<form class="card">` のようにフォームにも使える。直下の `btn` は、幅40rem未満では全幅、それ以上では文字の幅で左寄せになる |
+| 押せるカード | `card card-link` | カード全体が1つのリンクになる。リンクは `card-title` の中の `<a>` を1つだけにし、カードの中に別のリンク・ボタンを置かない（`<a>` の `::after` が全体を覆うため）。マウスの反応・フォーカスの枠・右下の矢印はCSSで付く |
+| 補足の文字 | `text-meta` | 日付・分類など。お知らせの公開日、カタログのカテゴリ等 |
+| カード | `card`、`card-title`、`card-content`、`card-badge` | 囲みの枠。角丸は `--radius-card`（ボタン・入力欄は `--radius`）。`<form class="card">` のようにフォームにも使える。直下の `btn` は、幅40rem未満では全幅、それ以上では文字の幅で左寄せになる |
 | タグの並び | `tag-list` | 印の無い横並びの `<ul>`。`role="list"` を付ける |
 | 並べる | `grid-2`、`grid-3` | 狭い画面では1列になる |
 | ボタンの並び | `action-bar`（中央寄せは `action-bar-center`） | 送信と取り消しのボタン等。フォームを並べるときは `inline-form`。幅40rem未満ではボタンが全幅になる |
