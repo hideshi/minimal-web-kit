@@ -1,6 +1,6 @@
 # 共通認証の詳細設計案
 
-状態: 実装済み（2026-10-30）。今の仕様の正本は [docs/domain/federatedauth.md](domain/federatedauth.md)・[docs/domain/auth.md](domain/auth.md)・[データ台帳](data-inventory.md)で、本書は設計の経緯である。実装で変えた点は12節にある。本書の「案」「未検証」の記述は設計時点のもの。
+状態: 実装済み（2026-10-30）。今の仕様の正本は [docs/domain/federatedauth.md](../domain/federatedauth.md)・[docs/domain/auth.md](../domain/auth.md)・[データ台帳](../data-inventory.md)で、本書は設計の経緯である。実装で変えた点は12節にある。本書の「案」「未検証」の記述は設計時点のもの。
 
 ## 1. 推奨と対象範囲
 

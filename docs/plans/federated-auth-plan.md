@@ -1,6 +1,6 @@
 # アプリ間の共通認証 計画案
 
-状態: 実装済み（2026-10-30）。本書は計画の経緯で、比較途中の案を含む。今の仕様の正本は [docs/domain/federatedauth.md](domain/federatedauth.md) で、実装の差分は[詳細設計](federated-auth-detail-plan.md)の12節にある。
+状態: 実装済み（2026-10-30）。本書は計画の経緯で、比較途中の案を含む。今の仕様の正本は [docs/domain/federatedauth.md](../domain/federatedauth.md) で、実装の差分は[詳細設計](federated-auth-detail-plan.md)の12節にある。
 
 ## 1. 目的と合意した要件
 
@@ -158,7 +158,7 @@ Bに `(issuer, sub)` を一意とする局所利用者表を設け、再利用�
 
 ## 11. 方式の試作検証
 
-[検証結果と再実行手順](experiments/federated-auth/README.md)に記録した。別サイトでのCookie往復、世代による失効、停止とコード交換の競合、A障害時の拒否とセッション保持を確認した。Goとキットの既存SQLiteドライバでも主要な失効契約を検査した。
+[検証結果と再実行手順](../experiments/federated-auth/README.md)に記録した。別サイトでのCookie往復、世代による失効、停止とコード交換の競合、A障害時の拒否とセッション保持を確認した。Goとキットの既存SQLiteドライバでも主要な失効契約を検査した。
 
 この結果から、BのLax Cookie、AのStrict＋継続ページ、sub＋世代照会を詳細設計の第一候補とする。実際のOIDC・パスキーとの統合、他ブラウザ、復旧CLI・GC、ライブラリ選定は未完了。実装前の承認事項は引き続き7節のとおりである。
 

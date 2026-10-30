@@ -1,6 +1,6 @@
 package test
 
-// 管理画面のUI標準の自動検査（docs/admin-ui-standard-plan.md 6.2）。
+// 管理画面のUI標準の自動検査（docs/plans/admin-ui-standard-plan.md 6.2）。
 // 全機能を登録した構成で、管理画面の経路を全部集め、見本のデータで描画して、HTMLの構造を検査する。
 // 画面を足したら、adminSamples（開くURL）と、必要なら adminPostSamples・adminFailures に見本を足す。
 

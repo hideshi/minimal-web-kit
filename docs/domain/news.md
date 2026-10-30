@@ -1,6 +1,6 @@
 # ドメインモデル: お知らせ機能（features/news）
 
-お知らせ機能の今の仕様の正本です。用語・概念・状態・不変条件・権限をここにまとめます。旧称は「CMS」（`features/cms`）です。変更の経緯は `docs/cms-plan.md`（計画書、旧称のまま）、保存する列の詳細は `docs/data-inventory.md` の5節にあります。管理画面のログインは管理者認証に任せており、その仕様は `docs/domain/auth.md` にあります。
+お知らせ機能の今の仕様の正本です。用語・概念・状態・不変条件・権限をここにまとめます。旧称は「CMS」（`features/cms`）です。変更の経緯は `docs/plans/cms-plan.md`（計画書、旧称のまま）、保存する列の詳細は `docs/data-inventory.md` の5節にあります。管理画面のログインは管理者認証に任せており、その仕様は `docs/domain/auth.md` にあります。
 
 不変条件の番号（`NEWS-INV-n`）の扱いは `docs/domain/auth.md` と同じです。確かめるテスト関数のコメントに番号を書き、`test/domain_test.go` が対応を確かめます。番号は使い回しません。
 

@@ -1,6 +1,6 @@
 # ドメインモデル: 共通認証（features/auth/oidcop・features/federatedauth）
 
-自社の複数のシステムで、アカウントとログインを共通にする仕組みの今の仕様の正本です。提供側の不変条件は [管理者認証の仕様](auth.md) の AUTH-INV-17・AUTH-INV-18 にあります。設計の経緯は `docs/federated-auth-detail-plan.md`、保存する列は `docs/data-inventory.md` の4節と9節にあります。
+自社の複数のシステムで、アカウントとログインを共通にする仕組みの今の仕様の正本です。提供側の不変条件は [管理者認証の仕様](auth.md) の AUTH-INV-17・AUTH-INV-18 にあります。設計の経緯は `docs/plans/federated-auth-detail-plan.md`、保存する列は `docs/data-inventory.md` の4節と9節にあります。
 
 ## 1. 用語
 

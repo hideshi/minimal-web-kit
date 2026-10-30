@@ -1,6 +1,6 @@
 # ドメインモデル: お問い合わせ（features/contact）
 
-現在の仕様の正本。変更の経緯は [contact-plan.md](../contact-plan.md)、保存データは [data-inventory.md](../data-inventory.md) の7節。不変条件は対応するテスト関数のコメントと機械的に突き合わせる。番号は使い回さない。
+現在の仕様の正本。変更の経緯は [contact-plan.md](../plans/contact-plan.md)、保存データは [data-inventory.md](../data-inventory.md) の7節。不変条件は対応するテスト関数のコメントと機械的に突き合わせる。番号は使い回さない。
 
 ## 用語と関係
 
@@ -52,4 +52,4 @@
 - `Sec-Fetch-Site` を送らない古いブラウザからの送信、返信先に書かれた連絡先の真偽。
 - 複数のサーバーで動かす構成（フォームの値の秘密鍵と使用済みの記録はメモリにだけある）。
 - バックアップ・WALに残る複製の削除（保持期間は運営者が決め、プライバシーポリシーに合わせて書く）。
-- 残るリスクの詳細は [contact-plan.md](../contact-plan.md) の10節。
+- 残るリスクの詳細は [contact-plan.md](../plans/contact-plan.md) の10節。

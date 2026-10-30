@@ -153,7 +153,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 
 - 本文はプレーンテキスト（HTMLは文字として表示）で、画像のアップロードはありません。
 - 公開日時に未来の日時を指定して公開すると、その日時まで公開ページとAPIに表示しません（予約公開）。時刻はサーバーのタイムゾーン（`TZ`）で扱います。
-- 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。用語・状態・不変条件・権限の正本は [docs/domain/news.md](docs/domain/news.md)（ドメインモデル）、設計の経緯は [docs/cms-plan.md](docs/cms-plan.md) にあります。
+- 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。用語・状態・不変条件・権限の正本は [docs/domain/news.md](docs/domain/news.md)（ドメインモデル）、設計の経緯は [docs/plans/cms-plan.md](docs/plans/cms-plan.md) にあります。
 - `make remove-news` で登録を外しても、DBのデータは残ります。
 - 旧称は「CMS」（`features/cms`）です。旧版から更新する場合は、`cmd/server/features.go` の `minimal-web-kit/features/cms` を `minimal-web-kit/features/news` に、`cms.NewFeature` を `news.NewFeature` に書き換えます。設定の `CMS_CORS_ORIGINS` は `NEWS_CORS_ORIGINS` に改名しました（旧名が残っていると起動を止めます）。表 `cms_posts` は起動時に、記事とIDの採番を残したまま `news_posts` に名前を変えます。管理画面のURLは `/admin/posts` から `/admin/news` に変わりました。
 
@@ -164,7 +164,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - 公開: `/catalog` と `/catalog/{id}`。項目のタイトル・本文、任意のカテゴリ1つとタグ20個までを管理します。画像・価格・在庫・予約公開・JSON API・静的書き出しは含みません。
 - 管理: `/admin/catalog`。管理者・メンバーが同じ権限で下書き作成・編集・公開・非公開・削除と分類管理を行えます。認証は既存のパスキー認証を使います。
 - 公開一覧はキーワード・カテゴリID・タグID（すべてに一致）で絞り込み、20件ずつページ送りします。検索条件はURLとブラウザ履歴に残るので、秘密を入力しないでください。公開閲覧でCookieを扱わず、検索語や閲覧履歴はサーバーに保存しません。
-- 公開一覧だけhtmx 2.0.11とcatalog.jsを読み込みます。JavaScriptなしでもリンク・GETフォームで検索と移動ができ、管理操作も通常フォームです。項目の作成・編集画面のタグ選択は、Coreのコンボボックス部品で入力しながら絞り込めます（JSなしではチェックボックスの一覧）。Alpine.jsは比較試作（`experiment/catalog-tags` ブランチ、[比較計画と結果](docs/catalog-ui-comparison-plan.md)）で評価し、採用していません。
+- 公開一覧だけhtmx 2.0.11とcatalog.jsを読み込みます。JavaScriptなしでもリンク・GETフォームで検索と移動ができ、管理操作も通常フォームです。項目の作成・編集画面のタグ選択は、Coreのコンボボックス部品で入力しながら絞り込めます（JSなしではチェックボックスの一覧）。Alpine.jsは比較試作（`experiment/catalog-tags` ブランチ、[比較計画と結果](docs/plans/catalog-ui-comparison-plan.md)）で評価し、採用していません。
 - 公開・非公開の反映遅れを避けるため、カタログでは公開キャッシュを使いません。全文LIKE検索には走査コストがあり、大規模な検索基盤は提供しません。
 - カタログまたはNewsが有効な間はAuthを外せません。作者IDや操作履歴は保存せず、データは明示削除まで保持します。
 
@@ -183,7 +183,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - スパム対策は、IPアドレスと外部のCAPTCHAを使わずに、見えない入力欄、署名つきのフォームの値（3秒未満・1時間超え・使用済みを判定）、URLは2つまで、全体の受付上限（`CONTACT_HOURLY_LIMIT`・`CONTACT_DAILY_LIMIT`・`CONTACT_UNREAD_LIMIT`。保存した件数で数える）を組み合わせます。人が手で書く宣伝は防げません。判定の結果は固定の分類（`result=saved`・`honeypot`・`too_fast` 等）でログに出すので、効き目を確かめられます。連打は前段（Cloudflare等）のレート制限で抑えます（[デプロイ手順](docs/deploy.md)）。
 - 送信の前に、利用目的・保持期間とプライバシーポリシーへのリンクを表示します。同意のチェック欄はありません（取得に同意は要らず、利用目的の明示が必要なため。法的な判断は運営者が行ってください）。
 - Siteと一緒に使うと、LPのお問い合わせのボタンが `/contact` を指します。`CONTACT_FORM_URL`（外部のフォーム）と同時に有効にすると、起動を止めます。
-- 仕様と不変条件は [domain/contact.md](docs/domain/contact.md)、保存内容は[データ台帳](docs/data-inventory.md)の7節、設計の経緯は [contact-plan.md](docs/contact-plan.md) にあります。
+- 仕様と不変条件は [domain/contact.md](docs/domain/contact.md)、保存内容は[データ台帳](docs/data-inventory.md)の7節、設計の経緯は [contact-plan.md](docs/plans/contact-plan.md) にあります。
 
 ### 固定ページ
 
@@ -198,7 +198,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - スラッグは英小文字・数字・ハイフンで2〜40文字です。`/privacy` や `/news` など、Coreと他の機能が使う経路と同じものは使えません。公開ページは「どの経路にも当たらなかった要求」だけを受けるため、既存の経路は取られません。
 - 「ナビに出す順」を決めた公開中のページは、Siteのナビと `sitemap.xml` に載ります（再起動は不要）。ナビは公開キャッシュのある画面（`/` 等）では最大60秒遅れて見えます。
 - スラッグを変えると、前のURLは404になります（転送はありません）。固定ページを有効にすると、静的書き出し（`export-static`）は使えません。
-- 仕様と不変条件は [domain/pages.md](docs/domain/pages.md)、保存内容は[データ台帳](docs/data-inventory.md)の8節、設計の経緯は [pages-plan.md](docs/pages-plan.md) にあります。
+- 仕様と不変条件は [domain/pages.md](docs/domain/pages.md)、保存内容は[データ台帳](docs/data-inventory.md)の8節、設計の経緯は [pages-plan.md](docs/plans/pages-plan.md) にあります。
 
 ### 切り替えコマンドの保護範囲
 
@@ -338,7 +338,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 
 ## ドキュメントと検査の範囲
 
-開発時に作成する仕様・設計書は `docs/` にまとめます。[取得・保存データ台帳](docs/data-inventory.md)は、利用目的・保存先・保持期間・削除方法の正本（SoT）です。別途テーブル定義書を作る場合はDB構造の詳細をそちらで管理し、方針を重複させず相互参照します。現在は独立したテーブル定義書がなく、台帳に照合用のテーブル・列一覧と型等の補助情報を併記しています。
+開発時に作成する仕様・設計書は `docs/` にまとめます（[案内](docs/README.md)。今の仕様の正本は `docs/` 直下と `docs/domain/`、計画書は `docs/plans/`）。[取得・保存データ台帳](docs/data-inventory.md)は、利用目的・保存先・保持期間・削除方法の正本（SoT）です。別途テーブル定義書を作る場合はDB構造の詳細をそちらで管理し、方針を重複させず相互参照します。現在は独立したテーブル定義書がなく、台帳に照合用のテーブル・列一覧と型等の補助情報を併記しています。
 
 台帳テストはテーブル名・列名を実スキーマと双方向で照合します。型・NULL制約・外部キーや全保持・削除方針を検証するものではありません。Featureは有効化の状態にかかわらず、すべての `features/*/migration.sql` を適用して照合します。`Init` でこのファイル以外の方法でテーブルを作る機能は検査されないため、スキーマは `migration.sql` に書き、`Init` から同じファイルを適用してください。
 
@@ -354,7 +354,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── .agents/skills/         # Codex・Cursor・Antigravity向けの参照
 ├── .claude/skills/         # Claude Code向けの参照
 ├── docs/
-│   ├── cms-plan.md         # お知らせ機能（旧称お知らせ機能）の実装計画（経緯の記録）
+│   ├── plans/              # 計画書・棚卸し・比較の記録（経緯。今の正本ではない）
 │   ├── components.md       # 再利用する部品の一覧（Go・画面・CSS）
 │   ├── deploy.md           # 本番デプロイの手順例（Linux）
 │   ├── ui-guidelines.md    # 動きのあるUIの作り方（標準の要素 → htmx → 素のJS）

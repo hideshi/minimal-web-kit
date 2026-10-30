@@ -1,6 +1,6 @@
 # 本文の書き方（richtext）の仕様
 
-固定ページ等の本文に使う、書き方を絞ったMarkdownの正本。キットのコード（`internal/web/richtext`）が、この規則で本文を**構造**（ブロックと文字の並び）に読み、`components.html` の部品が `html/template` で描く。HTMLの文字列は組み立てず、`template.HTML` は使わない。経緯は [pages-plan.md](pages-plan.md) の3節。計画書と食い違うときは、この文書を正とする。
+固定ページ等の本文に使う、書き方を絞ったMarkdownの正本。キットのコード（`internal/web/richtext`）が、この規則で本文を**構造**（ブロックと文字の並び）に読み、`components.html` の部品が `html/template` で描く。HTMLの文字列は組み立てず、`template.HTML` は使わない。経緯は [pages-plan.md](plans/pages-plan.md) の3節。計画書と食い違うときは、この文書を正とする。
 
 ## 1. 前提と用語
 

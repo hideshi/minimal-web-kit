@@ -20,7 +20,7 @@ import (
 var migrationSQL string
 
 // Feature は同梱機能のお問い合わせ機能（contact）です。公開のフォーム（/contact）と、管理者だけが見られる受信箱を提供します。
-// メールは送らず、IPアドレス・User-Agent・Cookieを使いません。スパム対策は docs/contact-plan.md の4節。
+// メールは送らず、IPアドレス・User-Agent・Cookieを使いません。スパム対策は docs/plans/contact-plan.md の4節。
 type Feature struct {
 	logger      *slog.Logger
 	cfg         Config

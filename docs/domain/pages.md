@@ -1,6 +1,6 @@
 # ドメインモデル: 固定ページ（features/pages）
 
-現在の仕様の正本。変更の経緯は [pages-plan.md](../pages-plan.md)、本文の書き方は [richtext.md](../richtext.md)、保存データは [data-inventory.md](../data-inventory.md) の8節。不変条件は対応するテスト関数のコメントと機械的に突き合わせる。番号は使い回さない。
+現在の仕様の正本。変更の経緯は [pages-plan.md](../plans/pages-plan.md)、本文の書き方は [richtext.md](../richtext.md)、保存データは [data-inventory.md](../data-inventory.md) の8節。不変条件は対応するテスト関数のコメントと機械的に突き合わせる。番号は使い回さない。
 
 ## 用語と関係
 

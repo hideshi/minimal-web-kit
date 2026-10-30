@@ -122,7 +122,7 @@ WHERE (status <> 'active' AND created_at <= :retention_limit)
 - `README.md` のお問い合わせの節と環境変数の表
 - `docs/deploy.md`: 9節の「既存のテーブル・データは変更しません」を直し、この更新で表を作り直すこと、更新の前にバックアップを取ること、再起動が終わるまでバックアップを重ねないこと、戻すときはバックアップから戻すことを書く
 - コメント: `features/contact/store.go`、`features/contact/migration.sql`
-- `docs/contact-plan.md`: 経緯の文書なので本文は変えず、冒頭にこの計画への参照を足す
+- `docs/plans/contact-plan.md`: 経緯の文書なので本文は変えず、冒頭にこの計画への参照を足す
 - 運用サイト: プライバシーポリシーの文面に書いた保持期間（バックアップの期間を足した長さ）、運用の文書、固定ページ・カタログの紹介文。キットの変更とは別に、配備のときに直す。
 
 ## 10. 利用者が決めること

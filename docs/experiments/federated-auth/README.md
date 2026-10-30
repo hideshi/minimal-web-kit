@@ -1,6 +1,6 @@
 # 共通認証の方式検証（2026-10-30）
 
-対象: `docs/federated-auth-plan.md`。検証開始時の `origin/main` は `c9011a1`。
+対象: `docs/plans/federated-auth-plan.md`。検証開始時の `origin/main` は `c9011a1`。
 
 これはCookieの遷移と失効・障害時の契約を調べる小さな試作であり、OIDC提供機能の実装・適合試験ではない。既存の `features/auth` のコード・DB・Cookieは変更しない。実在するアカウント・ドメイン・本番への通信も使用しない。
 

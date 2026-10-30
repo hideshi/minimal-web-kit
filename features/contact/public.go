@@ -107,7 +107,7 @@ func (f *Feature) logResult(w http.ResponseWriter, result string) {
 	f.logger.Info("contact submission", web.RequestIDAttr(w), slog.String("result", result))
 }
 
-// handleSubmit は送信を受け付けます。判定の順と応答は docs/contact-plan.md の4.1。
+// handleSubmit は送信を受け付けます。判定の順と応答は docs/plans/contact-plan.md の4.1。
 // 受け付けたふり（完了の画面へ移す）は、見えない入力欄と3秒未満の送信だけ。他は理由と入力を返す（CONTACT-INV-8）。
 func (f *Feature) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	if !guard.SameOrigin(r, f.cfg.Origin) {

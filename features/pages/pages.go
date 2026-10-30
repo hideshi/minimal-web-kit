@@ -28,7 +28,7 @@ var migrationSQL string
 var viewsFS embed.FS
 
 // Feature は同梱機能の固定ページ（pages）です。管理画面で作った /{slug} のページを公開します。
-// 公開ページは、どの経路にも当たらなかったGET・HEADを受けるCoreの受け皿（FallbackFeature）で返します（docs/pages-plan.md 2.1）。
+// 公開ページは、どの経路にも当たらなかったGET・HEADを受けるCoreの受け皿（FallbackFeature）で返します（docs/plans/pages-plan.md 2.1）。
 type Feature struct {
 	logger     *slog.Logger
 	store      *Store

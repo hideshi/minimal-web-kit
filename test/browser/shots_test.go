@@ -26,7 +26,7 @@ import (
 
 // TestAdminScreenshots は、主な管理画面（画面の型ごと・空の状態・入力の失敗）を2つの幅で撮り、
 // test/browser/shots/ に書き出します。画像は自動で比べず、人かAIが見て、余白・並び・文の崩れを確かめます
-// （docs/admin-ui-standard-plan.md 7節）。構造の検査は test/admin_ui_test.go が受け持ちます。
+// （docs/plans/admin-ui-standard-plan.md 7節）。構造の検査は test/admin_ui_test.go が受け持ちます。
 func TestAdminScreenshots(t *testing.T) {
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")

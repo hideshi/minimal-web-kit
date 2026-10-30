@@ -1,6 +1,6 @@
 # ドメインモデル: カタログ（features/catalog）
 
-現在の仕様の正本。変更の経緯は [catalog-plan.md](../catalog-plan.md)、保存データは [data-inventory.md](../data-inventory.md) の6節。不変条件は対応するテスト関数のコメントと機械的に突き合わせる。番号は使い回さない。
+現在の仕様の正本。変更の経緯は [catalog-plan.md](../plans/catalog-plan.md)、保存データは [data-inventory.md](../data-inventory.md) の6節。不変条件は対応するテスト関数のコメントと機械的に突き合わせる。番号は使い回さない。
 
 ## 用語と関係
 

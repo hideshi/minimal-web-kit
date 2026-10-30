@@ -156,7 +156,7 @@ var thPattern = regexp.MustCompile(`<th[\s>]`)
 
 // formControlTagExceptions は、ファイルの中で直接書いてよいタグだけを、理由つきで書きます（ファイル全体は例外にしない）。
 var formControlTagExceptions = map[string][]string{
-	// お問い合わせのスパム対策の見えない入力欄（ハニーポット）。部品の field は aria-hidden・tabindex を持たない（docs/contact-plan.md 4.1）
+	// お問い合わせのスパム対策の見えない入力欄（ハニーポット）。部品の field は aria-hidden・tabindex を持たない（docs/plans/contact-plan.md 4.1）
 	"../features/contact/views/contact.html": {
 		`<label for="contact-trap">`,
 		`<input type="text" id="contact-trap" name="{{.Trap}}" value="" tabindex="-1" autocomplete="off">`,
@@ -166,7 +166,7 @@ var formControlTagExceptions = map[string][]string{
 var formControlPattern = regexp.MustCompile(`<(label|input|select|textarea)\b[^>]*>`)
 
 // TestTemplate_FormControlsUseComponents は、機能のテンプレートが入力欄を直接書かず、共通の部品を使うことを検証します
-// （docs/admin-ui-standard-plan.md 6.1）。値を送るだけの hidden の入力は除きます。
+// （docs/plans/admin-ui-standard-plan.md 6.1）。値を送るだけの hidden の入力は除きます。
 func TestTemplate_FormControlsUseComponents(t *testing.T) {
 	files, err := featureViews()
 	if err != nil || len(files) == 0 {
