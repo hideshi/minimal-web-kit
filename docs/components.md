@@ -74,6 +74,8 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 
 **CSSとアイコンの読み込み**: 同梱の7つのレイアウト（Base・Site・お知らせ・カタログ・お問い合わせ・固定ページ・管理画面）は、`static-head` の1か所から読み込みます。共通部品は登録されるだけでレイアウトに自動では入らないため、自作のレイアウトでも `<head>` に `{{template "static-head"}}` を書きます。`/static/...` を直接書いたレイアウトも動きますが、版が付かず、CSSの更新が届くまでキャッシュの期間（10分。前段のCDNが引き上げることがある）だけ遅れます。`/static/` の他のファイルは、`{{asset "js/combobox.js"}}` で版付きのURLにします。`asset` の引数は文字列だけで、`/static/` に無いファイルや文字列以外の引数は、実行しない分岐の中でも解析（`web.ParseWithComponents`・`web.ParsePage`）でエラーになります。版はファイルごとの中身のSHA-256の先頭12桁で、CSSを変えてもアイコンのURLは変わりません。
 
+**ナビの今いるページ**: ヘッダーのナビのリンクには、`<a href="/news"{{with navCurrent $.CanonicalPath "/news"}} aria-current="{{.}}"{{end}}>お知らせ</a>` の形で印を付けます（`{{range}}` の中では `.Href` を渡す）。`navCurrent` は、描画のデータの `CanonicalPath` とリンクを比べ、完全に一致すれば `page`、配下の画面（`/news` と `/news/3`）なら `true`、どちらでもなければ空を返します。`CanonicalPath` の無い画面（404等）では空になり、印は出ません。対象は `/` で始まるサイト内のパスだけで、`/` は完全一致のときだけ当たります。ページ内リンク（`/#faq`）・クエリ付きのリンク・外部のURLには付きません。`navCurrent` は部品が使う関数名なので、利用側で別の意味に上書きしないでください。管理画面のレイアウトは、機能が渡す `Current` と要求のパスで同じ値を出します。
+
 `combobox` を使う画面は、レイアウトの `script` ブロック等で `<script src="{{asset "js/combobox.js"}}" defer></script>` を読み込み、その応答で `web.AllowScripts` を呼びます。テンプレートの検査（`test/template_test.go`）の許可リストにその画面を足す必要があります（承認境界4・5）。上限（`Limit`）は画面上の制限で、送信された値の検査はサーバー側で別に行います。
 
 ```html

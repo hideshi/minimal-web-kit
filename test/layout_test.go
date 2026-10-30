@@ -78,7 +78,7 @@ func TestLayout_SiteLayoutIsSharedAcrossPages(t *testing.T) {
 		for _, want := range []string{
 			siteSubtitle,
 			`<a href="/#features">特長</a>`,
-			`<a href="/news">お知らせ</a>`,
+			`<a href="/news"`,
 			`<a href="/privacy">プライバシーポリシー・免責事項</a>`,
 			`<link rel="canonical" href="` + canonical + `">`,
 			`<meta name="description"`,
@@ -306,5 +306,52 @@ func TestBuildRoutes_NewsRequiresAuth(t *testing.T) {
 	reg.Register(cm)
 	if _, err := app.BuildRoutes(s, reg, false, discardLogger()); err == nil || !strings.Contains(err.Error(), "add-auth") {
 		t.Fatalf("news without auth must fail with guidance: %v", err)
+	}
+}
+
+// ナビの今いるページの印は、一致するリンクにだけ付き、値の無い画面やページ内リンクには付かないこと。
+func TestLayout_NavCurrent(t *testing.T) {
+	routes, _ := newSiteNewsRoutes(t)
+	for _, c := range []struct {
+		path string
+		code int
+		want string // 空なら、印が1つも無いこと
+	}{
+		{"/", http.StatusOK, ""},
+		{"/privacy", http.StatusOK, `<a href="/privacy" aria-current="page">`},
+		{"/news", http.StatusOK, `<a href="/news" aria-current="page">`},
+		{"/news?page=2", http.StatusOK, `<a href="/news" aria-current="page">`},
+		{"/news/1", http.StatusOK, `<a href="/news" aria-current="true">`},
+		{"/no-such-page", http.StatusNotFound, ""},
+	} {
+		rec := httptest.NewRecorder()
+		routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, c.path, nil))
+		body := rec.Body.String()
+		if rec.Code != c.code {
+			t.Errorf("%s: %d", c.path, rec.Code)
+			continue
+		}
+		wantCount := 0
+		if c.want != "" {
+			wantCount = 1
+			if !strings.Contains(body, c.want) {
+				t.Errorf("%s: missing %s", c.path, c.want)
+			}
+		}
+		if got := strings.Count(body, "aria-current"); got != wantCount {
+			t.Errorf("%s: aria-current が %d 個", c.path, got)
+		}
+	}
+
+	// Siteが無いときは、Baseのレイアウトでホームに印が付く
+	s := store.NewMemoryStore()
+	h, err := web.NewHandler(s, web.NewSessionManager(s, false), discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := httptest.NewRecorder()
+	h.Routes(nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(rec.Body.String(), `<a href="/" aria-current="page">`) {
+		t.Fatal("Base: ホームに印が無い")
 	}
 }

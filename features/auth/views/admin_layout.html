@@ -20,7 +20,7 @@
       </div>
       <nav aria-label="管理画面のナビゲーション">
         {{if .LoggedIn}}
-        {{range .AdminNav}}<a href="{{.Href}}"{{if eq $.Current .Href}} aria-current="page"{{end}}>{{.Label}}</a>
+        {{range .AdminNav}}<a href="{{.Href}}"{{if eq $.Current .Href}} aria-current="{{if eq $.RequestPath .Href}}page{{else}}true{{end}}"{{end}}>{{.Label}}</a>
         {{end}}{{end}}
         <a href="/">サイトを表示</a>
         {{if .LoggedIn}}

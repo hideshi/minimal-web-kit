@@ -301,11 +301,13 @@ func (h *Handler) SetLayout(layout Layout) error {
 // componentFuncs は部品に値を渡すための関数。confirm は削除の確認の操作の並び（confirm-actions）の値を作る:
 // {{template "confirm-actions" (confirm "/admin/x/1/delete" "/admin/x/1" .CSRFToken)}}
 // asset は /static/ のファイルの版付きの URL を作る: {{asset "js/combobox.js"}}（引数は文字列だけ。解析時に実在を確かめる）
+// navCurrent はナビのリンクの aria-current の値を返す（NavCurrent を参照）
 var componentFuncs = template.FuncMap{
 	"confirm": func(action, back, csrfToken string) form.Confirm {
 		return form.Confirm{Action: action, Back: back, CSRFToken: csrfToken}
 	},
-	"asset": AssetURL,
+	"asset":      AssetURL,
+	"navCurrent": NavCurrent,
 }
 
 // ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field・choices・
@@ -361,6 +363,7 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	h.Render(w, "index.html", map[string]any{
 		"Title":         "minimal-web-kit ホーム",
+		"CanonicalPath": "/",
 		"MaskedOwnerID": maskedOwnerID,
 		"CSRFToken":     GetCSRFToken(r.Context()),
 	})

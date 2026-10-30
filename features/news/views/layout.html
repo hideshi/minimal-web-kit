@@ -16,9 +16,9 @@
         <div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
       </div>
       <nav aria-label="メインナビゲーション">
-        <a href="/">ホーム</a>
-        <a href="/news">お知らせ</a>
-        <a href="/privacy">プライバシーポリシー</a>
+        <a href="/"{{with navCurrent $.CanonicalPath "/"}} aria-current="{{.}}"{{end}}>ホーム</a>
+        <a href="/news"{{with navCurrent $.CanonicalPath "/news"}} aria-current="{{.}}"{{end}}>お知らせ</a>
+        <a href="/privacy"{{with navCurrent $.CanonicalPath "/privacy"}} aria-current="{{.}}"{{end}}>プライバシーポリシー</a>
       </nav>
     </div>
   </header>

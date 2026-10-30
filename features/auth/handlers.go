@@ -155,7 +155,8 @@ type session struct {
 	token     string
 	accountID int64
 	role      string
-	disabled  bool // 複製の疑いで無効化されたパスキーがあるか（管理者は全アカウント、メンバーは自分の分）
+	disabled  bool   // 複製の疑いで無効化されたパスキーがあるか（管理者は全アカウント、メンバーは自分の分）
+	path      string // 要求のパス。ナビの今いるページの印に使う
 }
 
 func (s session) CSRFToken() string   { return s.f.csrfToken(s.token) }
@@ -164,10 +165,12 @@ func (s session) Role() features.Role { return features.Role(s.role) }
 func (s session) IsAdmin() bool       { return s.role == roleAdmin }
 
 // PageData は、管理画面のレイアウト（views/admin_layout.html）に渡す値を返します。
+// current は画面が属するナビのリンクです。その一覧自体なら aria-current="page"、配下の画面なら "true" になります。
 func (s session) PageData(title, current string) map[string]any {
 	return map[string]any{
 		"Title":            title,
 		"Current":          current,
+		"RequestPath":      s.path,
 		"AdminNav":         s.f.adminNav(s.IsAdmin()),
 		"LoggedIn":         true,
 		"IsAdmin":          s.IsAdmin(),
@@ -208,7 +211,7 @@ func (f *Feature) loadSession(w http.ResponseWriter, r *http.Request) (session, 
 	if err != nil {
 		f.logger.Error("auth count disabled passkeys failed", f.requestID(w))
 	}
-	return session{f: f, token: token, accountID: a.AccountID, role: a.Role, disabled: disabled > 0}, true
+	return session{f: f, token: token, accountID: a.AccountID, role: a.Role, disabled: disabled > 0, path: r.URL.Path}, true
 }
 
 // page は、ログイン中のアカウントだけが見られる画面（GET）を守ります。未ログインならログイン画面へ移します。

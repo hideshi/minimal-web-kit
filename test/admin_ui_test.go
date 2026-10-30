@@ -713,6 +713,27 @@ func TestAdminUI_TemplatesAndRoutesHaveSamples(t *testing.T) {
 }
 
 // 公開ページは書き換えを止めない（Cloudflareのメールの難読化に任せる）。管理画面だけが no-transform。
+// ナビの印は、一覧そのものなら page、配下の画面なら true になること。カタログの公開ページも同じ。
+func TestAdminUI_NavCurrent(t *testing.T) {
+	ui := setupAdminUI(t, true)
+	for _, c := range []struct{ who, path, want string }{
+		{"admin", "/admin/catalog", `<a href="/admin/catalog" aria-current="page">`},
+		{"admin", "/admin/catalog/{item_draft}", `<a href="/admin/catalog" aria-current="true">`},
+		{"admin", "/admin/catalog/classifications/categories", `<a href="/admin/catalog" aria-current="true">`},
+		{"", "/catalog", `<a href="/catalog" aria-current="page">`},
+		{"", "/catalog?q=x", `<a href="/catalog" aria-current="page">`},
+		{"", "/catalog/{item_published}", `<a href="/catalog" aria-current="true">`},
+	} {
+		body := ui.get(c.who, ui.expand(c.path)).Body.String()
+		if !strings.Contains(body, c.want) {
+			t.Errorf("%s: missing %s", c.path, c.want)
+		}
+		if got := strings.Count(body, "aria-current"); got != 1 {
+			t.Errorf("%s: aria-current が %d 個", c.path, got)
+		}
+	}
+}
+
 func TestAdminUI_NoTransformOnlyOnAdmin(t *testing.T) {
 	ui := setupAdminUI(t, false)
 	for _, path := range []string{"/", "/privacy", "/news", "/catalog", "/contact"} {

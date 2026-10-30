@@ -38,10 +38,10 @@
         <a href="/#use-cases">ユースケース</a>
         <a href="/#how-it-works">仕組み</a>
         <a href="/#faq">FAQ</a>
-        {{range .NavLinks}}<a href="{{.Href}}">{{.Label}}</a>
+        {{range .NavLinks}}<a href="{{.Href}}"{{with navCurrent $.CanonicalPath .Href}} aria-current="{{.}}"{{end}}>{{.Label}}</a>
         {{end}}<a href="/#contact">お問い合わせ</a>
         <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer">GitHub（新しいタブ）</a>
-        <a href="/privacy">プライバシーポリシー</a>
+        <a href="/privacy"{{with navCurrent $.CanonicalPath "/privacy"}} aria-current="{{.}}"{{end}}>プライバシーポリシー</a>
       </nav>
     </div>
   </header>
