@@ -88,7 +88,7 @@ func valid(token, body string) url.Values {
 
 // TestPublicForm_NoCookieNoStoreAndSaves は、公開のフォームがCookieを使わず、キャッシュさせず、IP等を保存しないことと、
 // 送信が保存されて完了の画面へ移り、ログに中身が出ないことを確かめる。
-// 不変条件: CONTACT-INV-1, CONTACT-INV-6
+// 不変条件: CONTACT-INV-1, CONTACT-INV-6, CONTACT-INV-9
 // ユースケース: UC-CONTACT-1
 func TestPublicForm_NoCookieNoStoreAndSaves(t *testing.T) {
 	_, routes, core, logs, clock := setup(t)
@@ -96,8 +96,10 @@ func TestPublicForm_NoCookieNoStoreAndSaves(t *testing.T) {
 	if w.Header().Get("Set-Cookie") != "" || !strings.Contains(w.Header().Get("Cache-Control"), "no-store") {
 		t.Fatalf("form must not set cookies and must not be cached: %v", w.Header())
 	}
-	if !strings.Contains(w.Body.String(), "受付から90日で削除します") || !strings.Contains(w.Body.String(), `href="/privacy"`) {
-		t.Fatal("purpose of use must be shown before sending")
+	for _, want := range []string{"お問い合わせへの回答のためだけに使い", "受付から90日で削除します", `href="/privacy"`, "特に配慮が必要な情報は書かないでください"} {
+		if !strings.Contains(w.Body.String(), want) {
+			t.Fatalf("%s must be shown before sending", want)
+		}
 	}
 	*clock = clock.Add(5 * time.Second)
 	res := submit(routes, valid(token, "内容カナリア"), "same-origin")

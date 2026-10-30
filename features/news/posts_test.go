@@ -219,6 +219,7 @@ func TestPostStore_RejectsInvalidInput(t *testing.T) {
 	cases := map[string][2]string{
 		"empty title":      {"   ", "body"},
 		"newline in title": {"a\nb", "body"},
+		"tab in title":     {"a\tb", "body"},
 		"long title":       {strings.Repeat("あ", maxTitleRunes+1), "body"},
 		"long body":        {"t", strings.Repeat("あ", maxBodyRunes+1)},
 		"invalid utf8":     {"t", "\xff"},

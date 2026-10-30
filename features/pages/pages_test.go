@@ -170,6 +170,8 @@ func TestPublic_PublishedOnlyAndCoreRoutesKept(t *testing.T) {
 }
 
 // TestPublic_LoadFailureIsNot404 は、取得の失敗を「ページが無い」（404）と区別して500にすることを確かめる。
+//
+// 不変条件: PAGES-INV-10
 func TestPublic_LoadFailureIsNot404(t *testing.T) {
 	fx := setup(t)
 	fx.create("about", "会社概要", "本文", "", true)

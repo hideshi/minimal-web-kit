@@ -111,6 +111,7 @@ func (fx *publicFixture) publish(t *testing.T, title, body string) int64 {
 }
 
 // 不変条件: NEWS-INV-1, NEWS-INV-5
+// 不変条件: NEWS-INV-13
 // ユースケース: UC-NEWS-1
 func TestNewsPages_ListShowAndEscape(t *testing.T) {
 	fx := newPublicFixture(t, "")

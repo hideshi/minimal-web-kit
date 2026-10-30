@@ -44,7 +44,7 @@
 | NEWS-INV-1 | 公開側に出るのは、公開の状態で、公開日時を過ぎた記事だけ。下書きと、公開日時前の予約公開は、ページ・一覧・API・`sitemap.xml` のどれにも出ない | `GetPublished`・`ListPublished`・`PublishedRefs` のSQLの条件 |
 | NEWS-INV-2 | 公開日時は、初めて公開したときに一度だけ決まり、非公開に戻して再公開しても変わらない（作成・編集で明示的に指定した場合を除く） | `Publish` の `COALESCE(published_at, ?)` |
 | NEWS-INV-3 | 記事のIDは、削除した後も再利用しない（APIの利用側の誤参照を防ぐ） | `news_posts` の AUTOINCREMENT |
-| NEWS-INV-4 | タイトルは改行なしの1〜200字、本文は50,000字以内の文章で、満たさない入力は保存しない | `normalizePost` |
+| NEWS-INV-4 | タイトルは改行とタブのない1〜200字、本文は50,000字以内の文章で、満たさない入力は保存しない | `normalizePost` |
 | NEWS-INV-5 | タイトル・本文はプレーンテキストとして扱い、HTMLは文字として表示する | `html/template` の自動エスケープ（`template.HTML` を使わない） |
 | NEWS-INV-6 | 公開側は、Coreの匿名セッションのCookieを照合・発行・消去しない | 独立経路（`RegisterIsolatedRoutes`） |
 | NEWS-INV-7 | APIが返す項目は、公開用の `id`・`title`・`body`・`published_at`・`updated_at` だけ | `apiPost` |
@@ -53,6 +53,7 @@
 | NEWS-INV-10 | 記事は、Coreのセッションの破棄・GCでも、マイグレーションの再実行でも消えない | `news_posts` を `owners` に紐づけない、`CREATE TABLE IF NOT EXISTS` |
 | NEWS-INV-11 | タイトル・本文・リクエストの値・設定値は、ログにもAPIのエラーにも出さない | 各ハンドラのログ呼び出し、固定のエラー文言 |
 | NEWS-INV-12 | 記事を変える操作はGETで行わない。削除は確認画面を経てPOSTで行う | `registerPostAdminRoutes` |
+| NEWS-INV-13 | URLの記事の番号は、正の整数の標準の書き方だけを受け付ける。`01`・`+1`・`abc` 等は、ページでもAPIでも、400ではなく「無い」（404）として扱う | `web.PathID` |
 
 ## 5. ロールと権限
 
