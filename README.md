@@ -86,7 +86,7 @@ make auth-setup
 | `/admin/accounts` | アカウントの管理（管理者のみ） |
 | `/admin` | 管理画面の入り口（他の機能の管理画面、無ければパスキーの管理へ移る） |
 
-- **ログインはパスキーだけ**です。パスワードはありません。既定では、複製を検出できない同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーン等）は拒否し、Windows Helloやセキュリティキー等、端末に固定された認証器だけを登録できます。Windows Helloの指紋認証で登録・ログインを確認しています。既定では、ChromeOSの指紋認証は同期型として拒否されることを確認しています。MacのTouch IDも、iCloudキーチェーンの同期型のため使えない見込みです。
+- **ログインはパスキーだけ**です。パスワードはありません。既定では、複製を検出できない同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーン等）は拒否し、Windows Helloやセキュリティキー等、端末に固定された認証器だけ（認証器の申告で判定し、機種は証明しません）を登録できます。Windows Helloの指紋認証で登録・ログインを確認しています。既定では、ChromeOSの指紋認証は同期型として拒否されることを確認しています。MacのTouch IDも、iCloudキーチェーンの同期型のため使えない見込みです。
 - `AUTH_ALLOW_SYNCED_PASSKEYS=true` にすると、同期型のパスキーも登録・ログインできます。端末を失っても他の端末から入れ、ChromeOSの指紋認証やスマートフォンも使えます（許可した設定で、Chromebookでの登録・ログインを確認しています）。その代わり、パスキーの安全は同期の提供者のアカウント（Googleアカウント等）の守りに頼り、複製を署名カウンタで検出できません。端末ごとに別のカウンタを持つ実装では、正規の複数端末の利用が複製の疑いとして無効化されることがあり、その場合は別のパスキーで入って削除・登録し直します。
 - 認証器は2つ以上の登録を推奨します。メンバーや他の管理者がパスキーを失った場合は、管理者がアカウントの詳細で登録URLを発行し直します（紛失・盗難時は、既存のパスキーを削除して発行）。
 - 有効な管理者（停止中でなく、有効なパスキーを持つ管理者）が0人になる操作（最後の管理者の降格・停止・削除・鍵のリセット）は拒否します。自分自身のロール変更・停止・削除もできません。管理者を2人以上にしておくことを推奨します。
@@ -237,7 +237,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `ADDR` | 未設定。設定時は待受アドレス全体を指定し、`PORT` より優先 |
 | `DB_PATH` | `data/app.db`。SQLiteの保存先 |
 | `SECURE_COOKIE` | `true` の場合のみCookieのSecure属性を有効化。既定は無効 |
-| `AUTH_ORIGIN` | `http://localhost:8080`。管理画面を公開するオリジン（WebAuthnの検証と登録URLに使用）。httpsなら `SECURE_COOKIE=true` が必須 |
+| `AUTH_ORIGIN` | `http://localhost:8080`。管理画面を公開するオリジン（WebAuthnの検証と登録URLに使用）。httpは `localhost` だけ。httpsなら `SECURE_COOKIE=true` が必須 |
 | `AUTH_RP_ID` | `localhost`。WebAuthnのRP ID。`AUTH_ORIGIN` のホストか、その上位のドメイン |
 | `AUTH_ALLOW_SYNCED_PASSKEYS` | 無効。`true` のときだけ同期型のパスキーを受け入れる。`true`・`false`・空以外の値は起動時にエラー |
 | `NEWS_CORS_ORIGINS` | 未設定（許可なし）。`/api/` を別ドメインから読むことを許す接続元をカンマ区切りで指定。`*` は不可 |
@@ -315,6 +315,8 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
 ## 自作機能（Feature）の追加
 
 入力の検査、独立経路の守り、ページ送り、完了メッセージ、入力欄・お知らせ・ページ送りの画面部品は、共通の部品として用意しています。新しく書く前に[部品カタログ](docs/components.md)を確認してください。
+
+経路が衝突すると（Coreや他の機能と同じパターン等）、起動時にエラーになります。
 
 1. `features/<機能名>/` に機能を作成し、`features.Feature` の `Name`、`Init`、`RegisterRoutes` を実装します。必要なら `CustomRootFeature` の `HandleRoot` も実装します。複数のトップページ提供機能を登録すると、先に登録したものが使われます。
 2. `cmd/server/features.go` にパッケージのimportと `r.Register(...)` を追記します。自作機能用の生成コマンドはありません。

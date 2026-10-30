@@ -352,6 +352,7 @@ func TestKeySet_RefetchGap(t *testing.T) {
 // exchange は、署名が正しくても、issuer・audience・nonce・期限・世代・at_hash が合わないIDトークンを拒否すること。
 //
 // 不変条件: FEDAUTH-INV-3
+// 不変条件: FEDAUTH-INV-8
 func TestUpstreamExchange_RejectsBadIDTokens(t *testing.T) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

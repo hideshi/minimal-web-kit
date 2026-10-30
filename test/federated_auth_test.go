@@ -861,6 +861,7 @@ func TestFederatedAuth_LoggedInSessionIsNotReplaced(t *testing.T) {
 }
 
 // 公開するのは列挙した経路だけで、未実装の機能を広告せず、CORSを許可しないこと。
+// 不変条件: FEDAUTH-INV-6
 func TestFederatedAuth_PublicSurface(t *testing.T) {
 	p := newFedPair(t)
 	client := p.a.client()
@@ -992,6 +993,7 @@ func TestFederatedAuth_ConcurrentStopAndExchange(t *testing.T) {
 }
 
 // 生のコード・state・トークン・秘密値・識別子が、AのログにもBのログにも出ないこと。
+// 不変条件: FEDAUTH-INV-9
 func TestFederatedAuth_LogsHoldNoSecrets(t *testing.T) {
 	p := newFedPair(t)
 	br, _, sub := p.member(t)
@@ -1041,8 +1043,11 @@ func TestFederatedAuth_PagesKeepHeaders(t *testing.T) {
 			t.Errorf("%s: CSP %q", label, csp)
 		}
 	}
-	res, _ := br.do(http.MethodGet, p.b.origin+"/admin/login", nil)
+	res, loginBody := br.do(http.MethodGet, p.b.origin+"/admin/login", nil)
 	check("login", res)
+	if !strings.Contains(loginBody, `name="robots" content="noindex`) {
+		t.Error("the consumer's admin layout must keep noindex")
+	}
 	res, body := br.do(http.MethodPost, p.b.origin+"/admin/sso/start", url.Values{"next": {"/admin"}})
 	check("start", res)
 	if res.StatusCode != http.StatusOK || res.Header.Get("Location") != "" {

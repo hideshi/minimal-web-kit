@@ -572,6 +572,9 @@ func TestAdminUI_AllPagesFollowStandard(t *testing.T) {
 		if cc := w.Header().Get("Cache-Control"); !strings.Contains(cc, "no-transform") || !strings.Contains(cc, "no-store") {
 			t.Errorf("%s: Cache-Control %q（no-store と no-transform が要る）", label, cc)
 		}
+		if !strings.Contains(w.Body.String(), `name="robots" content="noindex`) {
+			t.Errorf("%s: 管理画面は noindex のままにする", label)
+		}
 		for _, p := range checkAdminPage(parseHTML(t, w.Body.String()), kind) {
 			t.Errorf("%s: %s", label, p)
 		}

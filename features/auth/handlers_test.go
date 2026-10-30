@@ -93,6 +93,7 @@ func adminCookie(t *testing.T, rec *httptest.ResponseRecorder) *http.Cookie {
 
 // 不変条件: AUTH-INV-14
 // ユースケース: UC-AUTH-1, UC-AUTH-2
+// 不変条件: AUTH-INV-21
 func TestAdmin_SetupLoginLogoutFlow(t *testing.T) {
 	fx := newFixture(t)
 	ctx := context.Background()

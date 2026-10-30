@@ -153,6 +153,7 @@ func TestWebAuthn_RegisterAndLoginAllAlgorithms(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-19
 func TestWebAuthn_RegistrationRejects(t *testing.T) {
 	cases := map[string]struct {
 		mutate func(t *testing.T, ch *challenges, a *fakeAuthenticator, r *registrationResponse)
@@ -241,6 +242,7 @@ func TestWebAuthn_RegistrationRejects(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-19
 func TestWebAuthn_LoginRejects(t *testing.T) {
 	cases := map[string]struct {
 		mutate func(t *testing.T, ch *challenges, a *fakeAuthenticator, r *assertionResponse, cred *storedCredential)
@@ -328,6 +330,7 @@ func TestWebAuthn_CounterZeroAllowedWhenBothZero(t *testing.T) {
 }
 
 // 失敗した検証はchallengeを使用済みにせず、成功したchallengeの再利用は拒否されること。
+// 不変条件: AUTH-INV-20
 func TestWebAuthn_ReplayAndFailedAttemptsDoNotConsume(t *testing.T) {
 	ch := newChallenges(time.Now)
 	a := newFakeAuthenticator(t, algES256)
@@ -378,6 +381,7 @@ func TestWebAuthn_ConcurrentReplay(t *testing.T) {
 
 // 期限切れのchallengeは拒否され、使用済みの記録も期限後に消えること。
 // 大量に発行しても状態を持たないため、正当な認証を妨げないこと。
+// 不変条件: AUTH-INV-20
 func TestWebAuthn_ChallengeExpiryAndStatelessIssue(t *testing.T) {
 	clock := time.Unix(1_700_000_000, 0)
 	ch := newChallenges(func() time.Time { return clock })
@@ -607,6 +611,7 @@ func TestWebAuthn_BackupFlagsMatrix(t *testing.T) {
 	}
 }
 
+// 不変条件: AUTH-INV-19
 func TestWebAuthn_RejectsMalformedRSAKeys(t *testing.T) {
 	k, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {

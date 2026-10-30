@@ -49,7 +49,7 @@
 | NEWS-INV-5 | タイトル・本文はプレーンテキストとして扱い、HTMLは文字として表示する | `html/template` の自動エスケープ（`template.HTML` を使わない） |
 | NEWS-INV-6 | 公開側は、Coreの匿名セッションのCookieを照合・発行・消去しない | 独立経路（`RegisterIsolatedRoutes`） |
 | NEWS-INV-7 | APIが返す項目は、公開用の `id`・`title`・`body`・`published_at`・`updated_at` だけ | `apiPost` |
-| NEWS-INV-8 | 別のオリジンからのAPIの読み取りは、`NEWS_CORS_ORIGINS` で許可した接続元だけに許す。既定は許可なし、資格情報は許可しない。HTMLのページにはCORSのヘッダーを出さない | `LoadConfig`・APIのハンドラ |
+| NEWS-INV-8 | 別のオリジンからのAPIの読み取りは、`NEWS_CORS_ORIGINS` で許可した接続元だけに許す。既定は許可なし、資格情報は許可しない。`Vary: Origin` を付け、事前要求（OPTIONS）に答える。HTMLのページにはCORSのヘッダーを出さない | `LoadConfig`・APIのハンドラ |
 | NEWS-INV-9 | 管理側の画面と送信は、すべて管理者認証の `Page`・`Form`（ログイン・同一オリジン・CSRF）で守る。管理者認証が無ければ起動を止める | `registerPostAdminRoutes`、`internal/app` の `BuildRoutes` |
 | NEWS-INV-10 | 記事は、Coreのセッションの破棄・GCでも、マイグレーションの再実行でも消えない | `news_posts` を `owners` に紐づけない、`CREATE TABLE IF NOT EXISTS` |
 | NEWS-INV-11 | タイトル・本文・リクエストの値・設定値は、ログにもAPIのエラーにも出さない | 各ハンドラのログ呼び出し、固定のエラー文言 |

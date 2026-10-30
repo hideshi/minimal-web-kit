@@ -47,6 +47,7 @@ func TestDecode_RejectsAmbiguousJSON(t *testing.T) {
 	}
 }
 
+// 不変条件: FEDAUTH-INV-7
 func TestClient_PinsURLsAndLimitsBody(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
