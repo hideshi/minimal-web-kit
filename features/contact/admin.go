@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/notice"
@@ -77,6 +78,9 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 		return false
 	case errors.Is(err, ErrNotFound):
 		http.NotFound(w, r)
+	case store.Busy(err):
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "一時的に処理できませんでした。時間を置いて再試行してください。", http.StatusServiceUnavailable)
 	default:
 		f.logger.Error("contact admin failed", web.RequestIDAttr(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -192,7 +196,7 @@ func (f *Feature) handleNote(w http.ResponseWriter, r *http.Request, s features.
 		if f.failed(w, r, err) {
 			return
 		}
-		f.renderMessage(w, r, s, http.StatusBadRequest, m, noteField(note, "2,000文字以内で入力してください。"))
+		f.renderMessage(w, r, s, http.StatusBadRequest, m, noteField(note, "メモを保存できません。2,000文字以内にして、使えない文字を取り除いてください。"))
 		return
 	}
 	if f.failed(w, r, err) {

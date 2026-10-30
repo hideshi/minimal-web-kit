@@ -416,13 +416,42 @@ func TestAdmin_Note(t *testing.T) {
 	}
 	tooLong := canary + strings.Repeat("あ", maxNoteRunes)
 	w := adminRequest(routes, http.MethodPost, path+"/note", admin, url.Values{"note": {tooLong}, "csrf_token": {token}})
-	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), tooLong) || !strings.Contains(w.Body.String(), "2,000文字以内で入力してください。") {
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), tooLong) || !strings.Contains(w.Body.String(), "2,000文字以内にして") {
 		t.Fatalf("too long: %d", w.Code)
 	}
 	if m, _ := f.store.Get(context.Background(), id); m.Note != canary {
 		t.Fatal("a rejected note must not be saved")
 	}
+	// 値がログを出す処理まで届いたうえで、中身が出ていないこと
+	if !strings.Contains(logs.String(), "contact note saved") {
+		t.Fatal("the save must reach the log")
+	}
 	if strings.Contains(logs.String(), canary) {
 		t.Fatal("the note leaked into the log")
+	}
+	// 空にして保存すると、メモを消せる
+	if w := adminRequest(routes, http.MethodPost, path+"/note", admin, url.Values{"note": {""}, "csrf_token": {token}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("clear: %d", w.Code)
+	}
+	if m, _ := f.store.Get(context.Background(), id); m.Note != "" {
+		t.Fatal("the note must be cleared")
+	}
+}
+
+// 公開フォームとプライバシーポリシーの説明に、対応中の最長の期間とメモが載ること。
+// 不変条件: CONTACT-INV-9
+func TestRetention_ExplainedToSenders(t *testing.T) {
+	f, routes, _, _, _ := setup(t)
+	w, _ := getForm(t, routes)
+	if !strings.Contains(w.Body.String(), "受付から最長365日まで残すことがあります") {
+		t.Fatal("the form must show the longest period")
+	}
+	notices := f.PrivacyNotices()
+	if len(notices) != 1 || len(notices[0].Rows) != 1 {
+		t.Fatalf("notices: %+v", notices)
+	}
+	row := notices[0].Rows[0]
+	if !strings.Contains(row.Retention, "受付から最長365日") || !strings.Contains(row.Items, "対応の記録") {
+		t.Fatalf("privacy: %+v", row)
 	}
 }
