@@ -309,6 +309,52 @@ func TestNavAndSitemap_ReflectWithoutRestart(t *testing.T) {
 	}
 }
 
+// ナビの作り直しに失敗しても、非公開にしたページのリンクを公開ナビに残さないこと。利用者が接続を切っても反映すること。
+// 不変条件: PAGES-INV-6
+func TestNav_RefreshFailureDoesNotKeepOldLinks(t *testing.T) {
+	fx := setup(t)
+	fx.create("about", "会社概要", "本文", "10", true)
+	nav := func() string { return fx.get("/privacy", nil).Body.String() }
+	if !strings.Contains(nav(), `href="/about"`) {
+		t.Fatal("the published page must be in the nav")
+	}
+
+	// 取得に失敗したら、古いリンクを残さない
+	mustExec := func(q string) {
+		t.Helper()
+		if _, err := fx.core.DB().Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustExec("ALTER TABLE pages RENAME TO pages_gone")
+	fx.f.afterChange(httptest.NewRequest(http.MethodPost, "/admin/pages", nil))
+	if strings.Contains(nav(), `href="/about"`) {
+		t.Fatal("a failed refresh must not keep the old link")
+	}
+	if !strings.Contains(fx.logs.String(), "pages nav refresh failed") {
+		t.Fatal("the failure must be logged")
+	}
+
+	// 定期のGCで戻る
+	mustExec("ALTER TABLE pages_gone RENAME TO pages")
+	if err := fx.f.Purge(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(nav(), `href="/about"`) {
+		t.Fatal("the purge must restore the nav")
+	}
+
+	// 接続が切れた要求でも、コミット済みの変更をナビに反映する
+	fx.create("recruit", "採用情報", "本文", "20", true)
+	mustExec("UPDATE pages SET status = 'draft' WHERE slug = 'about'")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	fx.f.afterChange(httptest.NewRequest(http.MethodPost, "/admin/pages", nil).WithContext(ctx))
+	if got := nav(); strings.Contains(got, `href="/about"`) || !strings.Contains(got, `href="/recruit"`) {
+		t.Fatal("a cancelled request must still rebuild the nav from the database")
+	}
+}
+
 // TestPersistence_SurvivesReinit は、ページがマイグレーションの再実行とCoreのセッションの削除で消えないことを確かめる。
 // 不変条件: PAGES-INV-7
 func TestPersistence_SurvivesReinit(t *testing.T) {

@@ -126,6 +126,14 @@ func (f *Feature) refreshNav(ctx context.Context) error {
 	return nil
 }
 
+// Purge は、定期のGCのたびにナビを作り直します。作り直しに失敗して外れたリンクを、再起動なしで戻します。
+func (f *Feature) Purge(ctx context.Context) error {
+	if f.store == nil {
+		return nil
+	}
+	return f.refreshNav(ctx)
+}
+
 // DynamicNavLinks は、公開ナビに載せるページのリンクを返します（描画のたびに呼ばれる。DBは読まない）。
 func (f *Feature) DynamicNavLinks() []web.NavLink {
 	f.mu.RLock()

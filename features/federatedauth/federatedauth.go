@@ -471,7 +471,7 @@ func (f *Feature) handleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.next, http.StatusSeeOther)
 }
 
-// handleLogout は、このシステムのセッションだけを消します。認証基盤の障害中でもログアウトできます。
+// handleLogout は、このシステムのセッションだけを消します。認証基盤の障害中でもログアウトできます（FEDAUTH-INV-5）。
 func (f *Feature) handleLogout(w http.ResponseWriter, r *http.Request) {
 	token, _, ok := f.localForm(w, r)
 	if !ok {
