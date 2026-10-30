@@ -25,6 +25,7 @@ go test -race -v ./...
 | 依存 | `architecture_test.go`（`TestArchitecture_DependencyAllowedList`） | 直接依存の許可リストと、組み込まれる外部モジュールの一覧。増減したらREADMEの一覧も直す |
 | データ台帳 | `data_schema_test.go`（`TestDataSchema_MatchesDataLedger`） | `docs/data-inventory.md` と実スキーマの表名・列名。型・制約や `migration.sql` 以外の表は見ない |
 | 不変条件 | `domain_test.go`（`TestDomain_InvariantsAreTested`） | `docs/domain/*.md` の番号とテスト関数のコメントの対応。中身が条件を確かめているかは読んで確認する |
+| 守る場所・ユースケース | `domain_refs_test.go`・`usecase_test.go` | 「守る場所」の識別子がコードにあること、ユースケースのIDとテストの対応 |
 | テンプレート・CSS・JS | `template_test.go`（`TestTemplate_NoInlineStylesOrScripts`） | インラインの意匠・スクリプト、CSS 1本、承認済みのJS、`static-head`・`asset` の使用、表の見出し |
 | レイアウト・公開ページ | `layout_test.go`（`TestLayout_StaticHeadOnEveryLayout`） | レイアウトの共有、SEO・キャッシュ、静的書き出し（`export_static_test.go`） |
 | 管理画面 | `admin_ui_test.go`（`TestAdminUI_AllPagesFollowStandard`） | `docs/components.md` の画面の型と、全経路の見本 |
