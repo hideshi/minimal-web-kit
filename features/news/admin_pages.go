@@ -99,7 +99,7 @@ func (pf postForm) Fields() []form.Field {
 		// 本文は maxlength を付けない（ブラウザはUTF-16で数えるため、絵文字等でサーバーの文字数と食い違う）
 		{ID: "post-body", Name: "body", Label: "本文", Value: pf.Body, Rows: 14, Error: pf.fieldError("body"),
 			Hint: "5万文字以内のプレーンテキスト。空行で段落を分けます。HTMLは文字としてそのまま表示されます。個人情報は書かないでください。"},
-		{ID: "post-published-at", Name: "published_at", Label: "公開日時（任意）", Value: pf.PublishedAt, Type: "datetime-local", Error: pf.fieldError("published_at"),
+		{ID: "post-published-at", Name: "published_at", Label: "公開日時", Optional: true, Value: pf.PublishedAt, Type: "datetime-local", Error: pf.fieldError("published_at"),
 			Hint: "公開ページの表示と並び順に使います。空欄のままなら、初めて公開した日時が入ります。未来の日時を指定して「公開を予約する」を押すと、その日時になってから公開ページとAPIに表示されます。時刻はサーバーのタイムゾーンです。"},
 	}
 }

@@ -190,6 +190,25 @@ func TestTemplate_FormControlsUseComponents(t *testing.T) {
 	}
 }
 
+// TestForm_OptionalMarkUsesField は、ラベルの文字に「（任意）」を直接書かず、form.Field の Optional を使うことを検証します。
+// 直接書くと、部品が描く「（必須）」と見た目がそろいません。
+func TestForm_OptionalMarkUsesField(t *testing.T) {
+	files, err := filepath.Glob("../features/*/*.go")
+	if err != nil || len(files) == 0 {
+		t.Fatal("no feature sources", err)
+	}
+	pattern := regexp.MustCompile(`Label:\s*"[^"]*（任意）`)
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if m := pattern.Find(raw); m != nil {
+			t.Errorf("%s: %s を直接書いている（Optional: true を使う）", f, m)
+		}
+	}
+}
+
 // TestTemplate_TablesHaveCaptionAndScope は、全テンプレートの表に caption と th の scope があることを検証します。
 func TestTemplate_TablesHaveCaptionAndScope(t *testing.T) {
 	core, _ := filepath.Glob("../internal/web/views/*.html")

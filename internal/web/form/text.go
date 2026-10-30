@@ -78,6 +78,7 @@ type Field struct {
 	MaxLength int    // 0なら指定しない
 	Rows      int    // 1以上なら複数行（textarea）
 	Required  bool
+	Optional  bool     // ラベルに「（任意）」を添える。Required が優先する
 	Options   []Option // 1つ以上あれば選択（select）。Selected の付いたものを選んだ状態にする
 	// LabelHidden はラベルを画面に出さず、読み上げソフトにだけ伝える（表の中の欄等、見出しで意味が分かる場合）
 	LabelHidden bool

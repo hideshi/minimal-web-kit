@@ -40,7 +40,7 @@
 </div>
 {{else}}
 <div class="form-group">
-  <label for="{{.ID}}"{{if .LabelHidden}} class="visually-hidden"{{end}}>{{.Label}}{{if .Required}}<span class="required-mark">（必須）</span>{{end}}</label>
+  <label for="{{.ID}}"{{if .LabelHidden}} class="visually-hidden"{{end}}>{{.Label}}{{if .Required}}<span class="field-mark">（必須）</span>{{else if .Optional}}<span class="field-mark">（任意）</span>{{end}}</label>
   {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
   {{if .Error}}<p class="field-error" id="{{.ID}}-error">{{.Error}}</p>{{end}}
   {{if .Options}}
@@ -63,7 +63,7 @@
 */}}
 {{define "choices"}}
 <fieldset class="form-group choices{{if .Inline}} choices-inline{{end}}"{{if or .Hint .Error}} aria-describedby="{{if .Hint}}{{.ID}}-hint{{end}}{{if and .Hint .Error}} {{end}}{{if .Error}}{{.ID}}-error{{end}}"{{end}}>
-  <legend>{{.Legend}}{{if .Required}}<span class="required-mark">（必須）</span>{{end}}</legend>
+  <legend>{{.Legend}}{{if .Required}}<span class="field-mark">（必須）</span>{{end}}</legend>
   {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
   {{if .Error}}<p class="field-error" id="{{.ID}}-error">{{.Error}}</p>{{end}}
   <div class="choices-options">{{range .Options}}<label class="choice"><input type="{{if $.Multiple}}checkbox{{else}}radio{{end}}" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}{{if and $.Required (not $.Multiple)}} required{{end}}> {{.Label}}</label>{{else}}{{if $.Empty}}<p>{{$.Empty}}</p>{{end}}{{end}}</div>
@@ -100,7 +100,7 @@
     {{if .Hint}}<p class="field-hint">{{.Hint}}</p>{{end}}
     <ul class="combobox-chips" aria-label="選択済みの{{.Label}}" data-chips></ul>
     <template data-chip-template><li><button type="button" class="btn-secondary combobox-chip"><span data-chip-label></span><span aria-hidden="true">×</span></button></li></template>
-    <p data-count></p>
+    <p class="combobox-count" data-count></p>
     <label for="{{.ID}}-input">{{.Label}}を追加</label>
     <p class="field-hint" id="{{.ID}}-input-hint">入力すると候補を絞り込みます。↓で候補へ移り、Enterで選択・解除、Escで閉じます。入力が空のときBackspaceで最後に選んだものを外せます。</p>
     <div class="combobox-field">

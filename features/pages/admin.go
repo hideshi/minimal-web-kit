@@ -108,7 +108,7 @@ func (v pageForm) Fields() []form.Field {
 			Hint: "/ の後ろの部分（例: about → /about）。英小文字・数字・ハイフンで2〜40文字。公開中に変えると、前のURLは見られなくなります。"},
 		{ID: "page-body", Name: "body", Label: "本文", Value: v.Body, Rows: 16, Error: v.err("body", "body_limit"),
 			Hint: "5万文字以内。書き方は下の「本文の書き方」を参照。公開する文章なので、個人情報は書かないでください。"},
-		{ID: "page-nav-order", Name: "nav_order", Label: "ナビに出す順（任意）", Value: v.NavOrder, MaxLength: 3, Error: v.err("nav_order"),
+		{ID: "page-nav-order", Name: "nav_order", Label: "ナビに出す順", Optional: true, Value: v.NavOrder, MaxLength: 3, Error: v.err("nav_order"),
 			Hint: "0〜999。小さい順にサイトのナビに並びます。空ならナビに出しません。公開中のページだけが出ます。"},
 	}
 }

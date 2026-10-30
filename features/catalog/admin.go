@@ -54,7 +54,7 @@ func (v itemForm) categoryField(categories []Classification) form.Field {
 
 // newTagsField は、新規タグの入力欄。
 func (v itemForm) newTagsField() form.Field {
-	return form.Field{ID: "item-new-tags", Name: "new_tags", Label: "新規タグとして追加する名前（任意）", Value: v.NewTags, Rows: 3, Error: v.fieldError("new_tags"), Hint: "1行に1つ、各50文字以内。項目の保存と同時に追加します。同名のタグがある場合はそれを使います。個人情報は書かないでください。"}
+	return form.Field{ID: "item-new-tags", Name: "new_tags", Label: "新規タグとして追加する名前", Optional: true, Value: v.NewTags, Rows: 3, Error: v.fieldError("new_tags"), Hint: "1行に1つ、各50文字以内。項目の保存と同時に追加します。同名のタグがある場合はそれを使います。個人情報は書かないでください。"}
 }
 func readInput(r *http.Request) (itemForm, Input, error) {
 	v := itemForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), Category: r.PostForm.Get("category"), NewTags: r.PostForm.Get("new_tags")}

@@ -63,7 +63,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `notice` | 文字列 | 完了メッセージ。`role="status"` で読み上げソフトに穏やかに伝える。空なら何も出さない |
 | `error` | 文字列 | 画面全体のエラー。`role="alert"` ですぐに伝える。空なら何も出さない |
 | `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
-| `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。必須なら「（必須）」を表示。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
+| `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。`Required` なら「（必須）」、`Optional` なら「（任意）」を同じ見た目で表示する（ラベルの文字に直接書かない）。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
 | `choices` | `form.Choices` | 同じ名前のラジオ（`Multiple` ならチェックボックス）の組。`fieldset`・`legend` で囲み、説明・エラーを組に関連付ける。選択肢が1つなら `field` の `checkbox` を使う |
 | `paragraphs` | `form.Paragraphs` の結果 | プレーンテキストの本文。空行で段落（`p`）、段落の中の改行は `br`。`text-body` で囲み、長い英数字も折り返す |
 | `datetime`・`date` | `time.Time` | 日時（「2026年1月2日 15:04」）と日付（「2026年1月2日」）を `<time datetime>` で出す。時刻帯は渡す側で決める（例: `time.Local`）。予定の短い表示（登録URLの期限「1月2日 15:04」）だけは画面で書く |
@@ -95,10 +95,11 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 |---|---|---|
 | ボタン | `btn` ＋ `btn-primary`・`btn-secondary`・`btn-danger` | `<button>` にも `<a>` にも使える（高さは揃う）。削除等の取り消せない操作は `btn-danger` |
 | お知らせ | `alert` ＋ `alert-info`・`alert-warning` | 直接書くより、部品の `notice`・`error` を使う |
-| カード | `card`、`card-title`、`card-content`、`card-badge` | 囲みの枠。`<form class="card">` のようにフォームにも使える |
+| カード | `card`、`card-title`、`card-content`、`card-badge` | 囲みの枠。`<form class="card">` のようにフォームにも使える。直下の `btn` は文字の幅になる |
+| タグの並び | `tag-list` | 印の無い横並びの `<ul>`。`role="list"` を付ける |
 | 並べる | `grid-2`、`grid-3` | 狭い画面では1列になる |
 | ボタンの並び | `action-bar`（中央寄せは `action-bar-center`） | 送信と取り消しのボタン等。フォームを並べるときは `inline-form` |
-| 表 | `table-container` で `<table>` を囲む | 狭い画面では表だけが横に動く。`<th scope="col">` と `<caption>` を付ける |
+| 表 | `table-container` で `<table>` を囲む | 狭い画面では表だけが横に動く。`<th scope="col">` と `<caption>` を付ける。列には最小の幅があり、`<td>` の中の `<time>` は折り返さない |
 | 入力 | `form-group`、`field-hint`、`field-error` | 直接書くより、部品の `field` を使う |
 | ページ送り | `pagination` | 部品の `pagination` を使う |
 | 区切り | `section`、`section-header`、`section-lead` | LP等の大きな区切り |

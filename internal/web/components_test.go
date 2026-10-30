@@ -104,12 +104,24 @@ func TestComponents_FieldSelectHiddenReadonly(t *testing.T) {
 	}
 }
 
+// 「（必須）」と「（任意）」は同じ見た目で、両方を指定したら必須が優先すること。
+func TestComponents_FieldMarks(t *testing.T) {
+	got := renderComponent(t, `{{template "field" .}}`, form.Field{ID: "n", Name: "n", Label: "お名前", Optional: true})
+	if !strings.Contains(got, `お名前<span class="field-mark">（任意）</span></label>`) {
+		t.Fatalf("任意: %s", got)
+	}
+	got = renderComponent(t, `{{template "field" .}}`, form.Field{ID: "n", Name: "n", Label: "お名前", Optional: true, Required: true})
+	if !strings.Contains(got, `お名前<span class="field-mark">（必須）</span></label>`) || strings.Contains(got, "（任意）") {
+		t.Fatalf("必須が優先: %s", got)
+	}
+}
+
 func TestComponents_Choices(t *testing.T) {
 	c := form.Choices{ID: "role", Name: "role", Legend: "ロール", Hint: "必要な人に限る", Error: "選んでください", Required: true, Options: []form.Option{{Value: "member", Label: "メンバー"}, {Value: "admin", Label: "<i>管理者</i>", Selected: true}}}
 	got := renderComponent(t, `{{template "choices" .}}`, c)
 	for _, want := range []string{
 		`<fieldset class="form-group choices" aria-describedby="role-hint role-error">`,
-		`<legend>ロール<span class="required-mark">（必須）</span></legend>`,
+		`<legend>ロール<span class="field-mark">（必須）</span></legend>`,
 		`<p class="field-error" id="role-error">選んでください</p>`,
 		`<label class="choice"><input type="radio" name="role" value="member" required> メンバー</label>`,
 		`<label class="choice"><input type="radio" name="role" value="admin" checked required> &lt;i&gt;管理者&lt;/i&gt;</label>`,

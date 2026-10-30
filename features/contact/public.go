@@ -65,9 +65,9 @@ func (v contactForm) Fields() []form.Field {
 	return []form.Field{
 		{ID: "contact-body", Name: "body", Label: "お問い合わせ内容", Value: v.Body, Rows: 8, Required: true, Error: v.fieldError("body", "links"),
 			Hint: "2,000文字以内。URLは2つまで。"},
-		{ID: "contact-name", Name: "name", Label: "お名前（任意）", Value: v.Name, MaxLength: maxNameRunes, Error: v.fieldError("name"),
+		{ID: "contact-name", Name: "name", Label: "お名前", Optional: true, Value: v.Name, MaxLength: maxNameRunes, Error: v.fieldError("name"),
 			Hint: "返信が必要な場合だけ書いてください。ニックネームでもかまいません。"},
-		{ID: "contact-reply-to", Name: "reply_to", Label: "返信先（任意）", Value: v.ReplyTo, MaxLength: maxReplyToRunes, Error: v.fieldError("reply_to"),
+		{ID: "contact-reply-to", Name: "reply_to", Label: "返信先", Optional: true, Value: v.ReplyTo, MaxLength: maxReplyToRunes, Error: v.fieldError("reply_to"),
 			Hint: "返信が必要な場合だけ、メールアドレス・電話番号など、連絡のつく先を書いてください。"},
 	}
 }
