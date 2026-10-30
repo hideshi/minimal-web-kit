@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 )
@@ -20,7 +19,7 @@ type lookupCountingStore struct {
 	lookups int
 }
 
-func (s *lookupCountingStore) GetSessionOwner(ctx context.Context, hash string) (domain.OwnerID, error) {
+func (s *lookupCountingStore) GetSessionOwner(ctx context.Context, hash string) (store.OwnerID, error) {
 	s.lookups++
 	return s.SessionStore.GetSessionOwner(ctx, hash)
 }

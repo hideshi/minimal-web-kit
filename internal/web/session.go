@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"time"
 
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 )
 
@@ -92,7 +91,7 @@ func (sm *SessionManager) ResolveOwner(next http.Handler) http.Handler {
 }
 
 // EnsureSession はセッションが存在しない場合にのみ新規発行し、Cookieを設定してOwnerIDを返します。
-func (sm *SessionManager) EnsureSession(w http.ResponseWriter, r *http.Request) (domain.OwnerID, string, error) {
+func (sm *SessionManager) EnsureSession(w http.ResponseWriter, r *http.Request) (store.OwnerID, string, error) {
 	if ownerID := GetOwnerID(r.Context()); ownerID != "" {
 		cookie, _ := r.Cookie(sessionCookieName)
 		csrfToken := GetCSRFToken(r.Context())
@@ -113,7 +112,7 @@ func (sm *SessionManager) EnsureSession(w http.ResponseWriter, r *http.Request) 
 	if _, err := rand.Read(ownerBytes); err != nil {
 		return "", "", fmt.Errorf("generate owner: %w", err)
 	}
-	ownerID := domain.OwnerID(hex.EncodeToString(ownerBytes))
+	ownerID := store.OwnerID(hex.EncodeToString(ownerBytes))
 
 	if err := sm.store.CreateSession(r.Context(), tokenHash, ownerID); err != nil {
 		return "", "", fmt.Errorf("create session in store: %w", err)
@@ -135,8 +134,8 @@ func (sm *SessionManager) EnsureSession(w http.ResponseWriter, r *http.Request) 
 }
 
 // GetOwnerID はコンテキストからOwnerIDを取り出します。
-func GetOwnerID(ctx context.Context) domain.OwnerID {
-	if val, ok := ctx.Value(ownerIDContextKey).(domain.OwnerID); ok {
+func GetOwnerID(ctx context.Context) store.OwnerID {
+	if val, ok := ctx.Value(ownerIDContextKey).(store.OwnerID); ok {
 		return val
 	}
 	return ""

@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"minimal-web-kit/internal/domain"
-
 	_ "modernc.org/sqlite"
 )
 
@@ -76,7 +74,7 @@ func (s *SQLiteStore) DB() *sql.DB {
 	return s.db
 }
 
-func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
+func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (OwnerID, error) {
 	var ownerID string
 	var lastSeenAt int64
 	err := s.db.QueryRowContext(ctx,
@@ -103,10 +101,10 @@ func (s *SQLiteStore) GetSessionOwner(ctx context.Context, tokenHash string) (do
 		return "", fmt.Errorf("update session last_seen_at: %w", err)
 	}
 
-	return domain.OwnerID(ownerID), nil
+	return OwnerID(ownerID), nil
 }
 
-func (s *SQLiteStore) CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error {
+func (s *SQLiteStore) CreateSession(ctx context.Context, tokenHash string, ownerID OwnerID) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -139,7 +137,7 @@ func (s *SQLiteStore) DeleteSession(ctx context.Context, tokenHash string) error
 	return err
 }
 
-func (s *SQLiteStore) DeleteAllData(ctx context.Context, ownerID domain.OwnerID) error {
+func (s *SQLiteStore) DeleteAllData(ctx context.Context, ownerID OwnerID) error {
 	// ON DELETE CASCADE により、owners を削除するだけでセッションも全機能データも自動連動削除される
 	_, err := s.db.ExecContext(ctx, "DELETE FROM owners WHERE id = ?", string(ownerID))
 	return err

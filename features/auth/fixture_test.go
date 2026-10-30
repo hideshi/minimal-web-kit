@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 )
@@ -185,7 +184,7 @@ func TestPurge_KeepsPasskeysAndCoreGCIndependent(t *testing.T) {
 	assertRows(t, db, "SELECT COUNT(*) FROM auth_credentials", 1)
 
 	// Coreの匿名セッションの破棄・GCは、管理者認証のデータに影響しない
-	owner := domain.OwnerID("owner-x")
+	owner := store.OwnerID("owner-x")
 	if err := s.CreateSession(ctx, "core-hash", owner); err != nil {
 		t.Fatal(err)
 	}

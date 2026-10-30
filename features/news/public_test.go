@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"minimal-web-kit/features/auth"
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 )
@@ -25,12 +24,12 @@ type lookupStore struct {
 	lookups, creates int
 }
 
-func (s *lookupStore) GetSessionOwner(ctx context.Context, hash string) (domain.OwnerID, error) {
+func (s *lookupStore) GetSessionOwner(ctx context.Context, hash string) (store.OwnerID, error) {
 	s.lookups++
 	return s.SessionStore.GetSessionOwner(ctx, hash)
 }
 
-func (s *lookupStore) CreateSession(ctx context.Context, hash string, owner domain.OwnerID) error {
+func (s *lookupStore) CreateSession(ctx context.Context, hash string, owner store.OwnerID) error {
 	s.creates++
 	return s.SessionStore.CreateSession(ctx, hash, owner)
 }

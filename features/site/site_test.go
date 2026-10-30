@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"minimal-web-kit/features/site"
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 )
@@ -150,12 +149,12 @@ type observedStore struct {
 	creates int
 }
 
-func (s *observedStore) GetSessionOwner(ctx context.Context, hash string) (domain.OwnerID, error) {
+func (s *observedStore) GetSessionOwner(ctx context.Context, hash string) (store.OwnerID, error) {
 	s.lookups++
 	return s.SessionStore.GetSessionOwner(ctx, hash)
 }
 
-func (s *observedStore) CreateSession(ctx context.Context, hash string, owner domain.OwnerID) error {
+func (s *observedStore) CreateSession(ctx context.Context, hash string, owner store.OwnerID) error {
 	s.creates++
 	return s.SessionStore.CreateSession(ctx, hash, owner)
 }

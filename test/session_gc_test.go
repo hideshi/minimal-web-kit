@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 )
 
@@ -30,11 +29,11 @@ func TestPurgeExpiredSessions_KeepsActiveOwner(t *testing.T) {
 		t.Fatalf("create notes: %v", err)
 	}
 
-	mixed := domain.OwnerID("owner-mixed")
-	stale := domain.OwnerID("owner-stale")
+	mixed := store.OwnerID("owner-mixed")
+	stale := store.OwnerID("owner-stale")
 	for _, c := range []struct {
 		hash  string
-		owner domain.OwnerID
+		owner store.OwnerID
 	}{
 		{"hash-mixed-old", mixed},
 		{"hash-mixed-new", mixed},
@@ -44,7 +43,7 @@ func TestPurgeExpiredSessions_KeepsActiveOwner(t *testing.T) {
 			t.Fatalf("create session %s: %v", c.hash, err)
 		}
 	}
-	for _, o := range []domain.OwnerID{mixed, stale} {
+	for _, o := range []store.OwnerID{mixed, stale} {
 		if _, err := db.Exec("INSERT INTO notes (owner_id) VALUES (?)", string(o)); err != nil {
 			t.Fatalf("insert note: %v", err)
 		}
@@ -83,7 +82,7 @@ func TestPurgeExpiredSessions_RemovesOrphanOwner(t *testing.T) {
 	defer s.Close()
 	db := s.DB()
 
-	owner := domain.OwnerID("owner-orphan")
+	owner := store.OwnerID("owner-orphan")
 	if err := s.CreateSession(ctx, "hash-orphan", owner); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
@@ -106,7 +105,7 @@ func TestPurgeExpiredSessions_RemovesOrphanOwner(t *testing.T) {
 func TestMemoryStorePurge_KeepsActiveSession(t *testing.T) {
 	ctx := context.Background()
 	s := store.NewMemoryStore()
-	owner := domain.OwnerID("owner-mixed")
+	owner := store.OwnerID("owner-mixed")
 	if err := s.CreateSession(ctx, "hash-old", owner); err != nil {
 		t.Fatalf("create session: %v", err)
 	}

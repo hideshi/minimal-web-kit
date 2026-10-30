@@ -371,7 +371,6 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── internal/
 │   ├── app/               # 設定・サーバー管理
 │   ├── federation/        # 共通認証の照会の契約と通信の守り
-│   ├── domain/            # OwnerID等のCoreドメイン型
 │   ├── store/             # メモリ・SQLite・Coreマイグレーション
 │   └── web/               # SSR・セッション・CSRF・ログ・CSS
 │       ├── form/          # 部品: 入力の検査（文章・1行の値・整数）と入力欄の値

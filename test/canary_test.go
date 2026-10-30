@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 )
@@ -260,7 +259,7 @@ func TestCanary_RequestAndPanicLogProtection(t *testing.T) {
 
 type failingDeleteStore struct{ store.SessionStore }
 
-func (s failingDeleteStore) DeleteAllData(context.Context, domain.OwnerID) error {
+func (s failingDeleteStore) DeleteAllData(context.Context, store.OwnerID) error {
 	return errors.New("db-error-private@example.invalid")
 }
 

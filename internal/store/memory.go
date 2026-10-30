@@ -5,12 +5,10 @@ import (
 	"database/sql"
 	"sync"
 	"time"
-
-	"minimal-web-kit/internal/domain"
 )
 
 type memorySession struct {
-	ownerID    domain.OwnerID
+	ownerID    OwnerID
 	createdAt  time.Time
 	lastSeenAt time.Time
 }
@@ -18,18 +16,18 @@ type memorySession struct {
 // MemoryStore はテストやDBなし検証用のインメモリ実装です。
 type MemoryStore struct {
 	mu       sync.RWMutex
-	owners   map[domain.OwnerID]time.Time
+	owners   map[OwnerID]time.Time
 	sessions map[string]*memorySession // tokenHash -> session
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		owners:   make(map[domain.OwnerID]time.Time),
+		owners:   make(map[OwnerID]time.Time),
 		sessions: make(map[string]*memorySession),
 	}
 }
 
-func (s *MemoryStore) GetSessionOwner(ctx context.Context, tokenHash string) (domain.OwnerID, error) {
+func (s *MemoryStore) GetSessionOwner(ctx context.Context, tokenHash string) (OwnerID, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -48,7 +46,7 @@ func (s *MemoryStore) GetSessionOwner(ctx context.Context, tokenHash string) (do
 	return sess.ownerID, nil
 }
 
-func (s *MemoryStore) CreateSession(ctx context.Context, tokenHash string, ownerID domain.OwnerID) error {
+func (s *MemoryStore) CreateSession(ctx context.Context, tokenHash string, ownerID OwnerID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -69,7 +67,7 @@ func (s *MemoryStore) DeleteSession(ctx context.Context, tokenHash string) error
 	return nil
 }
 
-func (s *MemoryStore) DeleteAllData(ctx context.Context, ownerID domain.OwnerID) error {
+func (s *MemoryStore) DeleteAllData(ctx context.Context, ownerID OwnerID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -90,7 +88,7 @@ func (s *MemoryStore) PurgeExpiredSessions(ctx context.Context, maxAge time.Dura
 	var count int64
 
 	// 期限切れのセッションだけを削除（同じ owner の有効なセッションは残す）
-	activeOwners := make(map[domain.OwnerID]bool)
+	activeOwners := make(map[OwnerID]bool)
 	for hash, sess := range s.sessions {
 		if sess.lastSeenAt.Before(threshold) {
 			delete(s.sessions, hash)

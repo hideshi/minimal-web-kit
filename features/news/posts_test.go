@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"minimal-web-kit/internal/domain"
 	"minimal-web-kit/internal/store"
 )
 
@@ -247,7 +246,7 @@ func TestCoreSessionGC_KeepsPosts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	owner := domain.OwnerID("owner-x")
+	owner := store.OwnerID("owner-x")
 	if err := s.CreateSession(ctx, "core-hash", owner); err != nil {
 		t.Fatal(err)
 	}
