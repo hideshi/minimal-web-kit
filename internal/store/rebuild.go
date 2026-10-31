@@ -148,11 +148,13 @@ func rebuild(ctx context.Context, conn *sql.Conn, r Rebuild) error {
 		"INSERT INTO " + work + " (" + names + ") SELECT " + values + " FROM " + r.Table,
 		"DROP TABLE " + r.Table,
 		"ALTER TABLE " + work + " RENAME TO " + r.Table,
-		"DELETE FROM sqlite_sequence WHERE name = '" + r.Table + "'",
 	} {
 		if _, err := conn.ExecContext(ctx, q); err != nil {
 			return err
 		}
+	}
+	if _, err := conn.ExecContext(ctx, "DELETE FROM sqlite_sequence WHERE name = ?", r.Table); err != nil {
+		return err
 	}
 	if seq.Valid {
 		if _, err := conn.ExecContext(ctx, "INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)", r.Table, seq.Int64); err != nil {
@@ -185,11 +187,12 @@ func copyColumns(ctx context.Context, conn *sql.Conn, r Rebuild) (string, string
 		if err := rows.Scan(&name); err != nil {
 			return "", "", err
 		}
-		names = append(names, name)
+		quoted := quoteIdentifier(name)
+		names = append(names, quoted)
 		if expr, ok := r.Columns[name]; ok {
-			name = expr
+			quoted = expr
 		}
-		values = append(values, name)
+		values = append(values, quoted)
 	}
 	return strings.Join(names, ", "), strings.Join(values, ", "), rows.Err()
 }

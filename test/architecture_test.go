@@ -255,28 +255,31 @@ func TestArchitecture_KitDoesNotUseUnsafe(t *testing.T) {
 	}
 }
 
-// TestArchitecture_ModulesHaveNoCgo は、組み込まれる外部モジュールにcgoのファイルが無いことを確かめます。
+// TestArchitecture_ModulesHaveNoCgo は、全機能の依存のパッケージのうち、Linuxのamd64・arm64で選ばれるものに、
+// cgoのファイルが無いことを確かめます。他のOS用のファイルは見ません。
 // CGO_ENABLED=0 ではcgoのファイルが一覧から除かれて検査が空振りするので、有効にして調べます。
 func TestArchitecture_ModulesHaveNoCgo(t *testing.T) {
-	cmd := exec.Command("go", "list", "-deps", "-f", `{{if and .Module (not .Standard)}}{{.ImportPath}} {{len .CgoFiles}}{{end}}`, "./cmd/server", "./cmd/kit")
-	cmd.Dir = ".."
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
-	out, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("go list: %v", err)
-	}
-	seen := 0
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) != 2 {
-			continue
+	for _, arch := range []string{"amd64", "arm64"} {
+		cmd := exec.Command("go", "list", "-deps", "-f", `{{if and .Module (not .Standard)}}{{.ImportPath}} {{len .CgoFiles}}{{end}}`, "./cmd/...", "./features/...")
+		cmd.Dir = ".."
+		cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+arch, "CGO_ENABLED=1")
+		out, err := cmd.Output()
+		if err != nil {
+			t.Fatalf("go list (%s): %v", arch, err)
 		}
-		seen++
-		if fields[1] != "0" {
-			t.Errorf("%s: cgoのファイルが %s 個ある", fields[0], fields[1])
+		seen := 0
+		for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) != 2 {
+				continue
+			}
+			seen++
+			if fields[1] != "0" {
+				t.Errorf("linux/%s %s: cgoのファイルが %s 個ある", arch, fields[0], fields[1])
+			}
 		}
-	}
-	if seen < 10 {
-		t.Fatalf("見たパッケージが少なすぎる: %d", seen)
+		if seen < 10 {
+			t.Fatalf("見たパッケージが少なすぎる: %d", seen)
+		}
 	}
 }

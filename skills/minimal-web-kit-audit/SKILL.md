@@ -33,7 +33,7 @@ CI（`.github/workflows/test.yml`）を変えるときは、アクションを�
 | 管理画面 | `admin_ui_test.go`（`TestAdminUI_AllPagesFollowStandard`） | `docs/components.md` の画面の型と、全経路の見本 |
 | ログ・Cookie | `canary_test.go`（`TestCanary_LogAndPrivacyProtection`） | 公開ページのセッション非発行と、ログへの漏洩。業務データを網羅した保証ではない |
 | SQL | `sql_static_test.go`（`TestSQL_StatementsAreStatic`） | SQLの文が固定の文字列だけでできていること。値を文につなぐと落ちる。例外は `sqlExceptions` に理由と数で載せる。SQLインジェクションの守りで、SQLite内部の不具合は防げない |
-| 依存の境界 | `architecture_test.go`（`TestArchitecture_KitDoesNotUseUnsafe`・`TestArchitecture_ModulesHaveNoCgo`） | キット自身が `unsafe` とcgoを使わないこと、組み込む外部モジュールにcgoのファイルが無いこと |
+| 依存の境界 | `architecture_test.go`（`TestArchitecture_KitDoesNotUseUnsafe`・`TestArchitecture_ModulesHaveNoCgo`） | キット自身が `unsafe` とcgoを使わないこと、全機能の依存のうちLinuxのamd64・arm64で選ばれるパッケージにcgoのファイルが無いこと |
 | 入力とDB | `boundary_test.go`（`TestBoundary_StrangeValuesAreHandled`・`TestDatabase_IntegrityAfterOperations`） | SQLiteへ届く入力の長さの上限、変な文字列で500にならないこと、操作の後にDBの構造が壊れないこと。SQLite内部の不具合そのものは見つけられない |
 
 `test/browser/` は別モジュールで、`go test ./...` では走らない。画面部品の操作と撮影は `make test-ui` で確かめる。

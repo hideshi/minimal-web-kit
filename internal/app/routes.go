@@ -55,10 +55,17 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 			}
 		}
 		handler.SetPrivacyNotices(public)
+		received := false
 		for _, f := range reg.All() {
 			if c, ok := f.(features.AccountNoticeConsumer); ok {
 				c.SetAccountNotices(internal)
+				received = true
 			}
+		}
+		if len(internal) > 0 && !received {
+			// 公開にもログイン後にも出ないと、本人に知らせる場所が無くなる
+			logger.Error("internal notices have no page")
+			return nil, fmt.Errorf("internal privacy notices need a feature that shows them after login")
 		}
 	}
 

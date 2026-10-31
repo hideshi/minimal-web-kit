@@ -369,7 +369,7 @@ AIエージェントのアクセストークン。不透明な乱数のハッシ
 
 `features/federatedauth` を有効化すると、`features/federatedauth/migration.sql` で以下のテーブルを作成します。ログインは別のシステムの認証基盤で行い、氏名・メールアドレス・パスキーは保存しません。識別子は認証基盤が発行する仮名で、他の連携先と共通です。
 
-この節の要約は `PrivacyNotices`（`features/federatedauth/federatedauth.go`）でプライバシーポリシーの画面に載ります。
+この節の要約は `PrivacyNotices`（`features/federatedauth/federatedauth.go`）でログイン後の画面（`/admin/data-notice`）に載ります。公開のプライバシーポリシーには載せません。
 
 ### テーブル: `federated_accounts`
 認証基盤の識別子と、このシステムのIDとロールの対応。

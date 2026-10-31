@@ -473,13 +473,18 @@ func FuzzSearch(f *testing.F) {
 		f.Add(seed)
 	}
 	s, _ := newStore(f)
-	id, _ := func() (int64, int64) {
-		ctx := context.Background()
-		i, _ := s.Create(ctx, owner, Input{Title: "秘密", Body: "秘密の本文"})
-		_, v, _ := s.Draft(ctx, owner, i)
-		_ = s.Publish(ctx, owner, i, v.ID)
-		return i, v.ID
-	}()
+	ctx := context.Background()
+	id, err := s.Create(ctx, owner, Input{Title: "秘密", Body: "秘密の本文"})
+	if err != nil {
+		f.Fatal(err)
+	}
+	_, v, err := s.Draft(ctx, owner, id)
+	if err != nil {
+		f.Fatal(err)
+	}
+	if err := s.Publish(ctx, owner, id, v.ID); err != nil {
+		f.Fatal(err)
+	}
 	f.Fuzz(func(t *testing.T, query string) {
 		items, err := s.List(context.Background(), alice, Filter{Query: query}, firstPage)
 		if err != nil {
@@ -519,6 +524,9 @@ func FuzzCreate(f *testing.F) {
 		}
 		if !utf8.ValidString(v.Title) || !utf8.ValidString(v.Body) {
 			t.Fatalf("invalid text was saved: %q %q", title, body)
+		}
+		if err := s.Delete(ctx, owner, id); err != nil { // 回数でDBが大きくならないようにする
+			t.Fatal(err)
 		}
 	})
 }

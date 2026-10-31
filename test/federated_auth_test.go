@@ -383,6 +383,13 @@ func TestFederatedAuth_LoginThenStopRejectsNextRequest(t *testing.T) {
 	if !strings.Contains(body, "role=site_admin") {
 		t.Fatalf("Aの管理者がBの管理者になった: %s", body)
 	}
+	// 社内の人の情報はログイン後に出し、公開のポリシーには載せない（AUTH-INV-28）
+	if _, notice := br.do(http.MethodGet, p.b.origin+"/admin/data-notice", nil); !strings.Contains(notice, "管理画面の利用者について保存する情報") {
+		t.Fatalf("data notice: %s", notice)
+	}
+	if _, public := br.do(http.MethodGet, p.b.origin+"/privacy", nil); strings.Contains(public, "管理画面の利用者について保存する情報") {
+		t.Fatal("the public policy must not show the internal notice")
+	}
 	if res, _ = br.do(http.MethodGet, p.b.origin+"/admin/notes/settings", nil); res.StatusCode != http.StatusForbidden {
 		t.Fatalf("member at admin page: %d", res.StatusCode)
 	}
