@@ -239,14 +239,6 @@
       <p class="step-content"><code>make build</code> で単一の実行ファイルを作って配置します。本番スキルが、手順書の作り方、HTTPSやバックアップで決めること、戻し方を示します。</p>
     </li>
   </ol>
-
-  <p class="text-center">リポジトリをクローンし、<code>make run</code> で起動できます。</p>
-  <div class="action-bar action-bar-center">
-    <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
-      <span class="btn-main-text">GitHubでキットを入手する</span>
-      <span class="btn-sub-text">新しいタブで開きます</span>
-    </a>
-  </div>
 </section>
 
 <section id="faq" class="section">
@@ -300,6 +292,17 @@
   </div>
 </section>
 
+<section class="cta-banner">
+  <h2>まず手元で動かしてみる</h2>
+  <p>リポジトリをクローンし、<code>make run</code> で起動できます。</p>
+  <div class="cta-actions">
+    <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
+      <span class="btn-main-text">GitHubでキットを入手する</span>
+      <span class="btn-sub-text">新しいタブで開きます</span>
+    </a>
+  </div>
+</section>
+
 <section id="contact" class="section">
   <div class="section-header text-center">
     <h2>お問い合わせ・フィードバック</h2>
@@ -317,14 +320,9 @@
     </div>
     <div class="action-bar action-bar-center">
       {{if .Contact}}{{if .Contact.External}}
-      <a href="{{.Contact.Href}}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
-        <span class="btn-main-text">お問い合わせフォームを開く</span>
-        <span class="btn-sub-text">Googleフォーム（新しいタブで開きます）</span>
-      </a>
+      <a href="{{.Contact.Href}}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">お問い合わせフォームを開く（Googleフォーム・新しいタブで開きます）</a>
       {{else}}
-      <a href="{{.Contact.Href}}" class="btn btn-primary btn-cta">
-        <span class="btn-main-text">お問い合わせフォームを開く</span>
-      </a>
+      <a href="{{.Contact.Href}}" class="btn btn-secondary">お問い合わせフォームを開く</a>
       {{end}}{{end}}
       <a href="/privacy" class="btn btn-secondary">プライバシーポリシー</a>
     </div>
