@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -593,5 +594,59 @@ func TestMCP_ClientManagementIsAdminOnly(t *testing.T) {
 	var n int
 	if err := e.core.DB().QueryRow("SELECT COUNT(*) FROM auth_agent_clients").Scan(&n); err != nil || n != 2 { // newMCPEnv の1件と既存の1件
 		t.Fatal(n, err)
+	}
+}
+
+// TestMCP_StaleClientPagesChangeNothing は、古い画面からの操作が409で止まり、生きているトークンを消さないことを確かめます。
+// 不変条件: MCP-INV-10
+func TestMCP_StaleClientPagesChangeNothing(t *testing.T) {
+	e := newMCPEnv(t)
+	w := e.formPost(e.admin, e.csrf, "/admin/mcp/clients", "label=x&redirect=http%3A%2F%2Flocalhost%2Fcallback")
+	path := strings.Split(w.Header().Get("Location"), "?")[0]
+	id := strings.TrimPrefix(path, "/admin/mcp/clients/")
+	var account, before int64
+	db := e.core.DB()
+	if err := db.QueryRow("SELECT f.account_id, c.client_epoch FROM auth_federated_subjects f JOIN auth_oidc_grants g ON g.sub = f.sub JOIN auth_oidc_clients c ON c.client_id = g.client_id WHERE g.client_id = ?", id).Scan(&account, &before); err != nil {
+		t.Fatal(err)
+	}
+	acct := strconv.FormatInt(account, 10)
+	for name, action := range map[string]string{"enable twice": "/enable", "allow twice": "/accounts/" + acct + "/allow"} {
+		w := e.formPost(e.admin, e.csrf, path+action, "")
+		if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "画面を開いた後に状態が変わりました") {
+			t.Errorf("%s: %d", name, w.Code)
+		}
+	}
+	var after int64
+	if err := db.QueryRow("SELECT client_epoch FROM auth_oidc_clients WHERE client_id = ?", id).Scan(&after); err != nil || after != before {
+		t.Fatal("generation advanced", after, before, err)
+	}
+	if w := e.formPost(e.admin, e.csrf, path+"/accounts/"+acct+"/revoke", ""); w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code)
+	}
+	if w := e.formPost(e.admin, e.csrf, path+"/accounts/"+acct+"/revoke", ""); w.Code != http.StatusConflict {
+		t.Fatal(w.Code)
+	}
+	if w := e.formPost(e.admin, e.csrf, path+"/disable", ""); w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code)
+	}
+	if w := e.formPost(e.admin, e.csrf, path+"/accounts/"+acct+"/allow", ""); w.Code != http.StatusConflict {
+		t.Fatal("grant on a stopped client:", w.Code)
+	}
+	if w := e.formPost(e.admin, e.csrf, path+"/accounts/999999/revoke", ""); w.Code != http.StatusNotFound {
+		t.Fatal(w.Code)
+	}
+}
+
+// TestMCP_LongJapaneseClientName は、100文字までの全角の名前を受け付けることを確かめます。
+func TestMCP_LongJapaneseClientName(t *testing.T) {
+	e := newMCPEnv(t)
+	ok := url.QueryEscape(strings.Repeat("あ", 100))
+	if w := e.formPost(e.admin, e.csrf, "/admin/mcp/clients", "label="+ok+"&redirect=http%3A%2F%2Flocalhost%2Fcallback"); w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code)
+	}
+	long := url.QueryEscape(strings.Repeat("あ", 101))
+	w := e.formPost(e.admin, e.csrf, "/admin/mcp/clients", "label="+long+"&redirect=http%3A%2F%2Flocalhost%2Fcallback")
+	if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), "名前を100文字以内") {
+		t.Fatal(w.Code)
 	}
 }

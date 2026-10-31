@@ -1,13 +1,14 @@
 {{define "content"}}
-<h1>AIエージェントの接続</h1>{{template "notice" .Notice}}
-<dl>
-  <dt>名前</dt>
-  <dd>{{.Client.Label}}</dd>
-  <dt>状態</dt>
-  <dd>{{if .Client.Enabled}}有効{{else}}停止中{{end}}</dd>
-  <dt>戻り先</dt>
-  <dd>{{.Client.Redirect}}</dd>
-</dl>
+<h1>接続: {{.Client.Label}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">接続の状態</caption>
+    <tbody>
+      <tr><th scope="row">状態</th><td>{{if .Client.Enabled}}有効{{else}}停止中{{end}}</td></tr>
+      <tr><th scope="row">戻り先</th><td>{{.Client.Redirect}}</td></tr>
+    </tbody>
+  </table>
+</div>
 {{template "field" .IDField}}
 {{template "field" .CommandField}}
 <p>コマンドを実行した後、Claude Codeの <code>/mcp</code> から認証します。</p>

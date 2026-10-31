@@ -254,6 +254,8 @@ func (p AgentPrincipal) HasScope(name string) bool {
 var (
 	ErrAgentInvalid  = errors.New("features: invalid agent client input")
 	ErrAgentNotFound = errors.New("features: agent client not found")
+	// ErrAgentConflict は、画面を開いた後に状態が変わっていて、操作が当たらないことを表します。何も変えていません。
+	ErrAgentConflict = errors.New("features: agent client state changed")
 )
 
 // AgentAccount は、クライアントの利用を許可できるアカウントです。Name は管理画面に出す呼び名です。

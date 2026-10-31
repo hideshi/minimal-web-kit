@@ -126,6 +126,10 @@ func (f *Feature) renderSettingsError(w http.ResponseWriter, r *http.Request, s 
 
 // handleClient は接続の詳細です。client_id と、登録のコマンドを出します。
 func (f *Feature) handleClient(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+	f.renderClient(w, r, s, http.StatusOK, "")
+}
+
+func (f *Feature) renderClient(w http.ResponseWriter, r *http.Request, s features.AdminSession, status int, message string) {
 	client, err := f.auth.AgentClient(r.Context(), r.PathValue("id"))
 	if errors.Is(err, features.ErrAgentNotFound) {
 		http.NotFound(w, r)
@@ -134,17 +138,23 @@ func (f *Feature) handleClient(w http.ResponseWriter, r *http.Request, s feature
 		f.serverError(w, err)
 		return
 	}
-	data := s.PageData("AIエージェントの接続", "/admin/mcp")
+	data := s.PageData("接続: "+client.Label, "/admin/mcp")
 	data["Client"] = client
-	data["Notice"] = clientMessages.From(r)
+	data["Error"] = message
+	if status == http.StatusOK {
+		data["Notice"] = clientMessages.From(r)
+	}
 	data["IDField"] = form.Field{ID: "client-id", Name: "client_id", Label: "client_id", Value: client.ID, Readonly: true, Hint: "秘密の値ではありません"}
 	data["CommandField"] = form.Field{ID: "client-command", Name: "command", Label: "Claude Codeに登録するコマンド", Rows: 3, Readonly: true,
 		Value: fmt.Sprintf("claude mcp add -s user --transport http --client-id %s --callback-port %d site %s", client.ID, callbackPort, f.auth.Resource())}
-	f.render(w, http.StatusOK, "admin_mcp_client.html", data)
+	f.render(w, status, "admin_mcp_client.html", data)
 }
 
-func (f *Feature) finishClient(w http.ResponseWriter, r *http.Request, err error, key string) {
-	if errors.Is(err, features.ErrAgentNotFound) {
+func (f *Feature) finishClient(w http.ResponseWriter, r *http.Request, s features.AdminSession, err error, key string) {
+	if errors.Is(err, features.ErrAgentConflict) {
+		f.renderClient(w, r, s, http.StatusConflict, "画面を開いた後に状態が変わりました。今の状態を確かめて、もう一度操作してください。")
+		return
+	} else if errors.Is(err, features.ErrAgentNotFound) {
 		http.NotFound(w, r)
 		return
 	} else if err != nil {
@@ -161,7 +171,7 @@ func (f *Feature) handleClientEnabled(enabled bool) func(http.ResponseWriter, *h
 		if enabled {
 			key = "enabled"
 		}
-		f.finishClient(w, r, f.auth.SetAgentClientEnabled(r.Context(), r.PathValue("id"), enabled), key)
+		f.finishClient(w, r, s, f.auth.SetAgentClientEnabled(r.Context(), r.PathValue("id"), enabled), key)
 	}
 }
 
@@ -176,6 +186,6 @@ func (f *Feature) handleClientGrant(allowed bool) func(http.ResponseWriter, *htt
 		if allowed {
 			key = "allowed"
 		}
-		f.finishClient(w, r, f.auth.SetAgentGrant(r.Context(), r.PathValue("id"), account, allowed), key)
+		f.finishClient(w, r, s, f.auth.SetAgentGrant(r.Context(), r.PathValue("id"), account, allowed), key)
 	}
 }

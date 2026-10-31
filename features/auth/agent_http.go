@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -79,25 +80,36 @@ func (a *agentAuth) AddAgentClient(ctx context.Context, label, redirect string, 
 
 // SetAgentClientEnabled は features.AgentAuth の実装です。OIDCの連携先は対象にしません（AUTH-INV-24）。
 func (a *agentAuth) SetAgentClientEnabled(ctx context.Context, id string, enabled bool) error {
-	if _, err := a.store().AgentClientDetail(ctx, id); err != nil {
+	c, err := a.store().AgentClientDetail(ctx, id)
+	if err != nil {
 		return err
+	}
+	if c.Enabled == enabled {
+		return features.ErrAgentConflict // 同じ状態への操作で、生きているトークンを消さない
 	}
 	return a.store().SetClientEnabled(ctx, id, enabled)
 }
 
 // SetAgentGrant は features.AgentAuth の実装です。OIDCの連携先は対象にしません（AUTH-INV-24）。
 func (a *agentAuth) SetAgentGrant(ctx context.Context, id string, account int64, allowed bool) error {
-	if _, err := a.store().AgentClientDetail(ctx, id); err != nil {
+	c, err := a.store().AgentClientDetail(ctx, id)
+	if err != nil {
 		return err
 	}
-	var err error
+	i := slices.IndexFunc(c.Accounts, func(v features.AgentAccount) bool { return v.ID == account })
+	if i < 0 {
+		return features.ErrAgentNotFound
+	}
+	if c.Accounts[i].Allowed == allowed || (allowed && !c.Enabled) {
+		return features.ErrAgentConflict
+	}
 	if allowed {
 		_, err = a.store().Grant(ctx, id, account)
 	} else {
 		err = a.store().Revoke(ctx, id, account)
 	}
 	if errors.Is(err, ErrNotFound) {
-		return features.ErrAgentNotFound
+		return features.ErrAgentConflict // 確かめた後に、別の操作が先に済んだ
 	}
 	return err
 }

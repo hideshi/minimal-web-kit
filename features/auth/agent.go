@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/federation"
@@ -66,7 +67,7 @@ func (s *FederationStore) CreateAgentClient(ctx context.Context, label, redirect
 
 // addAgentClient は、owner が0でなければ、同じトランザクションでそのアカウントに利用を許可します。
 func (s *FederationStore) addAgentClient(ctx context.Context, label, redirect string, owner int64) (FederationClient, error) {
-	if !validAgentRedirect(redirect) || label == "" || len(label) > 100 {
+	if !validAgentRedirect(redirect) || label == "" || utf8.RuneCountInString(label) > 100 {
 		return FederationClient{}, ErrInvalidInput
 	}
 	id, err := newToken()
