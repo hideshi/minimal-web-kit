@@ -68,6 +68,8 @@ type fixture struct {
 	db      *sql.DB
 	routes  http.Handler
 	logs    *strings.Builder
+	// withRoutes は、経路を足した新しいハンドラを作ります。
+	withRoutes func(extra func(*web.IsolatedMux)) (http.Handler, error)
 }
 
 // newFixture は、Coreのルーティングに管理者認証と、それを使う見本の機能を組み込んだ状態を作ります。
@@ -89,18 +91,22 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	sm := web.NewSessionManager(sqlite, false)
-	h, err := web.NewHandler(sqlite, sm, logger)
+	withRoutes := func(extra func(*web.IsolatedMux)) (http.Handler, error) {
+		h, err := web.NewHandler(sqlite, sm, logger)
+		if err != nil {
+			return nil, err
+		}
+		return h.RoutesWithIsolated(nil, nil, func(mux *web.IsolatedMux) {
+			f.RegisterIsolatedRoutes(mux)
+			notes.RegisterIsolatedRoutes(mux)
+			extra(mux)
+		})
+	}
+	routes, err := withRoutes(func(*web.IsolatedMux) {})
 	if err != nil {
 		t.Fatal(err)
 	}
-	routes, err := h.RoutesWithIsolated(nil, nil, func(mux *web.IsolatedMux) {
-		f.RegisterIsolatedRoutes(mux)
-		notes.RegisterIsolatedRoutes(mux)
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return &fixture{feature: f, notes: notes, db: db, routes: routes, logs: logs}
+	return &fixture{feature: f, notes: notes, db: db, routes: routes, logs: logs, withRoutes: withRoutes}
 }
 
 func (fx *fixture) do(t *testing.T, method, target string, headers map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {

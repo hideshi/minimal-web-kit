@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-oidcop remove-oidcop add-federatedauth remove-federatedauth
+.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-mcp remove-mcp add-oidcop remove-oidcop add-federatedauth remove-federatedauth
 
 BIN_NAME := minimal-web-kit
 
@@ -108,3 +108,9 @@ add-pages:
 
 remove-pages:
 	go run ./cmd/kit remove-pages
+
+add-mcp:
+	go run ./cmd/kit add-mcp
+
+remove-mcp:
+	go run ./cmd/kit remove-mcp

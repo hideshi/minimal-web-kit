@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
 	"time"
 
@@ -156,6 +157,56 @@ func (s *PostStore) SetPublishedAt(ctx context.Context, id int64, at time.Time) 
 	return s.execOne(ctx,
 		"UPDATE news_posts SET published_at = ?, updated_at = ? WHERE id = ?",
 		arg, s.now().Unix(), id)
+}
+
+// mcpState は、確認に使う保存状態のハッシュです。公開状態と公開日時を含みます。
+func mcpState(p Post) string {
+	return features.MCPState("post", p.ID, p.Title, p.Body, p.Published, publishedUnix(p))
+}
+
+func publishedUnix(p Post) any {
+	if p.PublishedAt.IsZero() {
+		return nil
+	}
+	return p.PublishedAt.Unix()
+}
+
+func postStatus(p Post) string {
+	if p.Published {
+		return statusPublished
+	}
+	return statusDraft
+}
+
+// UpdateIfUnchanged は、読み取った内容のままのときだけ更新します。判定と更新は1つの文です（MCP-INV-4）。
+func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body string, publishedAt time.Time) error {
+	title, body, err := normalizePost(title, body)
+	if err != nil {
+		return err
+	}
+	at, err := s.publishedAtArg(publishedAt)
+	if err != nil {
+		return err
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?
+		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ?`,
+		title, body, at, s.now().Unix(), cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur))
+	return store.AffectedOne(res, err, features.ErrMCPConflict)
+}
+
+// SetPublishedIfUnchanged は、読み取った内容のままのときだけ公開状態を変えます。公開日時の扱いは Publish・Unpublish と同じです。
+func (s *PostStore) SetPublishedIfUnchanged(ctx context.Context, cur Post, published bool) error {
+	now := s.now().Unix()
+	status, first := statusDraft, any(nil)
+	if published {
+		status, first = statusPublished, now
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE news_posts SET status = ?, published_at = COALESCE(published_at, ?), updated_at = ?
+		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ?`,
+		status, first, now, cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur))
+	return store.AffectedOne(res, err, features.ErrMCPConflict)
 }
 
 // Delete は記事を物理削除します。

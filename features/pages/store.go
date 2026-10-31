@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
 	"regexp"
 	"strconv"
@@ -199,6 +200,54 @@ func (s *Store) SetPublished(ctx context.Context, id int64, published bool) erro
 	}
 	res, err := s.db.ExecContext(ctx, "UPDATE pages SET status = ?, updated_at = ? WHERE id = ?", status, s.now().Unix(), id)
 	return store.AffectedOne(res, err, ErrNotFound)
+}
+
+// mcpState は、確認に使う保存状態のハッシュです。公開状態・スラッグ・ナビの順を含みます。
+func mcpState(p Page) string {
+	var nav any
+	if p.NavOrder != nil {
+		nav = *p.NavOrder
+	}
+	return features.MCPState("page", p.ID, p.Slug, p.Title, p.Body, p.Published, nav)
+}
+
+func navArg(n *int) any {
+	if n == nil {
+		return nil
+	}
+	return *n
+}
+
+func statusOf(published bool) string {
+	if published {
+		return statusPublished
+	}
+	return statusDraft
+}
+
+// SaveIfUnchanged は、読み取った内容のままのときだけ更新します。判定と更新は1つの文です（MCP-INV-4）。
+func (s *Store) SaveIfUnchanged(ctx context.Context, cur Page, in Input, taken func(string) bool) error {
+	n, err := normalize(in, taken)
+	if err != nil {
+		return err
+	}
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ?
+		 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ?`,
+		n.slug, n.title, n.body, navArg(n.navOrder), s.now().Unix(), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder))
+	if err != nil {
+		return uniqueError(err)
+	}
+	return store.AffectedOne(res, nil, features.ErrMCPConflict)
+}
+
+// SetPublishedIfUnchanged は、読み取った内容のままのときだけ公開状態を変えます。
+func (s *Store) SetPublishedIfUnchanged(ctx context.Context, cur Page, published bool) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE pages SET status = ?, updated_at = ?
+		 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ?`,
+		statusOf(published), s.now().Unix(), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder))
+	return store.AffectedOne(res, err, features.ErrMCPConflict)
 }
 
 func (s *Store) Delete(ctx context.Context, id int64) error {

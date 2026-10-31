@@ -27,6 +27,7 @@ func (f *Feature) Commands() []features.Command {
 	return []features.Command{
 		{Name: "auth-setup", Summary: "Print a one-time URL to register the first admin passkey (only while no active passkey exists)", Run: runSetup},
 		{Name: "auth-recover", Summary: "Delete passkeys and sessions, then print a registration URL (-account <ID>, -only <ID>, -reset-schema, -yes)", Run: runRecover},
+		{Name: "agent-client", Summary: "Manage AI agent clients (-create -label -redirect, or -client <ID> with -grant -account <ID>, -revoke -account <ID>, -disable, -enable)", Run: runAgentClient},
 	}
 }
 
@@ -151,4 +152,47 @@ func runRecover(ctx context.Context, db *sql.DB, args []string, in io.Reader, ou
 	fmt.Fprintln(out, "Passkeys and sessions were deleted.")
 	printSetupURL(out, cfg, token)
 	return nil
+}
+
+// runAgentClient は、AIエージェントの公開クライアントと利用許可を管理します。秘密値はありません。
+func runAgentClient(ctx context.Context, db *sql.DB, args []string, _ io.Reader, out io.Writer) error {
+	fs := flag.NewFlagSet("agent-client", flag.ContinueOnError)
+	fs.SetOutput(out)
+	create := fs.Bool("create", false, "register an AI agent client")
+	label := fs.String("label", "", "name shown on the consent screen")
+	redirect := fs.String("redirect", "", "loopback callback URL without a port (http://localhost/callback)")
+	client := fs.String("client", "", "client ID")
+	grant := fs.Bool("grant", false, "allow -account to use the client")
+	revoke := fs.Bool("revoke", false, "take the permission away from -account")
+	account := fs.Int64("account", 0, "account ID")
+	disable := fs.Bool("disable", false, "disable the client and end its tokens")
+	enable := fs.Bool("enable", false, "enable the client again")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if err := Migrate(db); err != nil {
+		return err
+	}
+	s := NewFederationStore(db)
+	switch {
+	case *create:
+		c, err := s.CreateAgentClient(ctx, *label, *redirect)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "client_id:", c.ID)
+		return nil
+	case *client == "":
+		return errors.New("choose -create, or -client <ID>")
+	case *grant && *account != 0:
+		_, err := s.Grant(ctx, *client, *account)
+		return err
+	case *revoke && *account != 0:
+		return s.Revoke(ctx, *client, *account)
+	case *disable:
+		return s.SetClientEnabled(ctx, *client, false)
+	case *enable:
+		return s.SetClientEnabled(ctx, *client, true)
+	}
+	return errors.New("with -client, choose -grant, -revoke, -disable or -enable")
 }

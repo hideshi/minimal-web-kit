@@ -43,6 +43,8 @@ type Feature struct {
 	navLinks   []web.NavLink
 	loginNext  func(*http.Request) string
 	now        func() time.Time
+	// agentEnabled は、エージェントの認証を使う機能が登録されているかです。
+	agentEnabled bool
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
@@ -62,7 +64,7 @@ func (f *Feature) Name() string {
 // PrivacyNotices は、管理画面を使うアカウントについて保存する情報を、プライバシーポリシーの画面に載せます。
 // 内容は docs/data-inventory.md の4節と揃えます。
 func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
-	return []web.PrivacyNotice{{
+	notices := []web.PrivacyNotice{{
 		Title: "管理画面のアカウントで保存する情報",
 		Lead:  "管理画面にログインする人（管理者・メンバー）について、次の情報を保存します。サイトの閲覧者の情報ではありません。氏名・メールアドレス・パスワード・生体情報は保存しません。",
 		Rows: []web.PrivacyRow{
@@ -72,6 +74,17 @@ func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 			{Kind: "パスキーの登録用URL", Items: "登録トークンのSHA-256ハッシュ、有効期限、使用の日時", Purpose: "パスキーの登録（1回限り）", Retention: "発行から15分または24時間。使用済み・期限切れは自動で削除"},
 		},
 	}}
+	if f.agentEnabled {
+		notices = append(notices, web.PrivacyNotice{
+			Title: "AIエージェントの接続で保存する情報",
+			Lead:  "管理画面のアカウントでAIエージェントを接続する人について、次の情報を保存します。書き込みの内容は、確認のために保存しません。",
+			Rows: []web.PrivacyRow{
+				{Kind: "接続の手続き", Items: "手続きのCookie（agent_flow）のSHA-256ハッシュ、クライアント、戻り先、クライアントが発行した一時的な値、接続先、権限", Purpose: "接続の完了", Retention: "5分。完了したものは、コードの再利用の検出のため8時間"},
+				{Kind: "アクセストークン", Items: "トークンのSHA-256ハッシュ、クライアント、連携用の識別子、接続先、権限、失効の世代、発行日時", Purpose: "AIエージェントの要求の本人確認", Retention: "発行から8時間"},
+			},
+		})
+	}
+	return notices
 }
 
 // Init は設定を検証し、マイグレーションを適用します。設定が不正な場合はエラーを返して起動を止めます。
@@ -146,6 +159,9 @@ func (f *Feature) Purge(ctx context.Context) error {
 		now.Unix(),
 	)
 	if err != nil {
+		return err
+	}
+	if err := purgeAgent(ctx, f.db, now); err != nil {
 		return err
 	}
 	return (&FederationStore{db: f.db, now: f.now}).Purge(ctx)

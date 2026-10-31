@@ -1,0 +1,29 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+{{if .Message}}
+<p>{{.Message}}</p>
+{{else if .Next}}
+<p>AIエージェントへ戻ります。自動で移動しない場合は、<a href="{{.Next}}">こちらから戻ってください</a>。</p>
+{{else if .Entry}}
+<p>本人の確認に進みます。</p>
+<p><a href="/admin/agent/continue" class="btn btn-primary">続ける</a></p>
+{{else}}
+<p>「{{.ClientLabel}}」に、このサイトの操作を許可します。</p>
+<dl>
+  <dt>許可する内容</dt>
+  {{range .Scopes}}<dd>{{.}}</dd>{{end}}
+  <dt>接続先</dt>
+  <dd>{{.Resource}}</dd>
+  <dt>戻り先</dt>
+  <dd>{{.Redirect}}</dd>
+</dl>
+<p>書き込みのたびに、AIエージェントの画面でも確認を求めます。</p>
+<form method="post" action="/admin/agent/approve">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <div class="form-actions">
+    <button type="submit" name="decision" value="allow" class="btn btn-primary">許可する</button>
+    <button type="submit" name="decision" value="deny" class="btn btn-secondary">中止する</button>
+  </div>
+</form>
+{{end}}
+{{end}}

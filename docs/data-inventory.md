@@ -184,12 +184,61 @@
 | `code_expires_at` | INTEGER | NO | コードの期限（60秒） | 同上 | UNIXエポック秒 |
 | `consumed_at` | INTEGER | NO | 一回限りの消費と、再利用の検出 | 同上 | UNIXエポック秒。未消費は0 |
 
+### テーブル: `auth_agent_clients`
+AIエージェントの公開クライアントの印。行があれば、秘密値を持たず、戻り先のポートだけ可変にします。名前と戻り先は `auth_oidc_clients` に置きます。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `client_id` | TEXT | NO | 公開クライアントの識別 | `auth_oidc_clients` の行と同じ | 外部キーで一緒に消える |
+
+### テーブル: `auth_agent_requests`
+AIエージェントの進行中の認可要求とコード。OIDCのログインとは表を分けます。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `request_id` | TEXT | NO | 要求の識別 | 未完了は5分。消費済みは8時間 | 256ビットの乱数 |
+| `flow_hash` | TEXT | NO | ブラウザとの結びつけ | 同上 | Cookie `agent_flow` のSHA-256 |
+| `client_id` | TEXT | NO | 要求元のクライアント | 同上 | `auth_agent_clients.client_id` |
+| `redirect_uri` | TEXT | NO | 戻り先 | 同上 | ポートを含む実際の値 |
+| `state` | TEXT | NO | クライアントへの返送 | 同上 | クライアントが発行した一時的な値。ログに出さない |
+| `challenge` | TEXT | NO | PKCEの検査 | 同上 | S256の値 |
+| `resource` | TEXT | NO | 接続先の固定 | 同上 | RFC 8707の値 |
+| `scope` | TEXT | NO | 権限の固定 | 同上 | 空白区切り |
+| `sub` | TEXT | NO | 本人の固定 | 同上 | 本人の確認の前は空文字 |
+| `account_epoch` | TEXT | NO | 本人の確認の時点の世代の固定 | 同上 | 10進の文字列。確認の前は空文字 |
+| `client_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `grant_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `expires_at` | INTEGER | NO | GCの判定 | 同上 | UNIXエポック秒 |
+| `code_hash` | TEXT | YES | コードの照合 | 同上 | SHA-256のみ。生の値は保存しない |
+| `code_expires_at` | INTEGER | NO | コードの期限（60秒） | 同上 | UNIXエポック秒 |
+| `consumed_at` | INTEGER | NO | 一回限りの消費と、再利用の検出 | 同上 | UNIXエポック秒。未消費は0 |
+
+### テーブル: `auth_agent_tokens`
+AIエージェントのアクセストークン。不透明な乱数のハッシュだけを保存し、要求ごとに世代を確かめます。
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `token_hash` | TEXT | NO | トークンの照合 | 発行から8時間 | SHA-256のみ。生の値は保存しない |
+| `request_id` | TEXT | NO | コードの再利用の検出時の取り消し | 同上 | `auth_agent_requests.request_id` |
+| `client_id` | TEXT | NO | 発行先のクライアント | 同上 | `auth_agent_clients.client_id` |
+| `sub` | TEXT | NO | 本人の固定 | 同上 | `auth_federated_subjects.sub` |
+| `resource` | TEXT | NO | 接続先の固定 | 同上 | 他のリソースでは使えない |
+| `scope` | TEXT | NO | 権限の固定 | 同上 | 空白区切り |
+| `account_epoch` | TEXT | NO | 失効の判定 | 同上 | 発行時の世代 |
+| `client_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `grant_epoch` | TEXT | NO | 同上 | 同上 | 同上 |
+| `created_at` | INTEGER | NO | 発行の記録 | 同上 | UNIXエポック秒 |
+| `expires_at` | INTEGER | NO | 期限の判定 | 同上 | UNIXエポック秒 |
+
 ### Cookie: `admin_session`
 - 管理者セッションの生トークン。`Path=/admin`、HttpOnly、`SameSite=Strict`、`AUTH_ORIGIN` がhttpsならSecure。
 - 公開ページ（`/`、`/news`、`/api/news` 等）には送られず、照合もしません。
 
 ### Cookie: `oidc_flow`
 - 共通認証の提供機能を登録した場合だけ、認可要求とブラウザを結びつけるために使います。生のトークンはCookieにだけ置き、DBにはSHA-256ハッシュを保存します。`Path=/admin`、HttpOnly、Secure、`SameSite=Strict`。5分で失効し、完了・中止で削除します。
+
+### Cookie: `agent_flow`
+- AIエージェントの接続を有効にした場合だけ、認可要求とブラウザを結びつけるために使います。生のトークンはCookieにだけ置き、DBにはSHA-256ハッシュを保存します。`Path=/admin`、HttpOnly、`SameSite=Strict`、`AUTH_ORIGIN` がhttpsならSecure。5分で失効し、完了・中止で削除します。
 
 ### DBの外のファイル（共通認証の提供機能）
 - 署名秘密鍵（`OIDC_SIGNING_KEY_FILE`）とSDKの暗号化鍵（`OIDC_CRYPTO_KEY_FILE`）。所有者だけが読める権限でなければ起動しません。バックアップを含めて保護し、公開リポジトリに置かないでください。
@@ -198,6 +247,7 @@
 - アカウント: 管理者が管理画面から削除できます（自分自身と、有効な管理者が0人になる場合を除く）。そのアカウントのパスキー・管理者セッション・登録トークンも削除します。
 - パスキー: 本人がパスキーの管理から、管理者がアカウントの詳細から削除できます（最後の有効な1件を除く）。`make auth-recover` で全件と全管理者セッションを削除します（`-only <ID>` ならそのアカウントの分だけ）。アカウントと、他の機能のデータ（お知らせの記事等）は残ります。
 - 管理者セッション・登録トークン: 期限切れ分をサーバー起動時と1時間ごとのGCで削除します。
+- AIエージェントの接続: 期限切れの要求とトークンをGCで削除します。
 - 共通認証: 期限切れの要求・秘密値と、保持期間を過ぎた墓標をGCで削除します。`auth-recover -reset-schema` は連携の表も削除します（連携先を登録し直す）。バックアップから戻したときは、公開の前に `oidc-revoke-all -yes` で全連携先のログインを失効させてください。
 - テーブルごと削除する場合は、サーバー停止後にDBのバックアップを取ったうえで、利用者自身が実施します。WAL・バックアップに残った過去のデータは、この削除の対象外です。
 
@@ -358,3 +408,18 @@
 
 ### 外部通信
 利用側は、固定したHTTPSのURL（認証基盤の `/oidc/token`・`/oidc/keys`・`/oidc/check`）にだけ通信します。保護された要求のたびに照会するため、認証基盤が止まると保護された機能は503になります。
+
+---
+
+## 10. MCPのデータ（`make add-mcp` で有効化した場合のみ）
+
+AIエージェントの接続の認可とトークンは4節の `auth_agent_*` に保存します。書き込みの引数と内容は保存しません。確認の鍵と使用済みの番号はメモリだけに持ち、再起動で消えます。
+
+### テーブル: `mcp_feature_settings`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `feature` | TEXT | NO | 機能の識別 | 明示削除まで | 同梱機能や自作機能の名前 |
+| `enabled` | INTEGER | NO | MCPの有効・無効 | 同上 | 行が無ければ無効 |
+| `generation` | INTEGER | NO | 確認の途中の設定変更の検出 | 同上 | 変更のたびに進む |
+| `updated_at` | INTEGER | NO | 変更の記録 | 同上 | UNIXエポック秒 |

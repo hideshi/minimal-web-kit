@@ -106,6 +106,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Pages registration disabled; stored pages are kept.")
+	case "add-mcp":
+		if err := addMCP(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling MCP feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled MCP with admin authentication. Every feature stays off until an admin enables it at /admin/mcp.")
+	case "remove-mcp":
+		if err := removeMCP(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling MCP feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("MCP registration disabled; stored settings are kept.")
 	case "add-news":
 		if err := addNews(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling news feature: %v\n", err)
@@ -144,6 +156,8 @@ func printUsage() {
 	fmt.Println("  remove-contact Disable the contact registration (stored messages are kept)")
 	fmt.Println("  add-pages    Enable fixed pages (/{slug}), together with admin authentication")
 	fmt.Println("  remove-pages Disable the pages registration (stored pages are kept)")
+	fmt.Println("  add-mcp      Enable the MCP server for AI agents, together with admin authentication")
+	fmt.Println("  remove-mcp   Disable the MCP registration (stored settings are kept)")
 	fmt.Println("  add-news     Enable the news feature, together with admin authentication")
 	fmt.Println("  remove-news  Disable the news feature registration (stored data is kept)")
 	fmt.Println()
@@ -182,6 +196,7 @@ const (
 	bundledFederatedMarker = "// minimal-web-kit: bundled-feature federatedauth"
 	bundledContactMarker   = "// minimal-web-kit: bundled-feature contact"
 	bundledPagesMarker     = "// minimal-web-kit: bundled-feature pages"
+	bundledMCPMarker       = "// minimal-web-kit: bundled-feature mcp"
 )
 
 var (
@@ -193,9 +208,10 @@ var (
 	federatedBundle = bundle{name: "federatedauth", label: "Federated login", marker: bundledFederatedMarker}
 	contactBundle   = bundle{name: "contact", label: "Contact", marker: bundledContactMarker, needsAdmin: true}
 	pagesBundle     = bundle{name: "pages", label: "Pages", marker: bundledPagesMarker, needsAdmin: true}
+	mcpBundle       = bundle{name: "mcp", label: "MCP", marker: bundledMCPMarker, needsAdmin: true}
 
 	// bundles は全ての同梱機能です。機能を足したら、ここに加えます。
-	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, authBundle, oidcBundle, federatedBundle}
+	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -249,6 +265,17 @@ func addPages() error {
 	return toggleBundle(pagesBundle, true)
 }
 func removePages() error { return toggleBundle(pagesBundle, false) }
+
+func addMCP() error {
+	if err := verifyBundle(mcpBundle); err != nil {
+		return err
+	}
+	if err := ensureAdminProvider(); err != nil {
+		return err
+	}
+	return toggleBundle(mcpBundle, true)
+}
+func removeMCP() error { return toggleBundle(mcpBundle, false) }
 
 // enabled は、機能の登録があるかを、登録ファイルの文字列で調べます。
 func enabled(b bundle) (bool, error) {

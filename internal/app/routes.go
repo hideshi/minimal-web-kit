@@ -113,6 +113,51 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
+	// エージェントの認証の提供者とMCPのツールを、MCPのサーバーに配る
+	{
+		var mcpFeatures []features.MCPFeature
+		for _, f := range reg.All() {
+			if m, ok := f.(features.MCPFeature); ok {
+				mcpFeatures = append(mcpFeatures, m)
+			}
+		}
+		for _, f := range reg.All() {
+			c, ok := f.(features.AgentAuthConsumer)
+			if !ok {
+				continue
+			}
+			var provider features.AgentAuthProvider
+			for _, candidate := range reg.All() {
+				p, ok := candidate.(features.AgentAuthProvider)
+				if !ok {
+					continue
+				}
+				if provider != nil {
+					return nil, fmt.Errorf("agent authentication is provided twice; register only one")
+				}
+				provider = p
+			}
+			if provider == nil {
+				logger.Error("feature requires agent authentication", slog.String("feature", f.Name()))
+				return nil, fmt.Errorf("feature %s requires the auth feature (run: make add-auth)", f.Name())
+			}
+			auth, err := provider.AgentAuth(c.AgentAuthConfig())
+			if err != nil {
+				return nil, fmt.Errorf("init agent auth for %s: %w", f.Name(), err)
+			}
+			if err := c.SetAgentAuth(auth); err != nil {
+				return nil, fmt.Errorf("init agent auth for %s: %w", f.Name(), err)
+			}
+		}
+		for _, f := range reg.All() {
+			if c, ok := f.(features.MCPConsumer); ok {
+				if err := c.SetMCPFeatures(mcpFeatures); err != nil {
+					return nil, fmt.Errorf("init mcp: %w", err)
+				}
+			}
+		}
+	}
+
 	// sitemap.xml に載せるページを持つ機能を、sitemap.xml を返す機能に配る
 	{
 		var sources []features.SitemapFeature

@@ -2,12 +2,18 @@ package features
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
+	"minimal-web-kit/internal/federation"
 	"minimal-web-kit/internal/web"
 )
 
@@ -216,6 +222,134 @@ type AdminNavFeature interface {
 type AdminNavConsumer interface {
 	Feature
 	SetAdminNavLinks(links []web.NavLink)
+}
+
+// ErrBearerInvalid は、トークンが無効なことを表します。ほかのエラーは確認不能で、どちらでも実行してはいけません。
+var ErrBearerInvalid = errors.New("features: invalid bearer token")
+
+// AgentScope は、エージェントに許す権限の1つです。Label は同意の画面に出します。
+type AgentScope struct{ Name, Label string }
+
+// AgentAuthConfig は、エージェントの認証を有効にする機能（features/mcp）が渡す設定です。
+type AgentAuthConfig struct {
+	Path   string // 保護するリソースのパス（例: /mcp）
+	Scopes []AgentScope
+}
+
+// AgentPrincipal は、検証済みのトークンの持ち主です。ロールは要求ごとにアカウントから読みます。
+type AgentPrincipal struct {
+	AccountID  int64
+	Client     string
+	Role       Role
+	Scopes     []string
+	Generation string // 認可の世代。確認の結びつけに使う。意味は解釈しない
+}
+
+// HasScope は、トークンがその権限を持つかを返します。
+func (p AgentPrincipal) HasScope(name string) bool {
+	return slices.Contains(p.Scopes, name)
+}
+
+// AgentAuth は、エージェントの認証の口です。呼び出した機能が RegisterAgentRoutes で経路を足します。
+type AgentAuth interface {
+	RegisterAgentRoutes(mux *web.IsolatedMux)
+	// VerifyBearer は、要求ごとにトークンを確かめます。無効なら ErrBearerInvalid を返します。
+	VerifyBearer(ctx context.Context, token, resource string) (AgentPrincipal, error)
+	AuthorizationServers() []string
+	// Resource は、保護するリソースの正規のURLです（例: https://example.com/mcp）。
+	Resource() string
+	// Origin は、サイトのオリジンです。
+	Origin() string
+}
+
+// AgentAuthProvider は、エージェントの認証を提供する機能（features/auth）が実装します。
+type AgentAuthProvider interface {
+	Feature
+	AgentAuth(cfg AgentAuthConfig) (AgentAuth, error)
+}
+
+// AgentAuthConsumer は、エージェントの認証を使う機能（features/mcp）が実装します。起動時に、提供者から口を受け取ります。
+type AgentAuthConsumer interface {
+	Feature
+	AgentAuthConfig() AgentAuthConfig
+	SetAgentAuth(auth AgentAuth) error
+}
+
+// MCPEffect は、ツールが状態を変えるかです。ゼロ値は書き込みで、宣言を省いても確認なしになりません。
+type MCPEffect int
+
+const (
+	MCPWrite MCPEffect = iota
+	MCPRead
+)
+
+// ErrMCPConflict は、確認の後に対象が変わったことを表します。何も保存していません。
+var ErrMCPConflict = errors.New("features: target changed after confirmation")
+
+// MCPInputError は、エージェントに返してよい固定の説明です。入力の値を含めません。
+type MCPInputError struct{ Message string }
+
+func (e MCPInputError) Error() string { return e.Message }
+
+// MCPPlan は、書き込みの検査の結果です。保存はしていません。
+type MCPPlan struct {
+	Summary   string          // 確認に見せる文。固定の説明と引用をサーバーが組み立てる
+	Canonical json.RawMessage // 検査を通した入力。実行はこの値で行う
+	State     string          // 対象の状態のハッシュ。Apply の照合に使う
+}
+
+// MCPTool は、機能がMCPで提供する操作です。読み取りは Read だけ、書き込みは Prepare と Apply だけを持ちます。
+type MCPTool struct {
+	Name, Title, Description string
+	InputSchema              json.RawMessage
+	Effect                   MCPEffect
+	Read                     func(ctx context.Context, p AgentPrincipal, args json.RawMessage) (any, error)
+	Prepare                  func(ctx context.Context, p AgentPrincipal, args json.RawMessage) (MCPPlan, error)
+	// Apply は、state の照合と保存を不可分に行います。変わっていたら ErrMCPConflict を返します。
+	Apply func(ctx context.Context, p AgentPrincipal, canonical json.RawMessage, state string) (any, error)
+}
+
+// MCPFeature は、MCPのツールを提供する機能が実装します。別の機能も、これを実装すれば足せます。
+type MCPFeature interface {
+	Feature
+	MCPLabel() string
+	MCPTools() []MCPTool
+}
+
+// MCPConsumer は、MCPのサーバーを持つ機能（features/mcp）が実装します。起動時に、ツールを提供する機能を受け取ります。
+type MCPConsumer interface {
+	Feature
+	SetMCPFeatures(list []MCPFeature) error
+}
+
+// MCPDecode は、ツールの引数を厳密に読みます。未知の項目・重複したキー・末尾の別のJSONは拒否します。
+func MCPDecode(args json.RawMessage, target any) error {
+	if len(args) == 0 {
+		args = json.RawMessage("{}")
+	}
+	if err := federation.Decode(args, target); err != nil {
+		return MCPInputError{"引数の形が正しくありません。"}
+	}
+	return nil
+}
+
+// MCPQuote は、利用者の入力を引用として示します。行の先頭に印を付け、確認の文の枠と区別します。
+func MCPQuote(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, l := range lines {
+		lines[i] = "> " + l
+	}
+	return strings.Join(lines, "\n")
+}
+
+// MCPState は、状態を構成する値から、確認の照合に使うハッシュを作ります。区切りが混ざらないようJSONにします。
+func MCPState(values ...any) string {
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
 
 // Registry は有効化されている全機能のリストを保持します。

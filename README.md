@@ -1,6 +1,6 @@
 # minimal-web-kit
 
-個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ、固定ページ、自社システム間の共通認証）、6本のAI開発スキル、規約を検査するテストを同梱しています。
+個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ、固定ページ、自社システム間の共通認証、AIエージェント向けのMCP）、6本のAI開発スキル、規約を検査するテストを同梱しています。
 
 ## 特徴と提供範囲
 
@@ -187,6 +187,31 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - Siteと一緒に使うと、LPのお問い合わせのボタンが `/contact` を指します。`CONTACT_FORM_URL`（外部のフォーム）と同時に有効にすると、起動を止めます。
 - 仕様と不変条件は [domain/contact.md](docs/domain/contact.md)、保存内容は[データ台帳](docs/data-inventory.md)の7節、設計の経緯は [contact-plan.md](docs/plans/contact-plan.md) にあります。
 
+### MCP（AIエージェント）
+
+`make add-mcp` で有効化します（管理者認証も有効になります）。AIエージェントが、許可した機能の内容を読み、下書きや編集を行えます。お知らせ・カタログ・固定ページに対応し、別の機能も `features.MCPFeature` を実装すれば足せます。
+
+| 経路 | 内容 |
+|---|---|
+| `POST /mcp` | MCP（`2026-07-28`、JSONの応答のみ、セッションなし）。Bearerトークンで認証し、Cookieは使いません |
+| `/admin/mcp` | 機能ごとの有効・無効。既定は全て無効で、変更は管理者だけ |
+| `/admin/agent/*`・`/agent/token` | OAuthの認可（PKCE必須、公開クライアント）。パスキーでログインして同意します |
+
+- 読み取りは確認なしで、下書きも読めます。作成・編集・公開・非公開は、実行の前にクライアントで利用者の確認を求めます。確認に対応しないクライアントでは実行しません。
+- 確認の手順は強制しますが、人の操作かは証明できません。クライアントを自動応答に設定した場合は、その利用者の責任です。
+- 初版に削除とタグの新規作成はありません。全文を確認に出せない大きな変更（4000文字を超える確認）は拒否するので、管理画面を使います。
+- トークンの期限は発行から8時間で固定で、切れたらクライアントから認可し直します。アカウントの停止などは次の要求から効きます。
+- クライアントは事前に登録します。
+
+```sh
+minimal-web-kit agent-client -create -label "Claude Code" -redirect http://localhost/callback
+minimal-web-kit agent-client -client <client_id> -grant -account <アカウントのID>
+claude mcp add --transport http --client-id <client_id> --callback-port 18767 mysite https://example.com/mcp
+```
+
+- 通常の管理者認証と共通認証の提供機能で動き、OIDCのライブラリは要りません。共通認証の利用機能（`make add-federatedauth`）とは組み合わせられません。
+- 仕様と不変条件は [domain/mcp.md](docs/domain/mcp.md)、保存内容は[データ台帳](docs/data-inventory.md)の4節と10節にあります。
+
 ### 固定ページ
 
 `make add-pages` で有効化します（管理者認証も有効になります）。`make remove-pages` は登録だけを外し、保存データは保持します。会社概要・採用情報などのページを、管理画面で `/about` のような1階層のURLで作ります。
@@ -224,6 +249,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make add-catalog` / `make remove-catalog` | カタログの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-contact` / `make remove-contact` | お問い合わせの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-pages` / `make remove-pages` | 固定ページの登録を有効化・無効化（Authも有効化。データは保持） |
+| `make add-mcp` / `make remove-mcp` | MCPサーバーの登録を有効化・無効化（Authも有効化。設定は保持）。機能ごとの有効化は `/admin/mcp` |
 | `make add-oidcop` / `make remove-oidcop` | 共通認証の提供機能。管理者認証を置き換え、外すと通常の管理者認証に戻る（連携の失効の状態は残る） |
 | `make add-federatedauth` / `make remove-federatedauth` | 共通認証の利用機能。管理者認証を置き換える（お知らせ等が有効な間は無効化できない） |
 | `make add-news` / `make remove-news` | お知らせ機能の登録を有効化・無効化（有効化すると管理者認証も有効になる。無効化してもDBのデータは残る） |
@@ -393,6 +419,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 │   ├── news/              # 同梱機能: お知らせ機能（公開ページ・API・記事の管理画面）
 │   ├── auth/              # 同梱機能: 管理者認証（パスキーでのログイン・パスキーの管理）
 │   │   └── oidcop/        # 同梱機能: 共通認証の提供（OIDC）
+│   ├── mcp/               # 同梱機能: AIエージェント向けのMCPサーバー
 │   └── federatedauth/     # 同梱機能: 共通認証の利用（別システムの認証基盤でのログイン）
 ├── skills/                # 6本のAI開発スキルの正本（各150行以内）
 └── test/                  # 依存・テンプレート・台帳・ログ等の検査

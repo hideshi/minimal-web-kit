@@ -1,0 +1,40 @@
+{{define "content"}}
+<h1>MCPの設定</h1>{{template "notice" .Notice}}
+<p>AIエージェントが操作できる機能を決めます。無効の機能は、エージェントから見えません。読み取りには下書きも含みます。書き込みは、実行のたびにAIエージェントの画面で確認を求めます。</p>
+{{if .Rows}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">MCPに対応した機能の一覧</caption>
+    <thead>
+      <tr>
+        <th scope="col">機能</th>
+        <th scope="col">状態</th>
+        <th scope="col">読み取りのツール</th>
+        <th scope="col">書き込みのツール</th>
+        {{if .IsAdmin}}<th scope="col">操作</th>{{end}}
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td>{{.Label}}</td>
+        <td>{{if .Enabled}}有効{{else}}無効{{end}}</td>
+        <td>{{.Reads}}</td>
+        <td>{{.Writes}}</td>
+        {{if $.IsAdmin}}
+        <td>
+          <form method="post" action="/admin/mcp/{{.Name}}/{{if .Enabled}}disable{{else}}enable{{end}}">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button type="submit" class="btn btn-secondary">{{if .Enabled}}無効にする{{else}}有効にする{{end}}</button>
+          </form>
+        </td>
+        {{end}}
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>MCPに対応した機能はありません。</p>
+{{end}}
+{{end}}

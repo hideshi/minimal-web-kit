@@ -77,6 +77,9 @@
 | AUTH-INV-19 | 登録とログインでは、ユーザーの存在（UP）と本人確認（UV）、originの完全一致、crossOriginの拒否、RP IDの一致を必須とする。鍵はES256（P-256）・EdDSA・2048ビット以上のRSAだけを受け付ける。WebAuthnの本文は64KiBまで | `verifyClientData`・`parseAuthenticatorData`・`parsePublicKey`・`jsonEndpoint` |
 | AUTH-INV-20 | challengeは用途別で5分だけ有効で、一回限り。検証に成功したものだけを使用済みにするので、失敗した送信では消費しない。発行時にサーバーは何も保持しない | `challenges`・`consume` |
 | AUTH-INV-21 | パスキーを登録した直後にセッションを発行しない。登録トークンが有効なうちに、登録したパスキーでログインできるかを確かめさせる | `handleRegisterFinish` |
+| AUTH-INV-22 | エージェントのコードは一回限り・60秒で、クライアント・戻り先・`resource`・PKCEに結びつく。公開クライアントの `client_id` は秘密ではないので、これらがすべて一致した要求だけがコードの状態を変える。一致したうえでの再利用は、そのコードのトークンを取り消し、利用許可の世代は進めない。OIDCのコードの経路とは表を分ける | `ExchangeAgentCode` |
+| AUTH-INV-23 | エージェントのトークンは、発行時の世代と `resource` に固定する。要求ごとに今の世代と比べ、停止・削除・利用許可の取り消し・クライアントの停止で直ちに無効になる。確認できないときは無効と同じく実行させない。期限は発行から8時間で固定し、更新の手段を持たない | `VerifyAgentToken` |
+| AUTH-INV-24 | クライアントの種類は登録で決まる。秘密値の無い要求を公開クライアントとして扱わず、OIDCの連携先は `/agent/token` で使えない。公開クライアントの戻り先は、登録と同じスキーム・ホスト・パスに限り、ポートだけ可変にする。不正な戻り先へは転送しない | `CreateAgentClient`・`agentRedirectMatches`・`authorize` |
 
 前提: AUTH-INV-1・AUTH-INV-4・AUTH-INV-7・AUTH-INV-8 は、判定と更新を1つの文（またはトランザクション）で行い、同時操作でも破れないようにしています。これは、SQLiteが書き込みを1つずつしか通さないことに頼っています。DBを替えるときは見直してください。たとえばPostgreSQLの既定の分離レベル（READ COMMITTED）では、2人の管理者が同時にお互いを降格すると、どちらの文も相手を有効な管理者と数えて通り、有効な管理者が0人になりえます。その場合は `SERIALIZABLE` にするか、対象の行をロック（`SELECT ... FOR UPDATE`）してから判定します。
 

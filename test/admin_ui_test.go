@@ -27,6 +27,7 @@ import (
 	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/catalog"
 	"minimal-web-kit/features/contact"
+	"minimal-web-kit/features/mcp"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
 	"minimal-web-kit/features/site"
@@ -44,6 +45,8 @@ type adminUI struct {
 	cookies  map[string]*http.Cookie // "admin"・"member"
 	csrf     map[string]string
 	ids      map[string]string // 見本のデータの識別子（URLに使う）
+	// extraCookies は、管理画面の手続きの見本に要るCookieです。
+	extraCookies []*http.Cookie
 }
 
 func newAdminUIRegistry(logger *slog.Logger) *features.Registry {
@@ -54,6 +57,7 @@ func newAdminUIRegistry(logger *slog.Logger) *features.Registry {
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(contact.NewFeature(logger))
 	reg.Register(pages.NewFeature(logger))
+	reg.Register(mcp.NewFeature(logger))
 	return reg
 }
 
@@ -108,6 +112,17 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	}
 
 	ctx := context.Background()
+	agent, err := auth.NewFederationStore(db).CreateAgentClient(ctx, "見本のエージェント", "http://localhost/callback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ui.ids["agent_query"] = url.Values{"client_id": {agent.ID}, "redirect_uri": {"http://localhost:18767/callback"}, "response_type": {"code"}, "scope": {"mcp:read"},
+		"state": {"sample-state"}, "code_challenge": {strings.Repeat("A", 43)}, "code_challenge_method": {"S256"}, "resource": {"http://localhost:8080/mcp"}}.Encode()
+	if err := auth.NewFederationStore(db).NewAgentRequest(ctx, "sample-flow", auth.AgentRequest{ID: "sample-request", Client: agent.ID, Redirect: "http://localhost:18767/callback",
+		State: "sample-state", Challenge: strings.Repeat("A", 43), Resource: "http://localhost:8080/mcp", Scope: "mcp:read mcp:write"}); err != nil {
+		t.Fatal(err)
+	}
+	ui.extraCookies = []*http.Cookie{{Name: "agent_flow", Value: "sample-flow"}}
 	posts := news.NewPostStore(db)
 	draft, _ := posts.Create(ctx, "下書きのお知らせ", "本文")
 	published, _ := posts.Create(ctx, "公開中のお知らせ", "本文")
@@ -179,6 +194,9 @@ func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 func (ui *adminUI) get(who, path string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if c := ui.cookies[who]; c != nil {
+		req.AddCookie(c)
+	}
+	for _, c := range ui.extraCookies {
 		req.AddCookie(c)
 	}
 	w := httptest.NewRecorder()
@@ -275,6 +293,11 @@ var adminSamples = []adminSample{
 	{"GET /admin/pages/{id}", "/admin/pages/{page_draft}", "admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "member", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}/delete", "/admin/pages/{page_draft}/delete", "admin", "admin_page_delete.html", kindConfirm},
+	{"GET /admin/mcp", "/admin/mcp", "admin", "admin_mcp.html", kindList},
+	{"GET /admin/mcp", "/admin/mcp", "member", "admin_mcp.html", kindList},
+	// 認可の要求は同じブラウザの古い手続きを消すので、続きの画面を先に開く
+	{"GET /admin/agent/continue", "/admin/agent/continue", "admin", "admin_agent_flow.html", kindOther},
+	{"GET /admin/agent/authorize", "/admin/agent/authorize?{agent_query}", "", "admin_agent_flow.html", kindOther},
 }
 
 // adminPostSamples は、成功したときに画面を返す送信（GETの経路が無い画面）。

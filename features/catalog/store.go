@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
 	"slices"
 	"strconv"
@@ -144,11 +145,76 @@ func changed(res sql.Result, err error) error {
 // Save は新規を下書きで作り、既存項目の公開状態は変えない。
 // 不変条件: CATALOG-INV-4
 func (s *Store) Save(ctx context.Context, id int64, in Input) (int64, error) {
+	return s.save(ctx, id, in, func(*sql.Conn) error { return nil })
+}
+
+// SaveIfUnchanged は、確認の時点の状態のままのときだけ更新します。照合と更新は同じトランザクションです（MCP-INV-4）。
+func (s *Store) SaveIfUnchanged(ctx context.Context, id int64, in Input, state string) (int64, error) {
+	return s.save(ctx, id, in, func(c *sql.Conn) error { return s.expectState(ctx, c, id, state) })
+}
+
+// mcpState は、確認に使う保存状態のハッシュです。公開状態と分類を含みます。
+func mcpState(item Item) string {
+	tags := make([]int64, 0, len(item.Tags))
+	for _, t := range item.Tags {
+		tags = append(tags, t.ID)
+	}
+	slices.Sort(tags)
+	return features.MCPState("item", item.ID, item.Title, item.Body, item.Published, item.CategoryID, tags)
+}
+
+// expectState は、トランザクションの中で今の状態を読んで比べます。
+func (s *Store) expectState(ctx context.Context, c *sql.Conn, id int64, state string) error {
+	item, err := scanItem(c.QueryRowContext(ctx, "SELECT "+itemColumns+itemFrom+" WHERE i.id=?", id))
+	if errors.Is(err, ErrNotFound) {
+		return features.ErrMCPConflict
+	} else if err != nil {
+		return err
+	}
+	rows, err := c.QueryContext(ctx, "SELECT tag_id FROM catalog_item_tags WHERE item_id=?", id)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tag Classification
+		if err := rows.Scan(&tag.ID); err != nil {
+			return err
+		}
+		item.Tags = append(item.Tags, tag)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	if mcpState(item) != state {
+		return features.ErrMCPConflict
+	}
+	return nil
+}
+
+// SetPublishedIfUnchanged は、確認の時点の状態のままのときだけ公開状態を変えます。
+func (s *Store) SetPublishedIfUnchanged(ctx context.Context, id int64, published bool, state string) error {
+	status := "draft"
+	if published {
+		status = "published"
+	}
+	return s.write(ctx, func(c *sql.Conn) error {
+		if err := s.expectState(ctx, c, id, state); err != nil {
+			return err
+		}
+		return changed(c.ExecContext(ctx, "UPDATE catalog_items SET status=?,updated_at=? WHERE id=?", status, s.now().Unix(), id))
+	})
+}
+
+func (s *Store) save(ctx context.Context, id int64, in Input, check func(*sql.Conn) error) (int64, error) {
 	in, err := normalize(in)
 	if err != nil {
 		return 0, err
 	}
 	err = s.write(ctx, func(c *sql.Conn) error {
+		if err := check(c); err != nil {
+			return err
+		}
 		var category any
 		if in.CategoryID != 0 {
 			var found int

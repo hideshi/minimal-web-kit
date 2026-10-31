@@ -134,3 +134,48 @@ BEGIN
     UPDATE auth_federated_subjects SET account_epoch = account_epoch + 1 WHERE account_id = NEW.account_id;
     DELETE FROM auth_oidc_requests WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = NEW.account_id);
 END;
+
+-- エージェント（MCP等）の公開クライアントの印。行があれば、秘密値を持たず、戻り先のポートだけ可変にする。
+-- 種類を要求の内容から推測しない。連携先の秘密値・利用許可・世代は auth_oidc_* をそのまま使う。
+CREATE TABLE IF NOT EXISTS auth_agent_clients (
+    client_id TEXT PRIMARY KEY REFERENCES auth_oidc_clients(client_id) ON DELETE CASCADE
+);
+
+-- エージェントの認可要求とコード。OIDCのログインとは表を分け、互いの経路を変えない。
+CREATE TABLE IF NOT EXISTS auth_agent_requests (
+    request_id TEXT PRIMARY KEY,
+    flow_hash TEXT NOT NULL,
+    client_id TEXT NOT NULL REFERENCES auth_agent_clients(client_id) ON DELETE CASCADE,
+    redirect_uri TEXT NOT NULL,
+    state TEXT NOT NULL,
+    challenge TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    sub TEXT NOT NULL DEFAULT '',
+    account_epoch TEXT NOT NULL DEFAULT '',
+    client_epoch TEXT NOT NULL DEFAULT '',
+    grant_epoch TEXT NOT NULL DEFAULT '',
+    expires_at INTEGER NOT NULL,
+    code_hash TEXT UNIQUE,
+    code_expires_at INTEGER NOT NULL DEFAULT 0,
+    consumed_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_agent_requests_flow ON auth_agent_requests(flow_hash);
+
+-- エージェントのアクセストークン。不透明な乱数のハッシュだけを保存し、要求ごとに世代を確かめる。
+CREATE TABLE IF NOT EXISTS auth_agent_tokens (
+    token_hash TEXT PRIMARY KEY,
+    request_id TEXT NOT NULL,
+    client_id TEXT NOT NULL REFERENCES auth_agent_clients(client_id) ON DELETE CASCADE,
+    sub TEXT NOT NULL,
+    resource TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    account_epoch TEXT NOT NULL,
+    client_epoch TEXT NOT NULL,
+    grant_epoch TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_agent_tokens_grant ON auth_agent_tokens(client_id, sub);
