@@ -231,6 +231,11 @@ func TestMCP_PagesFollowTheAdminPath(t *testing.T) {
 	if !strings.Contains(message, "公開中の内容が直ちに変わります") || !strings.Contains(message, "URLが変わります") {
 		t.Fatal(message)
 	}
+	// クライアントが途中を折りたたんでも、操作・対象・変更する欄は最初の3行で分かる
+	lines := strings.Split(message, "\n")
+	if !strings.Contains(lines[0], "編集します") || !strings.Contains(lines[1], "対象: #") || !strings.Contains(lines[1], "会社概要") || lines[2] != "変更: URL、ナビの順、本文" {
+		t.Fatal(message)
+	}
 	resultID(t, e.accept("pages_update", update, state))
 	if w := e.get("/company"); w.Code != 200 || strings.Contains(w.Body.String(), `href="/company"`) {
 		t.Fatal(w.Code)

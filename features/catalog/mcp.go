@@ -82,7 +82,7 @@ func mcpID(args json.RawMessage) (int64, error) {
 }
 
 func targetLine(item Item) string {
-	return fmt.Sprintf("対象: #%d（%s）\n%s\n", item.ID, map[bool]string{true: "公開中", false: "下書き"}[item.Published], features.MCPQuote(item.Title))
+	return fmt.Sprintf("対象: #%d（%s）「%s」", item.ID, map[bool]string{true: "公開中", false: "下書き"}[item.Published], item.Title)
 }
 
 func (f *Feature) nameOf(ctx context.Context, kind string, id int64) string {
@@ -201,8 +201,8 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, err
 				}
-				summary := "カタログの項目を下書きで作成します。公開はしません。\nカテゴリ: " + f.nameOf(ctx, "categories", a.CategoryID) + "\nタグ: " + f.tagNames(ctx, a.TagIDs) +
-					"\nタイトル:\n" + features.MCPQuote(a.Title) + "\n本文:\n" + features.MCPQuote(a.Body)
+				summary := features.MCPSummary("カタログの項目を下書きで作成します。公開はしません。", "カテゴリ: "+f.nameOf(ctx, "categories", a.CategoryID)+"　タグ: "+f.tagNames(ctx, a.TagIDs),
+					[]string{"タイトル", "本文"}, "タイトル:\n"+features.MCPQuote(a.Title)+"\n本文:\n"+features.MCPQuote(a.Body))
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, _ string) (any, error) {
@@ -229,13 +229,15 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, mcpInputError(err)
 				}
-				summary := "カタログの項目を編集します。"
+				action := "カタログの項目を編集します。"
 				if item.Published {
-					summary += "【公開中の内容が直ちに変わります】"
+					action += "【公開中の内容が直ちに変わります】"
 				}
-				summary += "\n" + targetLine(item)
+				var changes []string
+				details := ""
 				if a.CategoryID != item.CategoryID {
-					summary += "カテゴリ: " + f.nameOf(ctx, "categories", a.CategoryID) + "\n"
+					changes = append(changes, "カテゴリ")
+					details += "カテゴリ: " + f.nameOf(ctx, "categories", a.CategoryID) + "\n"
 				}
 				before := make([]int64, 0, len(item.Tags))
 				for _, t := range item.Tags {
@@ -243,14 +245,18 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				}
 				slices.Sort(before)
 				if !slices.Equal(before, a.TagIDs) {
-					summary += "タグ: " + f.tagNames(ctx, a.TagIDs) + "\n"
+					changes = append(changes, "タグ")
+					details += "タグ: " + f.tagNames(ctx, a.TagIDs) + "\n"
 				}
 				if a.Title != item.Title {
-					summary += "タイトル:\n" + features.MCPQuote(a.Title) + "\n"
+					changes = append(changes, "タイトル")
+					details += "タイトル:\n" + features.MCPQuote(a.Title) + "\n"
 				}
 				if a.Body != item.Body {
-					summary += "本文:\n" + features.MCPQuote(a.Body) + "\n"
+					changes = append(changes, "本文")
+					details += "本文:\n" + features.MCPQuote(a.Body) + "\n"
 				}
+				summary := features.MCPSummary(action, targetLine(item), changes, details)
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: mcpState(item)}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {

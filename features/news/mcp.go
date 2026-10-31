@@ -79,7 +79,7 @@ func (f *Feature) stateText(p Post) string {
 }
 
 func (f *Feature) targetLine(p Post) string {
-	return fmt.Sprintf("対象: #%d（%s）\n%s\n", p.ID, f.stateText(p), features.MCPQuote(p.Title))
+	return fmt.Sprintf("対象: #%d（%s）「%s」", p.ID, f.stateText(p), p.Title)
 }
 
 func changedField(name, before, after string) string {
@@ -140,11 +140,12 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, err
 				}
-				summary := "お知らせを下書きで作成します。公開はしません。\n"
+				target := "公開日時: 初めて公開するとき"
 				if !at.IsZero() {
-					summary += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
+					target = "公開日時: " + at.Format("2006-01-02 15:04")
 				}
-				summary += "タイトル:\n" + features.MCPQuote(a.Title) + "\n本文:\n" + features.MCPQuote(a.Body)
+				summary := features.MCPSummary("お知らせを下書きで作成します。公開はしません。", target, []string{"タイトル", "本文"},
+					"タイトル:\n"+features.MCPQuote(a.Title)+"\n本文:\n"+features.MCPQuote(a.Body))
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, _ string) (any, error) {
@@ -171,21 +172,29 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, mcpInputError(err)
 				}
-				summary := "お知らせを編集します。"
+				action := "お知らせを編集します。"
 				if p.Published {
-					summary += "【公開中の内容が変わります】"
+					action += "【公開中の内容が変わります】"
 				}
 				if !at.IsZero() && p.Published && !at.After(f.now()) {
-					summary += "【この日時で公開された状態になります】"
+					action += "【この日時で公開された状態になります】"
 				}
 				if !at.IsZero() && p.Published && at.After(f.now()) && !p.ScheduledAt(f.now()) {
-					summary += "【公開ページから消え、予約公開になります】"
+					action += "【公開ページから消え、予約公開になります】"
 				}
-				summary += "\n" + f.targetLine(p)
+				var changes []string
+				details := ""
 				if !at.IsZero() {
-					summary += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
+					changes = append(changes, "公開日時")
+					details += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
 				}
-				summary += changedField("タイトル", p.Title, a.Title) + changedField("本文", p.Body, a.Body)
+				for _, c := range [][3]string{{"タイトル", p.Title, a.Title}, {"本文", p.Body, a.Body}} {
+					if c[1] != c[2] {
+						changes = append(changes, c[0])
+						details += changedField(c[0], c[1], c[2])
+					}
+				}
+				summary := features.MCPSummary(action, f.targetLine(p), changes, details)
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: mcpState(p)}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {

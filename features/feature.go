@@ -342,6 +342,21 @@ func MCPQuote(text string) string {
 	return strings.Join(lines, "\n")
 }
 
+// MCPSummary は、確認の文を組み立てます。クライアントは長い文の途中を折りたたむことがあるので、
+// 操作・対象・変更する欄の名前を最初の3行に置き、全文の引用はその後に続けます。
+func MCPSummary(action, target string, changes []string, details string) string {
+	summary := action + "\n" + target + "\n"
+	if len(changes) == 0 {
+		summary += "変更: なし"
+	} else {
+		summary += "変更: " + strings.Join(changes, "、")
+	}
+	if details != "" {
+		summary += "\n\n" + strings.TrimRight(details, "\n")
+	}
+	return summary
+}
+
 // MCPState は、状態を構成する値から、確認の照合に使うハッシュを作ります。区切りが混ざらないようJSONにします。
 func MCPState(values ...any) string {
 	raw, err := json.Marshal(values)

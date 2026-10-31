@@ -74,8 +74,7 @@ func mcpID(args json.RawMessage) (int64, error) {
 }
 
 func (f *Feature) targetLine(p Page) string {
-	line := fmt.Sprintf("対象: #%d /%s（%s）\n", p.ID, p.Slug, map[bool]string{true: "公開中", false: "下書き"}[p.Published])
-	return line + features.MCPQuote(p.Title) + "\n"
+	return fmt.Sprintf("対象: #%d /%s（%s）「%s」", p.ID, p.Slug, map[bool]string{true: "公開中", false: "下書き"}[p.Published], p.Title)
 }
 
 func changedField(name, before, after string) string {
@@ -149,8 +148,8 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, err
 				}
-				summary := "固定ページを下書きで作成します。公開はしません。\nURL: /" + n.slug + "\nナビの順: " + navText(n.navOrder) +
-					"\nタイトル:\n" + features.MCPQuote(n.title) + "\n本文:\n" + features.MCPQuote(n.body)
+				summary := features.MCPSummary("固定ページを下書きで作成します。公開はしません。", "URL: /"+n.slug+"　ナビの順: "+navText(n.navOrder),
+					[]string{"タイトル", "本文"}, "タイトル:\n"+features.MCPQuote(n.title)+"\n本文:\n"+features.MCPQuote(n.body))
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, _ string) (any, error) {
@@ -185,15 +184,22 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, err
 				}
-				summary := "固定ページを編集します。"
+				action := "固定ページを編集します。"
 				if p.Published {
-					summary += "【公開中の内容が直ちに変わります】"
+					action += "【公開中の内容が直ちに変わります】"
 				}
 				if n.slug != p.Slug {
-					summary += "【URLが変わります】"
+					action += "【URLが変わります】"
 				}
-				summary += "\n" + f.targetLine(p) + changedField("URL", p.Slug, n.slug) + changedField("ナビの順", navText(p.NavOrder), navText(n.navOrder)) +
-					changedField("タイトル", p.Title, n.title) + changedField("本文", p.Body, n.body)
+				var changes []string
+				details := ""
+				for _, c := range [][3]string{{"URL", p.Slug, n.slug}, {"ナビの順", navText(p.NavOrder), navText(n.navOrder)}, {"タイトル", p.Title, n.title}, {"本文", p.Body, n.body}} {
+					if c[1] != c[2] {
+						changes = append(changes, c[0])
+						details += changedField(c[0], c[1], c[2])
+					}
+				}
+				summary := features.MCPSummary(action, f.targetLine(p), changes, details)
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: mcpState(p)}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {
