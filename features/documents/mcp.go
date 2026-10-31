@@ -148,8 +148,21 @@ func audienceText(d Document, shares int) string {
 	return "自分だけ"
 }
 
+// targetLine は確認の文の対象の行です。タイトルで偽装されないよう、共有の範囲を先に置きます。
 func targetLine(d Document, shares int, title string) string {
-	return fmt.Sprintf("対象: #%d「%s」　共有の範囲: %s", d.ID, strings.ReplaceAll(title, "\n", " "), audienceText(d, shares))
+	return fmt.Sprintf("対象: #%d　共有の範囲: %s　タイトル: %s", d.ID, audienceText(d, shares), title)
+}
+
+// folderName は、指定のフォルダの名前を返します。無ければ入力の誤りです。
+func (f *Feature) folderName(ctx context.Context, id int64) (string, error) {
+	if id == 0 {
+		return "", nil
+	}
+	fo, err := f.store.Folder(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return "", mcpInputError(InputError{"folder"})
+	}
+	return fo.Name, err
 }
 
 // MCPTools は、文書のツールを返します。全て一般ユーザーにも開き、権限は接続したアカウント本人のものです。
@@ -311,12 +324,19 @@ func (f *Feature) createTool() features.MCPTool {
 			if err != nil {
 				return features.MCPPlan{}, mcpInputError(err)
 			}
+			folder, err := f.folderName(ctx, in.FolderID)
+			if err != nil {
+				return features.MCPPlan{}, err
+			}
 			canonical, err := json.Marshal(writeArgs{Title: in.Title, Body: in.Body, FolderID: in.FolderID})
 			if err != nil {
 				return features.MCPPlan{}, err
 			}
-			summary := features.MCPSummary("文書を下書きで作成します。公開はしません。", "共有の範囲: 自分だけ",
-				[]string{"タイトル", "本文"}, "タイトル:\n"+features.MCPQuote(in.Title)+"\n本文:\n"+features.MCPQuote(in.Body))
+			details := "タイトル:\n" + features.MCPQuote(in.Title) + "\n本文:\n" + features.MCPQuote(in.Body)
+			if folder != "" {
+				details += "\nフォルダ:\n" + features.MCPQuote(folder)
+			}
+			summary := features.MCPSummary("文書を下書きで作成します。公開はしません。", "共有の範囲: 自分だけ", []string{"タイトル", "本文"}, details)
 			return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
 		},
 		Apply: func(ctx context.Context, p features.AgentPrincipal, canonical json.RawMessage, _ string) (any, error) {
@@ -350,6 +370,13 @@ func (f *Feature) reviseTool() features.MCPTool {
 			if d.CurrentID == 0 {
 				return features.MCPPlan{}, features.MCPInputError{Message: "公開していない文書は改定できません。"}
 			}
+			open, err := f.store.Open(ctx, p.AccountID, id)
+			if err != nil {
+				return features.MCPPlan{}, mcpInputError(err)
+			}
+			if open.ID != 0 {
+				return features.MCPPlan{}, features.MCPInputError{Message: "下書きか承認待ちの版があるので、改定を始められません。"}
+			}
 			_, v, err := f.store.Current(ctx, p.AccountID, id)
 			if err != nil {
 				return features.MCPPlan{}, mcpInputError(err)
@@ -376,7 +403,7 @@ func (f *Feature) reviseTool() features.MCPTool {
 func (f *Feature) updateTool() features.MCPTool {
 	return features.MCPTool{
 		Name: "documents_update", Title: "下書きの編集", AllRoles: true,
-		Description: "自分の文書の下書きのタイトルと本文を置き換えます。公開はしません。実行の前に利用者の確認があります。",
+		Description: "自分の文書の下書きのタイトルと本文を置き換えます。folder_id を省くとフォルダは変えません。フォルダを外すのは管理画面で行います。公開はしません。実行の前に利用者の確認があります。",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"},"title":{"type":"string"},"body":{"type":"string"},"folder_id":{"type":"integer"}},"required":["id","title","body"],"additionalProperties":false}`),
 		Prepare: func(ctx context.Context, p features.AgentPrincipal, args json.RawMessage) (features.MCPPlan, error) {
 			var a writeArgs
@@ -398,7 +425,11 @@ func (f *Feature) updateTool() features.MCPTool {
 				return features.MCPPlan{}, mcpInputError(err)
 			}
 			if a.FolderID == 0 {
-				in.FolderID = d.FolderID // 省いたらフォルダは変えない
+				in.FolderID = d.FolderID // 省いたらフォルダは変えない。外すのは管理画面で行う
+			}
+			folder, err := f.folderName(ctx, in.FolderID)
+			if err != nil {
+				return features.MCPPlan{}, err
 			}
 			canonical, err := json.Marshal(writeArgs{ID: a.ID, Version: draft.ID, Title: in.Title, Body: in.Body, FolderID: in.FolderID})
 			if err != nil {
@@ -414,6 +445,10 @@ func (f *Feature) updateTool() features.MCPTool {
 			}
 			if in.FolderID != d.FolderID {
 				changes = append(changes, "フォルダ")
+				details += "フォルダ:\n" + features.MCPQuote(folder) + "\n"
+			}
+			if len(changes) == 0 {
+				return features.MCPPlan{}, features.MCPInputError{Message: "変更がありません。"}
 			}
 			summary := features.MCPSummary("下書きを編集します。公開中の内容は変わりません。", targetLine(d, shares, draft.Title), changes, details)
 			return features.MCPPlan{Summary: summary, Canonical: canonical, State: state}, nil
@@ -459,8 +494,9 @@ func (f *Feature) publishTool() features.MCPTool {
 			if err != nil {
 				return features.MCPPlan{}, err
 			}
+			// 本文は固定ページの公開と同じく載せない。長い文書でも公開でき、確認の後に本文が変われば状態の照合で止まる
 			summary := features.MCPSummary("文書を公開します。【共有の範囲の人が読めるようになります】", targetLine(d, shares, draft.Title), nil,
-				"タイトル:\n"+features.MCPQuote(draft.Title)+"\n本文:\n"+features.MCPQuote(draft.Body))
+				fmt.Sprintf("第%d版。内容は documents_version で確かめられます。", draft.Number))
 			return features.MCPPlan{Summary: summary, Canonical: canonical, State: state}, nil
 		},
 		Apply: func(ctx context.Context, p features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {

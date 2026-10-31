@@ -181,6 +181,20 @@ func TestDocumentsMCP_LoweredRoleStopsOtherTools(t *testing.T) {
 	if err := e.core.DB().QueryRow("SELECT COUNT(*) FROM pages WHERE slug = 'lowered'").Scan(&count); err != nil || count != 0 {
 		t.Fatalf("pages = %d %v", count, err)
 	}
+	// 未知のロールは全て拒否する。DBの制約を止めて、あり得ない値を入れて確かめる
+	conn, err := e.core.DB().Conn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	for _, q := range []string{"PRAGMA ignore_check_constraints = ON", fmt.Sprintf("UPDATE auth_accounts SET role = 'other' WHERE id = %d", a.id), "PRAGMA ignore_check_constraints = OFF"} {
+		if _, err := conn.ExecContext(context.Background(), q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if code, _ := site.raw("tools/list", "", nil); code != http.StatusForbidden {
+		t.Fatalf("unknown role: %d", code)
+	}
 }
 
 // 読める範囲は本人と同じ。システム管理者のエージェントも、共有されていない文書を読めない。既読にしない。
@@ -222,11 +236,31 @@ func TestDocumentsMCP_ReadsFollowTheAccount(t *testing.T) {
 	if err := docs.Publish(ctx, owner.id, id, v.ID); err != nil {
 		t.Fatal(err)
 	}
+	// 公開しても、共有していなければシステム管理者のエージェントにも読めない
+	denied := []struct {
+		tool string
+		args map[string]any
+	}{
+		{"documents_read", map[string]any{"id": id}},
+		{"documents_version", map[string]any{"id": id, "version_id": v.ID}},
+		{"documents_list", map[string]any{"query": "秘密"}},
+	}
+	for _, c := range denied {
+		for name, env := range map[string]*mcpEnv{"system admin": e, "reader": e.as(reader)} {
+			if body := raw(env, c.tool, c.args); strings.Contains(body, "秘密の") {
+				t.Errorf("%s %s after publish: %s", name, c.tool, body)
+			}
+		}
+	}
 	if err := docs.SetSharing(ctx, owner.id, id, "selected", []int64{reader.id}, func(int64) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
 	if body := raw(e.as(reader), "documents_read", map[string]any{"id": id}); !strings.Contains(body, "秘密の本文") {
 		t.Fatalf("a sharer must read: %s", body)
+	}
+	// 共有先でないシステム管理者には、共有の後も読めない
+	if body := raw(e, "documents_read", map[string]any{"id": id}); strings.Contains(body, "秘密の") {
+		t.Fatalf("system admin after sharing: %s", body)
 	}
 	reads, err := docs.Reads(ctx, owner.id, id)
 	if err != nil || len(reads) != 0 {
@@ -252,8 +286,18 @@ func TestDocumentsMCP_WritesAreConfirmedAndGuarded(t *testing.T) {
 	}
 	// 他人の文書は確認の前に「対象がありません」
 	_, body := e.as(other).raw("tools/call", "documents_publish", map[string]any{"name": "documents_publish", "arguments": map[string]any{"id": id}, "_meta": nil})
-	if strings.Contains(body, "input_required") {
+	if strings.Contains(body, "input_required") || !strings.Contains(body, "対象がありません") {
 		t.Fatalf("others must not reach the confirmation: %s", body)
+	}
+	// 無いフォルダと、変更の無い編集は、確認の前に断る
+	for name, args := range map[string]map[string]any{
+		"documents_create": {"title": "別", "body": "本文", "folder_id": 999},
+		"documents_update": {"id": id, "title": "回覧", "body": "本文"},
+	} {
+		_, body := owner.raw("tools/call", name, map[string]any{"name": name, "arguments": args})
+		if strings.Contains(body, "input_required") {
+			t.Fatalf("%s must be refused before the confirmation: %s", name, body)
+		}
 	}
 	owner.run("documents_update", map[string]any{"id": id, "title": "回覧の改訂", "body": "新しい本文"})
 	_, d, err := docs.Draft(ctx, ownerAccount.id, id)
@@ -261,9 +305,14 @@ func TestDocumentsMCP_WritesAreConfirmedAndGuarded(t *testing.T) {
 		t.Fatalf("draft = %+v %v", d, err)
 	}
 
+	// 改定の下書きがあると、確認の前に断る。公開は長い本文でも確認できる
+	long := strings.Repeat("長", 10000)
+	if err := docs.SaveDraft(ctx, ownerAccount.id, id, d.ID, documents.Input{Title: "回覧の改訂", Body: long}); err != nil {
+		t.Fatal(err)
+	}
 	// 確認の文に共有の範囲が出て、確認の後に広げられたら公開しない
 	state, message := owner.ask("documents_publish", map[string]any{"id": id})
-	if !strings.Contains(strings.SplitN(message, "\n", 3)[1], "共有の範囲: 自分だけ") {
+	if !strings.HasPrefix(strings.SplitN(message, "\n", 3)[1], fmt.Sprintf("対象: #%d　共有の範囲: 自分だけ", id)) {
 		t.Fatalf("message = %s", message)
 	}
 	if err := docs.SetSharing(ctx, ownerAccount.id, id, "everyone", nil, func(int64) bool { return true }); err != nil {
@@ -301,6 +350,11 @@ func TestDocumentsMCP_WritesAreConfirmedAndGuarded(t *testing.T) {
 	_, body = owner.raw("tools/call", "documents_publish", map[string]any{"name": "documents_publish", "arguments": map[string]any{"id": id}})
 	if strings.Contains(body, "input_required") || !strings.Contains(body, "承認を経て公開") {
 		t.Fatalf("publish after asking: %s", body)
+	}
+	// 下書きがある文書は改定を始められない
+	_, body = owner.raw("tools/call", "documents_revise", map[string]any{"name": "documents_revise", "arguments": map[string]any{"id": id}})
+	if strings.Contains(body, "input_required") {
+		t.Fatalf("revise with a draft: %s", body)
 	}
 	// 自分を承認者に選べない
 	id2 := resultID(t, owner.run("documents_create", map[string]any{"title": "別", "body": "本文"}))
