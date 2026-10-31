@@ -19,7 +19,7 @@
 ### 前提
 
 - Git、make（以下のコマンド例はPOSIXシェル向け）
-- Go 1.27.1以上（`go.mod` の指定に従い、GoコマンドをPATHに含める）
+- Go 1.27.3以上（`go.mod` の指定に従い、GoコマンドをPATHに含める）
 
 ```bash
 git clone https://github.com/hideshi/minimal-web-kit.git
