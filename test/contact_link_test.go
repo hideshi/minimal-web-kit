@@ -64,6 +64,9 @@ func TestContactLink_SiteButtonPrivacyAndConflict(t *testing.T) {
 	if !strings.Contains(privacy, "お問い合わせで保存する情報") || strings.Contains(privacy, "外部フォーム") {
 		t.Fatal("privacy policy must describe the contact feature, not an external form")
 	}
+	if !strings.Contains(privacy, `<h2>運営者と、開示等の請求・苦情の窓口</h2>`) || !strings.Contains(privacy, `<a href="/contact">お問い合わせ</a>`) {
+		t.Fatal("privacy policy must name the contact form as the window for requests and complaints")
+	}
 
 	t.Setenv("CONTACT_FORM_URL", "https://forms.example.com/x")
 	if _, err := contactLinkRoutes(t, true); err == nil || !strings.Contains(err.Error(), "contact is provided by both") {
@@ -76,8 +79,12 @@ func TestContactLink_SiteButtonPrivacyAndConflict(t *testing.T) {
 	if lp := body(t, routes, "/"); !strings.Contains(lp, `href="https://forms.example.com/x" target="_blank"`) {
 		t.Fatal("external form must open in a new tab")
 	}
-	if !strings.Contains(body(t, routes, "/privacy"), "外部フォーム") {
+	privacy = body(t, routes, "/privacy")
+	if !strings.Contains(privacy, "外部フォーム") {
 		t.Fatal("external form section must be shown")
+	}
+	if !strings.Contains(privacy, `<a href="https://forms.example.com/x" target="_blank" rel="noopener noreferrer">お問い合わせ（新しいタブで開きます）</a>`) {
+		t.Fatal("the window for requests and complaints must point to the external form")
 	}
 
 	t.Setenv("CONTACT_FORM_URL", "")
@@ -85,7 +92,11 @@ func TestContactLink_SiteButtonPrivacyAndConflict(t *testing.T) {
 	if lp := body(t, routes, "/"); !strings.Contains(lp, "準備中") {
 		t.Fatal("no contact: placeholder")
 	}
-	if strings.Contains(body(t, routes, "/privacy"), "外部フォーム") {
+	privacy = body(t, routes, "/privacy")
+	if strings.Contains(privacy, "外部フォーム") {
 		t.Fatal("no contact: no external section")
+	}
+	if strings.Contains(privacy, "開示等の請求") {
+		t.Fatal("no contact: must not promise a window that does not exist")
 	}
 }
