@@ -64,7 +64,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `notice` | 文字列 | 完了メッセージ。`role="status"` で読み上げソフトに穏やかに伝える。空なら何も出さない |
 | `error` | 文字列 | 画面全体のエラー。`role="alert"` ですぐに伝える。空なら何も出さない |
 | `public-menu` | 画面のデータ | 公開用6レイアウトの共通メニュー。ホーム、`NavLinks`、有効な `Contact`、プライバシーポリシーを1組だけ描く。管理画面は対象外 |
-| `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
+| `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。検索の条件を残すときは `Params` に入れる。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
 | `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。`Required` なら「（必須）」、`Optional` なら「（任意）」を同じ見た目で表示する（ラベルの文字に直接書かない）。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
 | `choices` | `form.Choices` | 同じ名前のラジオ（`Multiple` ならチェックボックス）の組。`fieldset`・`legend` で囲み、説明・エラーを組に関連付ける。選択肢が1つなら `field` の `checkbox` を使う |
 | `paragraphs` | `form.Paragraphs` の結果 | プレーンテキストの本文。空行で段落（`p`）、段落の中の改行は `br`。`text-body` で囲み、長い英数字も折り返す |

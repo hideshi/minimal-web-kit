@@ -44,6 +44,7 @@
   <a href="/admin/documents/{{.Document.ID}}/share">共有先の設定</a>
   <a href="/admin/documents/{{.Document.ID}}/versions">版の履歴</a>
   {{if and .IsCurrent (not .Open.ID)}}<form method="post" action="/admin/documents/{{.Document.ID}}/revise" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-secondary">改定する</button></form>{{end}}
+  {{if eq .Version.State "pending"}}<form method="post" action="/admin/documents/{{.Document.ID}}/withdraw" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="version" value="{{.Version.ID}}"><button type="submit" class="btn btn-secondary">依頼を取り下げる</button></form>{{end}}
   <a href="/admin/documents/{{.Document.ID}}/delete" class="btn btn-danger">削除する</a>
 </div>
 {{end}}

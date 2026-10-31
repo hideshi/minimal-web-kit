@@ -189,7 +189,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - Siteと一緒に使うと、LPのお問い合わせのボタンが `/contact` を指します。`CONTACT_FORM_URL`（外部のフォーム）と同時に有効にすると、起動を止めます。
 - 仕様と不変条件は [domain/contact.md](docs/domain/contact.md)、保存内容は[データ台帳](docs/data-inventory.md)の7節、設計の経緯は [contact-plan.md](docs/plans/contact-plan.md) にあります。
 
-### MCP（AIエージェント）
+### 社内文書
 
 `make add-documents` で有効化します（管理者認証も有効になります）。回覧や社内規定を作り、全員か特定の人へ共有します。全ての画面にログインが要ります。
 
@@ -199,6 +199,8 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - 所有者が退職したら、システム管理者が `/admin/documents/transfer` で別の人へ移します。画面には件数だけが出ます。
 - 「システム管理者にも見せない」は画面の範囲の守りです。DBやバックアップを直接読む人、なりすましの操作までは防げません。添付、同時編集、グループ、外部への共有リンク、通知はありません。
 - 仕様は [domain/documents.md](docs/domain/documents.md)、保存内容は[データ台帳](docs/data-inventory.md)の11節にあります。保存項目が増えるので、`minimal-web-kit-privacy` スキルでプライバシーポリシーも見直してください。
+
+### MCP（AIエージェント）
 
 `make add-mcp` で有効化します（管理者認証も有効になります）。AIエージェントが、許可した機能の内容を読み、下書きや編集を行えます。お知らせ・カタログ・固定ページに対応し、別の機能も `features.MCPFeature` を実装すれば足せます。
 

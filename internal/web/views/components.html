@@ -21,8 +21,8 @@
 {{/* ページ送り。引数は page.Page（Base・Label・PrevText・NextText を設定する） */}}
 {{define "pagination"}}{{if or .Prev .Next}}
 <nav class="pagination" aria-label="{{.Label}}">
-  {{if .Prev}}<a href="{{.Base}}?page={{.Prev}}" rel="prev">{{.PrevText}}</a>{{end}}
-  {{if .Next}}<a href="{{.Base}}?page={{.Next}}" rel="next">{{.NextText}}</a>{{end}}
+  {{if .Prev}}<a href="{{.Base}}?{{range .Params}}{{.Name}}={{.Value}}&amp;{{end}}page={{.Prev}}" rel="prev">{{.PrevText}}</a>{{end}}
+  {{if .Next}}<a href="{{.Base}}?{{range .Params}}{{.Name}}={{.Value}}&amp;{{end}}page={{.Next}}" rel="next">{{.NextText}}</a>{{end}}
 </nav>
 {{end}}{{end}}
 

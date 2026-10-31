@@ -1,6 +1,6 @@
 # 社内文書機能の計画
 
-状態: 実装済み（2026-10-31）。完成のレビューの前。今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md`。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
+状態: 実装済み（2026-10-31）。完成のレビューの指摘を反映済み。今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md`。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
 
 ## 目的
 
@@ -237,3 +237,6 @@ stateDiagram-v2
 - 検索は今の版だけを対象にした。自分の下書きは「自分の文書」の一覧で見る。
 - 版の番号は、差し戻しや取り下げがあると飛ぶ。
 - 文書の閲覧は「詳細」に入れず、`docs/components.md` の型の外とした。新しい型は足していない。
+- フォルダの経路は、`/admin/documents/{id}/edit` とぶつかるので `/admin/document-folders` にした。
+- 依頼の取り下げは、表の中ではなく版の閲覧の画面に置いた。
+- ページ送りの部品に、検索の条件を残す `Params` を足した。

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -285,6 +286,13 @@ func removePages() error { return toggleBundle(pagesBundle, false) }
 func addDocuments() error {
 	if err := verifyBundle(documentsBundle); err != nil {
 		return err
+	}
+	federated, err := enabled(federatedBundle)
+	if err != nil {
+		return err
+	}
+	if federated {
+		return errors.New("documents needs account names, which federatedauth does not have; use add-auth instead")
 	}
 	if err := ensureAdminProvider(); err != nil {
 		return err

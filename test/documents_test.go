@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -235,27 +236,125 @@ func TestDocuments_ApprovalScreens(t *testing.T) {
 	}
 }
 
+// 承認者でない人の送信は、版の有無が分からないように、無い版と同じ404にする。
+// 不変条件: DOC-INV-2
+func TestDocuments_DecisionDoesNotRevealVersions(t *testing.T) {
+	ctx := context.Background()
+	e := newDocsEnv(t, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	owner, approver, outsider := e.user("user"), e.user("user"), e.user("user")
+	id, _ := e.store.Create(ctx, owner.id, documents.Input{Title: "規定", Body: "本文"})
+	_, v, _ := e.store.Draft(ctx, owner.id, id)
+	if err := e.store.RequestApproval(ctx, owner.id, id, v.ID, []int64{approver.id}, func(int64) bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	path := "/admin/documents/" + strconv.FormatInt(id, 10) + "/versions/"
+	for _, version := range []string{strconv.FormatInt(v.ID, 10), "999999"} {
+		for _, action := range []string{"/approve", "/reject"} {
+			if w := e.post(outsider, path+version+action, url.Values{"reason": {"x"}}); w.Code != http.StatusNotFound {
+				t.Errorf("%s%s: %d", version, action, w.Code)
+			}
+		}
+	}
+	// 判断の済んだ人の再送は、案内を添えて依頼の一覧へ戻す
+	version := strconv.FormatInt(v.ID, 10)
+	if w := e.post(approver, path+version+"/approve", nil); w.Code != http.StatusSeeOther {
+		t.Fatalf("approve: %d", w.Code)
+	}
+	if w := e.post(approver, path+version+"/approve", nil); w.Code != http.StatusSeeOther || !strings.Contains(w.Header().Get("Location"), "notice=conflict") {
+		t.Fatalf("resend: %d %s", w.Code, w.Header().Get("Location"))
+	}
+}
+
+// ユースケース: UC-DOCUMENTS-6
+func TestDocuments_OwnerScreens(t *testing.T) {
+	ctx := context.Background()
+	e := newDocsEnv(t, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	owner, approver := e.user("user"), e.user("user")
+	id, _ := e.store.Create(ctx, owner.id, documents.Input{Title: "回覧", Body: "本文"})
+	_, v, _ := e.store.Draft(ctx, owner.id, id)
+	path := "/admin/documents/" + strconv.FormatInt(id, 10)
+	version := strconv.FormatInt(v.ID, 10)
+	// フォルダの値の形が誤りなら、黙って外さない
+	if w := e.post(owner, path+"/edit", url.Values{"version": {version}, "title": {"回覧"}, "folder": {"abc"}}); w.Code != http.StatusBadRequest {
+		t.Fatalf("bad folder: %d", w.Code)
+	}
+	// 所有者は今の版を版の画面でも開ける
+	if err := e.store.Publish(ctx, owner.id, id, v.ID); err != nil {
+		t.Fatal(err)
+	}
+	if w := e.get(owner, path+"/versions/"+version); w.Code != http.StatusOK {
+		t.Fatalf("current version page: %d %s", w.Code, w.Body.String())
+	}
+	if err := e.store.Revise(ctx, owner.id, id); err != nil {
+		t.Fatal(err)
+	}
+	_, d, _ := e.store.Draft(ctx, owner.id, id)
+	draft := strconv.FormatInt(d.ID, 10)
+	if err := e.store.RequestApproval(ctx, owner.id, id, d.ID, []int64{approver.id}, func(int64) bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	// 依頼の後に古い画面から保存しても、書いた本文を失わない
+	w := e.post(owner, path+"/edit", url.Values{"version": {draft}, "title": {"回覧"}, "body": {"長い本文を残す"}})
+	if w.Code != http.StatusConflict || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/html") || !strings.Contains(w.Body.String(), "長い本文を残す") {
+		t.Fatalf("stale save: %d %s", w.Code, w.Header().Get("Content-Type"))
+	}
+	if w := e.get(owner, path+"/versions/"+draft); !strings.Contains(w.Body.String(), "依頼を取り下げる") {
+		t.Fatal("the owner must be able to withdraw from the version page")
+	}
+	if w := e.post(owner, path+"/withdraw", url.Values{"version": {draft}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("withdraw: %d", w.Code)
+	}
+}
+
+// ページ送りは検索の条件を残し、リンクに文言を持つ。
+// ユースケース: UC-DOCUMENTS-2
+func TestDocuments_PaginationKeepsTheSearch(t *testing.T) {
+	ctx := context.Background()
+	e := newDocsEnv(t, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	owner := e.user("user")
+	for range 35 {
+		id, err := e.store.Create(ctx, owner.id, documents.Input{Title: "回覧 & 通知", Body: "本文"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, v, _ := e.store.Draft(ctx, owner.id, id)
+		if err := e.store.Publish(ctx, owner.id, id, v.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	body := e.get(owner, "/admin/documents?q="+url.QueryEscape("回覧 &")).Body.String()
+	if !strings.Contains(body, `href="/admin/documents?q=%e5%9b%9e%e8%a6%a7%20%26&amp;page=2"`) || !strings.Contains(body, "過去の文書") {
+		t.Fatalf("pagination lost the search:\n%s", body)
+	}
+}
+
 // 呼び名を持たない認証と組み合わせると、起動を止める。
 // 不変条件: DOC-INV-1
 func TestDocuments_RequiresAccountDirectory(t *testing.T) {
-	t.Setenv("FEDERATED_ISSUER", "https://id.example")
-	t.Setenv("FEDERATED_CLIENT_ID", "x")
-	t.Setenv("FEDERATED_CLIENT_SECRET", strings.Repeat("s", 40))
-	t.Setenv("FEDERATED_REDIRECT_URI", "https://app.example/admin/sso/callback")
+	t.Setenv("AUTH_ORIGIN", "https://app.example")
+	t.Setenv("OIDC_ISSUER", "https://id.example")
+	t.Setenv("OIDC_CLIENT_ID", "client")
+	secret := filepath.Join(t.TempDir(), "client_secret")
+	if err := os.WriteFile(secret, []byte(strings.Repeat("s", 40)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OIDC_CLIENT_SECRET_FILE", secret)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { core.Close() })
-	var fed features.Feature = federatedauth.NewFeature(logger)
-	if _, ok := fed.(features.AccountDirectoryProvider); ok {
-		t.Fatal("federatedauth has no names to offer")
-	}
 	reg := features.NewRegistry()
+	reg.Register(federatedauth.NewFeature(logger))
 	reg.Register(documents.NewFeature(logger))
-	if _, err := app.BuildRoutes(core, reg, false, logger); err == nil {
-		t.Fatal("documents must not start without the auth feature")
+	for _, f := range reg.All() {
+		if err := f.Init(core.DB()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := app.BuildRoutes(core, reg, false, logger); err == nil || !strings.Contains(err.Error(), "account names") {
+		t.Fatalf("documents must not start with federatedauth: %v", err)
 	}
 }
 

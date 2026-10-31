@@ -254,7 +254,7 @@ func TestApproval_AllMustApprove(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantErr(t, s.Publish(ctx, owner, id, v), ErrConflict)
-	wantErr(t, s.Approve(ctx, admin, id, v), ErrConflict) // 選ばれていない人
+	wantErr(t, s.Approve(ctx, admin, id, v), ErrNotFound) // 選ばれていない人には、版の有無も伝えない
 	if err := s.Approve(ctx, alice, id, v); err != nil {
 		t.Fatal(err)
 	}

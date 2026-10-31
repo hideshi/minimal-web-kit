@@ -20,7 +20,11 @@ type Page struct {
 	Label    string // ページ送りのナビの名前（aria-label）
 	PrevText string // 前のページへのリンクの文言
 	NextText string // 次のページへのリンクの文言
+	Params   []Param // リンクに残す絞り込みの条件（任意）
 }
+
+// Param は、ページ送りのリンクに残す検索の条件です。
+type Param struct{ Name, Value string }
 
 // Parse は ?page= を解析します。未指定なら1ページ目です。数値でない・maxPage を超える場合は ok=false を返すので、400にします。
 func Parse(r *http.Request, size, maxPage int) (Page, bool) {

@@ -246,7 +246,7 @@ func (s *Store) recordDecision(ctx context.Context, c *sql.Conn, viewer, version
 // 不変条件: DOC-INV-6
 func (s *Store) Approve(ctx context.Context, viewer, id, versionID int64) error {
 	return s.atomic(ctx, func(c *sql.Conn) error {
-		if err := s.checkVersion(ctx, c, id, versionID); err != nil {
+		if err := s.checkApprover(ctx, c, viewer, id, versionID); err != nil {
 			return err
 		}
 		if err := s.recordDecision(ctx, c, viewer, versionID, "approved", ""); err != nil {
@@ -268,7 +268,7 @@ func (s *Store) Reject(ctx context.Context, viewer, id, versionID int64, reason 
 		return InputError{"reason"}
 	}
 	return s.atomic(ctx, func(c *sql.Conn) error {
-		if err := s.checkVersion(ctx, c, id, versionID); err != nil {
+		if err := s.checkApprover(ctx, c, viewer, id, versionID); err != nil {
 			return err
 		}
 		if err := s.recordDecision(ctx, c, viewer, versionID, "rejected", reason); err != nil {
@@ -281,9 +281,12 @@ func (s *Store) Reject(ctx context.Context, viewer, id, versionID int64, reason 
 	})
 }
 
-func (s *Store) checkVersion(ctx context.Context, c *sql.Conn, id, versionID int64) error {
+// checkApprover は、閲覧者がその版の承認者であることを確かめます。承認者でなければ、版の有無が分からないよう ErrNotFound です。
+// 不変条件: DOC-INV-2
+func (s *Store) checkApprover(ctx context.Context, c *sql.Conn, viewer, id, versionID int64) error {
 	var found int64
-	err := c.QueryRowContext(ctx, "SELECT id FROM document_versions WHERE id = ? AND document_id = ?", versionID, id).Scan(&found)
+	err := c.QueryRowContext(ctx, `SELECT v.id FROM document_versions v JOIN document_approvers a ON a.version_id = v.id
+		WHERE v.id = ? AND v.document_id = ? AND a.account_id = ?`, versionID, id, viewer).Scan(&found)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}

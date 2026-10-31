@@ -34,7 +34,7 @@ const (
 var messages = notice.Messages{
 	"created": "下書きを作成しました。", "saved": "変更を保存しました。", "published": "公開しました。", "revised": "改定の下書きを作りました。",
 	"shared": "共有先を変更しました。", "requested": "承認を依頼しました。", "withdrawn": "依頼を取り下げました。下書きに戻しました。",
-	"approved": "承認しました。", "rejected": "差し戻しました。", "deleted": "削除しました。", "folder_added": "フォルダを追加しました。",
+	"conflict": conflictMessage, "approved": "承認しました。", "rejected": "差し戻しました。", "deleted": "削除しました。", "folder_added": "フォルダを追加しました。",
 	"folder_saved": "フォルダの名前を変更しました。", "folder_deleted": "フォルダを削除しました。", "transferred": "所有者を変更しました。",
 }
 
@@ -122,6 +122,15 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 	return true
+}
+
+// actionFailed は、入力の無い操作の失敗を処理します。状態の衝突は、案内を添えて to の画面へ戻します。
+func (f *Feature) actionFailed(w http.ResponseWriter, r *http.Request, err error, to string) bool {
+	if errors.Is(err, ErrConflict) {
+		notice.Redirect(w, r, to, "conflict")
+		return true
+	}
+	return f.failed(w, r, err)
 }
 
 func docID(w http.ResponseWriter, r *http.Request, name string) (int64, bool) {
@@ -223,6 +232,13 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 		return
 	}
 	items = page.Trim(&p, items)
+	p.Base, p.Label, p.PrevText, p.NextText = root, "文書の一覧のページ送り", "新しい文書", "過去の文書"
+	if filter.Query != "" {
+		p.Params = append(p.Params, page.Param{Name: "q", Value: filter.Query})
+	}
+	if filter.FolderID != 0 {
+		p.Params = append(p.Params, page.Param{Name: "folder", Value: strconv.FormatInt(filter.FolderID, 10)})
+	}
 	folder, err := f.folderField(r.Context(), filter.FolderID, "")
 	if f.failed(w, r, err) {
 		return
@@ -251,6 +267,7 @@ func (f *Feature) handleMine(w http.ResponseWriter, r *http.Request, s features.
 		return
 	}
 	items = page.Trim(&p, items)
+	p.Base, p.Label, p.PrevText, p.NextText = root+"/mine", "自分の文書の一覧のページ送り", "新しい文書", "過去の文書"
 	data := s.PageData("自分の文書", root)
 	data["Items"] = items
 	data["Page"] = p
@@ -277,7 +294,8 @@ func (f *Feature) handleApprovals(w http.ResponseWriter, r *http.Request, s feat
 // documentForm は作成・編集の画面の値です。
 type documentForm struct {
 	Input
-	Invalid string
+	Invalid  string
+	Conflict bool
 }
 
 func (v documentForm) err(names ...string) string { return fieldErrors.For(v.Invalid, names...) }
@@ -302,6 +320,9 @@ func (f *Feature) renderForm(w http.ResponseWriter, r *http.Request, s features.
 	data["Notice"] = messages.From(r)
 	if status == http.StatusBadRequest && v.Invalid == "" {
 		data["Error"] = "入力を確認してください。"
+	}
+	if v.Conflict {
+		data["Error"] = conflictMessage
 	}
 	if id != 0 {
 		asked, err := f.store.RequiresApproval(r.Context(), id)
@@ -332,9 +353,17 @@ func (f *Feature) lastRejection(ctx context.Context, owner, id int64) string {
 	return ""
 }
 
+// readInput はフォームの値を読みます。フォルダの値の形が誤りなら -1 にして、保存の検査で弾きます。
 func readInput(r *http.Request) Input {
-	folder, _ := form.Int(r.PostForm.Get("folder"), 0, 0, 1<<62)
-	return Input{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), FolderID: int64(folder)}
+	in := Input{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body")}
+	if raw := r.PostForm.Get("folder"); raw != "" && raw != "0" {
+		id, ok := form.ID(raw)
+		if !ok {
+			id = -1
+		}
+		in.FolderID = id
+	}
+	return in
 }
 
 func (f *Feature) handleNew(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
@@ -384,6 +413,11 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 	}
 	in := readInput(r)
 	err := f.store.SaveDraft(r.Context(), s.AccountID(), id, versionID, in)
+	if errors.Is(err, ErrConflict) {
+		// 依頼した等で下書きが変わった。書いた本文を失わないよう、同じ画面に戻す
+		f.renderForm(w, r, s, id, Version{ID: versionID}, documentForm{Input: in, Conflict: true}, http.StatusConflict)
+		return
+	}
 	if f.inputFailed(w, r, s, id, Version{ID: versionID}, in, err) {
 		return
 	}
@@ -405,7 +439,7 @@ func (f *Feature) versionFromForm(w http.ResponseWriter, r *http.Request) (int64
 
 func (f *Feature) handlePublish(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	id, versionID, ok := f.versionFromForm(w, r)
-	if !ok || f.failed(w, r, f.store.Publish(r.Context(), s.AccountID(), id, versionID)) {
+	if !ok || f.actionFailed(w, r, f.store.Publish(r.Context(), s.AccountID(), id, versionID), docPath(id)+"/versions") {
 		return
 	}
 	notice.Redirect(w, r, docPath(id), "published")
@@ -413,7 +447,7 @@ func (f *Feature) handlePublish(w http.ResponseWriter, r *http.Request, s featur
 
 func (f *Feature) handleRevise(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	id, ok := docID(w, r, "id")
-	if !ok || f.failed(w, r, f.store.Revise(r.Context(), s.AccountID(), id)) {
+	if !ok || f.actionFailed(w, r, f.store.Revise(r.Context(), s.AccountID(), id), docPath(id)+"/versions") {
 		return
 	}
 	notice.Redirect(w, r, docPath(id)+"/edit", "revised")
@@ -421,7 +455,7 @@ func (f *Feature) handleRevise(w http.ResponseWriter, r *http.Request, s feature
 
 func (f *Feature) handleWithdraw(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	id, versionID, ok := f.versionFromForm(w, r)
-	if !ok || f.failed(w, r, f.store.Withdraw(r.Context(), s.AccountID(), id, versionID)) {
+	if !ok || f.actionFailed(w, r, f.store.Withdraw(r.Context(), s.AccountID(), id, versionID), docPath(id)+"/versions") {
 		return
 	}
 	notice.Redirect(w, r, docPath(id)+"/edit", "withdrawn")
@@ -450,6 +484,15 @@ func (f *Feature) viewData(w http.ResponseWriter, r *http.Request, s features.Ad
 	data["Mine"] = d.OwnerID == s.AccountID()
 	data["IsCurrent"] = d.CurrentID == v.ID
 	data["Notice"] = messages.From(r)
+	if d.OwnerID == s.AccountID() {
+		open, err := f.store.Open(r.Context(), s.AccountID(), d.ID)
+		if f.failed(w, r, err) {
+			return nil, false
+		}
+		data["Open"] = open
+	} else {
+		data["Open"] = Version{}
+	}
 	return data, true
 }
 
@@ -473,13 +516,6 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request, s features.
 	data, ok := f.viewData(w, r, s, d, v)
 	if !ok {
 		return
-	}
-	if data["Mine"] == true {
-		open, err := f.store.Open(r.Context(), s.AccountID(), id)
-		if f.failed(w, r, err) {
-			return
-		}
-		data["Open"] = open
 	}
 	if r.Method == http.MethodGet && !prefetch(r) {
 		if err := f.store.RecordRead(r.Context(), d, s.AccountID()); err != nil {
@@ -537,7 +573,7 @@ func (f *Feature) handleApprove(w http.ResponseWriter, r *http.Request, s featur
 		return
 	}
 	versionID, ok := docID(w, r, "version")
-	if !ok || f.failed(w, r, f.store.Approve(r.Context(), s.AccountID(), id, versionID)) {
+	if !ok || f.actionFailed(w, r, f.store.Approve(r.Context(), s.AccountID(), id, versionID), root+"/approvals") {
 		return
 	}
 	notice.Redirect(w, r, root+"/approvals", "approved")
@@ -568,7 +604,7 @@ func (f *Feature) handleReject(w http.ResponseWriter, r *http.Request, s feature
 		f.render(w, http.StatusBadRequest, "document.html", data)
 		return
 	}
-	if f.failed(w, r, err) {
+	if f.actionFailed(w, r, err, root+"/approvals") {
 		return
 	}
 	notice.Redirect(w, r, root+"/approvals", "rejected")
