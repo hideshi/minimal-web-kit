@@ -15,9 +15,21 @@ import (
 const (
 	MaxColumns = 20
 	MaxRows    = 200
-	maxURL     = 2048
-	maxDigits  = 9
+	// MaxImages は、1つの本文に書ける画像の数です（ParseWithImages）。
+	MaxImages = 100
+	// MaxAltRunes は、画像の説明の文字数の上限です。
+	MaxAltRunes = 200
+	maxURL      = 2048
+	maxDigits   = 9
+	// imagePath は、画像の記法に書けるURLの接頭辞です。
+	imagePath = "/media/"
 )
+
+// imageFile は、画像のファイル名の正規の形です（IDは32文字の小文字の16進数）。
+var imageFile = regexp.MustCompile(`^[a-f0-9]{32}\.(jpg|png)$`)
+
+// ImageFile は、画像のファイル名が正規の形かを返します。公開の経路も同じ形だけを認めます。
+func ImageFile(name string) bool { return imageFile.MatchString(name) }
 
 // LimitError は、表の上限を超えたことを示します（書き方の誤りはエラーにせず、文字として出します）。
 type LimitError struct{ Reason string }
@@ -36,7 +48,7 @@ type Inline struct {
 	Href string // Kind が "link" のときだけ。docs/richtext.md 5節の許可を通ったもの
 }
 
-// Block はブロック1つです。Kind は "h2"・"h3"・"p"・"ul"・"ol"・"table" のどれかです。
+// Block はブロック1つです。Kind は "h2"・"h3"・"p"・"ul"・"ol"・"table"・"image" のどれかです。
 type Block struct {
 	Kind    string
 	Inlines []Inline   // 見出し
@@ -45,6 +57,11 @@ type Block struct {
 	Caption string     // 表
 	Head    [][]Inline // 表の見出しの行のセル
 	Rows    [][][]Inline
+	Alt     string // 画像の説明
+	File    string // 画像のファイル名（<id>.<ext>）。URLは描く側が決める
+	Src     string // 描くURL。空なら説明の文字として描く（ResolveImages）
+	Width   int
+	Height  int
 }
 
 // Doc は読んだ本文です。
@@ -52,8 +69,39 @@ type Doc struct {
 	Blocks []Block
 }
 
-// Parse は本文を構造に読みます。エラーは表の上限を超えたときだけです。
-func Parse(body string) (Doc, error) {
+// Images は、本文の画像のファイル名を、重ねずに出てくる順で返します。
+func (d Doc) Images() []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, b := range d.Blocks {
+		if b.Kind == "image" && !seen[b.File] {
+			seen[b.File] = true
+			out = append(out, b.File)
+		}
+	}
+	return out
+}
+
+// ResolveImages は、画像のURLと大きさを埋めます。resolve が ok=false を返した画像は説明の文字として描きます。
+func (d Doc) ResolveImages(resolve func(file string) (src string, width, height int, ok bool)) {
+	for i := range d.Blocks {
+		b := &d.Blocks[i]
+		if b.Kind != "image" {
+			continue
+		}
+		if src, w, h, ok := resolve(b.File); ok {
+			b.Src, b.Width, b.Height = src, w, h
+		}
+	}
+}
+
+// Parse は本文を構造に読みます。画像の行は読みません。エラーは上限を超えたときだけです。
+func Parse(body string) (Doc, error) { return parse(body, false) }
+
+// ParseWithImages は Parse に加えて、画像の行を読みます（docs/richtext.md 2節の順6）。
+func ParseWithImages(body string) (Doc, error) { return parse(body, true) }
+
+func parse(body string, images bool) (Doc, error) {
 	raw := strings.Split(body, "\n")
 	lines := make([]string, len(raw))
 	for i, l := range raw {
@@ -68,11 +116,15 @@ func Parse(body string) (Doc, error) {
 		}
 	}
 	lastHeading := ""
-	tables := 0
+	tables, imageCount := 0, 0
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		kind := headingLevel(line)
 		ul, ol := listItem(line, "ul"), listItem(line, "ol")
+		alt, file, isImage := "", "", false
+		if images {
+			alt, file, isImage = imageLine(line)
+		}
 		switch {
 		case line == "":
 			closeBlock()
@@ -100,6 +152,12 @@ func Parse(body string) (Doc, error) {
 			}
 			doc.Blocks = append(doc.Blocks, b)
 			i = next - 1
+		case isImage:
+			closeBlock()
+			if imageCount++; imageCount > MaxImages {
+				return Doc{}, LimitError{fmt.Sprintf("more than %d images", MaxImages)}
+			}
+			doc.Blocks = append(doc.Blocks, Block{Kind: "image", Alt: alt, File: file})
 		case ul != "":
 			if cur == nil || cur.Kind != "ul" {
 				closeBlock()
@@ -122,6 +180,52 @@ func Parse(body string) (Doc, error) {
 	}
 	closeBlock()
 	return doc, nil
+}
+
+// imageLine は、行全体が画像の記法なら説明とファイル名を返します（docs/richtext.md 2.1節）。
+// 当たらない行は段落の行に任せます。読む時間は行の長さに比例します。
+func imageLine(line string) (alt, file string, ok bool) {
+	if !strings.HasPrefix(line, "![") {
+		return "", "", false
+	}
+	ts := lex(line)
+	if len(ts) < 2 || !ts[1].sym {
+		return "", "", false
+	}
+	closeAlt := -1
+	for i := 2; i < len(ts); i++ {
+		if ts[i].sym && ts[i].r == ']' {
+			closeAlt = i
+			break
+		}
+	}
+	if closeAlt < 0 || closeAlt+2 >= len(ts) || !ts[closeAlt+1].sym || ts[closeAlt+1].r != '(' {
+		return "", "", false
+	}
+	last := len(ts) - 1
+	if !ts[last].sym || ts[last].r != ')' {
+		return "", "", false
+	}
+	url := ts[closeAlt+2 : last]
+	for _, t := range url {
+		if t.sym || t.escaped {
+			return "", "", false
+		}
+	}
+	path := joinTokens(url)
+	if !strings.HasPrefix(path, imagePath) || !ImageFile(path[len(imagePath):]) {
+		return "", "", false
+	}
+	alt = strings.TrimSpace(joinTokens(ts[2:closeAlt]))
+	if alt == "" || utf8.RuneCountInString(alt) > MaxAltRunes {
+		return "", "", false
+	}
+	return alt, path[len(imagePath):], true
+}
+
+// ImageLine は、説明とファイル名から画像の行を作ります。読みを変える `\` と `]` だけを逃がします。
+func ImageLine(alt, file string) string {
+	return "![" + strings.NewReplacer(`\`, `\\`, `]`, `\]`).Replace(alt) + "](" + imagePath + file + ")"
 }
 
 // headingLevel は、見出しの行なら "h2"・"h3" を返します（docs/richtext.md 2節の順2）。
