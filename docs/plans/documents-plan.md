@@ -1,6 +1,6 @@
 # 社内文書機能の計画
 
-状態: 計画のレビュー前（2026-10-31）。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
+状態: 計画のレビューを反映済み（2026-10-31）。実装の前。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
 
 ## 目的
 
@@ -46,7 +46,7 @@
 | 移管の対象 | 所有者が停止中か削除済みの文書だけ。所有者ごとの一括で移す。画面には件数だけを出し、タイトルも見せない。移す先に操作者本人は選べない | タイトルも中身の一部になりうる。有効なアカウントの文書を奪えないようにする。自分へ移せば読めてしまう |
 | 移管時の依頼 | 承認待ちの版は取り下げて下書きへ戻す | 新しい所有者が承認者に含まれると、本人が承認できてしまう |
 | アカウントの削除 | 文書は残し、削除済みとして表示する。共有・承認・既読の行はIDのまま残す | 認証の表と機能の表をつながない。削除の前に移管を強制しない |
-| 名前の取得 | `AccountDirectory` の口を足す。呼び名の無い `federatedauth` は対象外で、文書機能との組み合わせは起動時に止める | 相手を選ぶには呼び名が要る。`federated_accounts` に呼び名が無い |
+| アカウントの情報 | `AccountDirectory` の口を足す。呼び名と状態（有効、停止中、不在）を返す。呼び名の無い `federatedauth` は対象外で、文書機能との組み合わせは起動時に止める | 相手を選ぶには呼び名が要り、移管と既読の母数には状態が要る。認証の表は機能から直接読まない。`federated_accounts` に呼び名が無い |
 
 呼び名の扱いが変わる。今は管理者だけが見ているアカウントの呼び名が、共有先と承認者を選ぶ画面で、ログイン中の全員に見える。`docs/data-inventory.md` と管理者認証の画面の説明を更新する。
 
@@ -70,10 +70,10 @@
 2. `Admin.AccountPage`・`Admin.AccountForm` を足す。ログインしていれば通す。文書機能だけが使う。
 3. `features/auth` の内部の `page`・`form`（パスキーの管理、ログアウト）は全員に開いたままにする。アカウント管理は `adminOnly` のまま。
 4. `web.NavLink` に `AllRoles` を足し、既定では一般ユーザーのナビに出さない。`adminNav` はロールを受け取る。`handleAdminHome` は今 `adminNav(false)[0]` で移動先を決めているので、実際のロールを使う。
-5. MCP: `/admin/agent/continue`・`approve` は `Page`・`Form` なので一般ユーザーは同意できない。さらに `/mcp` の `handle` で、`VerifyBearer` の後に `admin`・`member` 以外を403にする。ロールを下げた場合に、発行済みのトークンを止めるため。接続の許可の一覧からも一般ユーザーを除く。
+5. MCP: `/admin/agent/continue`・`approve` は `Page`・`Form` なので一般ユーザーは同意できない。さらに `/mcp` の `handle` で、`VerifyBearer` の後に `admin`・`member` 以外を403にする。ロールを下げた場合に、発行済みのトークンを止めるため。応答はスコープ不足と分ける。接続の許可の一覧（`agentAccounts`）からも一般ユーザーを除く。
 6. `roleLabel` を3つに分ける。今は `admin` 以外をすべて「メンバー」と表示する。`validRole` とロールの変更のフォームも3つにする。最後の管理者の守りは変えない。
-7. `federatedauth` は `AccountPage`・`AccountForm` を実装するが、`user` のロールは足さない（CHECK も変えない）。
-8. `oidcop` はロールを連携先へ渡していないので変えない。
+7. `federatedauth` は `AccountPage`・`AccountForm` を実装し、`Page`・`Form` も同じ許可の一覧で閉じる。`user` のロールは足さない（CHECK も変えない）。
+8. `oidcop` はロールを連携先へ渡していない。連携先の利用は、ロールとは別の利用許可で管理者が決めるので、`/admin/oidc/continue`・`approve` は `AccountPage`・`AccountForm` にする。一般ユーザーも、許可された連携先へログインできる。
 
 テスト: `test/admin_ui_test.go` の見本のすべての経路を一般ユーザーで開き、許可の一覧にある経路だけが通ることを確かめる。経路を足すと、この表に足さない限り落ちるようにする。
 
@@ -87,17 +87,19 @@
 
 `auth_credentials` などが `ON DELETE CASCADE` で参照している。`features/contact/migrate.go` の手順を写すと、`foreign_keys` が有効なまま `DROP TABLE` が行を消し、**パスキーとセッションが全部消える**。SQLiteの公式の手順に従う。
 
-1. 判定: `sqlite_master.sql` に `'user'` が無ければ移行する。作業用の表が残っていたら起動を止める。
+1. 判定: `sqlite_master.sql` にCHECKの列挙 `'admin', 'member', 'user'` が無ければ移行する（`webauthn_user_id` の `user` に当たらないよう、引用符を含めて照合する）。作業用の表が残っていたら起動を止める。
 2. `store.BackupBeforeMigration` で複製を作る。失敗したら移行しない。
 3. `db.Conn` で接続を1本に固定し、トランザクションの外で `PRAGMA foreign_keys=OFF` とする。値が0になったことを読み返す。
-4. トランザクションで、`auth_accounts_new` の作成、行の写し、`DROP TABLE auth_accounts`、改名、`sqlite_sequence` の値の確認、`PRAGMA foreign_key_check` を行う。
-5. コミットの後に `PRAGMA foreign_keys=ON` として読み返す。戻せなければ、その接続を壊して（`driver.ErrBadConn` を返して）プールへ返さない。
+4. `BEGIN IMMEDIATE` で、`sqlite_sequence` の値を読み、`auth_accounts_new` の作成、行の写し、`DROP TABLE auth_accounts`、改名、`sqlite_sequence` を読んだ値以上に戻す、`migrationSQL` の再実行（トリガーの再作成）、`PRAGMA foreign_key_check` を行う。
+5. コミットの後に `PRAGMA foreign_keys=ON` として読み返す。戻せなければ、`Conn.Raw` で `driver.ErrBadConn` を返して、その接続をプールへ返さない。
 
-新規のDBは `migration.sql` をそのまま流す。ID、呼び名、ロール、`webauthn_user_id`、パスキー、セッション、登録トークン、連携の識別子、エージェントのトークン、AUTOINCREMENT の次の値が残ることを、古い形式のDBから移行するテストで確かめる。
+`auth_accounts` の表が持つトリガー6本は、表を落とすと一緒に消える。`AUTH-INV-17` の失効がこれに頼っているので、作り直さないと、停止しても連携先のログインとエージェントのトークンが止まらない。
+
+新規のDBは `migration.sql` をそのまま流す。ID、呼び名、ロール、`webauthn_user_id`、パスキー、セッション、登録トークン、連携の識別子、エージェントのトークン、トリガー6本が残ること、最大のIDを削除した後に移行しても次のIDが再利用されないこと、旧形式では走り新形式では走らないこと、移行の後に停止するとトークンが失効することを、古い形式のファイルのDBから移行するテストで確かめる（共有キャッシュのメモリDBは使わない）。
 
 `Migrate` は `auth-setup` などのコマンドからも呼ばれる。この条件は `AUTH-INV` の新しい番号でテストに結びつける。
 
-**戻すときの注意**: 移行の後に古い版へ戻すと、古い版は `user` を止めないので、一般ユーザーが公開サイトを編集できる。文書機能を使い始めた後に戻すときは、先に一般ユーザーを停止する。配布の変更点に書く。
+**戻すときの注意**: 移行の後に古い版へ戻すと、古い版は `user` を止めないので、一般ユーザーが公開サイトを編集できる。古い版の画面では一般ユーザーのロールも変えられない。戻すときは、先に一般ユーザーを停止する。配布の変更点に書く。
 
 文書機能を有効にしていないサイトでも、この移行は1度だけ走る。
 
@@ -115,7 +117,7 @@
 | `document_reads` | `version_id`, `account_id`, `first_read_at` | 既読 | 文書の削除まで |
 | `document_transfers` | `id`, `from_account_id`, `to_account_id`, `by_account_id`, `count`, `transferred_at` | 移管の記録 | 3年で `Purge` |
 
-- 下書きと承認待ちは文書ごとに最大1つ（`state` を条件にした一意の索引）。
+- 下書きと承認待ちは、合わせて文書ごとに最大1つ（`state IN ('draft', 'pending')` を条件にした一意の索引）。承認待ちの間は改定を始められず、承認を経ない公開もできない。
 - `draft` の行だけ書き換えられる。それ以外の行のタイトルと本文は変えない。
 - 既読の記録は従業員の行動の記録に当たる。`PrivacyNotices` と `docs/data-inventory.md` に載せる。`minimal-web-kit-privacy` で見直す。
 - 本文とタイトルはログに出さない。カナリアのテストを足す。
@@ -137,7 +139,7 @@ stateDiagram-v2
 
 ## 読める範囲
 
-読む処理はすべて、閲覧者のアカウントIDを必ず受け取るストアの関数を通す。権限が無ければ、文書の有無も分からないように404を返す。一覧、検索、既読、版の履歴も同じ条件を使う。
+読む処理はすべて、閲覧者のアカウントIDを必ず受け取るストアの関数を通す。判定は文書単位ではなく版単位で行う。権限が無ければ、文書の有無も分からないように404を返す。一覧、検索、既読、版の履歴も同じ条件を使う。
 
 | 対象 | 読める人 |
 |---|---|
@@ -148,18 +150,21 @@ stateDiagram-v2
 
 システム管理者への例外は無い。
 
+`GET /admin/documents/{id}` は今の版だけを描き、共有先でない承認者には404を返す。承認者は `/{id}/versions/{version}` で依頼された版を開く。共有先でない承認者に、公開中の別の版を見せないため。
+
 ## 既読
 
 - 共有先が今の版を開くと、`INSERT OR IGNORE` で記録する。所有者、古い版を開く承認者は記録しない。
-- GETで書き込む例外として、仕様に理由を書く。ボタンなしで既読にするという要件による。`Sec-Purpose`・`Purpose` に `prefetch` を含む要求では記録しない。書き込みの失敗で本文の表示を止めない（ログに残す）。
+- GETで書き込む例外として、仕様に理由を書く。ボタンなしで既読にするという要件による。HEADと、`Sec-Purpose`・`Purpose` に `prefetch` を含む要求では記録しない。書き込みの失敗で本文の表示を止めない（ログに残す）。
 - 表示する母数は、`everyone` なら有効な全アカウント、`selected` なら共有先。
 
 ## 承認の処理
 
 - 依頼: 所有者の下書きに対して、有効なアカウントを1人以上選ぶ。本人は拒否する。
-- 判断: 版のIDをフォームに持つ。承認者本人の未判断の行だけ更新し、1つのトランザクションで残りを数え、全員そろえば `published` にして `current_version_id` を変える。
-- 差し戻し: 1人でも差し戻すと `rejected` になり、残りの人は判断できない。
+- 判断: 版のIDをフォームに持つ。`BEGIN IMMEDIATE` の取引で、版が `pending` であることを条件に、承認者本人の未判断の行だけ更新する。全員そろえば、`pending` を条件に `published` にして `current_version_id` を変える。
+- 差し戻し: 1人でも差し戻すと `rejected` になり、残りの人は判断できない。所有者の操作で、同じ内容の下書きを作る。
 - 取り下げ: 所有者が行う。承認者が停止されて進まないときは、取り下げて選び直す。
+- 移管: `BEGIN IMMEDIATE` の取引で、所有者が有効でないことを読み直してから移す。承認待ちは取り下げて、同じ内容の下書きを作る。
 - 古い画面からの送信は、状態の条件付きの更新で何も変えず、やり直しを促す。
 
 ## 画面
@@ -168,17 +173,21 @@ stateDiagram-v2
 
 | 経路 | 画面 | 型 |
 |---|---|---|
-| `GET /admin/documents` | 文書の一覧（読める文書、自分の文書、承認の依頼、フォルダ、検索、未読の印） | 一覧 |
+| `GET /admin/documents` | 読める文書の一覧（フォルダ、検索、未読の印） | 一覧 |
+| `GET /admin/documents/mine` | 自分の文書の一覧 | 一覧 |
+| `GET /admin/documents/approvals` | 承認の依頼の一覧 | 一覧 |
 | `GET /admin/documents/new`、`POST /admin/documents` | 作成 | 作成 |
-| `GET /admin/documents/{id}` | 閲覧（既読の記録、承認の判断のフォーム） | 詳細 |
+| `GET /admin/documents/{id}` | 今の版の閲覧（既読の記録） | 文書の閲覧（新しい型） |
 | `GET /admin/documents/{id}/edit` | 下書きの編集 | 編集 |
 | `GET /admin/documents/{id}/share` | 共有先の設定 | 編集 |
 | `GET /admin/documents/{id}/approval` | 承認の依頼 | 作成 |
 | `GET /admin/documents/{id}/reads` | 既読の状況 | 詳細 |
-| `GET /admin/documents/{id}/versions`、`/{version}` | 版の履歴と古い版 | 一覧、詳細 |
+| `GET /admin/documents/{id}/versions`、`/{version}` | 版の履歴と版の閲覧（承認の判断のフォーム） | 一覧、文書の閲覧 |
 | `GET /admin/documents/{id}/delete` | 削除の確認 | 削除の確認 |
 | `GET /admin/documents/folders` | フォルダ | 一覧＋追加 |
 | `GET /admin/documents/transfer` | 所有者の変更（`AdminPage`） | 一覧＋追加 |
+
+本文を読ませる画面は既存の「詳細」に合わないので、`docs/components.md` に「文書の閲覧」の型を足す。
 
 変更はPOSTだけで行い、`AccountForm` で守る（移管だけ `AdminForm`）。
 
