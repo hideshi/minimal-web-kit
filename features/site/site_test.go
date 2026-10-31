@@ -36,12 +36,12 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 	bodyStr := string(body)
 
 	expectedSnippets := []string{
-		"ムダを削ぎ落とし、最短で公開する。",
+		"集めない。増やさない。テストで守る。",
 		"組み込む依存は最小限 &amp; 単一バイナリ",
 		"<title>個人情報と依存を最小限に抑えるWeb開発基盤 - minimal-web-kit</title>",
 		"個人情報の取得最小化 &amp; 漏洩リスクへの対策",
 		"アクセシブルなUIデザイン",
-		"公的Webアクセシビリティ指針に基づくミニマルUI",
+		"id=\"bundled\"",
 		`<div class="hero-cta">
     <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
       <span class="btn-main-text">GitHubでキットを入手する</span>
@@ -55,12 +55,10 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"id=\"contact\"",
 		"お問い合わせ・フィードバック",
 		"id=\"use-cases\"",
-		"広がるユースケース",
-		"SITE（LP TEMPLATE）",
-		"NEWS / CATALOG",
+		"id=\"quality\"",
+		"共通認証（自社システム向け）",
 		"社内ツール &amp; 業務Webアプリ",
 		"マイクロSaaS",
-		"選べるスターター ＆ 自在な拡張基盤",
 		"公開ページの閲覧ではCookieを発行せず、セッションも作りません。",
 		"STANDARD LIBRARY FIRST",
 		"プライバシーポリシー・免責事項",

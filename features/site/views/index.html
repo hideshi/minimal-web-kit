@@ -1,9 +1,9 @@
 {{define "content"}}
 <section class="hero">
   <span class="card-badge">STANDARD LIBRARY FIRST</span>
-  <h1 class="hero-title">ムダを削ぎ落とし、最短で公開する。</h1>
+  <h1 class="hero-title">集めない。増やさない。テストで守る。</h1>
   <p class="hero-lead">
-    共通認証を使わなければ、組み込まれる直接依存はSQLiteドライバだけ。Node.js/npm不要。Go標準機能と公的Webアクセシビリティ指針に基づくミニマルUIで、安全・堅牢なWebサイトとサービスを今すぐ立ち上げられます。
+    個人情報と依存を最小にしたWebアプリを、AIと一緒に安全に作るためのGoのひな形です。Node.js/npmは不要で、単一の実行ファイルで動きます。共通認証を使わなければ、組み込まれる直接依存はSQLiteドライバだけです。
   </p>
   <div class="hero-cta">
     <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
@@ -19,8 +19,8 @@
 
 <section id="features" class="section">
   <div class="section-header">
-    <h2>3つのコアバリュー</h2>
-    <p class="section-lead">フレームワークの複雑さに煩わされず、本質的な機能作りに集中できます。</p>
+    <h2>3つの約束</h2>
+    <p class="section-lead">AIが書くコードでも崩れないよう、規約と検査で支えます。</p>
   </div>
 
   <div class="grid-3">
@@ -50,80 +50,167 @@
   </div>
 </section>
 
+<section id="bundled" class="section">
+  <div class="section-header">
+    <h2>同梱機能</h2>
+    <p class="section-lead">必要な機能だけをコマンドで有効にできます。有効にしない機能の画面と経路は増えません。</p>
+  </div>
+
+  <div class="grid-3">
+    <article class="card">
+      <span class="card-badge">SITE</span>
+      <h3 class="card-title">LPテンプレート</h3>
+      <p class="card-content">ヘッダー・フッター、検索エンジン向けの設定、sitemapを用意しています。Siteだけなら静的ホスティングにも置けます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">NEWS</span>
+      <h3 class="card-title">お知らせ</h3>
+      <p class="card-content">公開ページと読み取り専用のJSON API、記事の管理画面です。日時を決めた予約公開もできます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">CATALOG</span>
+      <h3 class="card-title">カタログ</h3>
+      <p class="card-content">商品や事例の一覧を、キーワード・カテゴリ・タグで絞り込めます。JavaScriptが無くても使えます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">CONTACT</span>
+      <h3 class="card-title">お問い合わせ</h3>
+      <p class="card-content">IPアドレスを記録せず、外部のCAPTCHAも使わないフォームです。受信箱で、対応の状態とメモを管理できます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">PAGES</span>
+      <h3 class="card-title">固定ページ</h3>
+      <p class="card-content">会社概要などのページを管理画面で作れます。書き方を絞ったMarkdownで書き、公開の前にプレビューで確かめられます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">AUTH</span>
+      <h3 class="card-title">パスキーの管理者認証</h3>
+      <p class="card-content">パスワードを使わず、パスキーだけでログインします。管理者・メンバーのロールで、複数人のアカウントを使えます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">FEDERATED AUTH</span>
+      <h3 class="card-title">共通認証（自社システム向け）</h3>
+      <p class="card-content">管理者認証のアカウントで、自社の別システムにログインできます。止めたアカウントは次の要求から拒否します。他社への開放やSPA・モバイルは対象外です。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">BACKUP</span>
+      <h3 class="card-title">バックアップ</h3>
+      <p class="card-content">稼働中でも、SQLiteの整合した複製を作るコマンドと、複製を検査するコマンドがあります。外への保管は運用で行います。</p>
+    </article>
+  </div>
+</section>
+
+<section id="quality" class="section">
+  <div class="section-header">
+    <h2>文書だけでなく、テストで守る</h2>
+    <p class="section-lead">規約を破る変更は、テストが落ちます。安全を保証するものではありませんが、崩れに早く気づけます。</p>
+  </div>
+
+  <div class="grid-3">
+    <article class="card">
+      <span class="card-badge">DEPENDENCY</span>
+      <h3 class="card-title">依存の許可リスト</h3>
+      <p class="card-content">許可していない直接依存と、実行ファイルに入るモジュールの増減を検出します。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">DATA</span>
+      <h3 class="card-title">データ台帳との突き合わせ</h3>
+      <p class="card-content">実際の表と列が、保存目的と保持期間を書いた台帳と合っているかを確かめます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">SPEC</span>
+      <h3 class="card-title">仕様とテストの対応</h3>
+      <p class="card-content">不変条件とユースケースに、対応するテストがあるかを確かめます。内容の一致はレビューで確かめます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">LOG</span>
+      <h3 class="card-title">ログへの漏洩の検査</h3>
+      <p class="card-content">入力やトークンがログに出ていないかを、目印の値を流して確かめます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">UI</span>
+      <h3 class="card-title">管理画面の標準と実ブラウザの確認</h3>
+      <p class="card-content">管理画面が標準の型に沿っているかを検査します。部品の操作はChromeで確かめます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">VULNERABILITY</span>
+      <h3 class="card-title">既知の脆弱性の毎日の点検</h3>
+      <p class="card-content">Go本体と依存の既知の脆弱性を、CIで毎日調べます。本番へ届けるには配備が要ります。</p>
+    </article>
+  </div>
+</section>
+
 <section id="use-cases" class="section">
   <div class="section-header">
-    <h2>企業サイトから社内ツール、マイクロSaaSまで。広がるユースケース</h2>
-    <p class="section-lead">個人情報の取得を必要最小限に抑える設計とGo標準＋SQLiteの最小構成を土台に、用途に応じたWebシステムを構築できます。</p>
+    <h2>企業サイトから社内ツール、マイクロSaaSまで</h2>
+    <p class="section-lead">個人情報の取得を必要最小限に抑える設計を土台に、用途に応じたWebシステムを作れます。</p>
   </div>
 
   <div class="grid-2">
     <article class="card">
-      <span class="card-badge">SITE（LP TEMPLATE）</span>
+      <span class="card-badge">WEBSITE</span>
       <h3 class="card-title">企業サイト &amp; サービスLP</h3>
-      <p class="card-content">
-        公開ページの閲覧ではCookieを発行せず、セッションも作りません。閲覧のための個人情報登録を求めず、保存するデータを減らす構成です。
-      </p>
+      <p class="card-content">公開ページの閲覧ではCookieを発行せず、セッションも作りません。お知らせ・固定ページ・お問い合わせを足せます。</p>
     </article>
 
     <article class="card">
-      <span class="card-badge">NEWS / CATALOG / CONTACT</span>
-      <h3 class="card-title">お知らせ・カタログ &amp; パスキーの管理画面</h3>
-      <p class="card-content">
-        お知らせ（予約公開・JSON API）、カテゴリ・タグで絞り込めるカタログ、IPアドレスを記録せず外部のCAPTCHAも使わないお問い合わせのフォームと受信箱を同梱しています。管理画面はパスワードを使わず、Windows Helloやセキュリティキーなど端末に保存されるパスキーでログインし、管理者・メンバーのロールで複数人のアカウントを使えます（同期型のパスキーは既定では使えず、設定で許可できます）。
-      </p>
+      <span class="card-badge">CATALOG SITE</span>
+      <h3 class="card-title">事例集 &amp; 商品紹介</h3>
+      <p class="card-content">カタログと管理画面で、公開する内容を複数人で更新できます。注文や在庫の機能は含みません。</p>
     </article>
 
     <article class="card">
       <span class="card-badge">INTERNAL TOOLS</span>
       <h3 class="card-title">社内ツール &amp; 業務Webアプリ</h3>
-      <p class="card-content">
-        申請ワークフロー、集計ダッシュボード、管理ツールなど。業務上必要な情報を見極め、取得する場合は保存項目や保持期間を明確にします。パスキーでログインする管理者認証（管理者・メンバーのロール）を土台に、業務に合わせた権限を各機能で設計できます。
-      </p>
+      <p class="card-content">申請や集計など。パスキーの管理者認証を土台に、業務に合わせた権限を機能ごとに設計します。</p>
     </article>
 
     <article class="card">
       <span class="card-badge">MICRO SAAS</span>
       <h3 class="card-title">登録不要のマイクロSaaS &amp; ユーティリティ</h3>
-      <p class="card-content">
-        匿名アンケート、ファイル加工・変換、一時共有スペースなど。メールアドレスやパスワードのアカウント登録なしで即座に提供できる、プライバシー重視のサービスを最速で立ち上げられます。
-      </p>
+      <p class="card-content">匿名アンケート、ファイル変換など。メールアドレスの登録なしで提供するサービスを作れます。</p>
     </article>
-  </div>
-
-  <div class="card">
-    <div class="card-content">
-      <p><strong>選べるスターター ＆ 自在な拡張基盤:</strong> 同梱のLPテンプレート（Site）、お知らせ機能（News）、カタログ（Catalog）、お問い合わせ（Contact）、固定ページ（Pages）から始めることも、サンプルのないクリーン基盤からあなた独自のWebアプリケーションをゼロから組み立てることも自由自在。強固なセキュリティ規約と自動テストが、あなたの開発を安全に支え続けます。</p>
-    </div>
   </div>
 </section>
 
 <section id="how-it-works" class="section">
   <div class="section-header">
-    <h2>AI開発ツールと3ステップで構築</h2>
-    <p class="section-lead">編集にはClaude Code、Codex、Cursor、Antigravityのいずれかを推奨します。同梱の6本のスキル（設計・実装・監査・本番・プライバシー・脆弱性）を読み込んで進めてください。</p>
+    <h2>AI開発ツールと4ステップで構築</h2>
+    <p class="section-lead">編集にはClaude Code、Codex、Cursor、Antigravityのいずれかを推奨します。同梱の6本のスキルを、手順に合わせて読み込みます。</p>
   </div>
 
   <ol class="step-list" role="list">
     <li class="step-item">
       <div class="step-number">STEP 1</div>
-      <h3 class="step-title">同梱機能から素早く立ち上げ</h3>
-      <p class="step-content">
-        必要な機能だけを選んでコマンド一発で組み込み。サンプルのないクリーン基盤に、LPテンプレート（Site）、お知らせ機能（News）、カタログ（Catalog）、お問い合わせ（Contact）、固定ページ（Pages）を自在に組み込めます。
-      </p>
+      <h3 class="step-title">要件を確かめる</h3>
+      <p class="step-content">実装の前に、目的、保存するデータ、増える依存を確かめます。設計スキルが、確認が要る項目を示します。</p>
     </li>
     <li class="step-item">
       <div class="step-number">STEP 2</div>
-      <h3 class="step-title">HTMLとGoで直感的に拡張</h3>
-      <p class="step-content">
-        複雑なビルドパイプラインに悩まされることなく、セマンティックなHTMLと型安全なGoコードでコンテンツや自作機能を追加できます。
-      </p>
+      <h3 class="step-title">同梱機能とGoで作る</h3>
+      <p class="step-content">必要な機能をコマンドで組み込み、セマンティックなHTMLとGoで自作の機能を足します。実装スキルが、キットの決まりを示します。</p>
     </li>
     <li class="step-item">
       <div class="step-number">STEP 3</div>
-      <h3 class="step-title">make build で配布用バイナリを作成</h3>
-      <p class="step-content">
-        静的アセットやマイグレーションを単一実行ファイルに埋め込み。対象OS・CPU向けにビルドして配置できます。公開前にHTTPS、待受アドレス、Cookieの保護設定、保存先の権限・バックアップ方針を確認します。
-      </p>
+      <h3 class="step-title">検査する</h3>
+      <p class="step-content">テスト、依存、脆弱性を確かめます。監査スキルと脆弱性のスキルが、見る項目を示します。プライバシーポリシーの見直しにも、専用のスキルがあります。</p>
+    </li>
+    <li class="step-item">
+      <div class="step-number">STEP 4</div>
+      <h3 class="step-title">本番に出す</h3>
+      <p class="step-content"><code>make build</code> で単一の実行ファイルを作って配置します。本番スキルが、手順書の作り方、HTTPSやバックアップで決めること、戻し方を示します。</p>
     </li>
   </ol>
 
@@ -154,6 +241,27 @@
       <summary>データベースのセットアップや管理は必要ですか？</summary>
       <div class="faq-answer">
         <p>LPの表示処理はDBにデータを保存せず、新規のセッションCookieも発行しません。ただし、同梱サーバーは起動時にSQLiteのDBファイルを開き、必要なテーブルが無い場合だけ作成します（既存のデータは削除しません）。別のDBサーバーの構築は不要ですが、保存先の権限・容量・バックアップの管理は必要です。</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary>本番はどこに置けますか？</summary>
+      <div class="faq-answer">
+        <p>常駐のプロセスとSQLiteのファイルを置けるLinuxサーバー（VPS・EC2等）です。共用レンタルサーバーやサーバーレスの環境には置けません。Siteだけなら静的ホスティングも選べます。HTTPSの終端はリバースプロキシかトンネルで行います。</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary>バックアップは必要ですか？</summary>
+      <div class="faq-answer">
+        <p>管理画面を使うなら必要です。データは1つのSQLiteのファイルにあり、サーバーごと失うと戻せません。複製と検査のコマンドはありますが、サーバーの外へ送る仕組みは運用で用意してください。戻せることも、定期的に試してください。</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary>別のシステムのログインに使えますか？</summary>
+      <div class="faq-answer">
+        <p>自社が管理するサーバー型のWebアプリなら使えます。OpenID Connectでログインし、要求のたびに認証基盤へ有効性を確かめるので、認証基盤が止まると連携先の保護された機能も使えません。本番での運用実績はまだ無く、実ブラウザの確認はChromiumだけです。</p>
       </div>
     </details>
 
