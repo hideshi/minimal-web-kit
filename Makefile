@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify vuln clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-oidcop remove-oidcop add-federatedauth remove-federatedauth
+.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-oidcop remove-oidcop add-federatedauth remove-federatedauth
 
 BIN_NAME := minimal-web-kit
 
@@ -33,6 +33,10 @@ vuln:
 	fi; \
 	rm -rf "$$tmp"; \
 	exit $$status
+
+# プッシュの前に、Goが古ければ警告する（プッシュは止めない。クローンごとに1回実行する）
+hooks:
+	git config core.hooksPath .githooks
 
 # 画面部品をChrome・Chromiumで操作するテスト（別モジュール。Chromeが無ければ飛ばす。CHROME_PATHで指定可）
 test-ui:

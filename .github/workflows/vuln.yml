@@ -1,0 +1,33 @@
+# 毎日、既知の脆弱性を調べる。プッシュが無い日も、公開された脆弱性に気づくため。
+# 3つとも実行し、どれかが見つけたら失敗にする（失敗はGitHubの通知で届く）。
+# 手順は skills/minimal-web-kit-vuln。修正前の脆弱性の詳しい条件は、ここやIssueに書かない。
+name: vuln
+
+on:
+  schedule:
+    - cron: "17 21 * * *" # 日本時間の6時17分
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vuln:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Goの版
+        run: scripts/check-go-version.sh
+      - name: govulncheck
+        if: ${{ !cancelled() }}
+        run: make vuln
+      - name: GitHubの勧告
+        if: ${{ !cancelled() }}
+        run: scripts/check-advisories.sh
+        env:
+          GH_TOKEN: ${{ github.token }}

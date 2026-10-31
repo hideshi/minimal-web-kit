@@ -216,6 +216,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make build` | CGO無効で `bin/minimal-web-kit` を作成 |
 | `make test` | `go test -race -v ./...` で全テストを実行 |
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
+| `make hooks` | プッシュの前に、Goが古ければ警告する（止めない。クローンごとに1回） |
 | `make vuln` | Go本体と依存の既知の脆弱性を調べる（`govulncheck`。本体のソースと、`test/browser` のテストの実行ファイルを見る。SQLite本体とhtmxは見えないので、手順は `minimal-web-kit-vuln`） |
 | `make test-ui` | 画面部品をChrome・Chromiumで操作して確かめ、主な管理画面を `test/browser/shots/` に撮る（`test/browser/` の別モジュール。chromedpを使い、キット本体の依存には含めない。Chromeが無ければ飛ばす。`CHROME_PATH` で指定可） |
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |

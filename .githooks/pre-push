@@ -1,0 +1,7 @@
+#!/bin/sh
+# Goが古ければ警告します。プッシュは止めません（検出の主役は .github/workflows/vuln.yml）。
+if [ -x scripts/check-go-version.sh ] && ! scripts/check-go-version.sh >/dev/null 2>"${TMPDIR:-/tmp}/kit-go-check.$$"; then
+	cat "${TMPDIR:-/tmp}/kit-go-check.$$" >&2
+fi
+rm -f "${TMPDIR:-/tmp}/kit-go-check.$$"
+exit 0
