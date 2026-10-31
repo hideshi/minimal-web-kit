@@ -176,7 +176,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 
 /* ヒーローセクション */
 .hero {
-  text-align: center;
+  text-align: left;
   padding: var(--space-xl) var(--space-md);
   margin-bottom: var(--space-2xl);
   background-color: var(--color-surface);
@@ -196,7 +196,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   font-size: 1.1rem;
   color: #333333;
   max-width: 680px;
-  margin: 0 auto var(--space-lg) auto;
+  margin: 0 0 var(--space-lg);
   line-height: 1.8;
 }
 
@@ -204,13 +204,13 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 .hero-cta {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-md);
 }
 
 .hero-links {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--space-sm);
   flex-wrap: wrap;
 }
