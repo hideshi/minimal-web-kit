@@ -1,0 +1,13 @@
+{{define "content"}}
+<h1>MCPの有効化の確認</h1>
+<p>{{.Label}}のMCPを有効にします。次の注意を確かめてください。</p>
+<p class="alert alert-warning">{{.Message}}</p>
+<div class="action-bar">
+  <form method="post" action="/admin/mcp/{{.Name}}/enable" class="inline-form">
+    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+    <input type="hidden" name="confirmed" value="1">
+    <button type="submit" class="btn btn-primary">注意を確かめて有効にする</button>
+  </form>
+  <a href="/admin/mcp" class="btn btn-secondary">有効にせずに戻る</a>
+</div>
+{{end}}

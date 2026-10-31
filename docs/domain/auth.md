@@ -81,7 +81,7 @@
 | AUTH-INV-23 | エージェントのトークンは、発行時の世代と `resource` に固定する。要求ごとに今の世代と比べ、停止・削除・利用許可の取り消し・クライアントの停止で直ちに無効になる。確認できないときは無効と同じく実行させない。期限は発行から8時間で固定し、更新の手段を持たない | `VerifyAgentToken` |
 | AUTH-INV-24 | クライアントの種類は登録で決まる。秘密値の無い要求を公開クライアントとして扱わず、OIDCの連携先は `/agent/token` で使えず、公開クライアントはOIDCのログインに使えない。公開クライアントの戻り先は、登録と同じスキーム・ホスト・パスに限り、ポートだけ可変にする。不正な戻り先へは転送しない | `CreateAgentClient`・`LoginClient`・`agentRedirectMatches`・`authorize` |
 | AUTH-INV-25 | エージェントの同意は、画面に出した要求だけを承認できる。Cookieの要求とフォームの要求が違えば、何も発行しない | `approve` |
-| AUTH-INV-26 | 一般ユーザーは、`AccountPage`・`AccountForm` の画面、自分のパスキーの管理、ログアウトだけを使える。公開サイトの編集、アカウントの管理、MCPは使えず、ナビにも出ない。`Page`・`Form` とMCPは許可の一覧で判定し、未知のロールも通さない。ロールを下げると、発行済みのエージェントのトークンも次の要求から止まる | `CanManageSite`・`siteOnly`・`handle`・`agentAccounts` |
+| AUTH-INV-26 | 一般ユーザーは、`AccountPage`・`AccountForm` の画面、自分のパスキーの管理、ログアウト、エージェントの接続の同意だけを使える。公開サイトの編集、アカウントの管理はできず、ナビにも出ない。MCPは `AllRoles` のツールだけを使える。`Page`・`Form` とMCPは許可の一覧で判定し、未知のロールも通さない。ロールを下げると、発行済みのエージェントのトークンも次の要求から狭まる | `CanManageSite`・`Known`・`siteOnly`・`handle`・`usable` |
 | AUTH-INV-27 | ロールの移行で、アカウント、参照する行、トリガーを失わず、削除済みのIDも再利用しない。旧称の `member` は `site_admin` に写す。移行の前に複製を作り、失敗したら元のままで起動を止める。外部キーを止めた接続はプールへ返さない | `migrateRoles`・`migrate`・`RebuildTable`・`setForeignKeys` |
 
 前提: AUTH-INV-1・AUTH-INV-4・AUTH-INV-7・AUTH-INV-8 は、判定と更新を1つの文（またはトランザクション）で行い、同時操作でも破れないようにしています。これは、SQLiteが書き込みを1つずつしか通さないことに頼っています。DBを替えるときは見直してください。たとえばPostgreSQLの既定の分離レベル（READ COMMITTED）では、2人のシステム管理者が同時にお互いを降格すると、どちらの文も相手を有効なシステム管理者と数えて通り、有効なシステム管理者が0人になりえます。その場合は `SERIALIZABLE` にするか、対象の行をロック（`SELECT ... FOR UPDATE`）してから判定します。

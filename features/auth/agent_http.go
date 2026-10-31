@@ -127,8 +127,8 @@ func (a *agentAuth) RegisterAgentRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", a.metadata)
 	mux.HandleFunc("POST /agent/token", a.token)
 	mux.HandleFunc("GET /admin/agent/authorize", a.authorize)
-	mux.HandleFunc("GET /admin/agent/continue", a.f.Admin().Page(a.continueFlow))
-	mux.HandleFunc("POST /admin/agent/approve", a.f.Admin().Form(a.approve))
+	mux.HandleFunc("GET /admin/agent/continue", a.f.Admin().AccountPage(a.continueFlow))
+	mux.HandleFunc("POST /admin/agent/approve", a.f.Admin().AccountForm(a.approve))
 }
 
 func (a *agentAuth) scopeNames() []string {

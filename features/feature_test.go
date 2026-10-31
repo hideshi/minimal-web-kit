@@ -81,11 +81,16 @@ func TestRegistry_NavLinkSource(t *testing.T) {
 	}
 }
 
-// 不変条件: AUTH-INV-26
+// 不変条件: AUTH-INV-26, MCP-INV-11
 func TestRole_CanManageSiteIsAnAllowList(t *testing.T) {
 	for role, want := range map[Role]bool{RoleAdmin: true, RoleSiteAdmin: true, RoleUser: false, "": false, "other": false} {
 		if got := role.CanManageSite(); got != want {
 			t.Errorf("%q: %v", role, got)
+		}
+	}
+	for role, want := range map[Role]bool{RoleAdmin: true, RoleSiteAdmin: true, RoleUser: true, "": false, "other": false} {
+		if got := role.Known(); got != want {
+			t.Errorf("known %q: %v", role, got)
 		}
 	}
 }

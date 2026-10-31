@@ -55,6 +55,7 @@ func (s *settingsStore) set(ctx context.Context, feature string, enabled bool) e
 type settingRow struct {
 	Name, Label string
 	Enabled     bool
+	Notice      bool // 有効にする前に確認の画面を出す
 	Reads       int
 	Writes      int
 }
@@ -86,7 +87,7 @@ func (f *Feature) handleSettings(w http.ResponseWriter, r *http.Request, s featu
 func (f *Feature) settingRows(settings map[string]setting) []settingRow {
 	var rows []settingRow
 	for _, m := range f.sources {
-		row := settingRow{Name: m.Name(), Label: m.MCPLabel(), Enabled: settings[m.Name()].Enabled}
+		row := settingRow{Name: m.Name(), Label: m.MCPLabel(), Enabled: settings[m.Name()].Enabled, Notice: enableNotice(m) != ""}
 		for _, t := range m.MCPTools() {
 			if t.Effect == features.MCPRead {
 				row.Reads++
@@ -112,6 +113,42 @@ func (f *Feature) render(w http.ResponseWriter, status int, page string, data ma
 	_, _ = buf.WriteTo(w)
 }
 
+// enableNotice は、機能が有効化の前に見せる注意を返します。無ければ空です。
+func enableNotice(m features.MCPFeature) string {
+	if n, ok := m.(features.MCPEnableNoticeFeature); ok {
+		return n.MCPEnableNotice()
+	}
+	return ""
+}
+
+func (f *Feature) noticeFor(name string) string {
+	for _, m := range f.sources {
+		if m.Name() == name {
+			return enableNotice(m)
+		}
+	}
+	return ""
+}
+
+// handleEnablePage は、有効化の前の確認の画面です。何も変えません。注意を持たない機能には出しません。
+func (f *Feature) handleEnablePage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+	name := r.PathValue("feature")
+	message := f.noticeFor(name)
+	if message == "" {
+		http.NotFound(w, r)
+		return
+	}
+	label := name
+	for _, m := range f.sources {
+		if m.Name() == name {
+			label = m.MCPLabel()
+		}
+	}
+	data := s.PageData("MCPの有効化の確認", "/admin/mcp")
+	data["Name"], data["Label"], data["Message"] = name, label, message
+	f.render(w, http.StatusOK, "admin_mcp_enable.html", data)
+}
+
 func (f *Feature) handleChange(enabled bool) func(http.ResponseWriter, *http.Request, features.AdminSession) {
 	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 		name := r.PathValue("feature")
@@ -121,6 +158,12 @@ func (f *Feature) handleChange(enabled bool) func(http.ResponseWriter, *http.Req
 		}
 		if !known {
 			http.NotFound(w, r)
+			return
+		}
+		// 注意を持つ機能は、確認の画面を経る。誤操作を防ぐ確認で、権限の境界ではない
+		// 不変条件: MCP-INV-12
+		if enabled && r.PostForm.Get("confirmed") != "1" && f.noticeFor(name) != "" {
+			http.Redirect(w, r, "/admin/mcp/features/"+name+"/enable", http.StatusSeeOther)
 			return
 		}
 		if err := f.store.set(r.Context(), name, enabled); store.Busy(err) {

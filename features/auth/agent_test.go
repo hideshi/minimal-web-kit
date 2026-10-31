@@ -552,7 +552,7 @@ func TestLoginClient_ExcludesAgentClients(t *testing.T) {
 }
 
 // 不変条件: AUTH-INV-26
-func TestAgentClient_ListsOnlySiteRoles(t *testing.T) {
+func TestAgentClient_ListsEveryRole(t *testing.T) {
 	a := newAgentFixture(t)
 	_, user := authtest.NewAccountSession(t, a.fx.db, "user")
 	got, err := a.auth.AgentClient(context.Background(), a.client.ID)
@@ -561,12 +561,9 @@ func TestAgentClient_ListsOnlySiteRoles(t *testing.T) {
 	}
 	found := false
 	for _, account := range got.Accounts {
-		found = found || account.ID == a.account
-		if account.ID == user {
-			t.Fatal("a general user must not be listed")
-		}
+		found = found || account.ID == user
 	}
 	if !found {
-		t.Fatal("the member must be listed")
+		t.Fatal("a general user must be listed: documents are open to every role")
 	}
 }

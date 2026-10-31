@@ -129,7 +129,7 @@ func (f *Feature) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
-	if !principal.Role.CanManageSite() { // ロールを下げた後の、発行済みのトークンも止める
+	if !principal.Role.Known() {
 		w.WriteHeader(http.StatusForbidden)
 		return
 	}
@@ -223,6 +223,12 @@ func (f *Feature) checkHeaders(w http.ResponseWriter, r *http.Request, q rpcRequ
 	return true
 }
 
+// usable は、ロールがそのツールを使えるかを返します。AllRoles でないツールは、各機能の管理画面を使えるロールだけです。
+// 不変条件: MCP-INV-11
+func usable(e entry, p features.AgentPrincipal) bool {
+	return e.tool.AllRoles || p.Role.CanManageSite()
+}
+
 func (f *Feature) listTools(w http.ResponseWriter, r *http.Request, q rpcRequest, p features.AgentPrincipal) {
 	if !p.HasScope(scopeRead) && !p.HasScope(scopeWrite) {
 		f.forbidden(w, scopeRead)
@@ -237,7 +243,7 @@ func (f *Feature) listTools(w http.ResponseWriter, r *http.Request, q rpcRequest
 	tools := []any{}
 	for _, name := range f.order {
 		e := f.tools[name]
-		if !settings[e.feature].Enabled {
+		if !settings[e.feature].Enabled || !usable(e, p) {
 			continue
 		}
 		read := e.tool.Effect == features.MCPRead
@@ -259,7 +265,7 @@ func (f *Feature) listTools(w http.ResponseWriter, r *http.Request, q rpcRequest
 
 func (f *Feature) callTool(w http.ResponseWriter, r *http.Request, q rpcRequest, params callParams, p features.AgentPrincipal) {
 	e, known := f.tools[params.Name]
-	if !known {
+	if !known || !usable(e, p) { // 一般ユーザーに、他の機能のツールの有無を伝えない。確認の送り直しもここを通る
 		replyError(w, http.StatusOK, q.ID, codeInvalidParams, "Unknown tool", nil)
 		return
 	}

@@ -21,6 +21,7 @@ import (
 	"minimal-web-kit/features/auth"
 	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/catalog"
+	"minimal-web-kit/features/documents"
 	"minimal-web-kit/features/mcp"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
@@ -37,6 +38,7 @@ type mcpEnv struct {
 	admin  *http.Cookie
 	csrf   string
 	core   *store.SQLiteStore
+	client string
 }
 
 // newMCPEnv は、起動処理と同じ配線で、3機能とMCPサーバーを組み込み、トークンを発行します。
@@ -55,6 +57,7 @@ func newMCPEnv(t *testing.T) *mcpEnv {
 	reg.Register(news.NewFeature(logger))
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(pages.NewFeature(logger))
+	reg.Register(documents.NewFeature(logger))
 	reg.Register(mcp.NewFeature(logger))
 	for _, f := range reg.All() {
 		if err := f.Init(core.DB()); err != nil {
@@ -90,7 +93,7 @@ func newMCPEnv(t *testing.T) *mcpEnv {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := &mcpEnv{t: t, routes: routes, token: grant.Token, admin: cookie, core: core}
+	e := &mcpEnv{t: t, routes: routes, token: grant.Token, admin: cookie, core: core, client: client.ID}
 	e.csrf = authtest.CSRFToken(t, routes, "/admin/mcp", cookie)
 	for _, name := range []string{"news", "catalog", "pages"} {
 		if w := e.adminPost("/admin/mcp/"+name+"/enable", ""); w.Code != http.StatusSeeOther {
@@ -539,36 +542,6 @@ func TestMCP_ClientsFromTheAdminScreen(t *testing.T) {
 
 // TestMCP_ClientManagementIsAdminOnly は、メンバーが操作できず、OIDCの連携先と不正な戻り先を扱わないことを確かめます。
 // 不変条件: MCP-INV-10, AUTH-INV-24
-// TestMCP_UserRoleIsRefused は、ロールを一般ユーザーに下げると、発行済みのトークンが止まり、同意もできないことを確かめる。
-// 不変条件: AUTH-INV-26
-func TestMCP_UserRoleIsRefused(t *testing.T) {
-	e := newMCPEnv(t)
-	e.call("tools/list", "", nil) // 下げる前は通る
-	db := e.core.DB()
-	if _, err := db.Exec("UPDATE auth_accounts SET role = 'user'"); err != nil {
-		t.Fatal(err)
-	}
-	raw := `{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}`
-	req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(raw))
-	req.Host = "localhost:8080" // 他の403（接続先の検査）と取り違えない
-	req.Header.Set("Authorization", "Bearer "+e.token)
-	req.Header.Set("MCP-Protocol-Version", "2026-07-28")
-	req.Header.Set("Mcp-Method", "tools/list")
-	w := httptest.NewRecorder()
-	e.routes.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Fatalf("tools/list as user: %d", w.Code)
-	}
-	if strings.Contains(w.Header().Get("WWW-Authenticate"), "insufficient_scope") {
-		t.Fatal("a role refusal must not ask for more scope")
-	}
-	cookie, _ := authtest.NewAccountSession(t, db, "user")
-	csrf := authtest.CSRFToken(t, e.routes, "/admin/passkeys", cookie)
-	if w := e.formPost(cookie, csrf, "/admin/agent/approve", ""); w.Code != http.StatusForbidden {
-		t.Fatalf("approve as user: %d", w.Code)
-	}
-}
-
 func TestMCP_ClientManagementIsAdminOnly(t *testing.T) {
 	e := newMCPEnv(t)
 	ctx := context.Background()

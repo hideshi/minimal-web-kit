@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/page"
 	"minimal-web-kit/internal/web/richtext"
@@ -166,6 +167,17 @@ func (s *Store) atomic(ctx context.Context, fn func(c *sql.Conn) error) error {
 	return nil
 }
 
+// snapshot は、1つの読み取りの取引の中で fn を実行します。権限の判定と本文の取得の間に、
+// 移管や共有の解除、下書きの更新が割り込まないようにします（判定の後の内容を返さない）。
+func (s *Store) snapshot(ctx context.Context, fn func(q querier) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	return fn(tx)
+}
+
 // readsCurrent は、閲覧者（?）が今の版を読める条件です。文書の別名は d。一覧・検索・閲覧の全てがこの条件を使います。
 // 不変条件: DOC-INV-2、DOC-INV-4
 const readsCurrent = `d.current_version_id IS NOT NULL AND (d.owner_account_id = ? OR d.audience = 'everyone'
@@ -214,24 +226,40 @@ func (s *Store) Owned(ctx context.Context, owner, id int64) (Document, error) {
 
 // Current は、閲覧者が読める今の版を返します。読めなければ ErrNotFound です。
 // 不変条件: DOC-INV-2、DOC-INV-4
-func (s *Store) Current(ctx context.Context, viewer, id int64) (Document, Version, error) {
-	d, err := scanDocument(s.db.QueryRowContext(ctx, "SELECT "+documentColumns+" FROM documents d WHERE d.id = ? AND "+readsCurrent, id, viewer, viewer))
+func (s *Store) Current(ctx context.Context, viewer, id int64) (d Document, v Version, err error) {
+	err = s.snapshot(ctx, func(q querier) error {
+		d, v, err = current(ctx, q, viewer, id)
+		return err
+	})
+	return d, v, err
+}
+
+func current(ctx context.Context, q querier, viewer, id int64) (Document, Version, error) {
+	d, err := scanDocument(q.QueryRowContext(ctx, "SELECT "+documentColumns+" FROM documents d WHERE d.id = ? AND "+readsCurrent, id, viewer, viewer))
 	if err != nil {
 		return d, Version{}, err
 	}
-	v, err := scanVersion(s.db.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.id = ?", d.CurrentID))
+	v, err := scanVersion(q.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.id = ?", d.CurrentID))
 	return d, v, err
 }
 
 // VersionFor は、閲覧者が読める版を返します。判定は版ごとに行います。
 // 所有者は全ての版、共有先は今の版、承認者は承認待ちか判断を記録した版を読めます。
 // 不変条件: DOC-INV-2
-func (s *Store) VersionFor(ctx context.Context, viewer, id, versionID int64) (Document, Version, error) {
-	d, err := scanDocument(s.db.QueryRowContext(ctx, "SELECT "+documentColumns+" FROM documents d WHERE d.id = ?", id))
+func (s *Store) VersionFor(ctx context.Context, viewer, id, versionID int64) (d Document, v Version, err error) {
+	err = s.snapshot(ctx, func(q querier) error {
+		d, v, err = versionFor(ctx, q, viewer, id, versionID)
+		return err
+	})
+	return d, v, err
+}
+
+func versionFor(ctx context.Context, q querier, viewer, id, versionID int64) (Document, Version, error) {
+	d, err := scanDocument(q.QueryRowContext(ctx, "SELECT "+documentColumns+" FROM documents d WHERE d.id = ?", id))
 	if err != nil {
 		return d, Version{}, err
 	}
-	v, err := scanVersion(s.db.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.id = ? AND v.document_id = ?", versionID, id))
+	v, err := scanVersion(q.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.id = ? AND v.document_id = ?", versionID, id))
 	if err != nil {
 		return d, v, err
 	}
@@ -239,7 +267,7 @@ func (s *Store) VersionFor(ctx context.Context, viewer, id, versionID int64) (Do
 		return d, v, nil
 	}
 	var ok bool
-	err = s.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM document_approvers a WHERE a.version_id = ?1 AND a.account_id = ?2
+	err = q.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM document_approvers a WHERE a.version_id = ?1 AND a.account_id = ?2
 		AND (a.decision IS NOT NULL OR ?3 = 'pending'))`, versionID, viewer, v.State).Scan(&ok)
 	if err != nil {
 		return d, v, err
@@ -248,7 +276,7 @@ func (s *Store) VersionFor(ctx context.Context, viewer, id, versionID int64) (Do
 		return d, v, nil
 	}
 	if d.CurrentID == versionID {
-		if _, cur, err := s.Current(ctx, viewer, id); err == nil {
+		if _, cur, err := current(ctx, q, viewer, id); err == nil {
 			return d, cur, nil
 		} else if !errors.Is(err, ErrNotFound) {
 			return d, v, err
@@ -258,13 +286,81 @@ func (s *Store) VersionFor(ctx context.Context, viewer, id, versionID int64) (Do
 }
 
 // Draft は、所有者の下書きを返します。無ければ ErrNotFound です。
-func (s *Store) Draft(ctx context.Context, owner, id int64) (Document, Version, error) {
-	d, err := s.Owned(ctx, owner, id)
-	if err != nil {
-		return d, Version{}, err
-	}
-	v, err := scanVersion(s.db.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.document_id = ? AND v.state = 'draft'", id))
+func (s *Store) Draft(ctx context.Context, owner, id int64) (d Document, v Version, err error) {
+	err = s.snapshot(ctx, func(q querier) error {
+		if d, err = s.owned(ctx, q, owner, id); err != nil {
+			return err
+		}
+		v, err = scanVersion(q.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.document_id = ? AND v.state = 'draft'", id))
+		return err
+	})
 	return d, v, err
+}
+
+// mcpState は、確認の時点の文書の状態のハッシュです。所有者、下書き、フォルダ、共有の範囲を含みます。
+func mcpState(ctx context.Context, q querier, d Document) (string, error) {
+	v, err := scanVersion(q.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.document_id = ? AND v.state IN ('draft', 'pending')", d.ID))
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return "", err
+	}
+	rows, err := q.QueryContext(ctx, "SELECT account_id FROM document_shares WHERE document_id = ? ORDER BY account_id", d.ID)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	shares := []int64{}
+	for rows.Next() {
+		var a int64
+		if err := rows.Scan(&a); err != nil {
+			return "", err
+		}
+		shares = append(shares, a)
+	}
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return features.MCPState(d.OwnerID, d.FolderID, d.Audience, d.CurrentID, shares, v.ID, v.Title, v.Body, v.State), nil
+}
+
+// MCPTarget は、所有者の文書の、確認に使う情報と状態のハッシュを返します。
+func (s *Store) MCPTarget(ctx context.Context, owner, id int64) (d Document, draft Version, shares int, state string, err error) {
+	err = s.snapshot(ctx, func(q querier) error {
+		if d, err = s.owned(ctx, q, owner, id); err != nil {
+			return err
+		}
+		draft, err = scanVersion(q.QueryRowContext(ctx, "SELECT "+versionColumns+" FROM document_versions v WHERE v.document_id = ? AND v.state = 'draft'", id))
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		if err := q.QueryRowContext(ctx, "SELECT COUNT(*) FROM document_shares WHERE document_id = ?", id).Scan(&shares); err != nil {
+			return err
+		}
+		state, err = mcpState(ctx, q, d)
+		return err
+	})
+	return d, draft, shares, state, err
+}
+
+// checkState は、保存と同じ取引の中で、確認の時点から文書が変わっていないことを確かめます。expect が空なら確かめません。
+// 不変条件: MCP-INV-4
+func (s *Store) checkState(ctx context.Context, c *sql.Conn, owner, id int64, expect string) error {
+	if expect == "" {
+		return nil
+	}
+	d, err := s.owned(ctx, c, owner, id)
+	if errors.Is(err, ErrNotFound) {
+		return features.ErrMCPConflict
+	} else if err != nil {
+		return err
+	}
+	state, err := mcpState(ctx, c, d)
+	if err != nil {
+		return err
+	}
+	if state != expect {
+		return features.ErrMCPConflict
+	}
+	return nil
 }
 
 // Open は、所有者の下書きか承認待ちの版を返します。無ければゼロ値です。

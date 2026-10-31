@@ -83,7 +83,7 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {}
 func (f *Feature) SetAdmin(a features.Admin) error {
 	f.admin = a
 	var err error
-	f.pages, err = web.ParsePages(a.Layout(), viewsFS, "admin_mcp.html", "admin_mcp_client.html")
+	f.pages, err = web.ParsePages(a.Layout(), viewsFS, "admin_mcp.html", "admin_mcp_client.html", "admin_mcp_enable.html")
 	return err
 }
 
@@ -95,8 +95,8 @@ func (f *Feature) AdminNavLinks() []web.NavLink {
 // AgentAuthConfig は、保護するリソースと権限を宣言します。
 func (f *Feature) AgentAuthConfig() features.AgentAuthConfig {
 	return features.AgentAuthConfig{Path: endpoint, Scopes: []features.AgentScope{
-		{Name: scopeRead, Label: "有効な機能の内容を読む（下書きを含む）"},
-		{Name: scopeWrite, Label: "有効な機能の内容を変更する（実行のたびに確認する）"},
+		{Name: scopeRead, Label: "有効な機能のうち、このアカウントが使えるものの内容を読む（下書きを含む）"},
+		{Name: scopeWrite, Label: "有効な機能のうち、このアカウントが使えるものの内容を変更する（実行のたびに確認する）"},
 	}}
 }
 
@@ -162,6 +162,7 @@ func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	f.auth.RegisterAgentRoutes(mux)
 	if f.admin != nil {
 		mux.HandleFunc("GET /admin/mcp", f.admin.Page(f.handleSettings))
+		mux.HandleFunc("GET /admin/mcp/features/{feature}/enable", f.admin.AdminPage(f.handleEnablePage))
 		mux.HandleFunc("POST /admin/mcp/{feature}/enable", f.admin.AdminForm(f.handleChange(true)))
 		mux.HandleFunc("POST /admin/mcp/{feature}/disable", f.admin.AdminForm(f.handleChange(false)))
 		mux.HandleFunc("POST /admin/mcp/clients", f.admin.AdminForm(f.handleAddClient))

@@ -63,11 +63,19 @@ func (s *Store) Create(ctx context.Context, owner int64, in Input) (int64, error
 // SaveDraft は下書きを保存します。versionID は画面を開いたときの下書きで、別の版に当たれば ErrConflict です。
 // 不変条件: DOC-INV-3、DOC-INV-5
 func (s *Store) SaveDraft(ctx context.Context, owner, id, versionID int64, in Input) error {
+	return s.SaveDraftIfUnchanged(ctx, owner, id, versionID, in, "")
+}
+
+// SaveDraftIfUnchanged は、expect の状態のままなら下書きを保存します。空なら状態を確かめません。
+func (s *Store) SaveDraftIfUnchanged(ctx context.Context, owner, id, versionID int64, in Input, expect string) error {
 	in, err := normalize(in)
 	if err != nil {
 		return err
 	}
 	return s.atomic(ctx, func(c *sql.Conn) error {
+		if err := s.checkState(ctx, c, owner, id, expect); err != nil {
+			return err
+		}
 		if _, err := s.owned(ctx, c, owner, id); err != nil {
 			return err
 		}
@@ -102,7 +110,15 @@ func (s *Store) newDraft(ctx context.Context, c *sql.Conn, id, from int64) error
 // Revise は、今の版から改定の下書きを作ります。下書きか承認待ちがあれば ErrConflict です。公開中の版はそのままです。
 // 不変条件: DOC-INV-4
 func (s *Store) Revise(ctx context.Context, owner, id int64) error {
+	return s.ReviseIfUnchanged(ctx, owner, id, "")
+}
+
+// ReviseIfUnchanged は、expect の状態のままなら改定の下書きを作ります。
+func (s *Store) ReviseIfUnchanged(ctx context.Context, owner, id int64, expect string) error {
 	return s.atomic(ctx, func(c *sql.Conn) error {
+		if err := s.checkState(ctx, c, owner, id, expect); err != nil {
+			return err
+		}
 		d, err := s.owned(ctx, c, owner, id)
 		if err != nil {
 			return err
@@ -141,7 +157,15 @@ func (s *Store) makeCurrent(ctx context.Context, c *sql.Conn, id, versionID int6
 // （差し戻された内容や、承認済みの規定の改定を、承認なしで出さないため）。
 // 不変条件: DOC-INV-6
 func (s *Store) Publish(ctx context.Context, owner, id, versionID int64) error {
+	return s.PublishIfUnchanged(ctx, owner, id, versionID, "")
+}
+
+// PublishIfUnchanged は、expect の状態のままなら公開します。確認の後に共有の範囲が変わっていたら公開しません。
+func (s *Store) PublishIfUnchanged(ctx context.Context, owner, id, versionID int64, expect string) error {
 	return s.atomic(ctx, func(c *sql.Conn) error {
+		if err := s.checkState(ctx, c, owner, id, expect); err != nil {
+			return err
+		}
 		if _, err := s.owned(ctx, c, owner, id); err != nil {
 			return err
 		}
@@ -168,6 +192,11 @@ func (s *Store) RequiresApproval(ctx context.Context, id int64) (bool, error) {
 // active は有効なアカウントかを返す関数です。
 // 不変条件: DOC-INV-5、DOC-INV-7
 func (s *Store) RequestApproval(ctx context.Context, owner, id, versionID int64, approvers []int64, active func(int64) bool) error {
+	return s.RequestApprovalIfUnchanged(ctx, owner, id, versionID, approvers, active, "")
+}
+
+// RequestApprovalIfUnchanged は、expect の状態のままなら承認を依頼します。
+func (s *Store) RequestApprovalIfUnchanged(ctx context.Context, owner, id, versionID int64, approvers []int64, active func(int64) bool, expect string) error {
 	if len(approvers) == 0 || slices.Contains(approvers, owner) {
 		return InputError{"approvers"}
 	}
@@ -177,6 +206,9 @@ func (s *Store) RequestApproval(ctx context.Context, owner, id, versionID int64,
 		}
 	}
 	return s.atomic(ctx, func(c *sql.Conn) error {
+		if err := s.checkState(ctx, c, owner, id, expect); err != nil {
+			return err
+		}
 		if _, err := s.owned(ctx, c, owner, id); err != nil {
 			return err
 		}

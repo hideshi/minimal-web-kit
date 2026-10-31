@@ -170,6 +170,9 @@ const (
 	RoleUser Role = "user"
 )
 
+// Known は、定義されたロールかを返します。
+func (r Role) Known() bool { return r.CanManageSite() || r == RoleUser }
+
 // CanManageSite は、各機能の管理画面を使えるロールかを返します。未知の値は false です。
 func (r Role) CanManageSite() bool { return r == RoleAdmin || r == RoleSiteAdmin }
 
@@ -373,8 +376,10 @@ type MCPTool struct {
 	Name, Title, Description string
 	InputSchema              json.RawMessage
 	Effect                   MCPEffect
-	Read                     func(ctx context.Context, p AgentPrincipal, args json.RawMessage) (any, error)
-	Prepare                  func(ctx context.Context, p AgentPrincipal, args json.RawMessage) (MCPPlan, error)
+	// AllRoles は、一般ユーザーにも開くツールに付けます。省くと、各機能の管理画面を使えるロールだけが使えます。
+	AllRoles bool
+	Read     func(ctx context.Context, p AgentPrincipal, args json.RawMessage) (any, error)
+	Prepare  func(ctx context.Context, p AgentPrincipal, args json.RawMessage) (MCPPlan, error)
 	// Apply は、state の照合と保存を不可分に行います。変わっていたら ErrMCPConflict を返します。
 	Apply func(ctx context.Context, p AgentPrincipal, canonical json.RawMessage, state string) (any, error)
 }
@@ -384,6 +389,13 @@ type MCPFeature interface {
 	Feature
 	MCPLabel() string
 	MCPTools() []MCPTool
+}
+
+// MCPEnableNoticeFeature は、MCPを有効にする前にシステム管理者へ注意を見せる機能が実装します。
+// 確認の画面を経ないと、画面の操作では有効になりません。
+type MCPEnableNoticeFeature interface {
+	MCPFeature
+	MCPEnableNotice() string
 }
 
 // MCPConsumer は、MCPのサーバーを持つ機能（features/mcp）が実装します。起動時に、ツールを提供する機能を受け取ります。

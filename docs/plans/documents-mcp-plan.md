@@ -1,6 +1,6 @@
 # 社内文書のMCP対応の計画
 
-状態: 計画のレビュー前（2026-10-31）。対象の時点は `6649e60`。実装の後、今の仕様は `docs/domain/documents.md`・`docs/domain/mcp.md`・`docs/domain/auth.md` へ移す。
+状態: 実装済み（2026-10-31）。完成のレビューの前。対象の時点は `6649e60`。実装の後、今の仕様は `docs/domain/documents.md`・`docs/domain/mcp.md`・`docs/domain/auth.md` へ移す。
 
 ## 目的
 
@@ -26,13 +26,13 @@
 4. `/admin/agent/continue`・`approve` を `AccountPage`・`AccountForm` にする。一般ユーザーも同意できる。`/admin/mcp` は `Page` のままで、一般ユーザーには見せない。
 5. `agentAccounts` のロールの絞り込みを外す。
 6. 同意の画面の権限の文言を「有効な機能のうち、このアカウントが使えるもの」に直す。
-7. `test/admin_ui_test.go` の `accountRoutes` に2経路を足す。
+7. `test/admin_ui_test.go` の `accountRoutes` に2経路を足す。`TestMCP_UserRoleIsRefused` は、文書は使えて他の機能は一覧と呼び出しの両方で拒否する内容へ変える。確認の発行の後にロールを下げて送り直す場合と、未知のロールも確かめる。
 
 ロールを下げると、発行済みのトークンは文書のツールだけに狭まる（止まらない）。
 
 ## ツール
 
-全て `AllRoles`。読むものは `Store` の閲覧者つきの関数を通す。
+全て `AllRoles`。名前は `validTool` の規則で全て `documents_` で始める。読むものは `Store` の閲覧者つきの関数を通す。権限の判定と本文の取得を同じ読み取りのスナップショットで行い、移管や共有の解除と重なっても、判定の後の本文を返さない（画面の読み取りも同じ関数を通る）。
 
 | 名前 | 種類 | 内容 |
 |---|---|---|
@@ -43,17 +43,18 @@
 | `documents_approvals` | 読み取り | 判断を待っている版の一覧（見るだけ） |
 | `documents_folders` | 読み取り | フォルダの一覧 |
 | `documents_accounts` | 読み取り | 有効なアカウントのIDと呼び名。承認者を選ぶために要る |
-| `document_create` | 書き込み | 下書きの作成 |
-| `document_update` | 書き込み | 下書きの保存 |
-| `document_publish` | 書き込み | 公開。確認の文に共有の範囲を出す |
-| `document_request_approval` | 書き込み | 承認の依頼 |
+| `documents_create` | 書き込み | 下書きの作成 |
+| `documents_revise` | 書き込み | 公開中の文書から改定の下書きを作る。公開中の版はそのまま |
+| `documents_update` | 書き込み | 下書きの保存 |
+| `documents_publish` | 書き込み | 公開。確認の文に共有の範囲を出す |
+| `documents_request_approval` | 書き込み | 承認の依頼。確認の文に承認者の呼び名と、承認者がこの版を読めるようになることを出す |
 
 ツールの名前の一覧を固定するテストを置き、`approve`・`reject`・共有・削除・移管のツールがあれば落ちるようにする。
 
 ### 確認と照合（MCP-INV-3・MCP-INV-4）
 
 - 対象の状態のハッシュは、版のID、タイトル、本文、状態、フォルダ、`audience`、共有先の並びから作る。
-- `Apply` は、`BEGIN IMMEDIATE` の取引の中で同じハッシュを計算して比べ、違えば `ErrMCPConflict`。共有の範囲を確認の後に広げられたら公開しない。
+- `Apply` は、保存と同じ `BEGIN IMMEDIATE` の取引の中で同じハッシュを計算して比べ、違えば `ErrMCPConflict`。共有の範囲を確認の後に広げられたら公開しない。
 - 所有者でないアカウントは `Prepare` の時点で「対象がありません」。`Apply` でも所有者を確かめる。
 - 確認の文の最初の3行に、操作、対象、共有の範囲を置く。タイトルと本文は `MCPQuote` で引用にする。
 - 書き込みは画面と同じ `normalize` と同じ状態の条件を通す（MCP-INV-7）。一度でも承認を依頼した文書の公開は拒否する（DOC-INV-6）。
@@ -63,7 +64,8 @@
 任意の口 `features.MCPEnableNoticeFeature`（`MCPEnableNotice() string`）を足す。実装した機能だけに確認の画面が出る。
 
 - `/admin/mcp` の「有効にする」を、注意を持つ機能だけ確認の画面へのリンクにする（`GET /admin/mcp/features/{feature}/enable`、`AdminPage`、画面は `confirm-actions` の形）。
-- `POST /admin/mcp/{feature}/enable` は、注意を持つ機能では `confirmed=1` が無ければ確認の画面へ移す。ボタンを飛ばして有効にできない。
+- `POST /admin/mcp/{feature}/enable` は、注意を持つ機能では `confirmed=1` が無ければ確認の画面へ移す。
+- 確認の画面を経たことをトークンで証明することはしない。システム管理者のセッションとCSRFトークンを持つ人は確認の画面も開けるので、守りにならない。これは誤操作を防ぐ確認で、権限の境界ではない。
 - 無効にするときは確認しない。
 
 文面:
@@ -79,7 +81,7 @@
 ## 不変条件の案
 
 - `MCP-INV-11`: `AllRoles` でないツールは、一般ユーザーの一覧に出ず、呼び出せない。未知のロールは全て拒否する。
-- `MCP-INV-12`: 注意を持つ機能は、確認の画面を経ないと有効にできない。
+- `MCP-INV-12`: 注意を持つ機能は、画面の操作では、確認の画面を経ないと有効にならない。
 - `DOC-INV-13`: MCPから承認、差し戻し、共有先の変更、削除、移管はできない。MCPの読み取りは既読を記録しない。
 - `AUTH-INV-26` を直す: 一般ユーザーは公開サイトの編集とアカウントの管理はできない。MCPは文書のツールだけ。
 

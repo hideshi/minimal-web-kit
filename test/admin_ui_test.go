@@ -347,6 +347,7 @@ var adminSamples = []adminSample{
 	{"GET /admin/document-folders/{id}/delete", "/admin/document-folders/{doc_folder}/delete", "admin", "document_folder_delete.html", kindConfirm},
 	{"GET /admin/documents/transfer", "/admin/documents/transfer", "admin", "document_transfer.html", kindListAdd},
 	{"GET /admin/mcp", "/admin/mcp", "admin", "admin_mcp.html", kindListAdd},
+	{"GET /admin/mcp/features/{feature}/enable", "/admin/mcp/features/documents/enable", "admin", "admin_mcp_enable.html", kindOther},
 	{"GET /admin/mcp/clients/{id}", "/admin/mcp/clients/{agent_client}", "admin", "admin_mcp_client.html", kindDetail},
 	{"GET /admin/mcp", "/admin/mcp", "site_admin", "admin_mcp.html", kindList},
 	// 認可の要求は同じブラウザの古い手続きを消すので、続きの画面を先に開く
@@ -628,7 +629,7 @@ var accountRoutes = []string{
 	"GET /admin", "GET /admin/login", "GET /admin/setup", "POST /admin/logout",
 	"GET /admin/passkeys", "POST /admin/passkeys/{id}/label", "GET /admin/passkeys/{id}/delete", "POST /admin/passkeys/{id}/delete",
 	"POST /admin/webauthn/register/begin", "POST /admin/webauthn/register/finish", "POST /admin/webauthn/login/begin", "POST /admin/webauthn/login/finish",
-	"GET /admin/agent/authorize", // 同意の前の入口。続きの画面と承認で止まる
+	"GET /admin/agent/authorize", "GET /admin/agent/continue", "POST /admin/agent/approve", // 接続の同意。文書のツールだけに使える
 	"GET /admin/documents", "GET /admin/documents/mine", "GET /admin/documents/approvals", "GET /admin/documents/new", "POST /admin/documents",
 	"GET /admin/document-folders", "POST /admin/document-folders", "GET /admin/document-folders/{id}", "POST /admin/document-folders/{id}",
 	"GET /admin/document-folders/{id}/delete", "POST /admin/document-folders/{id}/delete",
