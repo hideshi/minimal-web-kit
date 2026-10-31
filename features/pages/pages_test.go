@@ -329,7 +329,7 @@ func TestNav_RefreshFailureDoesNotKeepOldLinks(t *testing.T) {
 		}
 	}
 	mustExec("ALTER TABLE pages RENAME TO pages_gone")
-	fx.f.afterChange(httptest.NewRequest(http.MethodPost, "/admin/pages", nil))
+	fx.f.afterChange(context.Background())
 	if strings.Contains(nav(), `href="/about"`) {
 		t.Fatal("a failed refresh must not keep the old link")
 	}
@@ -351,7 +351,7 @@ func TestNav_RefreshFailureDoesNotKeepOldLinks(t *testing.T) {
 	mustExec("UPDATE pages SET status = 'draft' WHERE slug = 'about'")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	fx.f.afterChange(httptest.NewRequest(http.MethodPost, "/admin/pages", nil).WithContext(ctx))
+	fx.f.afterChange(ctx)
 	if got := nav(); strings.Contains(got, `href="/about"`) || !strings.Contains(got, `href="/recruit"`) {
 		t.Fatal("a cancelled request must still rebuild the nav from the database")
 	}
