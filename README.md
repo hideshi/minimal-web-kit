@@ -1,6 +1,6 @@
 # minimal-web-kit
 
-個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ、固定ページ、自社システム間の共通認証）、5本のAI開発スキル、規約を検査するテストを同梱しています。
+個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤です。Go製のひな形、同梱機能（LPテンプレートのSite、お知らせ機能のNews、パスキーの管理者認証、カタログ、お問い合わせ、固定ページ、自社システム間の共通認証）、6本のAI開発スキル、規約を検査するテストを同梱しています。
 
 ## 特徴と提供範囲
 
@@ -216,6 +216,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make build` | CGO無効で `bin/minimal-web-kit` を作成 |
 | `make test` | `go test -race -v ./...` で全テストを実行 |
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
+| `make vuln` | Go本体と依存の既知の脆弱性を調べる（`govulncheck`。SQLite本体とhtmxは見えないので、手順は `minimal-web-kit-vuln`） |
 | `make test-ui` | 画面部品をChrome・Chromiumで操作して確かめ、主な管理画面を `test/browser/shots/` に撮る（`test/browser/` の別モジュール。chromedpを使い、キット本体の依存には含めない。Chromeが無ければ飛ばす。`CHROME_PATH` で指定可） |
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
 | `make add-auth` / `make remove-auth` | 管理者認証（パスキー）の登録を有効化・無効化（お知らせ・カタログ・お問い合わせ・固定ページが有効な間は無効化できない） |
@@ -306,6 +307,7 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
 | `minimal-web-kit-implementation` | Go・SQLite・SSR・データ保護・HTML/CSS規約に沿った実装 |
 | `minimal-web-kit-audit` | 付属テストと追加検証によるキットの規約との照合 |
 | `minimal-web-kit-deploy` | 個別のアプリの本番環境の手順書の作成と、リリース・戻し方の進め方 |
+| `minimal-web-kit-vuln` | Go本体・依存・同梱ファイルの既知の脆弱性の点検と版上げ |
 | `minimal-web-kit-privacy` | 有効な機能・保存データ・インフラ・外部サービスからのプライバシーポリシーの作成と見直し（法的な判断は運営者が行う） |
 
 一般的な要件定義・機能別実装・テストのスキルと併用し、このキット固有の判断と規約を補完します。正本は `skills/<name>/SKILL.md` で、探索先からは相対シンボリックリンクで参照します。Windows等でリンクが通常ファイルになった場合は、利用するツールの探索先に正本のフォルダをコピーし、更新時も同期してください。
@@ -314,7 +316,7 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
 
 > AGENTS.mdを読み、minimal-web-kit-designで変更を計画し、minimal-web-kit-implementationで実装、minimal-web-kit-auditで検証してください。
 
-ツールのスキル一覧で5本が認識されていることを確認してください。表示されなければ再起動するか、`skills/<name>/SKILL.md` を明示して読ませてください。配置・形式は検査していますが、4ツールそれぞれでの実機動作は未検証です。
+ツールのスキル一覧で6本が認識されていることを確認してください。表示されなければ再起動するか、`skills/<name>/SKILL.md` を明示して読ませてください。配置・形式は検査していますが、4ツールそれぞれでの実機動作は未検証です。
 
 配置仕様の参照先：[Claude Code](https://code.claude.com/docs/en/skills)、[Codex](https://learn.chatgpt.com/docs/build-skills)、[Cursor](https://cursor.com/docs/skills)、[Antigravity](https://antigravity.google/docs/skills)。
 
@@ -391,7 +393,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 │   ├── auth/              # 同梱機能: 管理者認証（パスキーでのログイン・パスキーの管理）
 │   │   └── oidcop/        # 同梱機能: 共通認証の提供（OIDC）
 │   └── federatedauth/     # 同梱機能: 共通認証の利用（別システムの認証基盤でのログイン）
-├── skills/                # 5本のAI開発スキルの正本（各150行以内）
+├── skills/                # 6本のAI開発スキルの正本（各150行以内）
 └── test/                  # 依存・テンプレート・台帳・ログ等の検査
 ```
 

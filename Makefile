@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-oidcop remove-oidcop add-federatedauth remove-federatedauth
+.PHONY: all build run test test-ui lint verify vuln clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-oidcop remove-oidcop add-federatedauth remove-federatedauth
 
 BIN_NAME := minimal-web-kit
 
@@ -16,6 +16,13 @@ test:
 verify:
 	go mod verify
 	go vet ./...
+
+# 既知の脆弱性を調べる（道具は版を固定して実行し、go.mod には足さない）。手順は skills/minimal-web-kit-vuln
+GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
+
+vuln:
+	go run $(GOVULNCHECK) ./...
+	cd test/browser && go run $(GOVULNCHECK) ./...
 
 # 画面部品をChrome・Chromiumで操作するテスト（別モジュール。Chromeが無ければ飛ばす。CHROME_PATHで指定可）
 test-ui:

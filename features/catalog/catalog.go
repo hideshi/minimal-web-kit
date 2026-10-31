@@ -286,6 +286,7 @@ func (f *Feature) SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error
 	}
 	return entries, rows.Err()
 }
+
 // scriptURL は、公開一覧が読み込むJSの版付きのURLを返します。ファイルは埋め込みなので、起動の後は変わりません。
 func scriptURL(name string) string {
 	body, err := contentFS.ReadFile("static/" + name)
