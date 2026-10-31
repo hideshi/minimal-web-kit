@@ -15,7 +15,7 @@
 | | `form.Paragraphs(body)` | プレーンテキストの本文を段落と行に分ける（画面部品 `paragraphs` に渡す） |
 | | `form.FieldErrors` と `For(invalid, names...)` | 欄の名前から、その欄に出すエラーの文言を引く表 |
 | | `form.Field` | 画面部品 `field` に渡す入力欄の値 |
-| `internal/web/guard` | `guard.SameOrigin(r, origin)` | 独立経路（`IsolatedRoutesFeature`）で、別サイトからのPOSTを拒否する |
+| `internal/web/guard` | `guard.SameOrigin(r, origin)` | 独立経路（`IsolatedRoutesFeature`）で、別サイトからのPOSTを拒否する。`same-origin` を必須にする。Coreの `CSRFProtect` は `cross-site` だけを見出しで拒否し、残りはトークンで判定する（`TestCSRFProtect_Table`） |
 | | `guard.NewCSRF()`・`Token`・`Valid` | セッションに結びつけたCSRFトークンの発行・検証 |
 | `internal/web/page` | `page.Parse(r, size, maxPage)`・`Limit`・`Offset`・`page.Trim` | 一覧のページ送り。1件多く取得して次のページの有無を決める |
 | `internal/web/notice` | `notice.Messages`・`From`・`Redirect`・`URL` | 操作の完了メッセージの受け渡し（`?notice=` に固定の語だけを載せる） |
