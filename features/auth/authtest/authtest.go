@@ -25,7 +25,7 @@ func NewSession(t testing.TB, db *sql.DB) *http.Cookie {
 	return NewSessionWithRole(t, db, "admin")
 }
 
-// NewSessionWithRole は、指定したロール（"admin" または "member"）のアカウントと、その管理者セッションを作ります。
+// NewSessionWithRole は、指定したロール（"admin" または "site_admin"）のアカウントと、その管理者セッションを作ります。
 func NewSessionWithRole(t testing.TB, db *sql.DB, role string) *http.Cookie {
 	t.Helper()
 	cookie, _ := NewAccountSession(t, db, role)

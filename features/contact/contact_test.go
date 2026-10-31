@@ -369,7 +369,7 @@ func TestAdmin_InboxIsAdminOnlyAndGetDoesNotChangeState(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin := authtest.NewSession(t, core.DB())
-	member := authtest.NewSessionWithRole(t, core.DB(), "member")
+	member := authtest.NewSessionWithRole(t, core.DB(), "site_admin")
 	path := "/admin/contact/" + itoa(id)
 
 	for _, p := range []string{"/admin/contact", path, path + "/delete", "/admin/contact/spam/delete"} {

@@ -35,15 +35,15 @@ func nameField(value, errMsg string) form.Field {
 
 // roleChoices はロールの選択肢。long は作成画面の説明つきの文言。
 func roleChoices(id, role string, long bool) form.Choices {
-	user, member, admin := roleLabel(roleUser), roleLabel(roleMember), roleLabel(roleAdmin)
+	user, siteAdmin, admin := roleLabel(roleUser), roleLabel(roleSiteAdmin), roleLabel(roleAdmin)
 	if long {
 		user += "（公開サイトの編集とアカウントの管理はできない）"
-		member += "（各機能の管理画面を使える。アカウントの管理はできない）"
+		siteAdmin += "（各機能の管理画面を使える。アカウントの管理はできない）"
 		admin += "（アカウントの管理もできる。必要な人に限る）"
 	}
 	return form.Choices{ID: id, Name: "role", Legend: "ロール", Required: long, Options: []form.Option{
 		{Value: roleUser, Label: user, Selected: role == roleUser},
-		{Value: roleMember, Label: member, Selected: role == roleMember},
+		{Value: roleSiteAdmin, Label: siteAdmin, Selected: role == roleSiteAdmin},
 		{Value: roleAdmin, Label: admin, Selected: role == roleAdmin},
 	}}
 }

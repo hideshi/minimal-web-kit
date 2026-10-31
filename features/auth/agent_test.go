@@ -51,7 +51,7 @@ func newAgentFixture(t *testing.T) *agentFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cookie, account := authtest.NewAccountSession(t, fx.db, "member")
+	cookie, account := authtest.NewAccountSession(t, fx.db, "site_admin")
 	if _, err := store.Grant(context.Background(), client.ID, account); err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func TestAgentToken_FollowsEpochs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if p.AccountID != a.account || p.Client != a.client.ID || p.Role != features.RoleMember || !p.HasScope("mcp:write") || p.Generation == "" {
+			if p.AccountID != a.account || p.Client != a.client.ID || p.Role != features.RoleSiteAdmin || !p.HasScope("mcp:write") || p.Generation == "" {
 				t.Fatalf("%+v", p)
 			}
 			if _, err := a.store.VerifyAgentToken(ctx, g.Token, "http://localhost:8080/other"); !errors.Is(err, features.ErrBearerInvalid) {

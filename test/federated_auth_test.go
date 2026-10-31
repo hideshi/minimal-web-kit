@@ -340,7 +340,7 @@ func (p *fedPair) login(t *testing.T, br *fedBrowser) {
 // member は、Aのアカウントとセッション、Bの利用許可を用意したブラウザを返します。
 func (p *fedPair) member(t *testing.T) (*fedBrowser, int64, string) {
 	t.Helper()
-	cookie, id := authtest.NewAccountSession(t, p.a.db, "member")
+	cookie, id := authtest.NewAccountSession(t, p.a.db, "site_admin")
 	sub, err := p.store.Grant(context.Background(), p.clientID, id)
 	if err != nil {
 		t.Fatal(err)
@@ -380,7 +380,7 @@ func TestFederatedAuth_LoginThenStopRejectsNextRequest(t *testing.T) {
 	p.login(t, br)
 
 	res, body := br.do(http.MethodGet, p.b.origin+"/admin/notes", nil)
-	if !strings.Contains(body, "role=member") {
+	if !strings.Contains(body, "role=site_admin") {
 		t.Fatalf("Aの管理者がBの管理者になった: %s", body)
 	}
 	if res, _ = br.do(http.MethodGet, p.b.origin+"/admin/notes/settings", nil); res.StatusCode != http.StatusForbidden {
@@ -718,7 +718,7 @@ func TestFederatedAuth_AuthorizeRejects(t *testing.T) {
 // 利用許可が無い・中止したときは、検証済みの戻り先へ access_denied を返し、Bにログインできないこと。
 func TestFederatedAuth_DeniedReturnsToClient(t *testing.T) {
 	p := newFedPair(t)
-	cookie, _ := authtest.NewAccountSession(t, p.a.db, "member")
+	cookie, _ := authtest.NewAccountSession(t, p.a.db, "site_admin")
 	br := newFedBrowser(t)
 	br.setCookie(p.a.origin, cookie)
 	callback := p.approveAtA(t, br, p.beginLogin(t, br))
@@ -1124,7 +1124,7 @@ func TestFederatedAuth_ProviderCommands(t *testing.T) {
 		t.Fatalf("output: %s", out)
 	}
 	id := match[1]
-	_, account := authtest.NewAccountSession(t, p.a.db, "member")
+	_, account := authtest.NewAccountSession(t, p.a.db, "site_admin")
 	if out, err = run("oidc-grant", "-client", id, "-account", fmt.Sprint(account)); err != nil || !strings.HasPrefix(out, "sub: ") {
 		t.Fatalf("grant: %q %v", out, err)
 	}

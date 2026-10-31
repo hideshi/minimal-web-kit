@@ -20,7 +20,7 @@ var (
 	errNoSession   = errors.New("federatedauth: no session")
 	errDisabled    = errors.New("federatedauth: account disabled")
 	errNotFound    = errors.New("federatedauth: account not found")
-	errInvalidRole = errors.New("federatedauth: role must be admin or member")
+	errInvalidRole = errors.New("federatedauth: role must be admin or site_admin")
 )
 
 // accountSession は、有効なセッションとその利用者です。
@@ -116,7 +116,7 @@ func (s *sessionStore) purge(ctx context.Context) error {
 
 // setRole は局所の利用者のロールを変えます。行が無ければ errNotFound です（先に1度ログインしてもらう）。
 func (s *sessionStore) setRole(ctx context.Context, subject, role string) error {
-	if role != "admin" && role != "member" {
+	if role != "admin" && role != "site_admin" {
 		return errInvalidRole
 	}
 	res, err := s.db.ExecContext(ctx, "UPDATE federated_accounts SET role = ? WHERE issuer = ? AND sub = ?", role, s.issuer, subject)

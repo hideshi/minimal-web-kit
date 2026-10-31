@@ -74,7 +74,7 @@ func setup(t *testing.T) *fixture {
 	}
 	fx := &fixture{t: t, f: f, routes: routes, core: core, logs: logs, clock: &clock}
 	fx.admin = authtest.NewSession(t, core.DB())
-	fx.member = authtest.NewSessionWithRole(t, core.DB(), "member")
+	fx.member = authtest.NewSessionWithRole(t, core.DB(), "site_admin")
 	fx.token = authtest.CSRFToken(t, routes, "/admin/pages/new", fx.admin)
 	fx.mtoken = authtest.CSRFToken(t, routes, "/admin/pages/new", fx.member)
 	return fx

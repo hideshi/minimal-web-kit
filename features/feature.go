@@ -164,14 +164,14 @@ type Role string
 const (
 	// RoleAdmin（システム管理者）は、アカウントの追加・ロール変更・停止・削除と登録URLの発行ができます。
 	RoleAdmin Role = "admin"
-	// RoleMember（サイト管理者）は、各機能の管理画面を使えます。アカウントの管理はできません。
-	RoleMember Role = "member"
+	// RoleSiteAdmin（サイト管理者）は、各機能の管理画面を使えます。アカウントの管理はできません。
+	RoleSiteAdmin Role = "site_admin"
 	// RoleUser（一般ユーザー）は、AccountPage・AccountForm の画面だけを使えます。公開サイトの編集はできません。
 	RoleUser Role = "user"
 )
 
 // CanManageSite は、各機能の管理画面を使えるロールかを返します。未知の値は false です。
-func (r Role) CanManageSite() bool { return r == RoleAdmin || r == RoleMember }
+func (r Role) CanManageSite() bool { return r == RoleAdmin || r == RoleSiteAdmin }
 
 // AdminSession は、ログイン中のアカウントの要求に付く情報です（同梱機能の管理者認証 features/auth が作る）。
 type AdminSession interface {

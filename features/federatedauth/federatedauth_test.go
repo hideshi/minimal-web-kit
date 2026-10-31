@@ -135,7 +135,7 @@ func TestSessions_Expiry(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := st.session(ctx, token)
-	if err != nil || got.Role != "member" || got.Epochs != testEpochs {
+	if err != nil || got.Role != "site_admin" || got.Epochs != testEpochs {
 		t.Fatalf("%+v %v", got, err)
 	}
 	now = now.Add(time.Hour + time.Second) // 本人確認から12時間を超える

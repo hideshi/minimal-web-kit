@@ -117,13 +117,13 @@ func TestComponents_FieldMarks(t *testing.T) {
 }
 
 func TestComponents_Choices(t *testing.T) {
-	c := form.Choices{ID: "role", Name: "role", Legend: "ロール", Hint: "必要な人に限る", Error: "選んでください", Required: true, Options: []form.Option{{Value: "member", Label: "メンバー"}, {Value: "admin", Label: "<i>管理者</i>", Selected: true}}}
+	c := form.Choices{ID: "role", Name: "role", Legend: "ロール", Hint: "必要な人に限る", Error: "選んでください", Required: true, Options: []form.Option{{Value: "site_admin", Label: "メンバー"}, {Value: "admin", Label: "<i>管理者</i>", Selected: true}}}
 	got := renderComponent(t, `{{template "choices" .}}`, c)
 	for _, want := range []string{
 		`<fieldset class="form-group choices" aria-describedby="role-hint role-error">`,
 		`<legend>ロール<span class="field-mark">（必須）</span></legend>`,
 		`<p class="field-error" id="role-error">選んでください</p>`,
-		`<label class="choice"><input type="radio" name="role" value="member" required> メンバー</label>`,
+		`<label class="choice"><input type="radio" name="role" value="site_admin" required> メンバー</label>`,
 		`<label class="choice"><input type="radio" name="role" value="admin" checked required> &lt;i&gt;管理者&lt;/i&gt;</label>`,
 	} {
 		if !strings.Contains(got, want) {
@@ -131,7 +131,7 @@ func TestComponents_Choices(t *testing.T) {
 		}
 	}
 	c.Multiple, c.Error, c.Inline = true, "", true
-	if got := renderComponent(t, `{{template "choices" .}}`, c); !strings.Contains(got, `type="checkbox" name="role" value="member">`) || !strings.Contains(got, `class="form-group choices choices-inline"`) {
+	if got := renderComponent(t, `{{template "choices" .}}`, c); !strings.Contains(got, `type="checkbox" name="role" value="site_admin">`) || !strings.Contains(got, `class="form-group choices choices-inline"`) {
 		t.Fatalf("inline checkbox group: %s", got)
 	}
 	c.Options, c.Empty = nil, "選べるものはありません。"

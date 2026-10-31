@@ -19,7 +19,7 @@ func newFederationFixture(t *testing.T) (*FederationStore, *sql.DB, FederationCl
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := db.Exec("INSERT INTO auth_accounts (name, role, webauthn_user_id, created_at) VALUES ('見本', 'member', x'01', 1)")
+	res, err := db.Exec("INSERT INTO auth_accounts (name, role, webauthn_user_id, created_at) VALUES ('見本', 'site_admin', x'01', 1)")
 	if err != nil {
 		t.Fatal(err)
 	}

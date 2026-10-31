@@ -56,7 +56,7 @@ func TestAdminScreenshots(t *testing.T) {
 	db := core.DB()
 	cookie, self := authtest.NewAccountSession(t, db, "admin")
 	authtest.NewCredential(t, db, self, "管理者のPC")
-	_, other := authtest.NewAccountSession(t, db, "member")
+	_, other := authtest.NewAccountSession(t, db, "site_admin")
 	authtest.NewCredential(t, db, other, "メンバーのキー")
 
 	dir := "shots"

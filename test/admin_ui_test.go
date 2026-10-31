@@ -45,7 +45,7 @@ type adminUI struct {
 	routes   http.Handler
 	db       *sql.DB
 	patterns []string
-	cookies  map[string]*http.Cookie // "admin"・"member"
+	cookies  map[string]*http.Cookie // "admin"・"site_admin"
 	csrf     map[string]string
 	ids      map[string]string // 見本のデータの識別子（URLに使う）
 	// extraCookies は、管理画面の手続きの見本に要るCookieです。
@@ -102,14 +102,14 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	if !full {
 		return ui
 	}
-	memberCookie, _ := authtest.NewAccountSession(t, db, "member")
-	ui.cookies["member"] = memberCookie
-	ui.csrf["member"] = authtest.CSRFToken(t, routes, "/admin/news/new", memberCookie)
+	memberCookie, _ := authtest.NewAccountSession(t, db, "site_admin")
+	ui.cookies["site_admin"] = memberCookie
+	ui.csrf["site_admin"] = authtest.CSRFToken(t, routes, "/admin/news/new", memberCookie)
 	ui.ids["self_key"] = authtest.NewCredential(t, db, adminID, "管理者のPC")
-	_, otherID := authtest.NewAccountSession(t, db, "member")
+	_, otherID := authtest.NewAccountSession(t, db, "site_admin")
 	ui.ids["other"] = strconv.FormatInt(otherID, 10)
 	ui.ids["other_key"] = authtest.NewCredential(t, db, otherID, "メンバーのキー")
-	_, stoppedID := authtest.NewAccountSession(t, db, "member")
+	_, stoppedID := authtest.NewAccountSession(t, db, "site_admin")
 	ui.ids["stopped"] = strconv.FormatInt(stoppedID, 10)
 	if w := ui.post("admin", "/admin/accounts/"+ui.ids["stopped"]+"/disable", nil); w.Code != http.StatusSeeOther {
 		t.Fatalf("disable sample account: %d", w.Code)
@@ -270,7 +270,7 @@ func (ui *adminUI) expand(path string) string {
 // ---- 見本の表 ----
 
 // adminSample は、GETの経路の型ごとの開くURL。URLの {名前} は見本のデータに置き換える。
-// Who は "admin"・"member"・""（セッションなし）。Kind は画面の型（docs/components.md の「画面の型」）。
+// Who は "admin"・"site_admin"・""（セッションなし）。Kind は画面の型（docs/components.md の「画面の型」）。
 type adminSample struct {
 	Pattern, URL, Who, Template, Kind string
 }
@@ -301,11 +301,11 @@ var adminSamples = []adminSample{
 	{"GET /admin/news", "/admin/news", "admin", "admin_posts.html", kindList},
 	{"GET /admin/news/new", "/admin/news/new", "admin", "admin_post_form.html", kindForm},
 	{"GET /admin/news/{id}", "/admin/news/{post_draft}", "admin", "admin_post_form.html", kindForm},
-	{"GET /admin/news/{id}", "/admin/news/{post_published}", "member", "admin_post_form.html", kindForm},
+	{"GET /admin/news/{id}", "/admin/news/{post_published}", "site_admin", "admin_post_form.html", kindForm},
 	{"GET /admin/news/{id}", "/admin/news/{post_scheduled}", "admin", "admin_post_form.html", kindForm},
 	{"GET /admin/news/{id}/delete", "/admin/news/{post_draft}/delete", "admin", "admin_post_delete.html", kindConfirm},
 	{"GET /admin/catalog", "/admin/catalog", "admin", "admin_list.html", kindList},
-	{"GET /admin/catalog/new", "/admin/catalog/new", "member", "admin_form.html", kindForm},
+	{"GET /admin/catalog/new", "/admin/catalog/new", "site_admin", "admin_form.html", kindForm},
 	{"GET /admin/catalog/{id}", "/admin/catalog/{item_draft}", "admin", "admin_form.html", kindForm},
 	{"GET /admin/catalog/{id}", "/admin/catalog/{item_published}", "admin", "admin_form.html", kindForm},
 	{"GET /admin/catalog/{id}/delete", "/admin/catalog/{item_draft}/delete", "admin", "admin_delete.html", kindConfirm},
@@ -313,7 +313,7 @@ var adminSamples = []adminSample{
 	{"GET /admin/catalog/classifications/categories/{id}", "/admin/catalog/classifications/categories/{category}", "admin", "admin_classification.html", kindForm},
 	{"GET /admin/catalog/classifications/categories/{id}/delete", "/admin/catalog/classifications/categories/{category}/delete", "admin", "admin_classification.html", kindConfirm},
 	{"GET /admin/catalog/classifications/categories/{id}/delete", "/admin/catalog/classifications/categories/{category_unused}/delete", "admin", "admin_classification.html", kindConfirm},
-	{"GET /admin/catalog/classifications/tags", "/admin/catalog/classifications/tags", "member", "admin_classifications.html", kindListAdd},
+	{"GET /admin/catalog/classifications/tags", "/admin/catalog/classifications/tags", "site_admin", "admin_classifications.html", kindListAdd},
 	{"GET /admin/catalog/classifications/tags/{id}", "/admin/catalog/classifications/tags/{tag}", "admin", "admin_classification.html", kindForm},
 	{"GET /admin/catalog/classifications/tags/{id}/delete", "/admin/catalog/classifications/tags/{tag_unused}/delete", "admin", "admin_classification.html", kindConfirm},
 	{"GET /admin/contact", "/admin/contact", "admin", "admin_messages.html", kindList},
@@ -325,10 +325,10 @@ var adminSamples = []adminSample{
 	{"GET /admin/contact/{id}", "/admin/contact/{msg_anon}", "admin", "admin_message.html", kindDetail},
 	{"GET /admin/contact/{id}/delete", "/admin/contact/{msg_done}/delete", "admin", "admin_message_delete.html", kindConfirm},
 	{"GET /admin/contact/spam/delete", "/admin/contact/spam/delete", "admin", "admin_spam_delete.html", kindConfirm},
-	{"GET /admin/pages", "/admin/pages", "member", "admin_pages.html", kindList},
+	{"GET /admin/pages", "/admin/pages", "site_admin", "admin_pages.html", kindList},
 	{"GET /admin/pages/new", "/admin/pages/new", "admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}", "/admin/pages/{page_draft}", "admin", "admin_page_form.html", kindForm},
-	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "member", "admin_page_form.html", kindForm},
+	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "site_admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}/delete", "/admin/pages/{page_draft}/delete", "admin", "admin_page_delete.html", kindConfirm},
 	{"GET /admin/documents", "/admin/documents", "admin", "documents.html", kindList},
 	{"GET /admin/documents/mine", "/admin/documents/mine", "admin", "documents_mine.html", kindList},
@@ -348,7 +348,7 @@ var adminSamples = []adminSample{
 	{"GET /admin/documents/transfer", "/admin/documents/transfer", "admin", "document_transfer.html", kindListAdd},
 	{"GET /admin/mcp", "/admin/mcp", "admin", "admin_mcp.html", kindListAdd},
 	{"GET /admin/mcp/clients/{id}", "/admin/mcp/clients/{agent_client}", "admin", "admin_mcp_client.html", kindDetail},
-	{"GET /admin/mcp", "/admin/mcp", "member", "admin_mcp.html", kindList},
+	{"GET /admin/mcp", "/admin/mcp", "site_admin", "admin_mcp.html", kindList},
 	// 認可の要求は同じブラウザの古い手続きを消すので、続きの画面を先に開く
 	{"GET /admin/agent/continue", "/admin/agent/continue", "admin", "admin_agent_flow.html", kindOther},
 	{"GET /admin/agent/authorize", "/admin/agent/authorize?{agent_query}", "", "admin_agent_flow.html", kindOther},
@@ -360,7 +360,7 @@ var adminPostSamples = []struct {
 	Values   url.Values
 	Template string
 }{
-	{"/admin/accounts", url.Values{"name": {"見本の追加"}, "role": {"member"}}, "admin_account_created.html"},
+	{"/admin/accounts", url.Values{"name": {"見本の追加"}, "role": {"site_admin"}}, "admin_account_created.html"},
 	{"/admin/accounts/{other}/setup-url", url.Values{}, "admin_account_created.html"},
 	{"/admin/pages/preview", url.Values{"slug": {"new-page"}, "title": {"題"}, "body": {"## 見出し\n\n| a | b |\n|---|---|\n| [x](/about) | **y** |"}}, "admin_page_form.html"},
 }
@@ -386,7 +386,7 @@ var adminFailures = []adminFailure{
 	{"/admin/catalog/{item_draft}", url.Values{"title": {"残す題名"}, "new_tags": {strings.Repeat("長", 51)}}, 400, "カタログ項目の編集", "item-new-tags", "残す題名"},
 	{"/admin/news", url.Values{"title": {""}, "body": {"残す本文"}}, 400, "お知らせの作成", "post-title", "残す本文"},
 	{"/admin/news/{post_draft}", url.Values{"title": {"残す題名"}, "published_at": {"2025/05/06"}}, 400, "お知らせの編集", "post-published-at", "残す題名"},
-	{"/admin/accounts", url.Values{"name": {""}, "role": {"member"}}, 400, "アカウントの追加", "account-name", ""},
+	{"/admin/accounts", url.Values{"name": {""}, "role": {"site_admin"}}, 400, "アカウントの追加", "account-name", ""},
 	{"/admin/accounts/{self}/disable", url.Values{}, 409, "アカウント: ", "", ""},
 	{"/admin/accounts/{other}/passkeys/{other_key}/delete", url.Values{}, 409, "アカウント: ", "", ""},
 	{"/admin/pages", url.Values{"slug": {"news"}, "title": {"題"}, "body": {"残す本文"}}, 400, "固定ページの作成", "page-slug", "残す本文"},
@@ -730,7 +730,7 @@ func TestAdminUI_AllPagesFollowStandard(t *testing.T) {
 		check(s.URL+"（データあり）", w, s.Kind)
 		if !strings.Contains(s.URL, "{") {
 			who := s.Who
-			if who == "member" {
+			if who == "site_admin" {
 				who = "admin"
 			}
 			if w := empty.get(who, s.URL); w.Code == http.StatusOK {
@@ -739,7 +739,7 @@ func TestAdminUI_AllPagesFollowStandard(t *testing.T) {
 		}
 		// 管理者だけの画面をメンバーで開くと拒否される（権限の検査は各機能のテストが受け持つ）
 		if s.Who == "admin" {
-			if w := full.get("member", full.expand(s.URL)); w.Code == http.StatusOK {
+			if w := full.get("site_admin", full.expand(s.URL)); w.Code == http.StatusOK {
 				check(s.URL+"（メンバー）", w, s.Kind)
 			}
 		}

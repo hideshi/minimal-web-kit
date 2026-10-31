@@ -1,6 +1,6 @@
 # 社内文書機能の計画
 
-状態: 実装済み（2026-10-31）。完成のレビューの指摘を反映済み。今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md`。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
+状態: 実装済み（2026-10-31）。完成のレビューの指摘を反映済み。後の変更: 保存する値の `member` は `site_admin` に置き換えた（下の本文は当時の記録）。今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md`。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
 
 ## 目的
 

@@ -346,7 +346,7 @@ func TestMCP_AdminControlsFeatures(t *testing.T) {
 	if list := names(); strings.Contains(list, "pages_") || !strings.Contains(list, "news_") {
 		t.Fatal(list)
 	}
-	member, _ := authtest.NewAccountSession(t, e.core.DB(), "member")
+	member, _ := authtest.NewAccountSession(t, e.core.DB(), "site_admin")
 	csrf := authtest.CSRFToken(t, e.routes, "/admin/mcp", member)
 	req := httptest.NewRequest(http.MethodPost, "/admin/mcp/pages/enable", strings.NewReader("csrf_token="+csrf))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -577,7 +577,7 @@ func TestMCP_ClientManagementIsAdminOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	member, memberID := authtest.NewAccountSession(t, e.core.DB(), "member")
+	member, memberID := authtest.NewAccountSession(t, e.core.DB(), "site_admin")
 	csrf := authtest.CSRFToken(t, e.routes, "/admin/mcp", member)
 	for _, path := range []string{"/admin/mcp/clients", "/admin/mcp/clients/" + client.ID + "/disable", "/admin/mcp/clients/" + client.ID + "/accounts/" + strconv.FormatInt(memberID, 10) + "/allow"} {
 		if w := e.formPost(member, csrf, path, "label=x&redirect=http%3A%2F%2Flocalhost%2Fcallback"); w.Code != http.StatusForbidden {

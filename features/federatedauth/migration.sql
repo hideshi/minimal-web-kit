@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS federated_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     issuer TEXT NOT NULL,
     sub TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('admin', 'member')),
+    role TEXT NOT NULL DEFAULT 'site_admin' CHECK (role IN ('admin', 'site_admin')),
     disabled_at INTEGER,
     created_at INTEGER NOT NULL,
     UNIQUE (issuer, sub)

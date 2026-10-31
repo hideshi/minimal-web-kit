@@ -125,7 +125,7 @@ func (s *FederationStore) agentAccounts(ctx context.Context, id string) ([]featu
 		`SELECT a.id, a.name, COALESCE(g.allowed, 0) FROM auth_accounts a
 		 LEFT JOIN auth_federated_subjects f ON f.account_id = a.id
 		 LEFT JOIN auth_oidc_grants g ON g.sub = f.sub AND g.client_id = ?
-		 WHERE a.disabled_at IS NULL AND a.role IN ('admin', 'member') ORDER BY a.id`, id)
+		 WHERE a.disabled_at IS NULL AND a.role IN ('admin', 'site_admin') ORDER BY a.id`, id)
 	if err != nil {
 		return nil, err
 	}

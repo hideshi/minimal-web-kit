@@ -17,12 +17,12 @@ import (
 func TestAccounts_CreateAndValidate(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
-	id, token, err := s.createAccountWithToken(ctx, "  編集担当A ", roleMember)
+	id, token, err := s.createAccountWithToken(ctx, "  編集担当A ", roleSiteAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a, err := s.getAccount(ctx, id)
-	if err != nil || a.Name != "編集担当A" || a.Role != roleMember || a.TokenExpiresAt.IsZero() {
+	if err != nil || a.Name != "編集担当A" || a.Role != roleSiteAdmin || a.TokenExpiresAt.IsZero() {
 		t.Fatalf("account = %+v, err=%v", a, err)
 	}
 	if target, err := s.checkSetupToken(ctx, token); err != nil || target.AccountID != id {
@@ -31,7 +31,7 @@ func TestAccounts_CreateAndValidate(t *testing.T) {
 	if _, _, err := s.createAccountWithToken(ctx, "編集担当A", roleAdmin); !errors.Is(err, ErrNameTaken) {
 		t.Fatalf("duplicate name: %v", err)
 	}
-	for _, tc := range []struct{ name, role string }{{"", roleMember}, {"a\nb", roleMember}, {strings.Repeat("あ", maxAccountNameRunes+1), roleMember}, {"B", "owner"}} {
+	for _, tc := range []struct{ name, role string }{{"", roleSiteAdmin}, {"a\nb", roleSiteAdmin}, {strings.Repeat("あ", maxAccountNameRunes+1), roleSiteAdmin}, {"B", "owner"}} {
 		if _, _, err := s.createAccountWithToken(ctx, tc.name, tc.role); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("%q/%q must be rejected: %v", tc.name, tc.role, err)
 		}
@@ -48,10 +48,10 @@ func TestAccounts_KeepsAnEffectiveAdmin(t *testing.T) {
 	me := newAccount(t, s, "管理者", roleAdmin)
 	_ = s.addCredential(ctx, me, testCredential("me"), "key")
 	pending := newAccount(t, s, "未登録の管理者", roleAdmin) // パスキー未登録の管理者は数えない
-	member := newAccount(t, s, "メンバー", roleMember)
+	member := newAccount(t, s, "メンバー", roleSiteAdmin)
 
 	for name, err := range map[string]error{
-		"role":    s.setRole(ctx, me, me, roleMember),
+		"role":    s.setRole(ctx, me, me, roleSiteAdmin),
 		"disable": s.disableAccount(ctx, me, me),
 		"delete":  s.deleteAccount(ctx, me, me),
 	} {
@@ -60,7 +60,7 @@ func TestAccounts_KeepsAnEffectiveAdmin(t *testing.T) {
 		}
 	}
 	// pending から見ると、me が唯一の有効な管理者
-	if err := s.setRole(ctx, pending, me, roleMember); !errors.Is(err, ErrLastAdmin) {
+	if err := s.setRole(ctx, pending, me, roleSiteAdmin); !errors.Is(err, ErrLastAdmin) {
 		t.Fatalf("demoting the last effective admin: %v", err)
 	}
 	if err := s.disableAccount(ctx, pending, me); !errors.Is(err, ErrLastAdmin) {
@@ -72,7 +72,7 @@ func TestAccounts_KeepsAnEffectiveAdmin(t *testing.T) {
 	if _, err := s.reissueToken(ctx, me, true); !errors.Is(err, ErrLastAdmin) {
 		t.Fatalf("resetting the last effective admin's keys: %v", err)
 	}
-	if err := s.setRole(ctx, me, 999, roleMember); !errors.Is(err, ErrNotFound) {
+	if err := s.setRole(ctx, me, 999, roleSiteAdmin); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown account: %v", err)
 	}
 
@@ -106,7 +106,7 @@ func TestAccounts_ReissueToken(t *testing.T) {
 	s, db, _ := newAdminFixture(t)
 	me := newAccount(t, s, "管理者", roleAdmin)
 	_ = s.addCredential(ctx, me, testCredential("me"), "key")
-	member := newAccount(t, s, "メンバー", roleMember)
+	member := newAccount(t, s, "メンバー", roleSiteAdmin)
 	_ = s.addCredential(ctx, member, testCredential("m"), "key")
 	session := newSession(t, s, member)
 
@@ -164,7 +164,7 @@ func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 	}
 
 	// 作成すると、その応答だけに登録URLを表示する
-	rec = fx.postForm(t, "/admin/accounts", withCSRF(fx, admin, url.Values{"name": {"<b>編集担当A</b>"}, "role": {roleMember}}), "same-origin", admin)
+	rec = fx.postForm(t, "/admin/accounts", withCSRF(fx, admin, url.Values{"name": {"<b>編集担当A</b>"}, "role": {roleSiteAdmin}}), "same-origin", admin)
 	m := setupTokenPattern.FindStringSubmatch(rec.Body.String())
 	if rec.Code != http.StatusOK || m == nil {
 		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
@@ -172,7 +172,7 @@ func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "&lt;b&gt;編集担当A&lt;/b&gt;") {
 		t.Fatal("names must be escaped")
 	}
-	if rec := fx.postForm(t, "/admin/accounts", withCSRF(fx, admin, url.Values{"name": {"<b>編集担当A</b>"}, "role": {roleMember}}), "same-origin", admin); rec.Code != http.StatusBadRequest {
+	if rec := fx.postForm(t, "/admin/accounts", withCSRF(fx, admin, url.Values{"name": {"<b>編集担当A</b>"}, "role": {roleSiteAdmin}}), "same-origin", admin); rec.Code != http.StatusBadRequest {
 		t.Fatalf("duplicate name: %d", rec.Code)
 	}
 	if strings.Contains(fx.logs.String(), "編集担当A") || strings.Contains(fx.logs.String(), m[1]) {
@@ -204,7 +204,7 @@ func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 			t.Errorf("member GET %s: %d", path, rec.Code)
 		}
 	}
-	if rec := fx.postForm(t, "/admin/accounts/1/role", withCSRF(fx, memberCookie, url.Values{"role": {roleMember}}), "same-origin", memberCookie); rec.Code != http.StatusForbidden {
+	if rec := fx.postForm(t, "/admin/accounts/1/role", withCSRF(fx, memberCookie, url.Values{"role": {roleSiteAdmin}}), "same-origin", memberCookie); rec.Code != http.StatusForbidden {
 		t.Fatalf("member POST role: %d", rec.Code)
 	}
 	rec = fx.do(t, http.MethodGet, "/admin/passkeys", nil, memberCookie)
@@ -274,7 +274,7 @@ func TestAccountsHTTP_InviteMemberAndRoles(t *testing.T) {
 func TestAccountsHTTP_ChangeRole(t *testing.T) {
 	fx := newFixture(t)
 	_, admin := fx.loggedIn(t)
-	rec := fx.postForm(t, "/admin/accounts", withCSRF(fx, admin, url.Values{"name": {"編集担当"}, "role": {roleMember}}), "same-origin", admin)
+	rec := fx.postForm(t, "/admin/accounts", withCSRF(fx, admin, url.Values{"name": {"編集担当"}, "role": {roleSiteAdmin}}), "same-origin", admin)
 	m := setupTokenPattern.FindStringSubmatch(rec.Body.String())
 	if m == nil {
 		t.Fatalf("create: %d", rec.Code)
@@ -300,7 +300,7 @@ func TestAccountsHTTP_ChangeRole(t *testing.T) {
 		t.Fatalf("admin after the change: %d", rec.Code)
 	}
 
-	if rec := fx.postForm(t, "/admin/accounts/2/role", withCSRF(fx, admin, url.Values{"role": {roleMember}}), "same-origin", admin); rec.Code != http.StatusSeeOther {
+	if rec := fx.postForm(t, "/admin/accounts/2/role", withCSRF(fx, admin, url.Values{"role": {roleSiteAdmin}}), "same-origin", admin); rec.Code != http.StatusSeeOther {
 		t.Fatalf("demote: %d", rec.Code)
 	}
 	if rec := fx.do(t, http.MethodGet, "/admin/accounts", nil, login()); rec.Code != http.StatusForbidden {
@@ -315,7 +315,7 @@ func TestAccountsHTTP_DeleteAnotherAccountsPasskey(t *testing.T) {
 	ctx := context.Background()
 	_, admin := fx.loggedIn(t)
 	s := fx.feature.store
-	id, _, err := s.createAccountWithToken(ctx, "B", roleMember)
+	id, _, err := s.createAccountWithToken(ctx, "B", roleSiteAdmin)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,7 +341,7 @@ func TestAccountsHTTP_DeleteAnotherAccountsPasskey(t *testing.T) {
 func TestAdminAPI_RolesAndDisabledAccounts(t *testing.T) {
 	fx := newFixture(t)
 	admin := authtest.NewSessionWithRole(t, fx.db, roleAdmin)
-	member := authtest.NewSessionWithRole(t, fx.db, roleMember)
+	member := authtest.NewSessionWithRole(t, fx.db, roleSiteAdmin)
 
 	if rec := fx.do(t, http.MethodGet, "/admin/notes/settings", nil, admin); rec.Code != http.StatusOK || rec.Body.String() != "settings for admin" {
 		t.Fatalf("admin AdminPage: %d %s", rec.Code, rec.Body.String())

@@ -16,10 +16,10 @@ type Page struct {
 	Next   int // 次のページ。無ければ0
 
 	// 以下は "pagination" の表示用です。
-	Base     string // リンク先のパス（例: "/news"）。?page= を付けて使う
-	Label    string // ページ送りのナビの名前（aria-label）
-	PrevText string // 前のページへのリンクの文言
-	NextText string // 次のページへのリンクの文言
+	Base     string  // リンク先のパス（例: "/news"）。?page= を付けて使う
+	Label    string  // ページ送りのナビの名前（aria-label）
+	PrevText string  // 前のページへのリンクの文言
+	NextText string  // 次のページへのリンクの文言
 	Params   []Param // リンクに残す絞り込みの条件（任意）
 }
 

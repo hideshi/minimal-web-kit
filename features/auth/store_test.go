@@ -105,7 +105,7 @@ func TestAdminSession_IdleAndAbsoluteExpiry(t *testing.T) {
 func TestAdminSession_FollowsAccountState(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
-	id := newAccount(t, s, "メンバーA", roleMember)
+	id := newAccount(t, s, "メンバーA", roleSiteAdmin)
 	token := newSession(t, s, id)
 	mustExec(t, db, "UPDATE auth_accounts SET role = 'admin' WHERE id = ?", id)
 	if got, err := s.validateSession(ctx, token); err != nil || got.Role != roleAdmin {
@@ -214,8 +214,8 @@ func TestSetupToken_SingleUseExpiryAndAtomicity(t *testing.T) {
 func TestSetupToken_ScopedToAccount(t *testing.T) {
 	ctx := context.Background()
 	s, db, clock := newAdminFixture(t)
-	a := newAccount(t, s, "A", roleMember)
-	b := newAccount(t, s, "B", roleMember)
+	a := newAccount(t, s, "A", roleSiteAdmin)
+	b := newAccount(t, s, "B", roleSiteAdmin)
 	ta, err := issueSetupToken(ctx, db, a, inviteTokenTTL, clock.now())
 	if err != nil {
 		t.Fatal(err)
@@ -293,7 +293,7 @@ func TestLogin_CounterMonotonicAndSession(t *testing.T) {
 		t.Fatalf("credential = %+v, err=%v", got, err)
 	}
 	// 別のアカウントとしてはログインできない
-	other := newAccount(t, s, "B", roleMember)
+	other := newAccount(t, s, "B", roleSiteAdmin)
 	if _, err := s.login(ctx, c.ID, other, 8); !errors.Is(err, ErrSignCountConflict) {
 		t.Fatal("a credential must not log in as another account")
 	}
@@ -322,7 +322,7 @@ func TestCredentials_DisableRevokesAccountSessions(t *testing.T) {
 	ctx := context.Background()
 	s, db, _ := newAdminFixture(t)
 	id := newAccount(t, s, "管理者", roleAdmin)
-	other := newAccount(t, s, "B", roleMember)
+	other := newAccount(t, s, "B", roleSiteAdmin)
 	c := testCredential("key")
 	if err := s.addCredential(ctx, id, c, "key"); err != nil {
 		t.Fatal(err)
@@ -356,7 +356,7 @@ func TestRecover_ClearsAuthStateButKeepsOtherData(t *testing.T) {
 	s, db, clock := newAdminFixture(t)
 	mustExec(t, db, "CREATE TABLE other_data (v TEXT); INSERT INTO other_data VALUES ('keep')")
 	admin := newAccount(t, s, "管理者", roleAdmin)
-	member := newAccount(t, s, "メンバーA", roleMember)
+	member := newAccount(t, s, "メンバーA", roleSiteAdmin)
 	if err := s.addCredential(ctx, admin, testCredential("lost"), "lost key"); err != nil {
 		t.Fatal(err)
 	}

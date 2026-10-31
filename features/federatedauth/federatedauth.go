@@ -107,7 +107,7 @@ func (f *Feature) Init(db *sql.DB) error {
 	if len(value) < 32 {
 		return errors.New("OIDC_CLIENT_SECRET_FILE: secret too short")
 	}
-	if _, err := db.Exec(migrationSQL); err != nil {
+	if err := migrate(context.Background(), db); err != nil {
 		return fmt.Errorf("federatedauth migration: %w", err)
 	}
 	f.store = &sessionStore{db: db, issuer: f.cfg.Issuer, now: f.now}

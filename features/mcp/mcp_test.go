@@ -125,9 +125,9 @@ func newEnv(t *testing.T) *env {
 	}
 	full := []string{scopeRead, scopeWrite}
 	a := &fakeAuth{tokens: map[string]features.AgentPrincipal{
-		"good":  {AccountID: 1, Client: "c1", Role: features.RoleMember, Scopes: full, Generation: "1.1.1"},
-		"other": {AccountID: 2, Client: "c1", Role: features.RoleMember, Scopes: full, Generation: "1.1.1"},
-		"read":  {AccountID: 1, Client: "c1", Role: features.RoleMember, Scopes: []string{scopeRead}, Generation: "1.1.1"},
+		"good":  {AccountID: 1, Client: "c1", Role: features.RoleSiteAdmin, Scopes: full, Generation: "1.1.1"},
+		"other": {AccountID: 2, Client: "c1", Role: features.RoleSiteAdmin, Scopes: full, Generation: "1.1.1"},
+		"read":  {AccountID: 1, Client: "c1", Role: features.RoleSiteAdmin, Scopes: []string{scopeRead}, Generation: "1.1.1"},
 	}}
 	if err := f.SetAgentAuth(a); err != nil {
 		t.Fatal(err)

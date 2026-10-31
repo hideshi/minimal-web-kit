@@ -358,7 +358,7 @@ func TestMigrate_StopsOnLeftover(t *testing.T) {
 func TestAdmin_ListViews(t *testing.T) {
 	f, routes, core, _, clock := setup(t)
 	admin := authtest.NewSessionWithRole(t, core.DB(), "admin")
-	member := authtest.NewSessionWithRole(t, core.DB(), "member")
+	member := authtest.NewSessionWithRole(t, core.DB(), "site_admin")
 	if body := adminRequest(routes, http.MethodGet, "/admin/contact", admin, nil).Body.String(); !strings.Contains(body, "未読と対応中のお問い合わせはまだありません。") {
 		t.Fatal("empty open list")
 	}
@@ -464,7 +464,7 @@ func TestAdmin_Note(t *testing.T) {
 // 不変条件: CONTACT-INV-3
 func TestAdmin_MemberCannotWrite(t *testing.T) {
 	f, routes, core, _, clock := setup(t)
-	member := authtest.NewSessionWithRole(t, core.DB(), "member")
+	member := authtest.NewSessionWithRole(t, core.DB(), "site_admin")
 	id := addRow(t, core.DB(), statusSpam, *clock, *clock)
 	path := "/admin/contact/" + itoa(id)
 	token := authtest.CSRFToken(t, routes, "/admin/passkeys", member)

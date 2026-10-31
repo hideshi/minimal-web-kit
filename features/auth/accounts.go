@@ -14,9 +14,9 @@ import (
 )
 
 const (
-	roleAdmin  = string(features.RoleAdmin)
-	roleMember = string(features.RoleMember)
-	roleUser   = string(features.RoleUser)
+	roleAdmin     = string(features.RoleAdmin)
+	roleSiteAdmin = string(features.RoleSiteAdmin)
+	roleUser      = string(features.RoleUser)
 
 	maxAccountNameRunes = 50
 	// firstAdminName は、auth-setup・auth-recover が作る最初のシステム管理者アカウントの呼び名です。
@@ -52,7 +52,9 @@ func normalizeAccountName(name string) (string, error) {
 	return name, nil
 }
 
-func validRole(role string) bool { return role == roleAdmin || role == roleMember || role == roleUser }
+func validRole(role string) bool {
+	return role == roleAdmin || role == roleSiteAdmin || role == roleUser
+}
 
 func newWebAuthnUserID() ([]byte, error) {
 	id := make([]byte, 16)
@@ -131,7 +133,7 @@ func roleLabel(role string) string {
 	switch role {
 	case roleAdmin:
 		return "システム管理者"
-	case roleMember:
+	case roleSiteAdmin:
 		return "サイト管理者"
 	}
 	return "一般ユーザー"

@@ -169,7 +169,7 @@ func TestAdminStore_DeleteCredentialKeepsOneActive(t *testing.T) {
 	s, _, _ := newAdminFixture(t)
 	ctx := context.Background()
 	account := newAccount(t, s, "管理者", roleAdmin)
-	other := newAccount(t, s, "B", roleMember)
+	other := newAccount(t, s, "B", roleSiteAdmin)
 	if err := s.addCredential(ctx, other, testCredential("other"), "他のキー"); err != nil {
 		t.Fatal(err)
 	}

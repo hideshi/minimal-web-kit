@@ -146,7 +146,7 @@ func TestDocuments_AdminCannotReadUnshared(t *testing.T) {
 	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "秘密") {
 		t.Fatalf("transfer page must show counts only: %d", w.Code)
 	}
-	member := e.user("member")
+	member := e.user("site_admin")
 	if w := e.get(member, "/admin/documents/transfer"); w.Code != http.StatusForbidden {
 		t.Fatalf("transfer is for system admins: %d", w.Code)
 	}
@@ -158,7 +158,7 @@ func TestDocuments_AdminCannotReadUnshared(t *testing.T) {
 func TestDocuments_ShareReadAndConfirm(t *testing.T) {
 	ctx := context.Background()
 	e := newDocsEnv(t, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	owner, reader, outsider := e.user("user"), e.user("user"), e.user("member")
+	owner, reader, outsider := e.user("user"), e.user("user"), e.user("site_admin")
 	w := e.post(owner, "/admin/documents", url.Values{"title": {"全社回覧"}, "body": {"## 件名\n本文"}, "folder": {"0"}})
 	if w.Code != http.StatusSeeOther {
 		t.Fatalf("create: %d %s", w.Code, w.Body.String())

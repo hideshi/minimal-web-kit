@@ -370,7 +370,7 @@ func TestAdminProtectionWorkflowAndLogCanary(t *testing.T) {
 	s := fx.f.store
 	ctx := context.Background()
 	const canary = "CANARYcatalog7f3a"
-	cookie := authtest.NewSessionWithRole(t, fx.core.DB(), "member")
+	cookie := authtest.NewSessionWithRole(t, fx.core.DB(), "site_admin")
 	token := authtest.CSRFToken(t, fx.routes, "/admin/catalog/new", cookie)
 	headers := map[string]string{"Origin": "null", "Sec-Fetch-Site": "same-origin", "User-Agent": canary, "X-Request-ID": canary}
 	values := url.Values{"csrf_token": {token}, "title": {canary}, "body": {"本文"}, "new_tags": {canary + "タグ"}}
@@ -606,7 +606,7 @@ func TestPublicFilterNarrowsItems(t *testing.T) {
 func TestAdminItemLifecycle(t *testing.T) {
 	fx := setup(t, false)
 	ctx := context.Background()
-	cookie := authtest.NewSessionWithRole(t, fx.core.DB(), "member")
+	cookie := authtest.NewSessionWithRole(t, fx.core.DB(), "site_admin")
 	token := authtest.CSRFToken(t, fx.routes, "/admin/catalog/new", cookie)
 	headers := map[string]string{"Origin": "null", "Sec-Fetch-Site": "same-origin"}
 	post := func(path string, values url.Values) {

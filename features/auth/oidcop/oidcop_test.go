@@ -121,7 +121,7 @@ func newExchangeFixture(t *testing.T) *exchangeFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cookie, account := authtest.NewAccountSession(t, s.DB(), "member")
+	cookie, account := authtest.NewAccountSession(t, s.DB(), "site_admin")
 	if _, err := f.store.Grant(ctx, client.ID, account); err != nil {
 		t.Fatal(err)
 	}

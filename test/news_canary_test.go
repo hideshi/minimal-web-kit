@@ -125,7 +125,7 @@ func TestCanary_NewsRoutesDoNotLeakInput(t *testing.T) {
 
 	// ログイン中の管理者がアカウントを作っても、呼び名と登録URLのトークンはログに出ない
 	admin := authtest.NewSession(t, s.DB())
-	createForm := url.Values{"csrf_token": {authtest.CSRFToken(t, routes, "/admin/accounts", admin)}, "name": {canary}, "role": {"member"}}.Encode()
+	createForm := url.Values{"csrf_token": {authtest.CSRFToken(t, routes, "/admin/accounts", admin)}, "name": {canary}, "role": {"site_admin"}}.Encode()
 	req := httptest.NewRequest(http.MethodPost, "/admin/accounts", strings.NewReader(createForm))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Sec-Fetch-Site", "same-origin")
