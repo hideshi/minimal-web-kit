@@ -397,3 +397,23 @@ func TestDocumentsMCP_EnableNeedsTheNotice(t *testing.T) {
 		t.Fatalf("notice page as site admin: %d", w.Code)
 	}
 }
+
+// AIエージェントが「# 」を書かないよう、書き込みのツールの説明に本文の書き方を載せる。
+func TestDocumentsMCP_WriteToolsDescribeHeadings(t *testing.T) {
+	e := newMCPEnv(t)
+	e.enableDocuments()
+	list, _ := e.call("tools/list", "", nil)["tools"].([]any)
+	found := 0
+	for _, item := range list {
+		tool := item.(map[string]any)
+		if name := tool["name"]; name == "documents_create" || name == "documents_update" {
+			found++
+			if !strings.Contains(tool["description"].(string), "「## 」") {
+				t.Errorf("%s: %s", name, tool["description"])
+			}
+		}
+	}
+	if found != 2 {
+		t.Fatalf("found = %d", found)
+	}
+}
