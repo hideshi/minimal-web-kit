@@ -928,6 +928,9 @@ select[aria-invalid="true"] {
   cursor: pointer;
   font-weight: 700;
   list-style: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .public-menu > summary::-webkit-details-marker {
   display: none;

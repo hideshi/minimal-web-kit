@@ -302,6 +302,12 @@ func TestPublicMenu(t *testing.T) {
 	if evaluate[string](t, b, `getComputedStyle(`+summary+`).listStyleType`) != "none" {
 		t.Fatal("三角マーカーが残る")
 	}
+	if !evaluate[bool](t, b, `(() => {
+		const c = getComputedStyle(`+summary+`);
+		return c.webkitTapHighlightColor === 'rgba(0, 0, 0, 0)' && c.userSelect === 'none';
+	})()`) {
+		t.Fatal("タップの色や文字の選択が残る")
+	}
 	if !evaluate[bool](t, b, `(() => { const icons=[...document.querySelectorAll('.public-menu summary svg')]; return icons.length===2 && icons.every(e=>e.getAttribute('aria-hidden')==='true') && getComputedStyle(document.querySelector('.menu-open')).display!=='none' && getComputedStyle(document.querySelector('.menu-closed')).display==='none'; })()`) {
 		t.Fatal("アイコンまたは開閉表示が不正")
 	}
