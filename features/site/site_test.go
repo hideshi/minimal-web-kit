@@ -71,10 +71,18 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 
 	// GitHubへのリンクは、すべて新しいタブで開き、opener・referrerを渡さないこと
 	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit"`); got != 2 {
-		t.Errorf("expected 2 GitHub CTAs (hero, how-it-works), got %d", got)
+		t.Errorf("expected 2 GitHub CTAs (hero, banner after FAQ), got %d", got)
 	}
 	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer"`); got != 2 {
 		t.Errorf("all GitHub CTAs must open in a new tab with noopener noreferrer, got %d", got)
+	}
+	// 主のボタンはGitHubの2つだけにし、入手の帯はFAQとお問い合わせの間に置く
+	if got := strings.Count(bodyStr, `class="btn btn-primary btn-cta"`); got != 2 {
+		t.Errorf("only the GitHub CTAs may use the primary button, got %d", got)
+	}
+	faq, banner, contactSection := strings.Index(bodyStr, `id="faq"`), strings.Index(bodyStr, `class="cta-banner"`), strings.Index(bodyStr, `id="contact"`)
+	if faq < 0 || banner < faq || contactSection < banner {
+		t.Errorf("the CTA banner must sit between FAQ and contact: faq=%d banner=%d contact=%d", faq, banner, contactSection)
 	}
 
 	for _, snippet := range expectedSnippets {
