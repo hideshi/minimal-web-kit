@@ -86,8 +86,7 @@ func (f *Feature) handleCreateAccount(w http.ResponseWriter, r *http.Request, s 
 		f.renderAccountForm(w, s, http.StatusBadRequest, name, role, "呼び名は1〜50文字（改行なし）で入力し、ロールを選んでください。")
 		return
 	case err != nil:
-		f.logger.Error("auth create account failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		f.writeFailed(w, "auth create account failed", err)
 		return
 	}
 	f.logger.Info("auth account created", f.requestID(w), slog.Int64("account_id", id), slog.String("role", role), slog.Int64("by", s.accountID))
@@ -186,8 +185,7 @@ func (f *Feature) accountActionFailed(w http.ResponseWriter, r *http.Request, s 
 				return true
 			}
 		}
-		f.logger.Error("auth account action failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		f.writeFailed(w, "auth account action failed", err)
 	}
 	return true
 }

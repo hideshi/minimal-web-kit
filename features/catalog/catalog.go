@@ -112,8 +112,7 @@ func (f *Feature) result(w http.ResponseWriter, r *http.Request, err error) bool
 		return true
 	}
 	if store.Busy(err) {
-		w.Header().Set("Retry-After", "1")
-		http.Error(w, "一時的に処理できませんでした。時間を置いて再試行してください。", http.StatusServiceUnavailable)
+		web.WriteBusy(w)
 	} else if errors.Is(err, ErrNotFound) {
 		http.NotFound(w, r)
 	} else {

@@ -3,6 +3,8 @@ package pages
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -383,5 +385,25 @@ func TestLogs_DoNotLeakContent(t *testing.T) {
 		if strings.Contains(fx.logs.String(), canary) {
 			t.Fatalf("log leaked %s", canary)
 		}
+	}
+}
+
+// busyError は、SQLiteの書き込みの競合のエラーの見本です（SQLITE_BUSY）。
+type busyError struct{}
+
+func (busyError) Error() string { return "database is locked" }
+func (busyError) Code() int     { return 5 }
+
+// 書き込みの競合は503と Retry-After で返し、他の失敗は500のままにすること。
+func TestAdmin_BusyInvitesRetry(t *testing.T) {
+	fx := setup(t)
+	r := httptest.NewRequest(http.MethodPost, "/admin/pages", nil)
+	w := httptest.NewRecorder()
+	if !fx.f.failed(w, r, fmt.Errorf("save: %w", busyError{})) || w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") == "" {
+		t.Fatalf("busy: %d %v", w.Code, w.Header())
+	}
+	w = httptest.NewRecorder()
+	if !fx.f.failed(w, r, errors.New("broken")) || w.Code != http.StatusInternalServerError {
+		t.Fatalf("other failure: %d", w.Code)
 	}
 }

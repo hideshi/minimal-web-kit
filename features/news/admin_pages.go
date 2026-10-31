@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/notice"
@@ -136,8 +137,7 @@ func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	if err != nil {
-		f.logger.Error("news create post failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		f.writeFailed(w, "news create post failed", err)
 		return
 	}
 	f.logger.Info("news post created", f.requestID(w), postIDAttr(id))
@@ -230,8 +230,7 @@ func (f *Feature) afterPostChange(w http.ResponseWriter, r *http.Request, id int
 		return
 	}
 	if err != nil {
-		f.logger.Error("news post change failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		f.writeFailed(w, "news post change failed", err)
 		return
 	}
 	f.logger.Info(event, f.requestID(w), postIDAttr(id))
@@ -264,8 +263,7 @@ func (f *Feature) handleDeletePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	if err != nil {
-		f.logger.Error("news delete post failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		f.writeFailed(w, "news delete post failed", err)
 		return
 	}
 	f.logger.Info("news post deleted", f.requestID(w), postIDAttr(id))
@@ -286,4 +284,15 @@ func (f *Feature) registerPostAdminRoutes(mux *web.IsolatedMux) {
 	}, "news post unpublished", "unpublished")))
 	mux.HandleFunc("GET /admin/news/{id}/delete", f.admin.Page(f.handleDeletePostPage))
 	mux.HandleFunc("POST /admin/news/{id}/delete", f.admin.Form(f.handleDeletePost))
+}
+
+// writeFailed は、書き込みの失敗の応答を書きます。競合は再試行できるので503にします。
+func (f *Feature) writeFailed(w http.ResponseWriter, event string, err error) {
+	if store.Busy(err) {
+		f.logger.Warn(event, f.requestID(w))
+		web.WriteBusy(w)
+		return
+	}
+	f.logger.Error(event, f.requestID(w))
+	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }

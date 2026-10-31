@@ -3,7 +3,9 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
@@ -374,5 +376,32 @@ func TestAdminAPI_RolesAndDisabledAccounts(t *testing.T) {
 	}
 	if len(fx.notes.saved) != 0 {
 		t.Fatal("a disabled account must not reach the feature")
+	}
+}
+
+// busyError は、SQLiteの書き込みの競合のエラーの見本です（SQLITE_BUSY）。
+type busyError struct{}
+
+func (busyError) Error() string { return "database is locked" }
+func (busyError) Code() int     { return 5 }
+
+// 書き込みの競合は503と Retry-After で返し、他の失敗は500のままにすること。JSONのAPIも同じ。
+func TestWriteFailed_BusyInvitesRetry(t *testing.T) {
+	fx := newFixture(t)
+	busy := fmt.Errorf("save: %w", busyError{})
+	for name, write := range map[string]func(w http.ResponseWriter, err error){
+		"page": func(w http.ResponseWriter, err error) { fx.feature.writeFailed(w, "auth account action failed", err) },
+		"api":  func(w http.ResponseWriter, err error) { fx.feature.writeStoreError(w, err) },
+	} {
+		w := httptest.NewRecorder()
+		write(w, busy)
+		if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") == "" {
+			t.Errorf("%s busy: %d %v", name, w.Code, w.Header())
+		}
+		w = httptest.NewRecorder()
+		write(w, errors.New("broken"))
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("%s other failure: %d", name, w.Code)
+		}
 	}
 }

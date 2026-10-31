@@ -86,8 +86,7 @@ func (f *Feature) handleRenamePasskey(w http.ResponseWriter, r *http.Request, s 
 	case errors.Is(err, ErrNotFound):
 		http.NotFound(w, r)
 	case err != nil:
-		f.logger.Error("auth rename passkey failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		f.writeFailed(w, "auth rename passkey failed", err)
 	default:
 		f.logger.Info("auth passkey renamed", f.requestID(w), slog.Int64("account_id", s.accountID))
 		notice.Redirect(w, r, "/admin/passkeys", "renamed")
@@ -121,8 +120,7 @@ func (f *Feature) handleDeletePasskey(w http.ResponseWriter, r *http.Request, s 
 	case errors.Is(err, ErrNotFound):
 		http.NotFound(w, r)
 	case err != nil:
-		f.logger.Error("auth delete passkey failed", f.requestID(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		f.writeFailed(w, "auth delete passkey failed", err)
 	default:
 		f.logger.Info("auth passkey deleted", f.requestID(w), slog.Int64("account_id", s.accountID))
 		notice.Redirect(w, r, "/admin/passkeys", "removed")

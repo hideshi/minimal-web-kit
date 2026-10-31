@@ -2,6 +2,10 @@ package news
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -287,5 +291,26 @@ func TestAdminPosts_ScheduledPublishing(t *testing.T) {
 	}
 	if rec := fx.do(t, http.MethodGet, "/admin/news", nil, cookie); strings.Contains(rec.Body.String(), "公開予約") || !strings.Contains(rec.Body.String(), "公開中") {
 		t.Fatal("the admin list must show the post as published")
+	}
+}
+
+// busyError は、SQLiteの書き込みの競合のエラーの見本です（SQLITE_BUSY）。
+type busyError struct{}
+
+func (busyError) Error() string { return "database is locked" }
+func (busyError) Code() int     { return 5 }
+
+// 書き込みの競合は503と Retry-After で返し、他の失敗は500のままにすること。
+func TestAdminPosts_BusyInvitesRetry(t *testing.T) {
+	f := NewFeature(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	w := httptest.NewRecorder()
+	f.writeFailed(w, "news delete post failed", fmt.Errorf("delete: %w", busyError{}))
+	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") == "" {
+		t.Fatalf("busy: %d %v", w.Code, w.Header())
+	}
+	w = httptest.NewRecorder()
+	f.writeFailed(w, "news delete post failed", errors.New("broken"))
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("other failure: %d", w.Code)
 	}
 }
