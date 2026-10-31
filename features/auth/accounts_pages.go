@@ -37,7 +37,7 @@ func nameField(value, errMsg string) form.Field {
 func roleChoices(id, role string, long bool) form.Choices {
 	user, member, admin := roleLabel(roleUser), roleLabel(roleMember), roleLabel(roleAdmin)
 	if long {
-		user += "（文書の機能だけを使える。公開サイトの編集はできない）"
+		user += "（公開サイトの編集とアカウントの管理はできない）"
 		member += "（各機能の管理画面を使える。アカウントの管理はできない）"
 		admin += "（アカウントの管理もできる。必要な人に限る）"
 	}
