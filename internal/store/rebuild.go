@@ -123,11 +123,16 @@ func rebuild(ctx context.Context, conn *sql.Conn, r Rebuild) error {
 	if err != nil {
 		return err
 	}
-	head, work := "CREATE TABLE "+r.Table, r.Table+"_new"
-	if !strings.HasPrefix(definition, head) {
+	work := r.Table + "_new"
+	// 改名した表の定義は、SQLiteが名前を引用符で囲んで保存する
+	body, ok := strings.CutPrefix(definition, "CREATE TABLE "+r.Table)
+	if !ok {
+		body, ok = strings.CutPrefix(definition, `CREATE TABLE "`+r.Table+`"`)
+	}
+	if !ok {
 		return fmt.Errorf("migration: unexpected definition of %s", r.Table)
 	}
-	create := "CREATE TABLE " + work + strings.TrimPrefix(definition, head)
+	create := "CREATE TABLE " + work + body
 
 	names, values, err := copyColumns(ctx, conn, r)
 	if err != nil {
