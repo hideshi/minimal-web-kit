@@ -82,7 +82,7 @@ type PrivacyFeature interface {
 	PrivacyNotices() []web.PrivacyNotice
 }
 
-// AccountNoticeConsumer は、社内の人向けの保存する情報を、ログイン後の画面に出す機能（features/auth）が実装します。
+// AccountNoticeConsumer は、社内の人向けの保存する情報を、ログイン後の画面に出す機能（features/auth、features/federatedauth）が実装します。
 type AccountNoticeConsumer interface {
 	Feature
 	SetAccountNotices(notices []web.PrivacyNotice)

@@ -29,7 +29,8 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
    キット本体に同梱機能を足したら、`features/site/views/index.html` にカードを足す（`test/landing_test.go` が確かめる）。別のサイトでトップを書き換えたら、同じファイルの先頭の印 `kit-landing` を消す。
 2. **スキーマ**: テーブルは `features/<名前>/migration.sql` に書き、`Init` から同じファイルを適用する。同時に `docs/data-inventory.md` を更新する（台帳テストは全 `features/*/migration.sql` を照合する）。`internal/store/migrations/` はCoreのスキーマだけに使う。
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。
-4. **任意のインターフェース**: 口の一覧の正本は `features/feature.go` で、使う前にそこから選ぶ。例: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`（再起動なしで変わるなら `DynamicNavLinkFeature`）、サイト全体のヘッダー・フッターは `LayoutFeature` と `LayoutConsumer`、どの経路にも当たらないGET・HEADを受けるのは `FallbackFeature`、運用コマンドは `CommandFeature`、AIエージェントに操作させるのは `MCPFeature`（読み取りは `Read`、書き込みは `Prepare`・`Apply`。`Apply` は状態の照合と保存を不可分に行う）、管理画面の利用者等の保存情報をプライバシーポリシーに載せるのは `PrivacyFeature`。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。
+4. **任意のインターフェース**: 口の一覧の正本は `features/feature.go` で、使う前にそこから選ぶ。例: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`（再起動なしで変わるなら `DynamicNavLinkFeature`）、サイト全体のヘッダー・フッターは `LayoutFeature` と `LayoutConsumer`、どの経路にも当たらないGET・HEADを受けるのは `FallbackFeature`、運用コマンドは `CommandFeature`、AIエージェントに操作させるのは `MCPFeature`（読み取りは `Read`、書き込みは `Prepare`・`Apply`。`Apply` は状態の照合と保存を不可分に行う）、保存情報の説明は `PrivacyFeature` で提供し、`Internal: true` の説明は `AccountNoticeConsumer` を通じてログイン後の画面へ、それ以外は公開のプライバシーポリシーへ載せる。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。
+   Registry から他の機能へ値を配る口（`AccountNoticeConsumer`・`NavLinkConsumer`・お問い合わせの行き先等）を足したら、受け手が0と2以上のときの動きを `BuildRoutes` で決め、黙って捨てない。必須の情報が失われるなら起動を止める。非公開の情報を公開側へ戻さない。受け手の無い Registry で `app.BuildRoutes` を呼ぶテストを置く（見本: `TestNotices_InternalNeedAPage`）。
 5. **型**: 機密や本文を含む型には `slog.LogValuer` を実装する。
 6. **仕様との同期**: 挙動を変える `feat`・`fix` では、同じコミットで `docs/domain/<機能>.md` を更新する（条件・文言・拒否の仕方が変わるなら表も直す）。実装が仕様と違うと分かったら、実装に文書を合わせて済ませず、不具合か要件の変更かを判断する（`docs/README.md`）。守り続ける挙動にはテストを書き、不変条件の番号を足す。リファクタリングで挙動が変わらないなら更新しない。
 7. **不変条件**: `docs/domain/<機能>.md` の不変条件を確かめるテスト関数の説明コメントに、`// 不変条件: AUTH-INV-1, AUTH-INV-2` の形で番号を書く。原子性が要る条件はSQLの1つの文かトランザクションで守り、その関数のコメントにも番号を書く。
@@ -43,7 +44,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 - 管理機能には明示的な認証を付ける。同梱の管理者認証（`features/auth`。提供機能 `features/auth/oidcop`、利用機能 `features/federatedauth` に置き換えられる）を使い、`features.AdminConsumer` で受け取った `Admin` の `Page`・`Form` で全経路を守る。`auth` のパッケージや表に直接依存しない。無記名セッションを持つだけでシステム管理者にしない。状態変更をGETで実装せず、CSRF保護と認可を両方適用する。
 - SQLの文は固定の文字列だけで作り、値は `?` で渡す。表の名前のように `?` で渡せないものは、固定の文字列を返す関数で選ぶ（`test/sql_static_test.go`）。
 - テストの置き場所: 1か所でしか使わない短い処理は、関数に分けず、呼び出し側の動きをテストする。2か所以上で使うようになったら切り出して単体テストを書く。
-- 検査や守りのテストには、通るべき例だけでなく、落ちるべき例も置く（例: `TestSQL_CheckerFindsUnsafeStatements`）。
+- 検査や守りのテストには、落ちるべき例も置く（例: `TestSQL_CheckerFindsUnsafeStatements`）。応答のテストを `w.Code < 500` のような「失敗しなかった」だけで終わらせない（全部が未認証の303でも通る）。経路ごとに期待する状態コードを書き、保存する経路では読み返した値を、拒否する経路では保存されないことを確かめる（見本: `TestBoundary_StrangeValuesAreHandled`）。
 - SQLiteの接続別PRAGMAを全接続に適用し、外部キーのCASCADE、期限切れ照会、GC、削除後の再アクセスを確認する。
 - `owners` へのCASCADEは、セッション破棄と30日放置のGCで消えてよいブラウザ単位の一時データに限る。お知らせの記事・業務データ等の残すべきデータは `owners` に紐づけず、システム管理者アカウント等の別の持ち主と保持・削除方法を設計する。
 - 公開ページでは `EnsureSession` を呼ばない。ハンドラ単体でなく、Routes経由でCookie発行と保存件数を確認する。サーバー起動時のDB初期化とページ表示時の保存は区別する。
