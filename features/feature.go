@@ -328,8 +328,9 @@ type MediaConsumer interface {
 // MediaOwner は、画像を使う機能が実装します。画像機能は機能の表を読まず、この口で公開の判定と参照の作り直しを行います。
 type MediaOwner interface {
 	Feature
-	// MediaIsPublic は、参照先の記事が今公開中かを、公開ページと同じ条件で返します。
-	MediaIsPublic(ctx context.Context, key string) (bool, error)
+	// MediaIsPublic は、参照先の記事が今その画像を使っていて、公開ページと同じ条件で公開中かを返します。
+	// 参照の記録は読んだ直後に古くなり得るため、記事の状態と使っている画像を1回の読み取りで確かめます。
+	MediaIsPublic(ctx context.Context, key, file string) (bool, error)
 	// MediaReferences は、全ての記事と、それぞれが使う画像のファイル名を返します。
 	MediaReferences(ctx context.Context) (map[string][]string, error)
 }

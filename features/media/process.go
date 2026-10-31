@@ -22,8 +22,6 @@ const (
 	// maxHeavyPixels は、同じ画素数でメモリを多く使う形式（プログレッシブのJPEG、16ビットのPNG等）の上限です。
 	maxHeavyPixels = 12_000_000
 	maxEdge        = 12_000
-	// maxExifScan は、向きを探す範囲です。
-	maxExifScan = 1 << 20
 
 	formatJPEG = "jpg"
 	formatPNG  = "png"
@@ -79,7 +77,14 @@ func inspect(data []byte) (string, image.Config, error) {
 	case bytes.HasPrefix(data, []byte{0xff, 0xd8, 0xff}):
 		format = formatJPEG
 		cfg, err = jpeg.DecodeConfig(bytes.NewReader(data))
-		heavy = err == nil && (cfg.ColorModel == color.CMYKModel || progressiveJPEG(data))
+		if err == nil {
+			// 形式が分からないものを通常のJPEGとして扱わない
+			progressive, ok := jpegFrame(data)
+			if !ok {
+				return "", cfg, errFormat
+			}
+			heavy = progressive || cfg.ColorModel == color.CMYKModel
+		}
 	case bytes.HasPrefix(data, []byte("\x89PNG\r\n\x1a\n")):
 		format = formatPNG
 		cfg, err = png.DecodeConfig(bytes.NewReader(data))
@@ -100,10 +105,10 @@ func inspect(data []byte) (string, image.Config, error) {
 	return format, cfg, nil
 }
 
-// jpegSegments は、JPEGの先頭の部品を順に visit へ渡します。画像の本体（SOS）の手前か、走査の上限で止まります。
+// jpegSegments は、JPEGの部品を順に visit へ渡し、画像の本体（SOS）の手前で止まります。
+// 走査の上限は置きません。部品の見出しだけを読み、部品は最大64KBで、入力は上限の8MB以下なので、時間は長さに比例します。
 func jpegSegments(data []byte, visit func(marker byte, body []byte) bool) {
-	limit := min(len(data), maxExifScan)
-	for i := 2; i+4 <= limit; {
+	for i := 2; i+4 <= len(data); {
 		if data[i] != 0xff {
 			return
 		}
@@ -114,6 +119,10 @@ func jpegSegments(data []byte, visit func(marker byte, body []byte) bool) {
 		}
 		if marker == 0xda {
 			return
+		}
+		if marker == 0x01 || (marker >= 0xd0 && marker <= 0xd8) { // 長さを持たない印
+			i += 2
+			continue
 		}
 		length := int(binary.BigEndian.Uint16(data[i+2:]))
 		if length < 2 || i+2+length > len(data) {
@@ -126,15 +135,17 @@ func jpegSegments(data []byte, visit func(marker byte, body []byte) bool) {
 	}
 }
 
-func progressiveJPEG(data []byte) bool {
-	found := false
+// jpegFrame は、最初のフレームの見出し（SOF）を探して、プログレッシブかを返します。
+// 見つからなければ ok=false です（部品の間に余分なバイトがあるファイル等）。
+func jpegFrame(data []byte) (progressive, ok bool) {
 	jpegSegments(data, func(marker byte, _ []byte) bool {
-		if marker == 0xc2 {
-			found = true
+		if marker < 0xc0 || marker > 0xcf || marker == 0xc4 || marker == 0xc8 || marker == 0xcc {
+			return true
 		}
-		return !found
+		progressive, ok = marker == 0xc2, true
+		return false
 	})
-	return found
+	return progressive, ok
 }
 
 // jpegOrientation は、EXIFの向き（1〜8）を返します。読むのは向きだけで、書式の外れた値は1（回転なし）にします。

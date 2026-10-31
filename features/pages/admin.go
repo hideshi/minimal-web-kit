@@ -230,6 +230,11 @@ func (f *Feature) handlePreview(w http.ResponseWriter, r *http.Request, s featur
 	}
 	n, err := normalize(in, f.taken)
 	if err != nil {
+		// 画像を選んでいる途中は、入力の途中のことがあるので、誤りとして扱わずに描き直す
+		if r.PostForm.Get("media_page") != "" || r.PostForm.Get("insert_media") != "" {
+			f.formPage(w, r, s, p, pageForm{Input: in}, http.StatusOK, nil)
+			return
+		}
 		var invalid InputError
 		errors.As(err, &invalid)
 		f.formPage(w, r, s, p, pageForm{Input: in, Invalid: invalid.Field}, http.StatusBadRequest, nil)

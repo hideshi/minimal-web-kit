@@ -2,12 +2,14 @@ package media
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"regexp"
+	"time"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
@@ -181,31 +183,57 @@ var (
 	errFileSize    = errors.New("media: file too large")
 )
 
-// handleUpload は画像を追加します。本文を読む前に同時処理の枠を取り、読み終えて加工するまで保持します。
+// acquire は加工の同時処理の枠を取ります。加工は短いので少し待ち、取れなければ false を返します。
+func (f *Feature) acquire(ctx context.Context) bool {
+	timer := time.NewTimer(f.slotWait)
+	defer timer.Stop()
+	select {
+	case f.slots <- struct{}{}:
+		return true
+	case <-timer.C:
+	case <-ctx.Done():
+	}
+	return false
+}
+
+// handleUpload は画像を追加します。本文は枠の外で読み、遅い回線の送信が他の人の加工を止めないようにします。
+// 枠はメモリを多く使う加工の間だけ持ちます。
 // 不変条件: MEDIA-INV-3, MEDIA-INV-4
 func (f *Feature) handleUpload(w http.ResponseWriter, r *http.Request, s features.AdminSession, parts *multipart.Reader) {
 	if parts == nil {
 		f.listPage(w, r, s, uploadForm{Invalid: "size"}, http.StatusRequestEntityTooLarge)
 		return
 	}
-	select {
-	case f.slots <- struct{}{}:
-	default:
-		web.WriteBusy(w)
-		return
+	alt, data, invalid, status := receive(parts)
+	if invalid == "" && status == 0 {
+		if !f.acquire(r.Context()) {
+			web.WriteBusy(w)
+			return
+		}
+		var result processed
+		var err error
+		func() {
+			defer func() { <-f.slots }() // 加工の途中のpanicでも枠を返す
+			result, err = process(data)
+		}()
+		switch {
+		case errors.Is(err, errPixels):
+			invalid, status = "pixels", http.StatusBadRequest
+		case err != nil:
+			invalid, status = "format", http.StatusBadRequest
+		default:
+			f.save(w, r, s, result, alt)
+			return
+		}
 	}
-	alt, result, invalid, status := func() (string, processed, string, int) {
-		defer func() { <-f.slots }() // 加工の途中のpanicでも枠を返す
-		return f.receive(parts)
-	}()
 	if invalid != "" {
 		f.listPage(w, r, s, uploadForm{Alt: alt, Invalid: invalid}, status)
 		return
 	}
-	if status != 0 {
-		http.Error(w, http.StatusText(status), status)
-		return
-	}
+	http.Error(w, http.StatusText(status), status)
+}
+
+func (f *Feature) save(w http.ResponseWriter, r *http.Request, s features.AdminSession, result processed, alt string) {
 	it, err := f.store.Add(r.Context(), result, alt)
 	if errors.Is(err, ErrFull) {
 		f.listPage(w, r, s, uploadForm{Alt: alt, Invalid: "full"}, http.StatusBadRequest)
@@ -218,33 +246,26 @@ func (f *Feature) handleUpload(w http.ResponseWriter, r *http.Request, s feature
 	notice.Redirect(w, r, "/admin/media/"+it.ID, "created")
 }
 
-// receive は部品を読んで加工します。invalid は欄のエラー、status は応答の状態です。
-func (f *Feature) receive(parts *multipart.Reader) (alt string, result processed, invalid string, status int) {
+// receive は部品を読みます。invalid は欄のエラー、status は応答の状態です。
+func receive(parts *multipart.Reader) (alt string, data []byte, invalid string, status int) {
 	alt, data, err := readUpload(parts)
 	var tooLarge *http.MaxBytesError
 	switch {
 	case errors.Is(err, errFileSize), errors.As(err, &tooLarge):
-		return alt, result, "size", http.StatusRequestEntityTooLarge
+		return alt, nil, "size", http.StatusRequestEntityTooLarge
 	case errors.Is(err, errBadAlt):
-		return "", result, "alt", http.StatusBadRequest
+		return "", nil, "alt", http.StatusBadRequest
 	case err != nil:
-		return alt, result, "", http.StatusBadRequest
+		return alt, nil, "", http.StatusBadRequest
 	}
 	clean, err := form.Line(alt, richtext.MaxAltRunes, true)
 	if err != nil {
-		return "", result, "alt", http.StatusBadRequest
+		return "", nil, "alt", http.StatusBadRequest
 	}
 	if len(data) == 0 {
-		return clean, result, "file", http.StatusBadRequest
+		return clean, nil, "file", http.StatusBadRequest
 	}
-	result, err = process(data)
-	switch {
-	case errors.Is(err, errPixels):
-		return clean, result, "pixels", http.StatusBadRequest
-	case err != nil:
-		return clean, result, "format", http.StatusBadRequest
-	}
-	return clean, result, "", 0
+	return clean, data, "", 0
 }
 
 func (f *Feature) itemPage(w http.ResponseWriter, r *http.Request, s features.AdminSession, id, alt, invalid string, status int) {

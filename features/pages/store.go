@@ -8,6 +8,7 @@ import (
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -314,12 +315,19 @@ func (s *Store) imageRefs(ctx context.Context) (map[string][]string, error) {
 	return refs, rows.Err()
 }
 
-// isPublished は、ページが公開中かを、公開ページと同じ条件で返します。
-func (s *Store) isPublished(ctx context.Context, id int64) (bool, error) {
-	var found int
-	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM pages WHERE id = ? AND status = 'published'", id).Scan(&found)
+// publishedUses は、ページが公開中で、本文がその画像を使っているかを1回の読み取りで確かめます。
+func (s *Store) publishedUses(ctx context.Context, id int64, file string) (bool, error) {
+	var body string
+	err := s.db.QueryRowContext(ctx, "SELECT body FROM pages WHERE id = ? AND status = 'published'", id).Scan(&body)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
-	return err == nil, err
+	if err != nil {
+		return false, err
+	}
+	doc, err := richtext.ParseWithImages(body)
+	if err != nil {
+		return false, nil // 上限を超えた本文は公開できない
+	}
+	return slices.Contains(doc.Images(), file), nil
 }

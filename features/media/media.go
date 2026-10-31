@@ -46,11 +46,12 @@ type Feature struct {
 	adminPages map[string]*template.Template
 	owners     map[string]features.MediaOwner
 	slots      chan struct{} // 加工の同時処理の枠
+	slotWait   time.Duration // 枠が空くのを待つ長さ
 	now        func() time.Time
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
-	return &Feature{logger: logger, owners: map[string]features.MediaOwner{}, slots: make(chan struct{}, 1), now: time.Now}
+	return &Feature{logger: logger, owners: map[string]features.MediaOwner{}, slots: make(chan struct{}, 1), slotWait: 10 * time.Second, now: time.Now}
 }
 
 func (f *Feature) Name() string { return "media" }
@@ -127,8 +128,9 @@ func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 }
 
 // isPublic は、画像が公開中の記事から使われているかを、記事の状態から判定します（MEDIA-INV-1）。
+// 参照の記録は候補を探すためだけに使い、公開かどうかは記事が今その画像を使っているかで決めます。
 // 外した機能の参照は公開中として数えません。
-func (f *Feature) isPublic(ctx context.Context, id string) (bool, error) {
+func (f *Feature) isPublic(ctx context.Context, id, file string) (bool, error) {
 	refs, err := f.store.Refs(ctx, id)
 	if err != nil {
 		return false, err
@@ -138,7 +140,7 @@ func (f *Feature) isPublic(ctx context.Context, id string) (bool, error) {
 		if !ok {
 			continue
 		}
-		public, err := o.MediaIsPublic(ctx, r.Key)
+		public, err := o.MediaIsPublic(ctx, r.Key, file)
 		if err != nil {
 			return false, err
 		}
@@ -166,7 +168,7 @@ func (f *Feature) handlePublic(w http.ResponseWriter, r *http.Request) {
 	}
 	var public bool
 	if err == nil {
-		public, err = f.isPublic(r.Context(), id)
+		public, err = f.isPublic(r.Context(), id, file)
 	}
 	if err != nil {
 		// 取得の失敗を404にすると、障害の間に公開中の画像が「無い」と扱われる

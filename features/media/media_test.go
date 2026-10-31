@@ -325,6 +325,43 @@ func TestPublic_NewsSchedule(t *testing.T) {
 	}
 }
 
+// 参照の記録が古くても、公開中の記事が今その画像を使っていなければ公開しない。
+// 参照を読んだ後に、記事から画像を外して公開した場合と同じ状態を作って確かめる。
+//
+// 不変条件: MEDIA-INV-1
+func TestPublic_StaleReferenceDoesNotExpose(t *testing.T) {
+	fx := setup(t)
+	secret := fx.add("公開していない画像", 1)
+	other := fx.add("別の画像", 2)
+	stale := func(owner string, key int64) {
+		t.Helper()
+		if _, err := fx.db.Exec("INSERT INTO media_refs (media_id, owner, ref_key) VALUES (?, ?, ?)", strings.Split(secret, ".")[0], owner, strconv.FormatInt(key, 10)); err != nil {
+			t.Fatal(err)
+		}
+		if got := fx.status(secret); got != http.StatusNotFound {
+			t.Fatalf("%s: %d", owner, got)
+		}
+		if _, err := fx.db.Exec("DELETE FROM media_refs WHERE media_id = ?", strings.Split(secret, ".")[0]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page := fx.page("about-us", "文字だけ")
+	if w := fx.post(fmt.Sprintf("/admin/pages/%d/publish", page), nil); w.Code != http.StatusSeeOther {
+		t.Fatalf("publish: %d", w.Code)
+	}
+	stale("pages", page)
+	post := createdID(t, fx.post("/admin/news", url.Values{"title": {"題"}, "body": {"本文"}, "cover": {other}}), "/admin/news/")
+	if w := fx.post(fmt.Sprintf("/admin/news/%d/publish", post), nil); w.Code != http.StatusSeeOther {
+		t.Fatalf("publish: %d", w.Code)
+	}
+	stale("news", post)
+	item := createdID(t, fx.post("/admin/catalog", url.Values{"title": {"題"}, "body": {"本文"}, "cover": {other}}), "/admin/catalog/")
+	if w := fx.post(fmt.Sprintf("/admin/catalog/%d/publish", item), nil); w.Code != http.StatusSeeOther {
+		t.Fatalf("publish: %d", w.Code)
+	}
+	stale("catalog", item)
+}
+
 // 公開の応答は、固定の形式でキャッシュでき、Cookieを発行しない。404はキャッシュさせない。
 //
 // 不変条件: MEDIA-INV-2
@@ -658,6 +695,19 @@ func TestPages_InsertAndPreview(t *testing.T) {
 	w = fx.post("/admin/pages/preview", url.Values{"slug": {"about-us"}, "title": {"題"}, "body": {"本文"}, "insert_media": {strings.Repeat("a", 32) + ".jpg"}})
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("missing image: %d", w.Code)
+	}
+	// 入力の途中でも、画像を選ぶ操作はエラーにしない
+	for name, values := range map[string]url.Values{
+		"挿入":    {"body": {"本文"}, "insert_media": {file}},
+		"ページ送り": {"body": {"本文"}, "media_page": {"1"}},
+	} {
+		w := fx.post("/admin/pages/preview", values)
+		if w.Code != http.StatusOK || strings.Contains(w.Body.String(), "field-error") {
+			t.Errorf("%s: %d", name, w.Code)
+		}
+		if name == "挿入" && !strings.Contains(w.Body.String(), "![説明\\]と\\\\記号](/media/"+file+")") {
+			t.Errorf("%s: line not inserted", name)
+		}
 	}
 }
 

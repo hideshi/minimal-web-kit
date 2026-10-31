@@ -266,17 +266,88 @@ func TestProcess_Rejects(t *testing.T) {
 	}
 }
 
-// プログレッシブのJPEGを見分け、低い画素数の上限を当てる。
-func TestProgressiveJPEG(t *testing.T) {
-	data := jpegBytes(t, gradient(16, 16))
-	if progressiveJPEG(data) {
-		t.Fatal("baseline detected as progressive")
+// padded は、JPEGの先頭に、最大の大きさのコメントの部品を n 個差し込みます。
+func padded(data []byte, n int) []byte {
+	seg := append([]byte{0xff, 0xfe, 0xff, 0xff}, make([]byte, 65533)...)
+	out := append([]byte{}, data[:2]...)
+	for range n {
+		out = append(out, seg...)
 	}
-	at := bytes.Index(data, []byte{0xff, 0xc0})
-	changed := bytes.Clone(data)
-	changed[at+1] = 0xc2
-	if !progressiveJPEG(changed) {
-		t.Fatal("progressive not detected")
+	return append(out, data[2:]...)
+}
+
+// resized は、JPEGのフレームの見出しの大きさと種類を書き換えます（DecodeConfig だけが読む値）。
+func resized(data []byte, marker byte, w, h uint16) []byte {
+	out := bytes.Clone(data)
+	at := bytes.Index(out, []byte{0xff, 0xc0})
+	out[at+1] = marker
+	binary.BigEndian.PutUint16(out[at+5:], h)
+	binary.BigEndian.PutUint16(out[at+7:], w)
+	return out
+}
+
+// プログレッシブのJPEGを見分け、低い画素数の上限を当てる。長い部品の後ろにあっても見逃さない。
+// 見出しが見つからないものを通常のJPEGとして扱わない。
+//
+// 不変条件: MEDIA-INV-3
+func TestInspect_ProgressiveLimit(t *testing.T) {
+	data := jpegBytes(t, gradient(16, 16))
+	if progressive, ok := jpegFrame(data); progressive || !ok {
+		t.Fatalf("baseline: %v %v", progressive, ok)
+	}
+	if progressive, ok := jpegFrame(resized(data, 0xc2, 16, 16)); !progressive || !ok {
+		t.Fatalf("progressive: %v %v", progressive, ok)
+	}
+	const w, h = 5000, 3000 // 1,500万画素
+	if _, _, err := inspect(resized(data, 0xc0, w, h)); err != nil {
+		t.Fatalf("baseline within the limit: %v", err)
+	}
+	for name, big := range map[string][]byte{
+		"そのまま":      resized(data, 0xc2, w, h),
+		"1MBを超える部品": padded(resized(data, 0xc2, w, h), 17),
+	} {
+		if len(big) > maxFileBytes {
+			t.Fatalf("%s: over the file limit", name)
+		}
+		if _, _, err := inspect(big); !errors.Is(err, errPixels) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// Goのデコーダが読み飛ばす余分なバイトで、見出しを隠せない
+	exif := withExif(resized(data, 0xc2, w, h), 1, "")
+	at := bytes.Index(exif, []byte{0xff, 0xdb})
+	hidden := append(append(bytes.Clone(exif[:at]), 0x00), exif[at:]...)
+	if _, err := jpeg.DecodeConfig(bytes.NewReader(hidden)); err != nil {
+		t.Fatalf("decoder must accept the stray byte: %v", err)
+	}
+	if _, _, err := inspect(hidden); !errors.Is(err, errFormat) {
+		t.Fatalf("stray byte: %v", err)
+	}
+}
+
+// 長い部品の後ろにあるEXIFの向きも読む。
+//
+// 不変条件: MEDIA-INV-3
+func TestJPEGOrientation_BehindLongSegments(t *testing.T) {
+	data := padded(withExif(jpegBytes(t, gradient(8, 8)), 6, ""), 17)
+	if got := jpegOrientation(data); got != 6 {
+		t.Fatalf("orientation: %d", got)
+	}
+}
+
+// 加工の枠は1件で、埋まっていれば待ってから諦める。
+func TestAcquire(t *testing.T) {
+	f := NewFeature(nil)
+	f.slotWait = time.Millisecond
+	if !f.acquire(context.Background()) {
+		t.Fatal("empty slot")
+	}
+	if f.acquire(context.Background()) {
+		t.Fatal("slot must be busy")
+	}
+	<-f.slots
+	if !f.acquire(context.Background()) {
+		t.Fatal("released slot")
 	}
 }
 

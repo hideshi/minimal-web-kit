@@ -107,6 +107,16 @@ func (s *Store) saveCover(ctx context.Context, c *sql.Conn, id int64, cover stri
 	return err
 }
 
+// publishedCover は、項目が公開中で、代表画像がその画像かを1回の読み取りで確かめます。
+func (s *Store) publishedCover(ctx context.Context, id int64, file string) (bool, error) {
+	var found int
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM catalog_items WHERE id=? AND status='published' AND cover_file=?", id, file).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
 // coverRefs は、代表画像を持つ項目を返します。
 func (s *Store) coverRefs(ctx context.Context) (map[string][]string, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT id,cover_file FROM catalog_items WHERE cover_file IS NOT NULL")

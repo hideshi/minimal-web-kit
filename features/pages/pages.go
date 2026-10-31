@@ -65,13 +65,13 @@ func (f *Feature) SetMedia(m features.Media) {
 	}
 }
 
-// MediaIsPublic は、ページが今公開中かを返します。
-func (f *Feature) MediaIsPublic(ctx context.Context, key string) (bool, error) {
+// MediaIsPublic は、ページが今公開中で、本文がその画像を使っているかを返します。
+func (f *Feature) MediaIsPublic(ctx context.Context, key, file string) (bool, error) {
 	id, err := strconv.ParseInt(key, 10, 64)
 	if err != nil {
 		return false, nil
 	}
-	return f.store.isPublished(ctx, id)
+	return f.store.publishedUses(ctx, id, file)
 }
 
 // MediaReferences は、全てのページと、本文が使う画像を返します。

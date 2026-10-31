@@ -147,7 +147,7 @@ func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
 	if post.CoverFile != "" {
 		images, err := f.media.Images(r.Context(), []string{post.CoverFile})
 		if err != nil {
-			f.logger.Error("news cover failed")
+			f.logger.Error("news cover failed", web.RequestIDAttr(w))
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}

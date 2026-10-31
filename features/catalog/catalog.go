@@ -79,17 +79,13 @@ func (f *Feature) SetMedia(m features.Media) {
 	}
 }
 
-// MediaIsPublic は、項目が今公開中かを、公開ページと同じ条件で返します。
-func (f *Feature) MediaIsPublic(ctx context.Context, key string) (bool, error) {
+// MediaIsPublic は、項目が公開ページと同じ条件で公開中で、その画像を使っているかを返します。
+func (f *Feature) MediaIsPublic(ctx context.Context, key, file string) (bool, error) {
 	id, err := strconv.ParseInt(key, 10, 64)
 	if err != nil {
 		return false, nil
 	}
-	_, err = f.store.Get(ctx, id, true)
-	if errors.Is(err, ErrNotFound) {
-		return false, nil
-	}
-	return err == nil, err
+	return f.store.publishedCover(ctx, id, file)
 }
 
 // MediaReferences は、代表画像を持つ項目を返します。
