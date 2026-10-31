@@ -17,6 +17,16 @@
   </div>
 </section>
 
+<section id="this-site" class="section">
+  <div class="card">
+    <h2 class="card-title">このサイトも、このキットで動いています</h2>
+    <div class="card-content">
+      <p>今見ているページは、同梱のSiteそのものです。公開ページの閲覧ではCookieを発行しません。ブラウザの開発者ツールで確かめられます。</p>
+      {{if .NavLinks}}<p>同じサーバーで動いている同梱機能を、実際に見られます: {{range $i, $l := .NavLinks}}{{if $i}}、{{end}}<a href="{{$l.Href}}">{{$l.Label}}</a>{{end}}。</p>{{end}}
+    </div>
+  </div>
+</section>
+
 <section id="features" class="section">
   <div class="section-header">
     <h2>3つの約束</h2>

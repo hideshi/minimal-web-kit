@@ -42,6 +42,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"個人情報の取得最小化 &amp; 漏洩リスクへの対策",
 		"アクセシブルなUIデザイン",
 		"id=\"bundled\"",
+		"このサイトも、このキットで動いています",
 		`<div class="hero-cta">
     <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
       <span class="btn-main-text">GitHubでキットを入手する</span>
@@ -242,10 +243,18 @@ func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
 		}
 	}
 
+	const running = "同じサーバーで動いている同梱機能を"
+	if strings.Contains(get("/"), running) {
+		t.Fatal("the top must not offer running features when there are none")
+	}
+
 	links := []web.NavLink{{Label: "お知らせ", Href: "/news"}}
 	feat.SetNavLinks(func() []web.NavLink { return links })
 	h.SetNavLinks(func() []web.NavLink { return links })
 	body := get("/")
+	if !strings.Contains(body, running) || strings.Count(body, `<a href="/news">お知らせ</a>`) != 2 {
+		t.Fatal("the top must link to the features running on this server")
+	}
 	news, contact := strings.Index(body, `<a href="/news">お知らせ</a>`), strings.Index(body, `<a href="/#contact">お問い合わせ</a>`)
 	if news < 0 || contact < 0 || news > contact {
 		t.Fatal("the site nav must show the feature link before the contact link")
