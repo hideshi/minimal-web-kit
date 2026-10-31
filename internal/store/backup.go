@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -88,8 +89,8 @@ func VerifyBackup(ctx context.Context, path string) ([]TableCount, error) {
 	isKit := false
 	for i := range tables {
 		isKit = isKit || tables[i].Name == "owners"
-		// 表の名前は sqlite_master から取った値で、利用者の入力ではない
-		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM "`+tables[i].Name+`"`).Scan(&tables[i].Rows); err != nil {
+		// 表の名前は検査するファイルの中の値で、細工されていることがある
+		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+quoteIdentifier(tables[i].Name)).Scan(&tables[i].Rows); err != nil {
 			return nil, fmt.Errorf("count rows: %w", err)
 		}
 	}
@@ -115,4 +116,9 @@ func BackupBeforeMigration(ctx context.Context, db *sql.DB, label string) (strin
 		return "", err
 	}
 	return path, nil
+}
+
+// quoteIdentifier は、表の名前をSQLの識別子として引用します。
+func quoteIdentifier(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }

@@ -202,19 +202,21 @@ func (s *FederationStore) RotateSecret(ctx context.Context, id string, compromis
 		} else if err != nil {
 			return err
 		}
-		queries := [][]any{
-			{"DELETE FROM auth_oidc_client_secrets WHERE client_id = ? AND expires_at < ?", id, federationSecretCurrent},
-			{"UPDATE auth_oidc_client_secrets SET expires_at = ? WHERE client_id = ?", s.now().Add(federationSecretGrace).Unix(), id},
-		}
 		if compromised {
-			queries = [][]any{
-				{"DELETE FROM auth_oidc_client_secrets WHERE client_id = ?", id},
-				{"UPDATE auth_oidc_clients SET client_epoch = client_epoch + 1 WHERE client_id = ?", id},
-				{"DELETE FROM auth_oidc_requests WHERE client_id = ?", id},
+			for _, q := range []string{
+				"DELETE FROM auth_oidc_client_secrets WHERE client_id = ?",
+				"UPDATE auth_oidc_clients SET client_epoch = client_epoch + 1 WHERE client_id = ?",
+				"DELETE FROM auth_oidc_requests WHERE client_id = ?",
+			} {
+				if _, err := x.ExecContext(ctx, q, id); err != nil {
+					return err
+				}
 			}
-		}
-		for _, q := range queries {
-			if _, err := x.ExecContext(ctx, q[0].(string), q[1:]...); err != nil {
+		} else {
+			if _, err := x.ExecContext(ctx, "DELETE FROM auth_oidc_client_secrets WHERE client_id = ? AND expires_at < ?", id, federationSecretCurrent); err != nil {
+				return err
+			}
+			if _, err := x.ExecContext(ctx, "UPDATE auth_oidc_client_secrets SET expires_at = ? WHERE client_id = ?", s.now().Add(federationSecretGrace).Unix(), id); err != nil {
 				return err
 			}
 		}
@@ -482,17 +484,16 @@ func (s *FederationStore) RemoveFlow(ctx context.Context, flowToken string) erro
 // Purge は、期限切れの要求・秘密値と、保持期間を過ぎた墓標を消します（利用許可は外部キーで一緒に消える）。
 func (s *FederationStore) Purge(ctx context.Context) error {
 	now := s.now()
-	for _, q := range []struct {
-		query string
-		at    time.Time
-	}{
-		{"DELETE FROM auth_oidc_requests WHERE expires_at <= ?", now},
-		{"DELETE FROM auth_oidc_client_secrets WHERE expires_at <= ?", now},
-		{"DELETE FROM auth_federated_subjects WHERE deleted_at IS NOT NULL AND deleted_at <= ?", now.Add(-federationTombstoneTTL)},
+	for _, q := range []string{
+		"DELETE FROM auth_oidc_requests WHERE expires_at <= ?",
+		"DELETE FROM auth_oidc_client_secrets WHERE expires_at <= ?",
 	} {
-		if _, err := s.db.ExecContext(ctx, q.query, q.at.Unix()); err != nil {
+		if _, err := s.db.ExecContext(ctx, q, now.Unix()); err != nil {
 			return err
 		}
+	}
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM auth_federated_subjects WHERE deleted_at IS NOT NULL AND deleted_at <= ?", now.Add(-federationTombstoneTTL).Unix()); err != nil {
+		return err
 	}
 	return nil
 }

@@ -252,3 +252,22 @@ func TestBackupBeforeMigration(t *testing.T) {
 		t.Fatalf("memory: %q %v", path, err)
 	}
 }
+
+// 細工された表の名前でも、検査のSQLが壊れないことを確かめる。
+func TestVerifyBackup_QuotesTableNames(t *testing.T) {
+	s, dir := newBackupStore(t)
+	if _, err := s.DB().Exec(`CREATE TABLE "a""b" (v TEXT); INSERT INTO "a""b" VALUES ('x')`); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "copy.db")
+	if err := Backup(context.Background(), s.DB(), path); err != nil {
+		t.Fatal(err)
+	}
+	tables, err := VerifyBackup(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rowsOf(tables, `a"b`) != 1 {
+		t.Fatalf("tables = %+v", tables)
+	}
+}

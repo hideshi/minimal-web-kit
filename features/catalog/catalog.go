@@ -25,6 +25,9 @@ import (
 //go:embed migration.sql views/*.html static/*
 var contentFS embed.FS
 
+//go:embed migration.sql
+var migrationSQL string
+
 type Feature struct {
 	web.PublicNavigation
 	logger                  *slog.Logger
@@ -43,11 +46,7 @@ func NewFeature(logger *slog.Logger) *Feature {
 }
 func (*Feature) Name() string { return "catalog" }
 func Migrate(db *sql.DB) error {
-	body, err := contentFS.ReadFile("migration.sql")
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(string(body))
+	_, err := db.Exec(migrationSQL)
 	return err
 }
 func (f *Feature) Init(db *sql.DB) error {

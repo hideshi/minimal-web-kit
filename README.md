@@ -314,6 +314,8 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `modernc.org/mathutil` | 数値計算の補助 | BSD系 |
 | `modernc.org/memory` | メモリ管理 | BSD系 |
 | `golang.org/x/sys` | OSの機能の呼び出し（Go公式） | BSD系 |
+
+CGOが要らないのは、C言語のSQLiteをGoのコードへ自動で変換しているからです。Cコンパイラは要らず、単一の実行ファイルになりますが、**SQLiteの層はメモリ安全ではありません。** 変換後のコードは `unsafe` でCと同じメモリ操作をするので、Goの境界検査では守られず、元のCの不具合も引き継ぎます。キットでは、SQLの文を固定の文字列に限り（`test/sql_static_test.go`）、利用者の値は `?` で渡します。これはSQLインジェクションの守りで、SQLite内部の不具合を無くすものではありません。依存の更新と `make vuln` で追います。
 | `github.com/google/uuid` | UUIDの生成 | BSD系 |
 | `github.com/dustin/go-humanize` | 数値の表示形式 | MIT |
 | `github.com/remyoudompheng/bigfft` | 大きな数の乗算 | BSD系 |

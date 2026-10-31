@@ -94,11 +94,11 @@ func tableSQL(ctx context.Context, q rowQuerier, table string) (string, error) {
 
 // setForeignKeys は接続の外部キーの設定を変え、読み返して確かめます。トランザクションの中では効きません。
 func setForeignKeys(ctx context.Context, conn *sql.Conn, on bool) error {
-	want := 0
+	want, statement := 0, "PRAGMA foreign_keys = OFF"
 	if on {
-		want = 1
+		want, statement = 1, "PRAGMA foreign_keys = ON"
 	}
-	if _, err := conn.ExecContext(ctx, fmt.Sprintf("PRAGMA foreign_keys = %d", want)); err != nil {
+	if _, err := conn.ExecContext(ctx, statement); err != nil {
 		return err
 	}
 	var got int
