@@ -35,12 +35,18 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 	}
 	bodyStr := string(body)
 
+	// 約束に続けて、検査の節を同梱機能より先に見せる
+	if q, b := strings.Index(bodyStr, `id="quality"`), strings.Index(bodyStr, `id="bundled"`); q < 0 || b < 0 || q > b {
+		t.Errorf("quality section must come before bundled: %d %d", q, b)
+	}
+
 	expectedSnippets := []string{
 		"集めない。増やさない。テストで守る。",
-		"組み込む依存は最小限 &amp; 単一バイナリ",
+		`<h3 class="card-title">集めない</h3>`,
+		`<h3 class="card-title">増やさない</h3>`,
+		`<h3 class="card-title">テストで守る</h3>`,
 		"<title>個人情報と依存を最小限に抑えるWeb開発基盤 - minimal-web-kit</title>",
-		"個人情報の取得最小化 &amp; 漏洩リスクへの対策",
-		"アクセシブルなUIデザイン",
+		"アクセシビリティと画面の標準",
 		"id=\"bundled\"",
 		"このサイトも、このキットで動いています",
 		`<div class="hero-cta">

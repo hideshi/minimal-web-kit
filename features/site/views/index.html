@@ -4,7 +4,7 @@
   <span class="card-badge">STANDARD LIBRARY FIRST</span>
   <h1 class="hero-title">集めない。増やさない。テストで守る。</h1>
   <p class="hero-lead">
-    個人情報と依存を最小にしたWebアプリを、AIと一緒に安全に作るためのGoのひな形です。Node.js/npmは不要で、単一の実行ファイルで動きます。共通認証を使わなければ、組み込まれる直接依存はSQLiteドライバだけです。
+    個人情報と依存を最小にしたWebアプリを、AIと一緒に安全に作るためのGoのひな形です。規約はテストで確かめます。Node.js/npmは不要で、単一の実行ファイルで動きます。共通認証を使わなければ、組み込まれる直接依存はSQLiteドライバだけです。
   </p>
   <div class="hero-cta">
     <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-cta">
@@ -45,27 +45,72 @@
 
   <div class="grid-3">
     <article class="card">
-      <span class="card-badge">MINIMAL DEPENDENCY</span>
-      <h3 class="card-title">組み込む依存は最小限 &amp; 単一バイナリ</h3>
+      <span class="card-badge">COLLECT LESS</span>
+      <h3 class="card-title">集めない</h3>
       <p class="card-content">
-        Node.js、npm、ビルドツールは一切不要。Go標準機能（net/http, html/template, embed.FS, log/slog）を中心に構成され、CGO不要の単一実行ファイルとしてビルドできます。ブラウザ側のライブラリは、カタログの公開一覧で使う固定版のhtmxだけを同梱しています。
+        個人情報は既定で取得しません。必要な場合は利用目的・保存項目・保持期間を整理し、保存データの追加前に人の確認を求める開発規約を用意しています。所有者IDによるデータ分離で、漏洩リスクを抑える開発を支えます。
       </p>
     </article>
 
     <article class="card">
-      <span class="card-badge">PRIVACY FIRST</span>
-      <h3 class="card-title">個人情報の取得最小化 &amp; 漏洩リスクへの対策</h3>
+      <span class="card-badge">ADD LESS</span>
+      <h3 class="card-title">増やさない</h3>
       <p class="card-content">
-        個人情報は既定で取得せず、必要な場合は利用目的・保存項目・保持期間を整理し、保存データの追加前に利用者の承認を得る開発規約を用意しています。保存項目とデータ台帳の突合やログへの機密情報混入を検査する自動テスト、所有者IDによるデータ分離で、漏洩リスクを抑える開発を支えます。
+        Node.js、npm、ビルドツールは不要です。Go標準機能（net/http, html/template, embed.FS, log/slog）を中心に構成し、CGO不要の単一実行ファイルとしてビルドできます。ブラウザ側のライブラリは、カタログの公開一覧で使う固定版のhtmxだけを同梱しています。
       </p>
     </article>
 
     <article class="card">
-      <span class="card-badge">ACCESSIBLE UI</span>
-      <h3 class="card-title">アクセシブルなUIデザイン</h3>
+      <span class="card-badge">TEST THE RULES</span>
+      <h3 class="card-title">テストで守る</h3>
       <p class="card-content">
-        外部CSSフレームワークを使わず、単一の自前CSSで完結。JIS X 8341-3 / WCAG 2.1 AA を意識した高コントラスト、明瞭なフォーカスインジケータ、セマンティックなHTMLを採用しています。適合性は、作成したページごとに実画面での検証が必要です。
+        規約を文書に書くだけにしません。依存、保存データ、ログ、画面の決まりを破る変更は、テストが落ちます。AIと作っても、崩れに早く気づけます。
       </p>
+    </article>
+  </div>
+</section>
+
+<section id="quality" class="section">
+  <div class="section-header">
+    <h2>文書だけでなく、テストで守る</h2>
+    <p class="section-lead">規約を破る変更は、テストが落ちます。たとえばAIが許可していない依存を <code>go.mod</code> に足すと、テストが落ちて、人の確認に戻ります。安全を保証するものではありませんが、崩れに早く気づけます。</p>
+  </div>
+
+  <div class="grid-3">
+    <article class="card">
+      <span class="card-badge">DEPENDENCY</span>
+      <h3 class="card-title">依存の許可リスト</h3>
+      <p class="card-content">許可していない直接依存と、実行ファイルに入るモジュールの増減を検出します。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">DATA</span>
+      <h3 class="card-title">データ台帳との突き合わせ</h3>
+      <p class="card-content">実際の表と列が、保存目的と保持期間を書いた台帳と合っているかを確かめます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">SPEC</span>
+      <h3 class="card-title">仕様とテストの対応</h3>
+      <p class="card-content">不変条件とユースケースに、対応するテストがあるかを確かめます。内容の一致はレビューで確かめます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">LOG</span>
+      <h3 class="card-title">ログへの漏洩の検査</h3>
+      <p class="card-content">入力やトークンがログに出ていないかを、目印の値を流して確かめます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">ACCESSIBILITY</span>
+      <h3 class="card-title">アクセシビリティと画面の標準</h3>
+      <p class="card-content">管理画面の見出し、入力欄のラベル、エラーの関連付け、標準の型を検査します。部品のキーボード操作とフォーカスの表示はChromeで確かめます。JIS X 8341-3 / WCAG 2.1 AA を意識していますが、適合は作成したページごとに実画面で確かめてください。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">VULNERABILITY</span>
+      <h3 class="card-title">既知の脆弱性の毎日の点検</h3>
+      <p class="card-content">Go本体と依存の既知の脆弱性を、CIで毎日調べます。本番へ届けるには配備が要ります。</p>
     </article>
   </div>
 </section>
@@ -129,51 +174,6 @@
       <span class="card-badge">BACKUP</span>
       <h3 class="card-title">バックアップ</h3>
       <p class="card-content">稼働中でも、SQLiteの整合した複製を作るコマンドと、複製を検査するコマンドがあります。外への保管は運用で行います。</p>
-    </article>
-  </div>
-</section>
-
-<section id="quality" class="section">
-  <div class="section-header">
-    <h2>文書だけでなく、テストで守る</h2>
-    <p class="section-lead">規約を破る変更は、テストが落ちます。安全を保証するものではありませんが、崩れに早く気づけます。</p>
-  </div>
-
-  <div class="grid-3">
-    <article class="card">
-      <span class="card-badge">DEPENDENCY</span>
-      <h3 class="card-title">依存の許可リスト</h3>
-      <p class="card-content">許可していない直接依存と、実行ファイルに入るモジュールの増減を検出します。</p>
-    </article>
-
-    <article class="card">
-      <span class="card-badge">DATA</span>
-      <h3 class="card-title">データ台帳との突き合わせ</h3>
-      <p class="card-content">実際の表と列が、保存目的と保持期間を書いた台帳と合っているかを確かめます。</p>
-    </article>
-
-    <article class="card">
-      <span class="card-badge">SPEC</span>
-      <h3 class="card-title">仕様とテストの対応</h3>
-      <p class="card-content">不変条件とユースケースに、対応するテストがあるかを確かめます。内容の一致はレビューで確かめます。</p>
-    </article>
-
-    <article class="card">
-      <span class="card-badge">LOG</span>
-      <h3 class="card-title">ログへの漏洩の検査</h3>
-      <p class="card-content">入力やトークンがログに出ていないかを、目印の値を流して確かめます。</p>
-    </article>
-
-    <article class="card">
-      <span class="card-badge">UI</span>
-      <h3 class="card-title">管理画面の標準と実ブラウザの確認</h3>
-      <p class="card-content">管理画面が標準の型に沿っているかを検査します。部品の操作はChromeで確かめます。</p>
-    </article>
-
-    <article class="card">
-      <span class="card-badge">VULNERABILITY</span>
-      <h3 class="card-title">既知の脆弱性の毎日の点検</h3>
-      <p class="card-content">Go本体と依存の既知の脆弱性を、CIで毎日調べます。本番へ届けるには配備が要ります。</p>
     </article>
   </div>
 </section>
