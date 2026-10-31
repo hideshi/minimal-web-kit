@@ -299,6 +299,9 @@ func TestPublicMenu(t *testing.T) {
 	if evaluate[string](t, b, `getComputedStyle(document.querySelector('.public-menu-links')).position`) != "absolute" {
 		t.Fatal("スマホでメニューが本文に重ならない")
 	}
+	if evaluate[string](t, b, `getComputedStyle(document.querySelector('.public-menu-links')).borderTopLeftRadius`) != "8px" {
+		t.Fatal("スマホのメニューの角丸がカードと揃わない")
+	}
 	if evaluate[string](t, b, `getComputedStyle(`+summary+`).listStyleType`) != "none" {
 		t.Fatal("三角マーカーが残る")
 	}
