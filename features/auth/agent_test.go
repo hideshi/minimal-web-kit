@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -309,9 +310,7 @@ func TestAgentHTTP_AuthorizeToToken(t *testing.T) {
 	if rec.Code != 200 || !strings.Contains(body, "テスト用エージェント") || !strings.Contains(body, "内容を変更する") || !strings.Contains(body, agentResource) {
 		t.Fatal(rec.Code, body)
 	}
-	csrf := body[strings.Index(body, `name="csrf_token" value="`)+len(`name="csrf_token" value="`):]
-	csrf = csrf[:strings.Index(csrf, `"`)]
-	post := httptest.NewRequest(http.MethodPost, "/admin/agent/approve", strings.NewReader(url.Values{"csrf_token": {csrf}, "decision": {"allow"}}.Encode()))
+	post := httptest.NewRequest(http.MethodPost, "/admin/agent/approve", strings.NewReader(url.Values{"csrf_token": {hiddenValue(body, "csrf_token")}, "request_id": {hiddenValue(body, "request_id")}, "decision": {"allow"}}.Encode()))
 	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	post.Header.Set("Origin", "http://localhost:8080")
 	post.Header.Set("Sec-Fetch-Site", "same-origin")
@@ -428,5 +427,126 @@ func TestPurge_RemovesExpiredAgentData(t *testing.T) {
 	var n int
 	if err := a.fx.db.QueryRow("SELECT (SELECT COUNT(*) FROM auth_agent_tokens) + (SELECT COUNT(*) FROM auth_agent_requests)").Scan(&n); err != nil || n != 0 {
 		t.Fatal(n, err)
+	}
+}
+
+func hiddenValue(body, name string) string {
+	marker := `name="` + name + `" value="`
+	rest := body[strings.Index(body, marker)+len(marker):]
+	return rest[:strings.Index(rest, `"`)]
+}
+
+// TestAgentHTTP_ApprovesOnlyTheShownRequest は、画面を開いた後に新しい要求が始まっても、見ていない要求を承認できないことを確かめます。
+// 不変条件: AUTH-INV-25
+func TestAgentHTTP_ApprovesOnlyTheShownRequest(t *testing.T) {
+	a := newAgentFixture(t)
+	h := agentHTTP(t, a)
+	query := func(scope string) string {
+		return url.Values{"client_id": {a.client.ID}, "redirect_uri": {agentRedirect}, "response_type": {"code"}, "scope": {scope},
+			"state": {"state-state"}, "code_challenge": {agentChallenge(agentVerifier)}, "code_challenge_method": {"S256"}, "resource": {agentResource}}.Encode()
+	}
+	start := func(scope string) *http.Cookie {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin/agent/authorize?"+query(scope), nil))
+		for _, c := range rec.Result().Cookies() {
+			if c.Name == agentFlowCookie {
+				return c
+			}
+		}
+		t.Fatal("no flow cookie")
+		return nil
+	}
+	first := start("mcp:read")
+	get := httptest.NewRequest(http.MethodGet, "/admin/agent/continue", nil)
+	get.AddCookie(a.cookie)
+	get.AddCookie(first)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, get)
+	shown := rec.Body.String()
+	second := start("mcp:read mcp:write")
+	post := httptest.NewRequest(http.MethodPost, "/admin/agent/approve", strings.NewReader(url.Values{"csrf_token": {hiddenValue(shown, "csrf_token")}, "request_id": {hiddenValue(shown, "request_id")}, "decision": {"allow"}}.Encode()))
+	post.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	post.Header.Set("Origin", "http://localhost:8080")
+	post.Header.Set("Sec-Fetch-Site", "same-origin")
+	post.AddCookie(a.cookie)
+	post.AddCookie(second)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, post)
+	if rec.Code != 400 || rec.Header().Get("Refresh") != "" {
+		t.Fatal(rec.Code, rec.Header())
+	}
+	var issued int
+	if err := a.fx.db.QueryRow("SELECT COUNT(*) FROM auth_agent_requests WHERE code_hash IS NOT NULL").Scan(&issued); err != nil || issued != 0 {
+		t.Fatal(issued, err)
+	}
+}
+
+// TestAgentRows_RemovedWithTheLogin は、停止・取り消し等で、要求とトークンの行も同じトランザクションで消えることを確かめます。
+// 不変条件: AUTH-INV-17
+func TestAgentRows_RemovedWithTheLogin(t *testing.T) {
+	ctx := context.Background()
+	for name, change := range map[string]func(t *testing.T, a *agentFixture){
+		"revoke":  func(t *testing.T, a *agentFixture) { _ = a.store.Revoke(ctx, a.client.ID, a.account) },
+		"disable": func(t *testing.T, a *agentFixture) { _ = a.store.SetClientEnabled(ctx, a.client.ID, false) },
+		"all":     func(t *testing.T, a *agentFixture) { _ = a.store.RevokeAll(ctx) },
+		"stop": func(t *testing.T, a *agentFixture) {
+			if _, err := a.fx.db.Exec("UPDATE auth_accounts SET disabled_at = 1 WHERE id = ?", a.account); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"delete": func(t *testing.T, a *agentFixture) {
+			if _, err := a.fx.db.Exec("DELETE FROM auth_accounts WHERE id = ?", a.account); err != nil {
+				t.Fatal(err)
+			}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			a := newAgentFixture(t)
+			code, _ := a.issue(t, "mcp:read")
+			a.exchange(t, code)
+			change(t, a)
+			var n int
+			if err := a.fx.db.QueryRow("SELECT (SELECT COUNT(*) FROM auth_agent_tokens) + (SELECT COUNT(*) FROM auth_agent_requests)").Scan(&n); err != nil || n != 0 {
+				t.Fatal(n, err)
+			}
+		})
+	}
+}
+
+// TestAgentCode_SurvivesTheRequestDeadline は、要求の期限の直前に承認したコードが、掃除で消えないことを確かめます。
+// 不変条件: AUTH-INV-22
+func TestAgentCode_SurvivesTheRequestDeadline(t *testing.T) {
+	a := newAgentFixture(t)
+	code, r := a.issue(t, "mcp:read")
+	if _, err := a.fx.db.Exec("UPDATE auth_agent_requests SET expires_at = ? WHERE request_id = ?", time.Now().Add(time.Second).Unix(), r.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.store.ApproveAgent(context.Background(), r.ID, a.cookie.Value); err != nil {
+		t.Fatal(err)
+	}
+	var left int64
+	if err := a.fx.db.QueryRow("SELECT expires_at FROM auth_agent_requests WHERE request_id = ?", r.ID).Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if left < time.Now().Add(agentCodeTTL-5*time.Second).Unix() {
+		t.Fatal("request ends before the code")
+	}
+	_ = code
+}
+
+// TestLoginClient_ExcludesAgentClients は、エージェントの公開クライアントがOIDCのログインに使えないことを確かめます。
+// 不変条件: AUTH-INV-24
+func TestLoginClient_ExcludesAgentClients(t *testing.T) {
+	a := newAgentFixture(t)
+	ctx := context.Background()
+	if _, err := a.store.LoginClient(ctx, a.client.ID); !errors.Is(err, sql.ErrNoRows) {
+		t.Fatal(err)
+	}
+	oidc, _, err := a.store.CreateClient(ctx, "OIDC", "https://b.example/cb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.store.LoginClient(ctx, oidc.ID); err != nil {
+		t.Fatal(err)
 	}
 }

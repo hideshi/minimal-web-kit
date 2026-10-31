@@ -135,7 +135,7 @@ func (s *storage) SignatureAlgorithms(context.Context) ([]jose.SignatureAlgorith
 }
 func (s *storage) KeySet(context.Context) ([]op.Key, error) { return s.public, nil }
 func (s *storage) GetClientByClientID(ctx context.Context, id string) (op.Client, error) {
-	c, err := s.store.Client(ctx, id)
+	c, err := s.store.LoginClient(ctx, id)
 	return client{c}, err
 }
 func (s *storage) AuthorizeClientIDSecret(ctx context.Context, id, secret string) error {

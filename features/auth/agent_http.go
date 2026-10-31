@@ -226,6 +226,7 @@ func (a *agentAuth) continueFlow(w http.ResponseWriter, r *http.Request, s featu
 		}
 	}
 	data := s.PageData("AIエージェントの接続", "")
+	data["RequestID"] = req.ID
 	data["ClientLabel"] = client.Label
 	data["Resource"] = req.Resource
 	data["Redirect"] = req.Redirect
@@ -271,6 +272,11 @@ func (a *agentAuth) approve(w http.ResponseWriter, r *http.Request, s features.A
 	q, err := a.flow(r)
 	if err != nil {
 		a.fail(w, http.StatusBadRequest, "接続の手続きが無効か、期限切れです。AIエージェントから、やり直してください。")
+		return
+	}
+	// 画面に出した要求だけを承認できる。別のタブで新しい要求が始まっていたら、見ていない内容を承認させない（AUTH-INV-25）
+	if r.PostForm.Get("request_id") != q.ID {
+		a.fail(w, http.StatusBadRequest, "接続の手続きが変わりました。AIエージェントから、やり直してください。")
 		return
 	}
 	if r.PostForm.Get("decision") != "allow" {

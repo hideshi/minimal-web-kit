@@ -157,9 +157,10 @@ func (s *FederationStore) ApproveAgent(ctx context.Context, requestID, sessionTo
 			return err
 		}
 		res, err := x.ExecContext(ctx,
-			`UPDATE auth_agent_requests SET sub = ?, account_epoch = ?, client_epoch = ?, grant_epoch = ?, code_hash = ?, code_expires_at = ?
+			`UPDATE auth_agent_requests SET sub = ?, account_epoch = ?, client_epoch = ?, grant_epoch = ?, code_hash = ?, code_expires_at = ?,
+			 expires_at = MAX(expires_at, ?)
 			 WHERE request_id = ? AND expires_at > ? AND consumed_at = 0`,
-			subject, epochs.Account, epochs.Client, epochs.Grant, hashToken(code), now.Add(agentCodeTTL).Unix(), requestID, now.Unix())
+			subject, epochs.Account, epochs.Client, epochs.Grant, hashToken(code), now.Add(agentCodeTTL).Unix(), now.Add(agentCodeTTL).Unix(), requestID, now.Unix())
 		return affectedOne(res, err, ErrFederationInvalid)
 	})
 	return code, err

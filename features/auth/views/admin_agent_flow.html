@@ -20,6 +20,7 @@
 <p>書き込みのたびに、AIエージェントの画面でも確認を求めます。</p>
 <form method="post" action="/admin/agent/approve">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="request_id" value="{{.RequestID}}">
   <div class="form-actions">
     <button type="submit" name="decision" value="allow" class="btn btn-primary">許可する</button>
     <button type="submit" name="decision" value="deny" class="btn btn-secondary">中止する</button>

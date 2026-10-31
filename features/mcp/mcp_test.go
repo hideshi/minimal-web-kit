@@ -175,6 +175,17 @@ func (e *env) raw(t *testing.T, token, method, name string, body []byte, change 
 
 func (e *env) rpc(t *testing.T, token, method, name string, params map[string]any) response {
 	t.Helper()
+	if params == nil {
+		params = map[string]any{}
+	}
+	if _, ok := params["_meta"]; !ok {
+		params["_meta"] = map[string]any{metaCapability: map[string]any{}}
+	}
+	meta := map[string]any{metaVersion: protocolVersion}
+	for k, v := range params["_meta"].(map[string]any) {
+		meta[k] = v
+	}
+	params["_meta"] = meta
 	body, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
 	if err != nil {
 		t.Fatal(err)
@@ -276,12 +287,12 @@ func TestWrite_RunsOnlyAfterAccept(t *testing.T) {
 func TestWrite_RefusesWithoutConfirmationSupport(t *testing.T) {
 	e := newEnv(t)
 	for name, meta := range map[string]map[string]any{
-		"none":     {},
+		"none":     {metaCapability: map[string]any{}},
 		"no form":  {metaCapability: map[string]any{"roots": map[string]any{}}},
 		"url only": {metaCapability: map[string]any{"elicitation": map[string]any{"url": map[string]any{}}}},
 	} {
 		r := e.rpc(t, "good", "tools/call", "demo_write", map[string]any{"name": "demo_write", "_meta": meta})
-		if r.Result["isError"] != true || r.Result["resultType"] == "input_required" {
+		if r.Status != 400 || r.Error == nil || r.Error.Code != codeMissingCap || e.demo.applied.Load() != 0 {
 			t.Errorf("%s: %+v", name, r)
 		}
 	}
@@ -493,7 +504,8 @@ func TestSummary_QuotesAndRefusesLongChanges(t *testing.T) {
 
 func TestHTTP_ProtocolChecks(t *testing.T) {
 	e := newEnv(t)
-	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+	meta := `,"params":{"_meta":{"` + metaVersion + `":"` + protocolVersion + `","` + metaCapability + `":{}}}`
+	body := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"` + meta + `}`)
 	for name, c := range map[string]struct {
 		change func(*http.Request)
 		body   []byte
@@ -510,6 +522,9 @@ func TestHTTP_ProtocolChecks(t *testing.T) {
 		"trailing":      {nil, []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"} {}`), 400},
 		"bad utf8":      {nil, []byte("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"\xff\"}"), 400},
 		"too large":     {nil, bytes.Repeat([]byte(" "), maxBody+1), 400},
+		"no meta":       {nil, []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`), 400},
+		"no caps":       {nil, []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"` + metaVersion + `":"` + protocolVersion + `"}}}`), 400},
+		"meta version":  {nil, []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"` + metaVersion + `":"2025-11-25","` + metaCapability + `":{}}}}`), 400},
 	} {
 		if r := e.raw(t, "good", "tools/list", "", c.body, c.change); r.Status != c.status {
 			t.Errorf("%s: %d", name, r.Status)
@@ -519,9 +534,29 @@ func TestHTTP_ProtocolChecks(t *testing.T) {
 		t.Fatal(r.Status)
 	}
 	// 本文とヘッダーでツールの名前が違えば、読み取りに見せた書き込みも通らない
-	raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": map[string]any{"name": "demo_write"}})
+	raw, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": map[string]any{"name": "demo_write", "_meta": map[string]any{metaVersion: protocolVersion, metaCapability: map[string]any{}}}})
 	if r := e.raw(t, "good", "tools/call", "demo_read", raw, nil); r.Status != 400 {
 		t.Fatal(r.Status)
+	}
+}
+
+func TestHTTP_SpecShapes(t *testing.T) {
+	e := newEnv(t)
+	r := e.rpc(t, "good", "server/discover", "", nil)
+	if r.Result["resultType"] != "complete" || r.Result["serverInfo"] != nil {
+		t.Fatalf("%+v", r)
+	}
+	if _, ok := r.Result["_meta"].(map[string]any)["io.modelcontextprotocol/serverInfo"]; !ok {
+		t.Fatalf("%+v", r)
+	}
+	if r := e.rpc(t, "good", "resources/list", "", nil); r.Status != 404 || r.Error == nil || r.Error.Code != codeMethodNotFound {
+		t.Fatalf("%+v", r)
+	}
+	if r := e.rpc(t, "good", "tools/list", "", nil); r.Result["resultType"] != "complete" {
+		t.Fatalf("%+v", r)
+	}
+	if r := e.rpc(t, "read", "tools/call", "demo_read", map[string]any{"name": "demo_read"}); r.Result["resultType"] != "complete" {
+		t.Fatalf("%+v", r)
 	}
 }
 

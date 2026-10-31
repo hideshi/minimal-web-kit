@@ -160,7 +160,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 			},
 		},
 		{
-			Name: "news_update", Title: "お知らせの編集", Description: "お知らせのタイトルと本文を置き換えます。公開状態は変えません。公開中の記事は直ちに変わります。実行の前に利用者の確認があります。",
+			Name: "news_update", Title: "お知らせの編集", Description: "お知らせのタイトルと本文を置き換えます。公開状態は変えません。公開中の記事は直ちに変わり、公開日時を未来にすると予約公開になります。実行の前に利用者の確認があります。",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"},` + fields + `},"required":["id","title","body"],"additionalProperties":false}`),
 			Prepare: func(ctx context.Context, _ features.AgentPrincipal, args json.RawMessage) (features.MCPPlan, error) {
 				a, at, canonical, err := f.checkPost(args, true)
@@ -177,6 +177,9 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				}
 				if !at.IsZero() && p.Published && !at.After(f.now()) {
 					summary += "【この日時で公開された状態になります】"
+				}
+				if !at.IsZero() && p.Published && at.After(f.now()) && !p.ScheduledAt(f.now()) {
+					summary += "【公開ページから消え、予約公開になります】"
 				}
 				summary += "\n" + f.targetLine(p)
 				if !at.IsZero() {

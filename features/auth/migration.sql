@@ -179,3 +179,31 @@ CREATE TABLE IF NOT EXISTS auth_agent_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_auth_agent_tokens_grant ON auth_agent_tokens(client_id, sub);
+
+-- 停止・鍵のリセット・削除・複製の疑いでは、エージェントの要求とトークンも同じトランザクションで消す（AUTH-INV-17）。
+CREATE TRIGGER IF NOT EXISTS auth_agent_stop AFTER UPDATE OF disabled_at ON auth_accounts
+WHEN OLD.disabled_at IS NULL AND NEW.disabled_at IS NOT NULL
+BEGIN
+    DELETE FROM auth_agent_requests WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = NEW.id);
+    DELETE FROM auth_agent_tokens WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = NEW.id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS auth_agent_reset AFTER UPDATE OF webauthn_user_id ON auth_accounts
+WHEN OLD.webauthn_user_id != NEW.webauthn_user_id
+BEGIN
+    DELETE FROM auth_agent_requests WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = NEW.id);
+    DELETE FROM auth_agent_tokens WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = NEW.id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS auth_agent_delete BEFORE DELETE ON auth_accounts
+BEGIN
+    DELETE FROM auth_agent_requests WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = OLD.id);
+    DELETE FROM auth_agent_tokens WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = OLD.id);
+END;
+
+CREATE TRIGGER IF NOT EXISTS auth_agent_anomaly AFTER UPDATE OF disabled_at ON auth_credentials
+WHEN OLD.disabled_at IS NULL AND NEW.disabled_at IS NOT NULL
+BEGIN
+    DELETE FROM auth_agent_requests WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = NEW.account_id);
+    DELETE FROM auth_agent_tokens WHERE sub IN (SELECT sub FROM auth_federated_subjects WHERE account_id = NEW.account_id);
+END;

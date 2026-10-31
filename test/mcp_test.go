@@ -117,6 +117,16 @@ func (e *mcpEnv) adminPost(path, form string) *httptest.ResponseRecorder {
 
 func (e *mcpEnv) call(method, name string, params map[string]any) map[string]any {
 	e.t.Helper()
+	if params == nil {
+		params = map[string]any{}
+	}
+	meta := map[string]any{"io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": map[string]any{}}
+	if m, ok := params["_meta"].(map[string]any); ok {
+		for k, v := range m {
+			meta[k] = v
+		}
+	}
+	params["_meta"] = meta
 	raw, err := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
 	if err != nil {
 		e.t.Fatal(err)

@@ -116,6 +116,16 @@ func (s *FederationStore) Client(ctx context.Context, id string) (FederationClie
 	return c, err
 }
 
+// LoginClient は、OIDCのログインに使える連携先を返します。エージェントの公開クライアントは含めません（AUTH-INV-24）。
+func (s *FederationStore) LoginClient(ctx context.Context, id string) (FederationClient, error) {
+	var c FederationClient
+	err := s.executor(ctx).QueryRowContext(ctx,
+		`SELECT client_id, label, redirect_uri FROM auth_oidc_clients c WHERE client_id = ? AND enabled = 1
+		 AND NOT EXISTS (SELECT 1 FROM auth_agent_clients a WHERE a.client_id = c.client_id)`, id,
+	).Scan(&c.ID, &c.Label, &c.Redirect)
+	return c, err
+}
+
 // Authenticate は連携先の資格情報を確かめます。秘密値は256ビットの乱数で、ハッシュで照合します。
 func (s *FederationStore) Authenticate(ctx context.Context, id, secret string) error {
 	if len(id) > 128 || len(secret) > 256 || secret == "" {
@@ -169,8 +179,12 @@ func (s *FederationStore) SetClientEnabled(ctx context.Context, id string, enabl
 		if err := affectedOne(res, err, ErrNotFound); err != nil {
 			return err
 		}
-		_, err = x.ExecContext(ctx, "DELETE FROM auth_oidc_requests WHERE client_id = ?", id)
-		return err
+		for _, q := range []string{"DELETE FROM auth_oidc_requests WHERE client_id = ?", "DELETE FROM auth_agent_requests WHERE client_id = ?", "DELETE FROM auth_agent_tokens WHERE client_id = ?"} {
+			if _, err := x.ExecContext(ctx, q, id); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -217,8 +231,12 @@ func (s *FederationStore) RevokeAll(ctx context.Context) error {
 		if _, err := x.ExecContext(ctx, "UPDATE auth_oidc_clients SET client_epoch = client_epoch + 1"); err != nil {
 			return err
 		}
-		_, err := x.ExecContext(ctx, "DELETE FROM auth_oidc_requests")
-		return err
+		for _, q := range []string{"DELETE FROM auth_oidc_requests", "DELETE FROM auth_agent_requests", "DELETE FROM auth_agent_tokens"} {
+			if _, err := x.ExecContext(ctx, q); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -274,8 +292,12 @@ func (s *FederationStore) Revoke(ctx context.Context, clientID string, accountID
 		if err := affectedOne(res, err, ErrNotFound); err != nil {
 			return err
 		}
-		_, err = x.ExecContext(ctx, "DELETE FROM auth_oidc_requests WHERE client_id = ? AND sub = ?", clientID, subject)
-		return err
+		for _, q := range []string{"DELETE FROM auth_oidc_requests WHERE client_id = ? AND sub = ?", "DELETE FROM auth_agent_requests WHERE client_id = ? AND sub = ?", "DELETE FROM auth_agent_tokens WHERE client_id = ? AND sub = ?"} {
+			if _, err := x.ExecContext(ctx, q, clientID, subject); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 

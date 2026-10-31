@@ -320,7 +320,7 @@ func (f *Feature) continueFlow(w http.ResponseWriter, r *http.Request, s feature
 		f.fail(w, http.StatusBadRequest, "ログインの手続きが無効か、期限切れです。ログインするアプリから、やり直してください。")
 		return
 	}
-	client, err := f.store.Client(r.Context(), req.Client)
+	client, err := f.store.LoginClient(r.Context(), req.Client)
 	if err != nil {
 		f.fail(w, http.StatusForbidden, "この連携先は利用できません。")
 		return

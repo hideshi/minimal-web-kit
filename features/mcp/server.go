@@ -30,6 +30,7 @@ const (
 	codeInvalidParams  = -32602
 	codeInternal       = -32603
 	codeHeaderMismatch = -32020
+	codeMissingCap     = -32021
 	codeUnsupported    = -32022
 )
 
@@ -54,7 +55,11 @@ type callParams struct {
 	Meta           map[string]json.RawMessage `json:"_meta"`
 }
 
-func reply(w http.ResponseWriter, id json.RawMessage, result any) {
+// reply は結果を返します。resultType は result が持ちます。
+func reply(w http.ResponseWriter, id json.RawMessage, result map[string]any) {
+	if _, ok := result["resultType"]; !ok {
+		result["resultType"] = "complete"
+	}
 	federation.JSON(w, http.StatusOK, map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
 }
 
@@ -160,7 +165,7 @@ func (f *Feature) handle(w http.ResponseWriter, r *http.Request) {
 		reply(w, q.ID, map[string]any{
 			"supportedVersions": []string{protocolVersion},
 			"capabilities":      map[string]any{"tools": map[string]any{}},
-			"serverInfo":        map[string]any{"name": "minimal-web-kit", "version": "1"},
+			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]any{"name": "minimal-web-kit", "version": "1"}},
 		})
 	case "ping":
 		reply(w, q.ID, map[string]any{})
@@ -169,7 +174,7 @@ func (f *Feature) handle(w http.ResponseWriter, r *http.Request) {
 	case "tools/call":
 		f.callTool(w, r, q, params, principal)
 	default:
-		replyError(w, http.StatusOK, q.ID, codeMethodNotFound, "Method not found", nil)
+		replyError(w, http.StatusNotFound, q.ID, codeMethodNotFound, "Method not found", nil)
 	}
 }
 
@@ -196,10 +201,12 @@ func (f *Feature) checkHeaders(w http.ResponseWriter, r *http.Request, q rpcRequ
 		return false
 	}
 	var meta string
-	if raw, ok := p.Meta[metaVersion]; ok && json.Unmarshal(raw, &meta) != nil {
-		meta = "?"
+	var caps map[string]json.RawMessage
+	if json.Unmarshal(p.Meta[metaVersion], &meta) != nil || meta == "" || json.Unmarshal(p.Meta[metaCapability], &caps) != nil || caps == nil {
+		replyError(w, http.StatusBadRequest, q.ID, codeInvalidParams, "Invalid params", nil)
+		return false
 	}
-	mismatch := r.Header.Get("Mcp-Method") != q.Method || (meta != "" && meta != version)
+	mismatch := r.Header.Get("Mcp-Method") != q.Method || meta != version
 	if q.Method == "tools/call" && r.Header.Get("Mcp-Name") != p.Name {
 		mismatch = true
 	}
@@ -329,7 +336,8 @@ func (f *Feature) write(w http.ResponseWriter, r *http.Request, q rpcRequest, e 
 // ask は、検査をして、クライアントに利用者の確認を求めます。何も変更しません。
 func (f *Feature) ask(w http.ResponseWriter, r *http.Request, q rpcRequest, e entry, params callParams, p features.AgentPrincipal, generation int64) {
 	if !supportsForm(params.Meta[metaCapability]) {
-		reply(w, q.ID, text("このクライアントは確認の表示に対応していないため、書き込みを実行できません。何も変更していません。", true))
+		replyError(w, http.StatusBadRequest, q.ID, codeMissingCap, "Server requires the elicitation capability for this request",
+			map[string]any{"requiredCapabilities": map[string]any{"elicitation": map[string]any{"form": map[string]any{}}}})
 		return
 	}
 	plan, err := e.tool.Prepare(r.Context(), p, params.Arguments)

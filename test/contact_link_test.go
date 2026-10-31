@@ -57,7 +57,7 @@ func TestContactLink_SiteButtonPrivacyAndConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	lp := body(t, routes, "/")
-	if !strings.Contains(lp, `<a href="/contact" class="btn btn-secondary">お問い合わせフォームを開く</a>`) || strings.Contains(lp, "Googleフォーム") {
+	if !strings.Contains(lp, `<a href="/contact" class="btn btn-primary btn-cta">`) || strings.Contains(lp, "Googleフォーム") {
 		t.Fatal("LP button must open /contact in the same tab")
 	}
 	privacy := body(t, routes, "/privacy")
