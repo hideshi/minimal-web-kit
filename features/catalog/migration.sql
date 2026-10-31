@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS catalog_items (
  status TEXT NOT NULL CHECK(status IN ('draft', 'published')),
  category_id INTEGER REFERENCES catalog_categories(id) ON DELETE SET NULL,
  created_at INTEGER NOT NULL,
- updated_at INTEGER NOT NULL
+ updated_at INTEGER NOT NULL,
+ cover_file TEXT -- 代表画像のファイル名。画像機能が無い構成でも保存できるよう、外部キーは付けない
 );
 CREATE TABLE IF NOT EXISTS catalog_item_tags (
  item_id INTEGER NOT NULL REFERENCES catalog_items(id) ON DELETE CASCADE,

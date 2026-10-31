@@ -16,6 +16,7 @@ import (
 
 	"minimal-web-kit/internal/federation"
 	"minimal-web-kit/internal/web"
+	"minimal-web-kit/internal/web/form"
 )
 
 // Feature は独立した業務機能モジュールを表すインターフェースです。
@@ -237,6 +238,100 @@ type AdminProvider interface {
 type AdminConsumer interface {
 	Feature
 	SetAdmin(admin Admin) error
+}
+
+// StartupFeature は、BuildRoutes で機能どうしをつないだ後、待ち受けの前に1度だけ呼ばれる機能が実装します。
+// 失敗すると起動を止めます。
+type StartupFeature interface {
+	Feature
+	Startup(ctx context.Context) error
+}
+
+// ErrMediaMissing は、参照しようとした画像が無いことを示します。
+var ErrMediaMissing = errors.New("features: media not found")
+
+// MediaImage は、画像1枚の描画に要る値です。
+type MediaImage struct {
+	File          string // <id>.<ext>
+	Src           string // 公開の経路
+	AdminSrc      string // 管理者の経路。下書きの画像も見える
+	Alt           string
+	Width, Height int
+}
+
+// MediaPage は、記事の編集の画面で選べる画像の1ページです。
+type MediaPage struct {
+	Images     []MediaImage
+	Selected   *MediaImage // 今選んでいる画像。ページの範囲の外でも入る
+	Number     int
+	Prev, Next int // 無ければ0
+}
+
+// CoverChoices は、代表画像の選択（画面部品 "image-choices"・"image-pager"）の値を作ります。
+// 今選んでいる画像は、ページの範囲の外でも先頭に出し、本文だけの保存で「なし」に変わらないようにします（MEDIA-INV-9）。
+func CoverChoices(p MediaPage, selected, invalid string) form.ImageChoices {
+	c := form.ImageChoices{ID: "cover", Name: "cover", Legend: "代表画像", PageName: "media_page", Prev: p.Prev, Next: p.Next, Error: invalid,
+		Hint: "公開ページの見出しの下に出します。画像は「画像の管理」で追加します。記事を公開すると、画像も公開されます。"}
+	if p.Selected != nil {
+		c.Options = append(c.Options, form.ImageChoice{Value: p.Selected.File, Src: p.Selected.AdminSrc, Alt: p.Selected.Alt, Selected: true})
+	}
+	for _, img := range p.Images {
+		if img.File != selected {
+			c.Options = append(c.Options, form.ImageChoice{Value: img.File, Src: img.AdminSrc, Alt: img.Alt})
+		}
+	}
+	return c
+}
+
+// Media は、画像機能が、画像を使う機能に渡す口です。参照の更新は、記事を保存するトランザクションの中で呼びます。
+// 画像機能が無い構成では NoMedia が渡ります。
+type Media interface {
+	// Enabled は、画像機能が有効かを返します。false なら画像の選択を画面に出しません。
+	Enabled() bool
+	// ReplaceRefs は、記事が使う画像を files に置き換えます。無い画像があれば ErrMediaMissing を返します。
+	ReplaceRefs(ctx context.Context, c *sql.Conn, owner, key string, files []string) error
+	// DeleteRefs は、記事の参照を消します。
+	DeleteRefs(ctx context.Context, c *sql.Conn, owner, key string) error
+	// Images は、ファイル名に対応する画像を返します。無い画像は結果に入りません。
+	Images(ctx context.Context, files []string) (map[string]MediaImage, error)
+	// Page は、選べる画像の1ページを新しい順で返します。selected は今選んでいる画像のファイル名です。
+	Page(ctx context.Context, number int, selected string) (MediaPage, error)
+}
+
+// NoMedia は、画像機能が無い構成の Media です。参照は記録せず、検査もしません。
+type NoMedia struct{}
+
+func (NoMedia) Enabled() bool { return false }
+func (NoMedia) ReplaceRefs(context.Context, *sql.Conn, string, string, []string) error {
+	return nil
+}
+func (NoMedia) DeleteRefs(context.Context, *sql.Conn, string, string) error { return nil }
+func (NoMedia) Images(context.Context, []string) (map[string]MediaImage, error) {
+	return nil, nil
+}
+func (NoMedia) Page(context.Context, int, string) (MediaPage, error) { return MediaPage{}, nil }
+
+// MediaProvider は、画像機能（features/media）が実装します。
+type MediaProvider interface {
+	Feature
+	Media() Media
+	// SetMediaOwners は、画像を使う機能を受け取ります。
+	SetMediaOwners(owners []MediaOwner)
+}
+
+// MediaConsumer は、画像を使う機能が実装します。画像機能が無い構成では呼ばれません。
+type MediaConsumer interface {
+	Feature
+	SetMedia(m Media)
+}
+
+// MediaOwner は、画像を使う機能が実装します。画像機能は機能の表を読まず、この口で公開の判定と参照の作り直しを行います。
+type MediaOwner interface {
+	Feature
+	// MediaIsPublic は、参照先の記事が今公開中かを、公開ページと同じ条件で返します。
+	MediaIsPublic(ctx context.Context, key string) (bool, error)
+	// MediaReferences は、全ての記事と、それぞれが使う画像のファイル名を返します。
+	MediaReferences(ctx context.Context) (map[string][]string, error)
 }
 
 // DirectoryAccount は、共有先や承認者を選ぶためのアカウントの情報です。Disabled は停止中かです。

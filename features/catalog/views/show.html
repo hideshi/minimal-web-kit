@@ -1,5 +1,6 @@
 {{define "content"}}
 <article><h1>{{.Item.Title}}</h1>
+{{template "media-image" .Cover}}
 {{if .Item.CategoryID}}<p>カテゴリ: <a href="/catalog?category={{.Item.CategoryID}}">{{.Item.Category}}</a></p>{{end}}
 {{if .Item.Tags}}<ul class="tag-list" role="list" aria-label="タグ">{{range .Item.Tags}}<li><a href="/catalog?tag={{.ID}}">{{.Name}}</a></li>{{end}}</ul>{{end}}
 {{template "paragraphs" .Paragraphs}}

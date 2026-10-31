@@ -107,6 +107,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Pages registration disabled; stored pages are kept.")
+	case "add-media":
+		if err := addMedia(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling media feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled images with admin authentication.")
+	case "remove-media":
+		if err := removeMedia(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling media feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Media registration disabled; stored images are kept.")
 	case "add-mcp":
 		if err := addMCP(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling MCP feature: %v\n", err)
@@ -169,6 +181,8 @@ func printUsage() {
 	fmt.Println("  remove-contact Disable the contact registration (stored messages are kept)")
 	fmt.Println("  add-pages    Enable fixed pages (/{slug}), together with admin authentication")
 	fmt.Println("  remove-pages Disable the pages registration (stored pages are kept)")
+	fmt.Println("  add-media    Enable images for news, catalog and pages, together with admin authentication")
+	fmt.Println("  remove-media Disable the media registration (stored images are kept)")
 	fmt.Println("  add-documents Enable internal documents, together with admin authentication")
 	fmt.Println("  remove-documents Disable the documents registration (stored documents are kept)")
 	fmt.Println("  add-mcp      Enable the MCP server for AI agents, together with admin authentication")
@@ -211,6 +225,7 @@ const (
 	bundledFederatedMarker = "// minimal-web-kit: bundled-feature federatedauth"
 	bundledContactMarker   = "// minimal-web-kit: bundled-feature contact"
 	bundledPagesMarker     = "// minimal-web-kit: bundled-feature pages"
+	bundledMediaMarker     = "// minimal-web-kit: bundled-feature media"
 	bundledMCPMarker       = "// minimal-web-kit: bundled-feature mcp"
 	bundledDocumentsMarker = "// minimal-web-kit: bundled-feature documents"
 )
@@ -224,11 +239,12 @@ var (
 	federatedBundle = bundle{name: "federatedauth", label: "Federated login", marker: bundledFederatedMarker}
 	contactBundle   = bundle{name: "contact", label: "Contact", marker: bundledContactMarker, needsAdmin: true}
 	pagesBundle     = bundle{name: "pages", label: "Pages", marker: bundledPagesMarker, needsAdmin: true}
+	mediaBundle     = bundle{name: "media", label: "Media", marker: bundledMediaMarker, needsAdmin: true}
 	mcpBundle       = bundle{name: "mcp", label: "MCP", marker: bundledMCPMarker, needsAdmin: true}
 	documentsBundle = bundle{name: "documents", label: "Documents", marker: bundledDocumentsMarker, needsAdmin: true}
 
 	// bundles は全ての同梱機能です。機能を足したら、ここに加えます。
-	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, documentsBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
+	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, mediaBundle, documentsBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -282,6 +298,18 @@ func addPages() error {
 	return toggleBundle(pagesBundle, true)
 }
 func removePages() error { return toggleBundle(pagesBundle, false) }
+
+// addMedia は、画像と管理者認証の登録を有効にします。
+func addMedia() error {
+	if err := verifyBundle(mediaBundle); err != nil {
+		return err
+	}
+	if err := ensureAdminProvider(); err != nil {
+		return err
+	}
+	return toggleBundle(mediaBundle, true)
+}
+func removeMedia() error { return toggleBundle(mediaBundle, false) }
 
 func addDocuments() error {
 	if err := verifyBundle(documentsBundle); err != nil {

@@ -65,11 +65,13 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `error` | 文字列 | 画面全体のエラー。`role="alert"` ですぐに伝える。空なら何も出さない |
 | `public-menu` | 画面のデータ | 公開用6レイアウトの共通メニュー。ホーム、`NavLinks`、有効な `Contact`、プライバシーポリシーを1組だけ描く。管理画面は対象外 |
 | `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。検索の条件を残すときは `Params` に入れる。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
-| `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。`Required` なら「（必須）」、`Optional` なら「（任意）」を同じ見た目で表示する（ラベルの文字に直接書かない）。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
+| `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。`Required` なら「（必須）」、`Optional` なら「（任意）」を同じ見た目で表示する（ラベルの文字に直接書かない）。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`Type: "file"` と `Accept` でファイルの選択。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
 | `choices` | `form.Choices` | 同じ名前のラジオ（`Multiple` ならチェックボックス）の組。`fieldset`・`legend` で囲み、説明・エラーを組に関連付ける。選択肢が1つなら `field` の `checkbox` を使う |
+| `image-choices`・`image-pager` | `form.ImageChoices`（`features.CoverChoices` で作る） | 代表画像の選択。縮小表示つきのラジオの組で、先頭は「なし」。今選んでいる画像は一覧の範囲の外でも出す。`image-pager` はページ送りのボタンで、Enter で押されないよう保存のボタンより後ろに置く |
+| `media-image` | `features.MediaImage` | 記事の画像。`alt`・`width`・`height`・`loading="lazy"` を付ける。`Src` が空なら何も描かない |
 | `paragraphs` | `form.Paragraphs` の結果 | プレーンテキストの本文。空行で段落（`p`）、段落の中の改行は `br`。`text-body` で囲み、長い英数字も折り返す |
 | `datetime`・`date` | `time.Time` | 日時（「2026年1月2日 15:04」）と日付（「2026年1月2日」）を `<time datetime>` で出す。時刻帯は渡す側で決める（例: `time.Local`）。予定の短い表示（登録URLの期限「1月2日 15:04」）だけは画面で書く |
-| `richtext` | `richtext.Doc`（`internal/web/richtext` の `Parse` で読んだもの） | 書き方を絞ったMarkdownの本文（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）。規則の正本は [richtext.md](richtext.md)。利用者の入力はHTMLとして出さず、リンクは小文字の `https://` とサイト内のパスだけ。保存の前に `Parse` を通して、表の上限を欄のエラーにする |
+| `richtext` | `richtext.Doc`（`internal/web/richtext` の `Parse` で読んだもの。固定ページは `ParseWithImages` と `ResolveImages`） | 書き方を絞ったMarkdownの本文（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）。規則の正本は [richtext.md](richtext.md)。利用者の入力はHTMLとして出さず、リンクは小文字の `https://` とサイト内のパスだけ。保存の前に `Parse` を通して、表の上限を欄のエラーにする |
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
 | `static-head` | なし | CSSとアイコンの `<link>`（CSS 1本、アイコン3つ）。URLは中身の版付き（`?v=`）で、CSSを変えるとすぐ新しい版が読まれる。レイアウトの `<head>` で `{{template "static-head"}}` と書く。予約名で、利用側で同じ名前を定義すると解析でエラーになる |

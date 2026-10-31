@@ -39,7 +39,7 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$`)
 // 登録済みの経路と同じスラッグは、別に経路に当てて確かめます（RouteCheckConsumer）。
 var reservedSlugs = map[string]bool{
 	"admin": true, "api": true, "static": true, "account": true, "news": true, "catalog": true, "contact": true,
-	"privacy": true, "pages": true, "feed": true, "search": true,
+	"privacy": true, "pages": true, "feed": true, "search": true, "media": true,
 }
 
 // Page は固定ページ1件です。
@@ -64,6 +64,7 @@ func (Input) LogValue() slog.Value { return slog.StringValue("[page input]") }
 type normalized struct {
 	slug, title, body string
 	navOrder          *int
+	images            []string // 本文が使う画像のファイル名
 }
 
 // normalize は入力を検査します。taken は、登録済みの経路に当たるパスかを返す関数（nil なら確かめない）。
@@ -83,9 +84,11 @@ func normalize(in Input, taken func(string) bool) (normalized, error) {
 	if n.body, err = form.Text(in.Body, maxBodyRunes, false); err != nil {
 		return n, InputError{"body"}
 	}
-	if _, err := richtext.Parse(n.body); err != nil {
+	doc, err := richtext.ParseWithImages(n.body)
+	if err != nil {
 		return n, InputError{"body_limit"}
 	}
+	n.images = doc.Images() // 表示と同じ読み方の結果から取り出す（MEDIA-INV-8）
 	if raw := strings.TrimSpace(in.NavOrder); raw != "" {
 		v, err := strconv.Atoi(raw)
 		if err != nil || v < 0 || v > maxNavOrder {
@@ -98,11 +101,26 @@ func normalize(in Input, taken func(string) bool) (normalized, error) {
 
 // Store は固定ページの読み書きを担当します。
 type Store struct {
-	db  *sql.DB
-	now func() time.Time
+	db    *sql.DB
+	now   func() time.Time
+	media features.Media
 }
 
-func NewStore(db *sql.DB) *Store { return &Store{db: db, now: time.Now} }
+func NewStore(db *sql.DB) *Store {
+	return &Store{db: db, now: time.Now, media: features.NoMedia{}}
+}
+
+// mediaOwner は、画像の参照に記録する機能の名前です。
+const mediaOwner = "pages"
+
+// saveRefs は、同じトランザクションの中で本文の画像の参照を置き換えます（MEDIA-INV-5）。
+func (s *Store) saveRefs(ctx context.Context, c *sql.Conn, id int64, images []string) error {
+	err := s.media.ReplaceRefs(ctx, c, mediaOwner, strconv.FormatInt(id, 10), images)
+	if errors.Is(err, features.ErrMediaMissing) {
+		return InputError{"body_image"}
+	}
+	return err
+}
 
 const columns = "id, slug, title, body, status, nav_order, created_at, updated_at"
 
@@ -168,18 +186,27 @@ func (s *Store) Save(ctx context.Context, id int64, in Input, taken func(string)
 		nav = *n.navOrder
 	}
 	now := s.now().Unix()
-	if id == 0 {
-		res, err := s.db.ExecContext(ctx, "INSERT INTO pages (slug, title, body, nav_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", n.slug, n.title, n.body, nav, now, now)
-		if err != nil {
-			return 0, uniqueError(err)
+	err = store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		if id == 0 {
+			res, err := c.ExecContext(ctx, "INSERT INTO pages (slug, title, body, nav_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", n.slug, n.title, n.body, nav, now, now)
+			if err != nil {
+				return uniqueError(err)
+			}
+			if id, err = res.LastInsertId(); err != nil {
+				return err
+			}
+		} else {
+			res, err := c.ExecContext(ctx, "UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ? WHERE id = ?", n.slug, n.title, n.body, nav, now, id)
+			if err != nil {
+				return uniqueError(err)
+			}
+			if err := store.AffectedOne(res, nil, ErrNotFound); err != nil {
+				return err
+			}
 		}
-		return res.LastInsertId()
-	}
-	res, err := s.db.ExecContext(ctx, "UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ? WHERE id = ?", n.slug, n.title, n.body, nav, now, id)
+		return s.saveRefs(ctx, c, id, n.images)
+	})
 	if err != nil {
-		return 0, uniqueError(err)
-	}
-	if err := store.AffectedOne(res, nil, ErrNotFound); err != nil {
 		return 0, err
 	}
 	return id, nil
@@ -231,14 +258,19 @@ func (s *Store) SaveIfUnchanged(ctx context.Context, cur Page, in Input, taken f
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ?
-		 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ?`,
-		n.slug, n.title, n.body, navArg(n.navOrder), s.now().Unix(), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder))
-	if err != nil {
-		return uniqueError(err)
-	}
-	return store.AffectedOne(res, nil, features.ErrMCPConflict)
+	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		res, err := c.ExecContext(ctx,
+			`UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ?
+			 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ?`,
+			n.slug, n.title, n.body, navArg(n.navOrder), s.now().Unix(), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder))
+		if err != nil {
+			return uniqueError(err)
+		}
+		if err := store.AffectedOne(res, nil, features.ErrMCPConflict); err != nil {
+			return err
+		}
+		return s.saveRefs(ctx, c, cur.ID, n.images)
+	})
 }
 
 // SetPublishedIfUnchanged は、読み取った内容のままのときだけ公開状態を変えます。
@@ -251,6 +283,43 @@ func (s *Store) SetPublishedIfUnchanged(ctx context.Context, cur Page, published
 }
 
 func (s *Store) Delete(ctx context.Context, id int64) error {
-	res, err := s.db.ExecContext(ctx, "DELETE FROM pages WHERE id = ?", id)
-	return store.AffectedOne(res, err, ErrNotFound)
+	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		res, err := c.ExecContext(ctx, "DELETE FROM pages WHERE id = ?", id)
+		if err := store.AffectedOne(res, err, ErrNotFound); err != nil {
+			return err
+		}
+		return s.media.DeleteRefs(ctx, c, mediaOwner, strconv.FormatInt(id, 10))
+	})
+}
+
+// imageRefs は、全てのページが使う画像を返します。
+func (s *Store) imageRefs(ctx context.Context) (map[string][]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, body FROM pages")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	refs := map[string][]string{}
+	for rows.Next() {
+		var id int64
+		var body string
+		if err := rows.Scan(&id, &body); err != nil {
+			return nil, err
+		}
+		// 上限を超えた本文は公開できないため、参照も無いものとして扱う
+		if doc, err := richtext.ParseWithImages(body); err == nil {
+			refs[strconv.FormatInt(id, 10)] = doc.Images()
+		}
+	}
+	return refs, rows.Err()
+}
+
+// isPublished は、ページが公開中かを、公開ページと同じ条件で返します。
+func (s *Store) isPublished(ctx context.Context, id int64) (bool, error) {
+	var found int
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM pages WHERE id = ? AND status = 'published'", id).Scan(&found)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }

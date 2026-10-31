@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-documents remove-documents add-mcp remove-mcp add-oidcop remove-oidcop add-federatedauth remove-federatedauth
+.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-media remove-media add-documents remove-documents add-mcp remove-mcp add-oidcop remove-oidcop add-federatedauth remove-federatedauth
 
 BIN_NAME := minimal-web-kit
 
@@ -108,6 +108,13 @@ add-pages:
 
 remove-pages:
 	go run ./cmd/kit remove-pages
+
+# 画像（管理者認証も有効化。無効化してもデータは保持）
+add-media:
+	go run ./cmd/kit add-media
+
+remove-media:
+	go run ./cmd/kit remove-media
 
 add-documents:
 	go run ./cmd/kit add-documents

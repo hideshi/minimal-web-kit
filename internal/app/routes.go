@@ -133,6 +133,28 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
+	// 画像機能を、画像を使う機能に配る
+	{
+		var provider features.MediaProvider
+		var owners []features.MediaOwner
+		for _, f := range reg.All() {
+			if p, ok := f.(features.MediaProvider); ok {
+				provider = p
+			}
+			if o, ok := f.(features.MediaOwner); ok {
+				owners = append(owners, o)
+			}
+		}
+		if provider != nil {
+			provider.SetMediaOwners(owners)
+			for _, f := range reg.All() {
+				if c, ok := f.(features.MediaConsumer); ok {
+					c.SetMedia(provider.Media())
+				}
+			}
+		}
+	}
+
 	// アカウントの一覧を、相手を選ぶ機能に配る
 	{
 		var directory features.AccountDirectory

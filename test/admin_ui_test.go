@@ -30,6 +30,7 @@ import (
 	"minimal-web-kit/features/contact"
 	"minimal-web-kit/features/documents"
 	"minimal-web-kit/features/mcp"
+	"minimal-web-kit/features/media"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
 	"minimal-web-kit/features/site"
@@ -60,6 +61,7 @@ func newAdminUIRegistry(logger *slog.Logger) *features.Registry {
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(contact.NewFeature(logger))
 	reg.Register(pages.NewFeature(logger))
+	reg.Register(media.NewFeature(logger))
 	reg.Register(documents.NewFeature(logger))
 	reg.Register(mcp.NewFeature(logger))
 	return reg
@@ -169,6 +171,20 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 		t.Fatal(err)
 	}
 	ui.ids["page_draft"], ui.ids["page_published"] = itoa(draftPage), itoa(publishedPage)
+
+	mediaUsed, mediaUnused := strings.Repeat("a", 32), strings.Repeat("b", 32)
+	for _, id := range []string{mediaUsed, mediaUnused} {
+		if _, err := db.Exec("INSERT INTO media_items (id, format, width, height, bytes, alt, created_at) VALUES (?, 'jpg', 4, 3, 1, '見本の画像', ?)", id, time.Now().Unix()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Exec("INSERT INTO media_blobs (id, data) VALUES (?, x'00')", id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := db.Exec("INSERT INTO media_refs (media_id, owner, ref_key) VALUES (?, 'pages', ?)", mediaUsed, itoa(publishedPage)); err != nil {
+		t.Fatal(err)
+	}
+	ui.ids["media_used"], ui.ids["media_unused"] = mediaUsed, mediaUnused
 
 	docs := documents.NewStore(db, time.Now)
 	if err := docs.AddFolder(ctx, adminID, "社内規定"); err != nil {
@@ -331,6 +347,12 @@ var adminSamples = []adminSample{
 	{"GET /admin/pages/{id}", "/admin/pages/{page_draft}", "admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "site_admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}/delete", "/admin/pages/{page_draft}/delete", "admin", "admin_page_delete.html", kindConfirm},
+	{"GET /admin/media", "/admin/media", "site_admin", "admin_media.html", kindListAdd},
+	{"GET /admin/media/{id}", "/admin/media/{media_used}", "admin", "admin_media_item.html", kindDetail},
+	{"GET /admin/media/{id}", "/admin/media/{media_unused}", "site_admin", "admin_media_item.html", kindDetail},
+	{"GET /admin/media/{id}/image", "/admin/media/{media_used}/image", "admin", "画像の本体", kindOther}, // HTMLでないので画面の検査は当たらない
+	{"GET /admin/media/{id}/delete", "/admin/media/{media_unused}/delete", "admin", "admin_media_delete.html", kindConfirm},
+	{"GET /admin/media/{id}/delete", "/admin/media/{media_used}/delete", "admin", "admin_media_delete.html", kindOther}, // 使用中は削除できないことを示す
 	{"GET /admin/documents", "/admin/documents", "admin", "documents.html", kindList},
 	{"GET /admin/documents/mine", "/admin/documents/mine", "admin", "documents_mine.html", kindList},
 	{"GET /admin/documents/approvals", "/admin/documents/approvals", "admin", "documents_approvals.html", kindList},

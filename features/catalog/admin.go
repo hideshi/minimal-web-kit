@@ -24,11 +24,13 @@ var itemErrors = form.FieldErrors{
 	"body":     "本文は5万文字以内で入力してください。",
 	"category": "選んだカテゴリが見つかりません。選び直してください。",
 	"new_tags": "新規タグの名前は、1行に1つ、各50文字以内で入力してください。",
+	"cover":    "選んだ画像が見つかりません。選び直してください。",
 	"tags":     "タグは、新規タグを含めて合計20個までです。選んだタグが削除されていた場合は、選び直してください。",
 }
 
 type itemForm struct {
 	Title, Body, Category, NewTags string
+	Cover                          string // 代表画像のファイル名
 	Tags                           []int64
 	Invalid                        string // 誤りのある欄（InputError.Field）
 }
@@ -58,7 +60,8 @@ func (v itemForm) newTagsField() form.Field {
 }
 func readInput(r *http.Request) (itemForm, Input, error) {
 	v := itemForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), Category: r.PostForm.Get("category"), NewTags: r.PostForm.Get("new_tags")}
-	in := Input{Title: v.Title, Body: v.Body}
+	v.Cover = r.PostForm.Get("cover")
+	in := Input{Title: v.Title, Body: v.Body, Cover: v.Cover}
 	if len(r.PostForm["tag"]) > 20 {
 		return v, in, InputError{"tags"}
 	}
@@ -135,6 +138,14 @@ func (f *Feature) itemFormPage(w http.ResponseWriter, r *http.Request, s feature
 	data["CategoryField"] = v.categoryField(categories)
 	data["NewTagsField"] = v.newTagsField()
 	data["TagField"] = tagField(tags, v.Tags)
+	if f.media.Enabled() {
+		number, _ := form.Int(r.PostForm.Get("media_page"), 1, 1, 10000)
+		images, err := f.media.Page(r.Context(), number, v.Cover)
+		if !f.result(w, r, err) {
+			return
+		}
+		data["Cover"] = features.CoverChoices(images, v.Cover, v.fieldError("cover"))
+	}
 	if v.Invalid == "tags" {
 		data["Error"] = itemErrors["tags"]
 	} else if status == 400 && v.Invalid == "" {
@@ -167,7 +178,7 @@ func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.
 	if !f.result(w, r, err) {
 		return
 	}
-	v := itemForm{Title: item.Title, Body: item.Body}
+	v := itemForm{Title: item.Title, Body: item.Body, Cover: item.CoverFile}
 	if item.CategoryID > 0 {
 		v.Category = idString(item.CategoryID)
 	}
@@ -190,6 +201,12 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 		}
 	}
 	v, in, err := readInput(r)
+	if r.PostForm.Get("media_page") != "" {
+		// 画像の一覧のページ送り。保存せずに入力を描き直す
+		f.itemFormPage(w, r, s, item, v, 200)
+		return
+	}
+	in.SetCover = f.media.Enabled()
 	id := item.ID
 	if err == nil {
 		id, err = f.store.Save(r.Context(), id, in)

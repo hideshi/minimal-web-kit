@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"minimal-web-kit/internal/web/form"
+	"minimal-web-kit/internal/web/richtext"
 )
 
 var (
@@ -24,7 +25,7 @@ var (
 )
 
 // InputError は、項目の入力のどの欄が誤りかを示す。ErrInvalidInput としても判定できる。
-// Field は "title"・"body"・"category"・"tags"・"new_tags" のどれか。
+// Field は "title"・"body"・"category"・"tags"・"new_tags"・"cover" のどれか。
 type InputError struct{ Field string }
 
 func (e InputError) Error() string { return "catalog: invalid " + e.Field }
@@ -38,6 +39,7 @@ type Item struct {
 	Category             string
 	Tags                 []Classification
 	CreatedAt, UpdatedAt time.Time
+	CoverFile            string // 代表画像のファイル名。無ければ空
 }
 
 func (Item) LogValue() slog.Value { return slog.StringValue("[catalog item]") }
@@ -60,6 +62,9 @@ type Input struct {
 	CategoryID  int64
 	TagIDs      []int64
 	NewTags     []string
+	// SetCover が true のときだけ代表画像を変えます（MCPと画像機能の無い構成は値を変えない）。
+	SetCover bool
+	Cover    string
 }
 
 func (Input) LogValue() slog.Value { return slog.StringValue("[catalog input]") }
@@ -73,11 +78,53 @@ type Filter struct {
 func (Filter) LogValue() slog.Value { return slog.StringValue("[catalog filter]") }
 
 type Store struct {
-	db  *sql.DB
-	now func() time.Time
+	db    *sql.DB
+	now   func() time.Time
+	media features.Media
 }
 
-func NewStore(db *sql.DB) *Store { return &Store{db: db, now: time.Now} }
+func NewStore(db *sql.DB) *Store {
+	return &Store{db: db, now: time.Now, media: features.NoMedia{}}
+}
+
+// mediaOwner は、画像の参照に記録する機能の名前です。
+const mediaOwner = "catalog"
+
+// saveCover は、同じトランザクションの中で代表画像と参照を更新します（MEDIA-INV-5）。
+func (s *Store) saveCover(ctx context.Context, c *sql.Conn, id int64, cover string) error {
+	var arg any
+	var files []string
+	if cover != "" {
+		arg, files = cover, []string{cover}
+	}
+	if _, err := c.ExecContext(ctx, "UPDATE catalog_items SET cover_file=? WHERE id=?", arg, id); err != nil {
+		return err
+	}
+	err := s.media.ReplaceRefs(ctx, c, mediaOwner, strconv.FormatInt(id, 10), files)
+	if errors.Is(err, features.ErrMediaMissing) {
+		return InputError{"cover"}
+	}
+	return err
+}
+
+// coverRefs は、代表画像を持つ項目を返します。
+func (s *Store) coverRefs(ctx context.Context) (map[string][]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id,cover_file FROM catalog_items WHERE cover_file IS NOT NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	refs := map[string][]string{}
+	for rows.Next() {
+		var id int64
+		var cover string
+		if err := rows.Scan(&id, &cover); err != nil {
+			return nil, err
+		}
+		refs[strconv.FormatInt(id, 10)] = []string{cover}
+	}
+	return refs, rows.Err()
+}
 
 func line(raw string, max int, required bool) (string, error) {
 	v, err := form.Line(raw, max, required)
@@ -96,6 +143,9 @@ func normalize(in Input) (Input, error) {
 	}
 	if in.CategoryID < 0 {
 		return in, InputError{"category"}
+	}
+	if in.SetCover && in.Cover != "" && !richtext.ImageFile(in.Cover) {
+		return in, InputError{"cover"}
 	}
 	if len(in.TagIDs)+len(in.NewTags) > 20 {
 		return in, InputError{"tags"}
@@ -160,7 +210,7 @@ func mcpState(item Item) string {
 		tags = append(tags, t.ID)
 	}
 	slices.Sort(tags)
-	return features.MCPState("item", item.ID, item.Title, item.Body, item.Published, item.CategoryID, tags)
+	return features.MCPState("item", item.ID, item.Title, item.Body, item.Published, item.CategoryID, tags, item.CoverFile)
 }
 
 // expectState は、トランザクションの中で今の状態を読んで比べます。
@@ -267,6 +317,9 @@ func (s *Store) save(ctx context.Context, id int64, in Input, check func(*sql.Co
 				return err
 			}
 		}
+		if in.SetCover {
+			return s.saveCover(ctx, c, id, in.Cover)
+		}
 		return nil
 	})
 	if err != nil {
@@ -282,10 +335,15 @@ func (s *Store) SetPublished(ctx context.Context, id int64, published bool) erro
 	return changed(s.db.ExecContext(ctx, "UPDATE catalog_items SET status=?,updated_at=? WHERE id=?", status, s.now().Unix(), id))
 }
 func (s *Store) Delete(ctx context.Context, id int64) error {
-	return changed(s.db.ExecContext(ctx, "DELETE FROM catalog_items WHERE id=?", id))
+	return s.write(ctx, func(c *sql.Conn) error {
+		if err := changed(c.ExecContext(ctx, "DELETE FROM catalog_items WHERE id=?", id)); err != nil {
+			return err
+		}
+		return s.media.DeleteRefs(ctx, c, mediaOwner, strconv.FormatInt(id, 10))
+	})
 }
 
-const itemColumns = "i.id,i.title,i.body,i.status,i.category_id,COALESCE(c.name,''),i.created_at,i.updated_at"
+const itemColumns = "i.id,i.title,i.body,i.status,i.category_id,COALESCE(c.name,''),i.created_at,i.updated_at,COALESCE(i.cover_file,'')"
 const itemFrom = " FROM catalog_items i LEFT JOIN catalog_categories c ON c.id=i.category_id"
 
 func scanItem(row interface{ Scan(...any) error }) (Item, error) {
@@ -293,7 +351,7 @@ func scanItem(row interface{ Scan(...any) error }) (Item, error) {
 	var status string
 	var cat sql.NullInt64
 	var created, updated int64
-	err := row.Scan(&item.ID, &item.Title, &item.Body, &status, &cat, &item.Category, &created, &updated)
+	err := row.Scan(&item.ID, &item.Title, &item.Body, &status, &cat, &item.Category, &created, &updated, &item.CoverFile)
 	item.Published = status == "published"
 	item.CategoryID = cat.Int64
 	item.CreatedAt = time.Unix(created, 0).In(time.Local)

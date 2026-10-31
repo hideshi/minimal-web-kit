@@ -1,0 +1,43 @@
+{{define "content"}}
+<h1>画像の管理</h1>
+
+{{template "notice" .Notice}}
+
+<p>使用量: {{.Used}}MB ／ 上限 {{.Limit}}MB</p>
+
+<form method="post" action="/admin/media" enctype="multipart/form-data" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{range .Form.Fields}}{{template "field" .}}{{end}}
+  <button type="submit" class="btn btn-primary">画像を追加する</button>
+</form>
+
+{{if .Items}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">画像の一覧（新しい順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">画像</th>
+        <th scope="col">説明</th>
+        <th scope="col">大きさ</th>
+        <th scope="col">使用</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr>
+        <td><img class="image-thumb" src="{{.AdminSrc}}" alt="" loading="lazy" decoding="async"></td>
+        <td><a href="/admin/media/{{.ID}}">{{.Alt}}</a></td>
+        <td>{{.Width}}×{{.Height}}</td>
+        <td>{{if .Uses}}{{.Uses}}件{{else}}未使用{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>画像はまだありません。</p>
+{{end}}
+
+{{template "pagination" .Page}}
+{{end}}

@@ -1,0 +1,27 @@
+{{define "content"}}
+<h1>画像の編集</h1>
+
+{{template "notice" .Notice}}
+
+<p><img class="content-image" src="{{.Item.AdminSrc}}" alt="{{.Item.Alt}}" width="{{.Item.Width}}" height="{{.Item.Height}}"></p>
+<p class="text-meta">{{.Item.Width}}×{{.Item.Height}} ／ 登録: {{template "datetime" .Item.CreatedAt}}</p>
+
+<form method="post" action="/admin/media/{{.Item.ID}}" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{template "field" .AltField}}
+  <button type="submit" class="btn btn-primary">変更を保存する</button>
+</form>
+
+<h2>使用先</h2>
+{{if .Refs}}
+<ul class="richtext-list">{{range .Refs}}<li>{{.Label}}{{if .Disabled}}（無効な機能）{{end}}</li>{{end}}</ul>
+{{else}}
+<p>未使用です。どの記事からも使われていないため、公開ページには出ません。</p>
+{{end}}
+
+<div class="action-bar">
+  <a href="/admin/media/{{.Item.ID}}/delete" class="btn btn-danger">削除する</a>
+</div>
+
+<p><a href="/admin/media">画像の一覧へ戻る</a></p>
+{{end}}

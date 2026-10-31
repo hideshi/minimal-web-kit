@@ -21,12 +21,24 @@
       <li>強調: **文字**</li>
       <li>表: 「| 項目 | 内容 |」の次の行に「|---|---|」、続けて「| 社名 | 例 |」。表の前の行に「表: 説明」と書くと説明になります（20列・200行まで）</li>
       <li>記号をそのまま出すには、前に「\」を付けます（例: \*\*）。HTMLは書けません</li>
+      {{if .MediaPager}}<li>画像: 下の「画像を挿入」のボタンで本文の末尾に足します。行全体が ![説明](/media/…) の形で、説明は必須です。画像は記事を公開すると公開されます</li>{{end}}
     </ul>
   </details>
   <div class="action-bar">
     <button type="submit" class="btn btn-primary">{{if .Page.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
     <button type="submit" class="btn btn-secondary" formaction="/admin/pages/preview">プレビュー（保存しない）</button>
   </div>
+  {{if .MediaPager}}
+  {{/* Enter で押されないよう、保存のボタンより後ろに置く */}}
+  <details class="richtext-help">
+    <summary>画像を挿入</summary>
+    <p class="field-hint">画像を足すときは、<a href="/admin/media" target="_blank" rel="noopener noreferrer">画像の管理（新しいタブで開きます）</a>で追加してから、ここに戻ってプレビューしてください。</p>
+    {{if .MediaPage.Images}}<div class="image-choices">{{range .MediaPage.Images}}
+      <div class="image-choice"><img src="{{.AdminSrc}}" alt="{{.Alt}}" loading="lazy" decoding="async"><button type="submit" class="btn btn-secondary" name="insert_media" value="{{.File}}" formaction="/admin/pages/preview" formnovalidate>本文の末尾に追加</button></div>
+    {{end}}</div>{{else}}<p>画像はまだありません。</p>{{end}}
+    {{template "image-pager" .MediaPager}}
+  </details>
+  {{end}}
 </form>
 {{if .Page.ID}}
 <h2>公開と削除</h2>

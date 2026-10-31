@@ -2,13 +2,16 @@
 package news
 
 import (
+	"context"
 	"database/sql"
 	_ "embed"
+	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"minimal-web-kit/features"
@@ -28,6 +31,7 @@ type Feature struct {
 	db          *sql.DB
 	posts       *PostStore
 	admin       features.Admin
+	media       features.Media
 	publicPages map[string]*template.Template
 	adminPages  map[string]*template.Template
 	layout      *web.Layout
@@ -39,7 +43,34 @@ func NewFeature(logger *slog.Logger) *Feature {
 		logger:      logger,
 		publicPages: parsePublicTemplates(),
 		now:         time.Now,
+		media:       features.NoMedia{},
 	}
+}
+
+// SetMedia は画像機能を受け取ります。
+func (f *Feature) SetMedia(m features.Media) {
+	f.media = m
+	if f.posts != nil {
+		f.posts.media = m
+	}
+}
+
+// MediaIsPublic は、記事が今公開中かを、公開ページと同じ条件（予約公開の日時を含む）で返します。
+func (f *Feature) MediaIsPublic(ctx context.Context, key string) (bool, error) {
+	id, err := strconv.ParseInt(key, 10, 64)
+	if err != nil {
+		return false, nil
+	}
+	_, err = f.posts.GetPublished(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// MediaReferences は、代表画像を持つ記事を返します。
+func (f *Feature) MediaReferences(ctx context.Context) (map[string][]string, error) {
+	return f.posts.coverRefs(ctx)
 }
 
 func (f *Feature) Name() string {
@@ -71,6 +102,16 @@ func Migrate(db *sql.DB) error {
 	}
 	if _, err := db.Exec(migrationSQL); err != nil {
 		return fmt.Errorf("news migration: %w", err)
+	}
+	// 既存のDBに代表画像の列を足す。表を作り直さないため、複製は要らない
+	var hasCover int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('news_posts') WHERE name = 'cover_file'").Scan(&hasCover); err != nil {
+		return fmt.Errorf("news migration: %w", err)
+	}
+	if hasCover == 0 {
+		if _, err := db.Exec("ALTER TABLE news_posts ADD COLUMN cover_file TEXT"); err != nil {
+			return fmt.Errorf("news migration: %w", err)
+		}
 	}
 	return nil
 }

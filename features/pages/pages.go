@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -34,6 +35,7 @@ type Feature struct {
 	logger     *slog.Logger
 	store      *Store
 	admin      features.Admin
+	media      features.Media
 	notFound   http.HandlerFunc
 	taken      func(string) bool
 	layout     *web.Layout
@@ -51,7 +53,47 @@ func NewFeature(logger *slog.Logger) *Feature {
 		publicPage: template.Must(web.ParseWithComponents(viewsFS, "views/layout.html", "views/page.html")),
 		notFound:   http.NotFound,
 		now:        time.Now,
+		media:      features.NoMedia{},
 	}
+}
+
+// SetMedia は画像機能を受け取ります。
+func (f *Feature) SetMedia(m features.Media) {
+	f.media = m
+	if f.store != nil {
+		f.store.media = m
+	}
+}
+
+// MediaIsPublic は、ページが今公開中かを返します。
+func (f *Feature) MediaIsPublic(ctx context.Context, key string) (bool, error) {
+	id, err := strconv.ParseInt(key, 10, 64)
+	if err != nil {
+		return false, nil
+	}
+	return f.store.isPublished(ctx, id)
+}
+
+// MediaReferences は、全てのページと、本文が使う画像を返します。
+func (f *Feature) MediaReferences(ctx context.Context) (map[string][]string, error) {
+	return f.store.imageRefs(ctx)
+}
+
+// resolveImages は、本文の画像の大きさとURLを埋めます。見つからない画像は説明の文字になります。
+// preview なら管理者の経路で描きます（下書きの画像は公開の経路で見えないため）。
+func (f *Feature) resolveImages(ctx context.Context, doc *richtext.Doc, preview bool) error {
+	images, err := f.media.Images(ctx, doc.Images())
+	if err != nil {
+		return err
+	}
+	doc.ResolveImages(func(file string) (string, int, int, bool) {
+		img, ok := images[file]
+		if preview {
+			return img.AdminSrc, img.Width, img.Height, ok
+		}
+		return img.Src, img.Width, img.Height, ok
+	})
+	return nil
 }
 
 func (f *Feature) Name() string { return "pages" }
@@ -179,10 +221,15 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	doc, err := richtext.Parse(p.Body)
+	doc, err := richtext.ParseWithImages(p.Body)
 	if err != nil {
 		// 保存のときに検査しているため、ここには来ない想定
 		f.logger.Error("pages body over limit", slog.Int64("page_id", p.ID))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if err := f.resolveImages(r.Context(), &doc, false); err != nil {
+		f.logger.Error("pages images failed", web.RequestIDAttr(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}

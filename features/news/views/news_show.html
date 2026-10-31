@@ -2,6 +2,7 @@
 <article>
   <h1>{{.Post.Title}}</h1>
   <p class="text-meta">公開日: {{template "date" .Post.PublishedAt}}</p>
+  {{template "media-image" .Cover}}
   {{template "paragraphs" .Paragraphs}}
 </article>
 

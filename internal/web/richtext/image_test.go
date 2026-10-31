@@ -73,6 +73,8 @@ func TestParseWithImages_SpecExamples(t *testing.T) {
 }
 
 // 社内文書が使う Parse は、同じ行を画像にしない。
+//
+// 不変条件: MEDIA-INV-8
 func TestParse_DoesNotReadImages(t *testing.T) {
 	doc, err := Parse("![a](/media/" + testID + ".jpg)")
 	if err != nil {

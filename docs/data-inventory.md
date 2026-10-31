@@ -271,6 +271,7 @@ AIエージェントのアクセストークン。不透明な乱数のハッシ
 | `published_at` | INTEGER | YES | 公開日時の表示・並び順・予約公開の判定 | 同上 | 管理画面で指定するか、初回公開時に設定。再公開では維持。未来の日時なら、その日時まで公開側に出さない |
 | `created_at` | INTEGER | NO | 作成時刻の記録 | 同上 | UNIXエポック秒 |
 | `updated_at` | INTEGER | NO | 更新時刻の表示・管理画面の並び順 | 同上 | UNIXエポック秒 |
+| `cover_file` | TEXT | YES | 代表画像のファイル名 | 同上 | 画像機能が無い構成でも保存できるよう、外部キーは付けない。12節 |
 
 ### お知らせ機能のデータの削除
 - 記事: 管理画面から削除すると、稼働DBから物理削除します（`secure_delete` 有効）。
@@ -293,6 +294,7 @@ AIエージェントのアクセストークン。不透明な乱数のハッシ
 | `category_id` | INTEGER | YES | 単一分類 | 同上 | カテゴリ削除時はNULL |
 | `created_at` | INTEGER | NO | 作成日時 | 同上 | UNIX秒 |
 | `updated_at` | INTEGER | NO | 更新表示・sitemapのlastmod | 同上 | UNIX秒。分類名・関連変更も反映 |
+| `cover_file` | TEXT | YES | 代表画像のファイル名 | 同上 | 画像機能が無い構成でも保存できるよう、外部キーは付けない。12節 |
 
 ### テーブル: `catalog_categories`
 
@@ -500,3 +502,34 @@ AIエージェントの接続の認可とトークンは4節の `auth_agent_*` �
 | `by_account_id` | INTEGER | NO | 操作した人 | 同上 | アカウントID |
 | `count` | INTEGER | NO | 移した件数 | 同上 | タイトルは残さない |
 | `transferred_at` | INTEGER | NO | 操作の時刻 | 同上 | UNIXエポック秒 |
+
+## 12. 画像のデータ（`make add-media` で有効化した場合のみ）
+
+`features/media/migration.sql` の3表。運営者が公開のために登録する画像です。閲覧者の情報は保存しません。登録した人のIDと元のファイル名は保存せず、撮影位置等のEXIFは再エンコードで落とします。画像には人の顔や名札が写り得るため、公開の前に運営者が確かめます。削除は稼働DBの物理削除までで、バックアップに残った複製は、その保持期間のあいだ残ります。
+
+### テーブル: `media_items`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | TEXT | NO | 画像の識別。公開のURLに使う | 明示削除まで | 32文字の乱数 |
+| `format` | TEXT | NO | 配信の形式 | 同上 | jpg / png |
+| `width` | INTEGER | NO | 描画の幅 | 同上 | 画素 |
+| `height` | INTEGER | NO | 描画の高さ | 同上 | 画素 |
+| `bytes` | INTEGER | NO | 全体の容量の上限の確認 | 同上 | 保存した本体のバイト数 |
+| `alt` | TEXT | NO | 画像の説明（代替テキスト） | 同上 | 1〜200字、改行不可 |
+| `created_at` | INTEGER | NO | 一覧の並び順 | 同上 | UNIX秒 |
+
+### テーブル: `media_blobs`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | TEXT | NO | 画像との対応 | 画像の削除まで | 外部キー（ON DELETE CASCADE） |
+| `data` | BLOB | NO | 縮小・再エンコードした画像の本体 | 同上 | 元のファイルは保存しない |
+
+### テーブル: `media_refs`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `media_id` | TEXT | NO | 使われている画像 | 記事が使っている間 | 外部キー（ON DELETE RESTRICT）。使用中は消せない |
+| `owner` | TEXT | NO | 記事の機能の名前 | 同上 | pages / news / catalog |
+| `ref_key` | TEXT | NO | 記事の識別 | 同上 | 記事のID |

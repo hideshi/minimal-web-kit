@@ -1,0 +1,14 @@
+{{define "content"}}
+<h1>画像の削除</h1>
+
+<p class="card">{{.Item.Alt}}</p>
+
+{{if .Refs}}
+<p role="alert">次の記事が使っているため、削除できません。記事から画像を外してから削除してください。</p>
+<ul class="richtext-list">{{range .Refs}}<li>{{.Label}}{{if .Disabled}}（無効な機能）{{end}}</li>{{end}}</ul>
+<p><a href="/admin/media/{{.Item.ID}}" class="btn btn-secondary">画像の編集へ戻る</a></p>
+{{else}}
+<p>この画像を削除します。削除すると元に戻せません。バックアップの複製には、保持期間の間は残ります。</p>
+{{template "confirm-actions" (confirm (printf "/admin/media/%s/delete" .Item.ID) (printf "/admin/media/%s" .Item.ID) .CSRFToken)}}
+{{end}}
+{{end}}

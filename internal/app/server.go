@@ -32,6 +32,22 @@ func NewServer(cfg *Config, s store.SessionStore, reg *features.Registry, logger
 	}
 }
 
+// RunStartup は、機能どうしをつないだ後、待ち受けの前の処理を実行します。
+func RunStartup(ctx context.Context, reg *features.Registry, logger *slog.Logger) error {
+	if reg == nil {
+		return nil
+	}
+	for _, f := range reg.All() {
+		if sf, ok := f.(features.StartupFeature); ok {
+			if err := sf.Startup(ctx); err != nil {
+				logger.Error("feature startup failed", slog.String("feature", f.Name()))
+				return fmt.Errorf("startup feature %s: %w", f.Name(), err)
+			}
+		}
+	}
+	return nil
+}
+
 func (s *Server) Run() error {
 	// 各機能の初期化（DBマイグレーション等）
 	if s.features != nil && s.store.DB() != nil {
@@ -54,6 +70,9 @@ func (s *Server) Run() error {
 
 	httpHandler, err := BuildRoutes(s.store, s.features, s.cfg.SecureCookie, s.logger)
 	if err != nil {
+		return err
+	}
+	if err := RunStartup(context.Background(), s.features, s.logger); err != nil {
 		return err
 	}
 

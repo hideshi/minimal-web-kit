@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS news_posts (
     status TEXT NOT NULL CHECK (status IN ('draft', 'published')),
     published_at INTEGER,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    -- 代表画像のファイル名。画像機能が無い構成でも保存できるよう、外部キーは付けない
+    cover_file TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_news_posts_published ON news_posts(status, published_at DESC, id DESC);

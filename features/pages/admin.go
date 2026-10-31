@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"minimal-web-kit/features"
@@ -27,7 +28,8 @@ var fieldErrors = form.FieldErrors{
 	"slug_taken":    "このURLは、他のページが使っています。別のURLにしてください。",
 	"title":         "タイトルは1〜200文字で、改行を含めずに入力してください。",
 	"body":          "本文は5万文字以内で入力してください。",
-	"body_limit":    "表が大きすぎるか、見出しより列の多い行があります。表は20列・200行まで、行の列は見出しの列以下にしてください。",
+	"body_limit":    "表か画像が多すぎるか、見出しより列の多い行があります。表は20列・200行まで、行の列は見出しの列以下、画像は100個までにしてください。",
+	"body_image":    "本文の画像が見つかりません。削除された画像の行を直してください。",
 	"nav_order":     "ナビに出す順は、0〜999の数字で入力してください（ナビに出さない場合は空にします）。",
 }
 
@@ -111,7 +113,7 @@ func (v pageForm) Fields() []form.Field {
 		{ID: "page-title", Name: "title", Label: "タイトル", Value: v.Title, Required: true, MaxLength: maxTitleRunes, Error: v.err("title"), Hint: "1〜200文字、改行なし。ページの見出しになります。"},
 		{ID: "page-slug", Name: "slug", Label: "URL", Value: v.Slug, Required: true, MaxLength: 40, Error: v.err("slug", "slug_reserved", "slug_taken"),
 			Hint: "/ の後ろの部分（例: about → /about）。英小文字・数字・ハイフンで2〜40文字。公開中に変えると、前のURLは見られなくなります。"},
-		{ID: "page-body", Name: "body", Label: "本文", Value: v.Body, Rows: 16, Error: v.err("body", "body_limit"),
+		{ID: "page-body", Name: "body", Label: "本文", Value: v.Body, Rows: 16, Error: v.err("body", "body_limit", "body_image"),
 			Hint: "5万文字以内。書き方は下の「本文の書き方」を参照。公開する文章なので、個人情報は書かないでください。"},
 		{ID: "page-nav-order", Name: "nav_order", Label: "ナビに出す順", Optional: true, Value: v.NavOrder, MaxLength: 3, Error: v.err("nav_order"),
 			Hint: "0〜999。小さい順にサイトのナビに並びます。空ならナビに出しません。公開中のページだけが出ます。"},
@@ -133,6 +135,15 @@ func (f *Feature) formPage(w http.ResponseWriter, r *http.Request, s features.Ad
 	data["Form"] = v
 	data["Preview"] = preview
 	data["Notice"] = messages.From(r)
+	if f.media.Enabled() {
+		number, _ := form.Int(r.PostForm.Get("media_page"), 1, 1, 10000)
+		images, err := f.media.Page(r.Context(), number, "")
+		if f.failed(w, r, err) {
+			return
+		}
+		data["MediaPage"] = images
+		data["MediaPager"] = form.ImageChoices{PageName: "media_page", FormAction: "/admin/pages/preview", Prev: images.Prev, Next: images.Next}
+	}
 	if status == http.StatusBadRequest && v.Invalid == "" {
 		data["Error"] = "入力を確認してください。"
 	}
@@ -205,6 +216,18 @@ func (f *Feature) handlePreview(w http.ResponseWriter, r *http.Request, s featur
 			return
 		}
 	}
+	if file := r.PostForm.Get("insert_media"); file != "" {
+		images, err := f.media.Images(r.Context(), []string{file})
+		if f.failed(w, r, err) {
+			return
+		}
+		img, ok := images[file]
+		if !ok {
+			f.formPage(w, r, s, p, pageForm{Input: in, Invalid: "body_image"}, http.StatusBadRequest, nil)
+			return
+		}
+		in.Body = appendImage(in.Body, richtext.ImageLine(img.Alt, file))
+	}
 	n, err := normalize(in, f.taken)
 	if err != nil {
 		var invalid InputError
@@ -212,8 +235,19 @@ func (f *Feature) handlePreview(w http.ResponseWriter, r *http.Request, s featur
 		f.formPage(w, r, s, p, pageForm{Input: in, Invalid: invalid.Field}, http.StatusBadRequest, nil)
 		return
 	}
-	doc, _ := richtext.Parse(n.body)
+	doc, _ := richtext.ParseWithImages(n.body)
+	if f.failed(w, r, f.resolveImages(r.Context(), &doc, true)) {
+		return
+	}
 	f.formPage(w, r, s, p, pageForm{Input: in}, http.StatusOK, &doc)
+}
+
+// appendImage は、本文の末尾に画像の行を足します。見やすさのため、前に空行を1つ置きます。
+func appendImage(body, line string) string {
+	if body == "" {
+		return line + "\n"
+	}
+	return strings.TrimRight(body, "\r\n") + "\n\n" + line + "\n"
 }
 
 func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.Request, features.AdminSession) {

@@ -862,6 +862,37 @@ select[aria-invalid="true"] {
 .combobox-option[aria-disabled="true"] { cursor: not-allowed; text-decoration: line-through; }
 .combobox-empty { margin-top: var(--space-xs); }
 
+/* 記事の画像。本文の幅より大きいときだけ縮め、小さい画像は引き伸ばさない */
+.content-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* 画像の選択と画像の一覧。部品は components.html の "image-choices" */
+.image-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: var(--space-sm);
+}
+
+.image-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+}
+
+.image-choice img,
+.image-thumb {
+  display: block;
+  width: 100%;
+  max-width: 12rem;
+  height: 6rem;
+  object-fit: contain;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
 /* 本文（richtext。固定ページ等）。描く部品は components.html の "richtext" */
 .richtext h2,
 .richtext h3 {

@@ -33,12 +33,13 @@ type Feature struct {
 	logger                  *slog.Logger
 	store                   *Store
 	admin                   features.Admin
+	media                   features.Media
 	publicPages, adminPages map[string]*template.Template
 	layout                  *web.Layout
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
-	f := &Feature{logger: logger}
+	f := &Feature{logger: logger, media: features.NoMedia{}}
 	if err := f.SetLayout(web.Layout{FS: contentFS, File: "views/layout.html"}); err != nil {
 		panic(err)
 	}
@@ -46,15 +47,69 @@ func NewFeature(logger *slog.Logger) *Feature {
 }
 func (*Feature) Name() string { return "catalog" }
 func Migrate(db *sql.DB) error {
-	_, err := db.Exec(migrationSQL)
-	return err
+	if _, err := db.Exec(migrationSQL); err != nil {
+		return err
+	}
+	// 既存のDBに代表画像の列を足す。表を作り直さないため、複製は要らない
+	var hasCover int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('catalog_items') WHERE name = 'cover_file'").Scan(&hasCover); err != nil {
+		return err
+	}
+	if hasCover == 0 {
+		if _, err := db.Exec("ALTER TABLE catalog_items ADD COLUMN cover_file TEXT"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 func (f *Feature) Init(db *sql.DB) error {
 	if err := Migrate(db); err != nil {
 		return err
 	}
 	f.store = NewStore(db)
+	f.store.media = f.media
 	return nil
+}
+
+// SetMedia は画像機能を受け取ります。
+func (f *Feature) SetMedia(m features.Media) {
+	f.media = m
+	if f.store != nil {
+		f.store.media = m
+	}
+}
+
+// MediaIsPublic は、項目が今公開中かを、公開ページと同じ条件で返します。
+func (f *Feature) MediaIsPublic(ctx context.Context, key string) (bool, error) {
+	id, err := strconv.ParseInt(key, 10, 64)
+	if err != nil {
+		return false, nil
+	}
+	_, err = f.store.Get(ctx, id, true)
+	if errors.Is(err, ErrNotFound) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// MediaReferences は、代表画像を持つ項目を返します。
+func (f *Feature) MediaReferences(ctx context.Context) (map[string][]string, error) {
+	return f.store.coverRefs(ctx)
+}
+
+// covers は、項目の代表画像をまとめて返します。見つからない画像は空のまま描きます。
+func (f *Feature) covers(ctx context.Context, items []Item) (map[string]features.MediaImage, error) {
+	var files []string
+	for _, item := range items {
+		if item.CoverFile != "" {
+			files = append(files, item.CoverFile)
+		}
+	}
+	images, err := f.media.Images(ctx, files)
+	if images == nil {
+		images = map[string]features.MediaImage{}
+	}
+	return images, err
 }
 func (*Feature) RegisterRoutes(*http.ServeMux, *web.SessionManager) {}
 func (*Feature) NavLinks() []web.NavLink {
@@ -221,6 +276,11 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request) {
 	if pg.Next > 0 {
 		data["NextURL"] = filterURL(filter, pg.Next)
 	}
+	covers, err := f.covers(r.Context(), items)
+	if !f.result(w, r, err) {
+		return
+	}
+	data["Covers"] = covers
 	fragment := r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true"
 	if fragment {
 		f.render(w, 200, f.publicPages["list.html"], "results", data)
@@ -261,6 +321,11 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := map[string]any{"Title": item.Title, "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": form.Paragraphs(item.Body)}
+	covers, err := f.covers(r.Context(), []Item{item})
+	if !f.result(w, r, err) {
+		return
+	}
+	data["Cover"] = covers[item.CoverFile]
 	f.AddNavigation(data)
 	if f.layout.Data != nil {
 		f.layout.Data(data)

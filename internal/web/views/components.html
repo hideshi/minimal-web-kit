@@ -48,7 +48,7 @@
   {{else if gt .Rows 0}}
   <textarea id="{{.ID}}" name="{{.Name}}" rows="{{.Rows}}"{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Required}} required{{end}}{{if .Readonly}} readonly{{end}}{{template "field-described" .}}>{{.Value}}</textarea>
   {{else}}
-  <input type="{{or .Type "text"}}" id="{{.ID}}" name="{{.Name}}" value="{{.Value}}"{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Required}} required{{end}}{{if .Readonly}} readonly{{end}}{{template "field-described" .}}>
+  <input type="{{or .Type "text"}}" id="{{.ID}}" name="{{.Name}}" value="{{.Value}}"{{if .MaxLength}} maxlength="{{.MaxLength}}"{{end}}{{if .Accept}} accept="{{.Accept}}"{{end}}{{if .Required}} required{{end}}{{if .Readonly}} readonly{{end}}{{template "field-described" .}}>
   {{end}}
 </div>
 {{end}}
@@ -69,6 +69,28 @@
   <div class="choices-options">{{range .Options}}<label class="choice"><input type="{{if $.Multiple}}checkbox{{else}}radio{{end}}" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}{{if and $.Required (not $.Multiple)}} required{{end}}> {{.Label}}</label>{{else}}{{if $.Empty}}<p>{{$.Empty}}</p>{{end}}{{end}}</div>
 </fieldset>
 {{end}}
+
+{{/*
+  縮小表示つきのラジオの組（代表画像の選択）。引数は form.ImageChoices。先頭は「なし」
+*/}}
+{{define "image-choices"}}
+<fieldset class="form-group choices"{{if or .Hint .Error}} aria-describedby="{{if .Hint}}{{.ID}}-hint{{end}}{{if and .Hint .Error}} {{end}}{{if .Error}}{{.ID}}-error{{end}}"{{end}}>
+  <legend>{{.Legend}}</legend>
+  {{if .Hint}}<p class="field-hint" id="{{.ID}}-hint">{{.Hint}}</p>{{end}}
+  {{if .Error}}<p class="field-error" id="{{.ID}}-error">{{.Error}}</p>{{end}}
+  <div class="image-choices">
+    <label class="image-choice"><input type="radio" name="{{.Name}}" value=""{{if .NoneSelected}} checked{{end}}> なし</label>
+    {{range .Options}}<label class="image-choice"><input type="radio" name="{{$.Name}}" value="{{.Value}}"{{if .Selected}} checked{{end}}> <img src="{{.Src}}" alt="{{.Alt}}" loading="lazy" decoding="async"></label>
+    {{end}}
+  </div>
+</fieldset>
+{{end}}
+
+{{/*
+  画像の一覧のページ送り（フォームの中）。引数は form.ImageChoices。保存せずに入力を描き直すため、ボタンで送る。
+  Enter で押されないよう、保存のボタンより後ろに置く
+*/}}
+{{define "image-pager"}}{{if or .Prev .Next}}<div class="action-bar">{{if .Prev}}<button type="submit" class="btn btn-secondary" name="{{.PageName}}" value="{{.Prev}}"{{with .FormAction}} formaction="{{.}}"{{end}} formnovalidate>新しい画像を見る</button>{{end}}{{if .Next}}<button type="submit" class="btn btn-secondary" name="{{.PageName}}" value="{{.Next}}"{{with .FormAction}} formaction="{{.}}"{{end}} formnovalidate>古い画像を見る</button>{{end}}</div>{{end}}{{end}}
 
 {{/*
   削除の確認画面の操作の並び。引数は form.Confirm。

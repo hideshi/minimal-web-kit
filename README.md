@@ -153,7 +153,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `/api/news`、`/api/news/{id}` | 公開中のお知らせのJSON（`limit`・`offset`）。別ドメインからの読み取り（CORS）は `NEWS_CORS_ORIGINS` で許可した接続元だけで、既定は許可なしです |
 | `/admin/news` | お知らせの作成・編集・公開・予約公開・削除 |
 
-- 本文はプレーンテキスト（HTMLは文字として表示）で、画像のアップロードはありません。
+- 本文はプレーンテキスト（HTMLは文字として表示）です。画像機能が有効なら、代表画像を1枚付けられます。
 - 公開日時に未来の日時を指定して公開すると、その日時まで公開ページとAPIに表示しません（予約公開）。時刻はサーバーのタイムゾーン（`TZ`）で扱います。
 - 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。用語・状態・不変条件・権限の正本は [docs/domain/news.md](docs/domain/news.md)（ドメインモデル）、設計の経緯は [docs/plans/cms-plan.md](docs/plans/cms-plan.md) にあります。
 - `make remove-news` で登録を外しても、DBのデータは残ります。
@@ -240,11 +240,27 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `/{スラッグ}` | 公開中のページ。下書き・存在しないページはSiteの404。Cookieを発行・照合せず、公開キャッシュも使いません |
 | `/admin/pages` | 一覧・作成・編集・プレビュー（保存しない）・公開・削除。システム管理者とサイト管理者 |
 
-- 本文は書き方を絞ったMarkdown（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）で、キットのコードで読みます（[書き方の仕様](docs/richtext.md)）。HTMLは書けず、リンクは `https://` とサイト内のパスだけです。画像・添付・版の履歴はありません。
+- 本文は書き方を絞ったMarkdown（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）で、キットのコードで読みます（[書き方の仕様](docs/richtext.md)）。HTMLは書けず、リンクは `https://` とサイト内のパスだけです。画像機能が有効なら、本文に画像を入れられます。添付・版の履歴はありません。
 - スラッグは英小文字・数字・ハイフンで2〜40文字です。`/privacy` や `/news` など、Coreと他の機能が使う経路と同じものは使えません。公開ページは「どの経路にも当たらなかった要求」だけを受けるため、既存の経路は取られません。
 - 「ナビに出す順」を決めた公開中のページは、Siteのナビと `sitemap.xml` に載ります（再起動は不要）。ナビは公開キャッシュのある画面（`/` 等）では最大60秒遅れて見えます。
 - スラッグを変えると、前のURLは404になります（転送はありません）。固定ページを有効にすると、静的書き出し（`export-static`）は使えません。
 - 仕様と不変条件は [domain/pages.md](docs/domain/pages.md)、保存内容は[データ台帳](docs/data-inventory.md)の8節、設計の経緯は [pages-plan.md](docs/plans/pages-plan.md) にあります。
+
+### 画像
+
+`make add-media` で有効化します（管理者認証も有効になります）。`make remove-media` は登録だけを外し、保存データは保持します。画像はSQLiteに保存するため、`backup` コマンドで一緒に複製されます。
+
+| 経路 | 内容 |
+|---|---|
+| `/media/{ファイル名}` | 公開中の記事が使っている画像。それ以外は404。Cookieを発行・照合しません |
+| `/admin/media` | 画像の追加・説明の編集・削除。システム管理者とサイト管理者 |
+
+- JPEG・PNGを8MBまで受け取り、長辺1,600px・品質80に縮小して保存します。撮影位置等のEXIFと元のファイル名は保存しません。
+- 画像に公開状態はありません。公開中の記事から使われている間だけ公開します。1枚を複数の記事で使えます。
+- 固定ページは編集の画面のボタンで本文に足し、お知らせとカタログは代表画像を1枚選びます。
+- 使っている画像は削除できません。未使用の画像は自動では消えません。
+- 全体の上限は `MEDIA_TOTAL_LIMIT_MB`（既定300）です。写真が大量に増えるサイトには向きません。運用の注意は[デプロイの手順](docs/deploy.md)の「画像を使う場合」にあります。
+- 仕様と不変条件は [domain/media.md](docs/domain/media.md)、保存内容は[データ台帳](docs/data-inventory.md)の12節にあります。
 
 ### 切り替えコマンドの保護範囲
 
@@ -268,6 +284,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make add-catalog` / `make remove-catalog` | カタログの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-contact` / `make remove-contact` | お問い合わせの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-pages` / `make remove-pages` | 固定ページの登録を有効化・無効化（Authも有効化。データは保持） |
+| `make add-media` / `make remove-media` | 画像の登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-documents` / `make remove-documents` | 社内文書の登録を有効化・無効化（Authも有効化。データは保持）。`federatedauth` とは組み合わせられません |
 | `make add-mcp` / `make remove-mcp` | MCPサーバーの登録を有効化・無効化（Authも有効化。設定は保持）。機能ごとの有効化は `/admin/mcp` |
 | `make add-oidcop` / `make remove-oidcop` | 共通認証の提供機能。管理者認証を置き換え、外すと通常の管理者認証に戻る（連携の失効の状態は残る） |
@@ -295,6 +312,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `CONTACT_FORM_URL` | 未設定。Siteのお問い合わせリンク先（外部のフォーム。`https://` のみ有効。未設定時はボタン非表示）。お問い合わせ機能と同時に有効にすると起動時にエラー |
 | `CONTACT_RETENTION_DAYS` | 90。お問い合わせの保持日数（1〜365。範囲外・数字以外は起動時にエラー） |
 | `CONTACT_ACTIVE_MAX_DAYS` | 365。対応中のお問い合わせを受付から残す上限の日数（`CONTACT_RETENTION_DAYS` 以上、365以下。同じ値にすると延長は効かない。範囲外は起動時にエラー） |
+| `MEDIA_TOTAL_LIMIT_MB` | 300。画像の合計の上限（MB）。1以上の整数でなければ起動時にエラー |
 | `CONTACT_HOURLY_LIMIT` / `CONTACT_DAILY_LIMIT` / `CONTACT_UNREAD_LIMIT` | 20 / 100 / 500。お問い合わせの全体の受付上限（保存した件数で数える） |
 
 `make build` はテンプレート・CSS・JS・マイグレーションを埋め込んだ単一実行ファイルを作ります。対象OS・CPUに合わせたビルドが必要で、サイズはGoバージョン・構成・対象環境により変わります。SQLiteのデータはバイナリの外に保存されます。

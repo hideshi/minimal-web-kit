@@ -71,7 +71,38 @@ func (f *Feature) handleNewPostPage(w http.ResponseWriter, r *http.Request, s fe
 	data := f.pageData(s, "お知らせの作成")
 	data["Post"] = Post{}
 	data["Form"] = postForm{}
-	f.renderAdmin(w, "admin_post_form.html", data)
+	if f.addCover(w, r, data, postForm{}) {
+		f.renderAdmin(w, "admin_post_form.html", data)
+	}
+}
+
+// addCover は、画像機能があれば、代表画像の選択を画面の値に足します。失敗したら応答を書いて false を返します。
+func (f *Feature) addCover(w http.ResponseWriter, r *http.Request, data map[string]any, pf postForm) bool {
+	if !f.media.Enabled() {
+		return true
+	}
+	number, _ := form.Int(r.PostForm.Get("media_page"), 1, 1, 10000)
+	images, err := f.media.Page(r.Context(), number, pf.Cover)
+	if err != nil {
+		f.writeFailed(w, "news media page failed", err)
+		return false
+	}
+	data["Cover"] = features.CoverChoices(images, pf.Cover, pf.fieldError("cover"))
+	return true
+}
+
+// keepForm は、画像の一覧のページ送りのボタンなら、保存せずに入力を描き直して true を返します。
+func (f *Feature) keepForm(w http.ResponseWriter, r *http.Request, s features.AdminSession, title string, p Post, pf postForm) bool {
+	if r.PostForm.Get("media_page") == "" {
+		return false
+	}
+	data := f.pageData(s, title)
+	data["Post"] = p
+	data["Form"] = pf
+	if f.addCover(w, r, data, pf) {
+		f.renderAdmin(w, "admin_post_form.html", data)
+	}
+	return true
 }
 
 // datetimeInputLayout は <input type="datetime-local"> の値の形式です（サーバーのタイムゾーンで解釈する）。
@@ -80,6 +111,7 @@ const datetimeInputLayout = "2006-01-02T15:04"
 // postForm は記事のフォームの入力です。誤りがあれば、入力をそのまま戻して修正を求めます。
 type postForm struct {
 	Title, Body, PublishedAt string
+	Cover                    string // 代表画像のファイル名
 	Invalid                  string // 誤りのある欄（InputError.Field）
 }
 
@@ -88,6 +120,7 @@ var postErrors = form.FieldErrors{
 	"title":        "タイトルは1〜200文字で、改行や制御文字を含めずに入力してください。",
 	"body":         "本文は5万文字以内で、制御文字を含めずに入力してください。",
 	"published_at": "公開日時の形式が正しくありません。日付と時刻を選び直してください。",
+	"cover":        "選んだ画像が見つかりません。選び直してください。",
 }
 
 func (pf postForm) fieldError(name string) string { return postErrors.For(pf.Invalid, name) }
@@ -106,7 +139,7 @@ func (pf postForm) Fields() []form.Field {
 }
 
 func readPostForm(r *http.Request) postForm {
-	return postForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), PublishedAt: r.PostForm.Get("published_at")}
+	return postForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), PublishedAt: r.PostForm.Get("published_at"), Cover: r.PostForm.Get("cover")}
 }
 
 // parsePublishedAt は公開日時の入力を解析します。空ならゼロ値（変更しない）を返します。
@@ -127,10 +160,13 @@ func (f *Feature) parsePublishedAt(raw string) (time.Time, error) {
 
 func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	pf := readPostForm(r)
+	if f.keepForm(w, r, s, "お知らせの作成", Post{}, pf) {
+		return
+	}
 	publishedAt, err := f.parsePublishedAt(pf.PublishedAt)
 	var id int64
 	if err == nil {
-		id, err = f.posts.CreateWithDate(r.Context(), pf.Title, pf.Body, publishedAt)
+		id, err = f.posts.CreateWithCover(r.Context(), pf.Title, pf.Body, publishedAt, pf.Cover)
 	}
 	if errors.Is(err, ErrInvalidInput) {
 		f.renderPostFormError(w, r, s, "お知らせの作成", Post{}, pf, err)
@@ -157,12 +193,14 @@ func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, s 
 	if pf.Invalid == "" {
 		data["Error"] = "入力を確認してください。"
 	}
-	f.renderAdminStatus(w, http.StatusBadRequest, "admin_post_form.html", data)
+	if f.addCover(w, r, data, pf) {
+		f.renderAdminStatus(w, http.StatusBadRequest, "admin_post_form.html", data)
+	}
 }
 
 // formFromPost は保存済みの記事から、フォームの初期値を作ります。
 func formFromPost(p Post) postForm {
-	pf := postForm{Title: p.Title, Body: p.Body}
+	pf := postForm{Title: p.Title, Body: p.Body, Cover: p.CoverFile}
 	if !p.PublishedAt.IsZero() {
 		pf.PublishedAt = p.PublishedAt.In(time.Local).Format(datetimeInputLayout)
 	}
@@ -188,7 +226,9 @@ func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request, s f
 	data["Post"] = adminLocalTime(p)
 	data["Form"] = formFromPost(p)
 	setNotice(data, r)
-	f.renderAdmin(w, "admin_post_form.html", data)
+	if f.addCover(w, r, data, formFromPost(p)) {
+		f.renderAdmin(w, "admin_post_form.html", data)
+	}
 }
 
 func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
@@ -197,9 +237,23 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	pf := readPostForm(r)
+	if r.PostForm.Get("media_page") != "" {
+		p, err := f.posts.Get(r.Context(), id)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		f.keepForm(w, r, s, "お知らせの編集", adminLocalTime(p), pf)
+		return
+	}
 	publishedAt, err := f.parsePublishedAt(pf.PublishedAt)
 	if err == nil {
-		err = f.posts.UpdateWithDate(r.Context(), id, pf.Title, pf.Body, publishedAt)
+		if f.media.Enabled() {
+			err = f.posts.UpdateWithCover(r.Context(), id, pf.Title, pf.Body, publishedAt, pf.Cover)
+		} else {
+			// 画像機能が無い構成では、代表画像の値を変えない
+			err = f.posts.UpdateWithDate(r.Context(), id, pf.Title, pf.Body, publishedAt)
+		}
 	}
 	if errors.Is(err, ErrInvalidInput) {
 		p, gerr := f.posts.Get(r.Context(), id)

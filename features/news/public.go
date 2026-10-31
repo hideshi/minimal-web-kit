@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/page"
@@ -142,9 +143,20 @@ func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	var cover features.MediaImage
+	if post.CoverFile != "" {
+		images, err := f.media.Images(r.Context(), []string{post.CoverFile})
+		if err != nil {
+			f.logger.Error("news cover failed")
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		cover = images[post.CoverFile]
+	}
 	web.PublicCache(w, web.PublicCacheSeconds)
 	f.render(w, "news_show.html", map[string]any{
 		"Title":         post.Title,
+		"Cover":         cover,
 		"Description":   excerpt(post.Body, post.Title),
 		"OGType":        "article",
 		"PublishedTime": post.PublishedAt.UTC().Format(time.RFC3339),

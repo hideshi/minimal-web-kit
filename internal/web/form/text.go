@@ -82,8 +82,35 @@ type Field struct {
 	Options   []Option // 1つ以上あれば選択（select）。Selected の付いたものを選んだ状態にする
 	// LabelHidden はラベルを画面に出さず、読み上げソフトにだけ伝える（表の中の欄等、見出しで意味が分かる場合）
 	LabelHidden bool
-	Readonly    bool // 表示用の欄（登録URL等、選んでコピーする値）
-	Checked     bool // Type が "checkbox" のとき、選んだ状態にする（Value の既定は "1"）
+	Readonly    bool   // 表示用の欄（登録URL等、選んでコピーする値）
+	Accept      string // Type が "file" のとき、選べるファイルの種類（例: "image/jpeg,image/png"）
+	Checked     bool   // Type が "checkbox" のとき、選んだ状態にする（Value の既定は "1"）
+}
+
+// ImageChoices は、共通の画面部品 "image-choices"（縮小表示つきのラジオの組）と "image-pager" に渡す値です。
+// 先頭に「なし」の選択肢を出します。Prev・Next は、ページ送りのボタンの値です（無ければ0）。
+type ImageChoices struct {
+	ID, Name, Legend, Hint, Error string
+	PageName                      string // ページ送りのボタンの name
+	FormAction                    string // ページ送りのボタンの送り先（空ならフォームの送り先）
+	Prev, Next                    int
+	Options                       []ImageChoice
+}
+
+// ImageChoice は ImageChoices の選択肢です。Value はファイル名です。
+type ImageChoice struct {
+	Value, Src, Alt string
+	Selected        bool
+}
+
+// NoneSelected は、どの選択肢も選ばれていないかを返します（「なし」を選んだ状態にする）。
+func (c ImageChoices) NoneSelected() bool {
+	for _, o := range c.Options {
+		if o.Selected {
+			return false
+		}
+	}
+	return true
 }
 
 // Choices は、共通の画面部品 "choices"（同じ名前のラジオ・チェックボックスの組）に渡す値です。

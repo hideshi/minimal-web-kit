@@ -6,9 +6,11 @@ import (
 	"errors"
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
+	"strconv"
 	"time"
 
 	"minimal-web-kit/internal/web/form"
+	"minimal-web-kit/internal/web/richtext"
 )
 
 const (
@@ -27,7 +29,7 @@ var (
 )
 
 // InputError は、どの欄の入力が制約を満たさないかを示します。ErrInvalidInput としても判定できます。
-// Field は "title"・"body"・"published_at" のどれかです。
+// Field は "title"・"body"・"published_at"・"cover" のどれかです。
 type InputError struct{ Field string }
 
 func (e InputError) Error() string { return "news: invalid " + e.Field }
@@ -42,6 +44,7 @@ type Post struct {
 	PublishedAt time.Time
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	CoverFile   string // 代表画像のファイル名。無ければ空
 }
 
 // ScheduledAt は、予約公開で公開日時前の記事かどうかを返します（管理画面の表示用）。
@@ -51,12 +54,117 @@ func (p Post) ScheduledAt(now time.Time) bool {
 
 // PostStore はお知らせの読み書きを担当します。HTML表示・JSON API・管理画面で共通に使います。
 type PostStore struct {
-	db  *sql.DB
-	now func() time.Time
+	db    *sql.DB
+	now   func() time.Time
+	media features.Media
 }
 
 func NewPostStore(db *sql.DB) *PostStore {
-	return &PostStore{db: db, now: time.Now}
+	return &PostStore{db: db, now: time.Now, media: features.NoMedia{}}
+}
+
+// mediaOwner は、画像の参照に記録する機能の名前です。
+const mediaOwner = "news"
+
+// coverArg は代表画像をSQLの引数に変換します。空はNULLです。
+func coverArg(cover string) any {
+	if cover == "" {
+		return nil
+	}
+	return cover
+}
+
+func checkCover(cover string) error {
+	if cover != "" && !richtext.ImageFile(cover) {
+		return InputError{"cover"}
+	}
+	return nil
+}
+
+// saveCover は、同じトランザクションの中で代表画像の参照を置き換えます（MEDIA-INV-5）。
+func (s *PostStore) saveCover(ctx context.Context, c *sql.Conn, id int64, cover string) error {
+	var files []string
+	if cover != "" {
+		files = []string{cover}
+	}
+	err := s.media.ReplaceRefs(ctx, c, mediaOwner, strconv.FormatInt(id, 10), files)
+	if errors.Is(err, features.ErrMediaMissing) {
+		return InputError{"cover"}
+	}
+	return err
+}
+
+// CreateWithCover は、代表画像つきの下書きを作成します。記事と参照は同じトランザクションで保存します。
+func (s *PostStore) CreateWithCover(ctx context.Context, title, body string, publishedAt time.Time, cover string) (int64, error) {
+	title, body, err := normalizePost(title, body)
+	if err != nil {
+		return 0, err
+	}
+	if err := checkCover(cover); err != nil {
+		return 0, err
+	}
+	at, err := s.publishedAtArg(publishedAt)
+	if err != nil {
+		return 0, err
+	}
+	now := s.now().Unix()
+	var id int64
+	err = store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		res, err := c.ExecContext(ctx,
+			"INSERT INTO news_posts (title, body, status, published_at, created_at, updated_at, cover_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			title, body, statusDraft, at, now, now, coverArg(cover))
+		if err != nil {
+			return err
+		}
+		if id, err = res.LastInsertId(); err != nil {
+			return err
+		}
+		return s.saveCover(ctx, c, id, cover)
+	})
+	return id, err
+}
+
+// UpdateWithCover は、タイトル・本文・公開日時・代表画像を更新します。記事と参照は同じトランザクションで保存します。
+func (s *PostStore) UpdateWithCover(ctx context.Context, id int64, title, body string, publishedAt time.Time, cover string) error {
+	title, body, err := normalizePost(title, body)
+	if err != nil {
+		return err
+	}
+	if err := checkCover(cover); err != nil {
+		return err
+	}
+	at, err := s.publishedAtArg(publishedAt)
+	if err != nil {
+		return err
+	}
+	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		res, err := c.ExecContext(ctx,
+			"UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?, cover_file = ? WHERE id = ?",
+			title, body, at, s.now().Unix(), coverArg(cover), id)
+		if err := store.AffectedOne(res, err, ErrNotFound); err != nil {
+			return err
+		}
+		return s.saveCover(ctx, c, id, cover)
+	})
+}
+
+// coverRefs は、代表画像を持つ記事を返します。
+func (s *PostStore) coverRefs(ctx context.Context) (map[string][]string, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, cover_file FROM news_posts WHERE cover_file IS NOT NULL")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	refs := map[string][]string{}
+	for rows.Next() {
+		var id int64
+		var cover string
+		if err := rows.Scan(&id, &cover); err != nil {
+			return nil, err
+		}
+		refs[strconv.FormatInt(id, 10)] = []string{cover}
+	}
+	return refs, rows.Err()
 }
 
 // normalizePost はタイトル（1行）と本文を検査します。誤りは、欄を示す InputError で返します。
@@ -161,7 +269,7 @@ func (s *PostStore) SetPublishedAt(ctx context.Context, id int64, at time.Time) 
 
 // mcpState は、確認に使う保存状態のハッシュです。公開状態と公開日時を含みます。
 func mcpState(p Post) string {
-	return features.MCPState("post", p.ID, p.Title, p.Body, p.Published, publishedUnix(p))
+	return features.MCPState("post", p.ID, p.Title, p.Body, p.Published, publishedUnix(p), p.CoverFile)
 }
 
 func publishedUnix(p Post) any {
@@ -190,8 +298,8 @@ func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body
 	}
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?
-		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ?`,
-		title, body, at, s.now().Unix(), cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur))
+		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ?`,
+		title, body, at, s.now().Unix(), cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile))
 	return store.AffectedOne(res, err, features.ErrMCPConflict)
 }
 
@@ -204,14 +312,20 @@ func (s *PostStore) SetPublishedIfUnchanged(ctx context.Context, cur Post, publi
 	}
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE news_posts SET status = ?, published_at = COALESCE(published_at, ?), updated_at = ?
-		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ?`,
-		status, first, now, cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur))
+		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ?`,
+		status, first, now, cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile))
 	return store.AffectedOne(res, err, features.ErrMCPConflict)
 }
 
 // Delete は記事を物理削除します。
 func (s *PostStore) Delete(ctx context.Context, id int64) error {
-	return s.execOne(ctx, "DELETE FROM news_posts WHERE id = ?", id)
+	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		res, err := c.ExecContext(ctx, "DELETE FROM news_posts WHERE id = ?", id)
+		if err := store.AffectedOne(res, err, ErrNotFound); err != nil {
+			return err
+		}
+		return s.media.DeleteRefs(ctx, c, mediaOwner, strconv.FormatInt(id, 10))
+	})
 }
 
 // Get は公開状態にかかわらず記事を返します（管理画面用）。
@@ -266,7 +380,7 @@ func (s *PostStore) ListAll(ctx context.Context, limit, offset int) ([]Post, err
 		limit, offset)
 }
 
-const postColumns = "id, title, body, status, published_at, created_at, updated_at"
+const postColumns = "id, title, body, status, published_at, created_at, updated_at, COALESCE(cover_file, '')"
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -277,7 +391,7 @@ func scanPost(row rowScanner) (Post, error) {
 	var status string
 	var publishedAt sql.NullInt64
 	var createdAt, updatedAt int64
-	if err := row.Scan(&p.ID, &p.Title, &p.Body, &status, &publishedAt, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&p.ID, &p.Title, &p.Body, &status, &publishedAt, &createdAt, &updatedAt, &p.CoverFile); err != nil {
 		return Post{}, err
 	}
 	p.Published = status == statusPublished
