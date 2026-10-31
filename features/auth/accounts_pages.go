@@ -23,8 +23,8 @@ var accountNotices = notice.Messages{
 
 // accountErrorMessages は、アカウントの操作を拒否したときに画面に出す固定の文言です。
 var accountErrorMessages = map[error]string{
-	ErrSelfChange:     "自分自身のアカウントは、ロールの変更・停止・削除ができません。別の管理者が操作してください。",
-	ErrLastAdmin:      "有効な管理者（パスキーを登録済みで停止していない管理者）が0人になるため、この操作はできません。先に別の管理者を追加してください。",
+	ErrSelfChange:     "自分自身のアカウントは、ロールの変更・停止・削除ができません。別のシステム管理者が操作してください。",
+	ErrLastAdmin:      "有効なシステム管理者（パスキーを登録済みで停止していないシステム管理者）が0人になるため、この操作はできません。先に別のシステム管理者を追加してください。",
 	ErrLastCredential: "このアカウントの最後の有効なパスキーは削除できません。パスキーをなくした場合は、「登録URLを発行し直す」で、既存のパスキーを削除して発行してください。",
 }
 
@@ -35,12 +35,14 @@ func nameField(value, errMsg string) form.Field {
 
 // roleChoices はロールの選択肢。long は作成画面の説明つきの文言。
 func roleChoices(id, role string, long bool) form.Choices {
-	member, admin := "メンバー", "管理者"
+	user, member, admin := roleLabel(roleUser), roleLabel(roleMember), roleLabel(roleAdmin)
 	if long {
-		member = "メンバー（各機能の管理画面を使える。アカウントの管理はできない）"
-		admin = "管理者（アカウントの管理もできる。必要な人に限る）"
+		user += "（文書の機能だけを使える。公開サイトの編集はできない）"
+		member += "（各機能の管理画面を使える。アカウントの管理はできない）"
+		admin += "（アカウントの管理もできる。必要な人に限る）"
 	}
 	return form.Choices{ID: id, Name: "role", Legend: "ロール", Required: long, Options: []form.Option{
+		{Value: roleUser, Label: user, Selected: role == roleUser},
 		{Value: roleMember, Label: member, Selected: role == roleMember},
 		{Value: roleAdmin, Label: admin, Selected: role == roleAdmin},
 	}}
@@ -63,7 +65,7 @@ func (f *Feature) handleAccountsPage(w http.ResponseWriter, r *http.Request, s s
 func (f *Feature) renderAccountForm(w http.ResponseWriter, s session, status int, name, role, errMsg string) {
 	data := s.PageData("アカウントの追加", "/admin/accounts")
 	if role == "" {
-		role = roleMember
+		role = roleUser
 	}
 	data["NameField"] = nameField(name, errMsg)
 	data["RoleChoices"] = roleChoices("account-role", role, true)
@@ -132,11 +134,7 @@ func (f *Feature) renderAccount(w http.ResponseWriter, r *http.Request, s sessio
 	data["Credentials"] = creds
 	data["IsSelf"] = id == s.accountID
 	data["Notice"] = accountNotices.From(r)
-	role := roleMember
-	if a.IsAdmin() {
-		role = roleAdmin
-	}
-	data["RoleChoices"] = roleChoices("account-role", role, false)
+	data["RoleChoices"] = roleChoices("account-role", a.Role, false)
 	data["ResetKeysField"] = form.Field{ID: "reset-keys", Name: "reset_keys", Type: "checkbox", Label: "登録済みのパスキーとログイン状態を削除してから発行する（端末の紛失・盗難時）"}
 	data["Error"] = errMsg
 	f.renderAdminStatus(w, status, "admin_account.html", data, false)
@@ -198,7 +196,7 @@ func (f *Feature) handleReissueToken(w http.ResponseWriter, r *http.Request, s s
 	}
 	resetKeys := r.PostForm.Get("reset_keys") == "1"
 	if resetKeys && id == s.accountID {
-		// 自分の鍵を消すと締め出されるため、自分は別の管理者に頼む
+		// 自分の鍵を消すと締め出されるため、自分は別のシステム管理者に頼む
 		f.renderAccount(w, r, s, id, http.StatusConflict, accountErrorMessages[ErrSelfChange])
 		return
 	}
@@ -210,7 +208,7 @@ func (f *Feature) handleReissueToken(w http.ResponseWriter, r *http.Request, s s
 	f.renderSetupURL(w, r, s, id, token, false)
 }
 
-// handleDeleteAccountPasskey は、管理者が他のアカウントのパスキーを削除します（そのアカウントのログイン状態も解除する）。
+// handleDeleteAccountPasskey は、システム管理者が他のアカウントのパスキーを削除します（そのアカウントのログイン状態も解除する）。
 func (f *Feature) handleDeleteAccountPasskey(w http.ResponseWriter, r *http.Request, s session) {
 	id, ok := web.PathID(w, r, "id")
 	if !ok {

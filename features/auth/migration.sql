@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS auth_accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'member')),
+    role TEXT NOT NULL CHECK (role IN ('admin', 'member', 'user')),
     webauthn_user_id BLOB NOT NULL UNIQUE,
     created_at INTEGER NOT NULL,
     disabled_at INTEGER,

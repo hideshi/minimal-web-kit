@@ -42,7 +42,7 @@ type sessionStore struct {
 	now    func() time.Time
 }
 
-// login は利用者の局所の行を作り（初回はメンバー）、セッションを発行して、Cookieに入れる生のトークンを返します。
+// login は利用者の局所の行を作り（初回はサイト管理者）、セッションを発行して、Cookieに入れる生のトークンを返します。
 // 寿命は発行から12時間と、認証基盤での本人確認から12時間の早い方です。
 func (s *sessionStore) login(ctx context.Context, subject string, epochs federation.Epochs, authTime int64) (string, error) {
 	now := s.now()

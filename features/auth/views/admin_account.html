@@ -18,7 +18,7 @@
 </div>
 
 {{if .IsSelf}}
-<p>自分のロールの変更・停止・削除は、別の管理者が行います。自分のパスキーは<a href="/admin/passkeys">パスキーの管理</a>で操作できます。</p>
+<p>自分のロールの変更・停止・削除は、別のシステム管理者が行います。自分のパスキーは<a href="/admin/passkeys">パスキーの管理</a>で操作できます。</p>
 {{else}}
 <h2>ロールの変更</h2>
 <form method="post" action="/admin/accounts/{{.Account.ID}}/role" class="card">

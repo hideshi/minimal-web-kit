@@ -169,8 +169,8 @@ func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("POST /oidc/token", f.token)
 	mux.HandleFunc("POST /oidc/check", f.check)
 	mux.HandleFunc("GET /admin/oidc/authorize", f.authorize)
-	mux.HandleFunc("GET /admin/oidc/continue", f.Feature.Admin().Page(f.continueFlow))
-	mux.HandleFunc("POST /admin/oidc/approve", f.Feature.Admin().Form(f.approve))
+	mux.HandleFunc("GET /admin/oidc/continue", f.Feature.Admin().AccountPage(f.continueFlow))
+	mux.HandleFunc("POST /admin/oidc/approve", f.Feature.Admin().AccountForm(f.approve))
 }
 
 // PrivacyNotices は、管理者認証の説明に、連携で保存する情報を足します。
@@ -270,7 +270,7 @@ func validAuthorizeQuery(q url.Values) bool {
 }
 
 // authorize は、別サイトから届く認可要求を検査して保存し、継続ページを返します。
-// ここには管理者のStrict Cookieが付かないため、ログイン状態を判定しません。
+// ここにはシステム管理者のStrict Cookieが付かないため、ログイン状態を判定しません。
 func (f *Feature) authorize(w http.ResponseWriter, r *http.Request) {
 	web.NoTransform(w)
 	if !f.limiter.Allow() {

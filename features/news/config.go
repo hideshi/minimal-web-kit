@@ -8,7 +8,7 @@ import (
 )
 
 // Config はお知らせ機能の設定です。起動時（Init）に検証し、不正なら起動を止めます。
-// 管理者のログインに関する設定（AUTH_ORIGIN 等）は、管理者認証（features/auth）が持ちます。
+// ログインに関する設定（AUTH_ORIGIN 等）は、管理者認証（features/auth）が持ちます。
 type Config struct {
 	// CORSOrigins は読み取りAPIを読める別オリジンの一覧です。空なら許可しません。
 	CORSOrigins []string

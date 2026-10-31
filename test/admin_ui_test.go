@@ -6,6 +6,7 @@ package test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -41,6 +42,7 @@ import (
 type adminUI struct {
 	t        *testing.T
 	routes   http.Handler
+	db       *sql.DB
 	patterns []string
 	cookies  map[string]*http.Cookie // "admin"・"member"
 	csrf     map[string]string
@@ -89,7 +91,7 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 			iso.RegisterIsolatedRoutes(mux)
 		}
 	}
-	ui := &adminUI{t: t, routes: routes, patterns: mux.Patterns(), cookies: map[string]*http.Cookie{}, csrf: map[string]string{}, ids: map[string]string{}}
+	ui := &adminUI{t: t, db: core.DB(), routes: routes, patterns: mux.Patterns(), cookies: map[string]*http.Cookie{}, csrf: map[string]string{}, ids: map[string]string{}}
 	db := core.DB()
 	adminCookie, adminID := authtest.NewAccountSession(t, db, "admin")
 	ui.cookies["admin"] = adminCookie
@@ -566,6 +568,55 @@ func checkAdminPage(doc *node, kind string) []string {
 		}
 	}
 	return problems
+}
+
+// accountRoutes は、一般ユーザーが通ってよい管理画面の経路です。足すときは、その画面が公開サイトの編集やアカウントの
+// 管理に当たらないことを確かめてから足す。
+var accountRoutes = []string{
+	"GET /admin", "GET /admin/login", "GET /admin/setup", "POST /admin/logout",
+	"GET /admin/passkeys", "POST /admin/passkeys/{id}/label", "GET /admin/passkeys/{id}/delete", "POST /admin/passkeys/{id}/delete",
+	"POST /admin/webauthn/register/begin", "POST /admin/webauthn/register/finish", "POST /admin/webauthn/login/begin", "POST /admin/webauthn/login/finish",
+	"GET /admin/agent/authorize", // 同意の前の入口。続きの画面と承認で止まる
+}
+
+// TestRoleUser_ReachesOnlyAccountRoutes は、登録された全ての管理画面の経路を一般ユーザーで開き、
+// accountRoutes に無い経路が403になることを確かめる。経路を足すと、自動で対象になる。
+// 不変条件: AUTH-INV-26
+func TestRoleUser_ReachesOnlyAccountRoutes(t *testing.T) {
+	ui := setupAdminUI(t, false)
+	cookie, _ := authtest.NewAccountSession(t, ui.db, "user")
+	ui.cookies["user"] = cookie
+	ui.csrf["user"] = authtest.CSRFToken(t, ui.routes, "/admin/passkeys", cookie)
+	wildcard := regexp.MustCompile(`\{[^}]+\}`)
+	seen := 0
+	for _, p := range ui.patterns {
+		method, path, ok := strings.Cut(p, " ")
+		if !ok || !strings.HasPrefix(path, "/admin") || strings.HasPrefix(path, "/admin/static/") || slices.Contains(accountRoutes, p) {
+			continue
+		}
+		seen++
+		target := wildcard.ReplaceAllString(path, "1")
+		var w *httptest.ResponseRecorder
+		if method == http.MethodGet {
+			w = ui.get("user", target)
+		} else {
+			w = ui.post("user", target, nil)
+		}
+		if w.Code != http.StatusForbidden {
+			t.Errorf("%s: 一般ユーザーに %d（403のはず）", p, w.Code)
+		}
+	}
+	if seen < 30 {
+		t.Fatalf("見た経路が少なすぎる: %d", seen)
+	}
+	for _, path := range []string{"/admin/news", "/admin/accounts"} {
+		if strings.Contains(ui.get("user", "/admin/passkeys").Body.String(), `href="`+path+`"`) {
+			t.Errorf("一般ユーザーのナビに %s が出ている", path)
+		}
+	}
+	if w := ui.get("user", "/admin"); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/passkeys" {
+		t.Fatalf("/admin: %d %s", w.Code, w.Header().Get("Location"))
+	}
 }
 
 // TestAdminUI_AllPagesFollowStandard は、全管理画面を見本のデータで開き、UI標準の構造を満たすかを確かめる。

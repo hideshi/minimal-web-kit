@@ -41,7 +41,7 @@ func (f *Feature) SetAdmin(admin features.Admin) error {
 	return nil
 }
 
-// AdminNavLinks は管理画面のナビに「固定ページの管理」を加えます（管理者とメンバー）。
+// AdminNavLinks は管理画面のナビに「固定ページの管理」を加えます（システム管理者とサイト管理者）。
 func (f *Feature) AdminNavLinks() []web.NavLink {
 	return []web.NavLink{{Label: "固定ページの管理", Href: "/admin/pages"}}
 }

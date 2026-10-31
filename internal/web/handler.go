@@ -194,8 +194,19 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 type NavLink struct {
 	Label string
 	Href  string
-	// AdminOnly は、管理画面のナビで、管理者ロールにだけ出すリンクに付ける（例: お問い合わせの受信箱）
+	// AdminOnly は、管理画面のナビで、システム管理者にだけ出すリンクに付ける（例: お問い合わせの受信箱）
 	AdminOnly bool
+	// AllRoles は、管理画面のナビで、一般ユーザーにも出すリンクに付ける。既定では出さない
+	AllRoles bool
+}
+
+// NavVisible は、管理画面のナビにリンクを出すかを返します。
+// manageSite は各機能の管理画面を使えるか、admin はシステム管理者かです。
+func NavVisible(l NavLink, manageSite, admin bool) bool {
+	if l.AdminOnly {
+		return admin
+	}
+	return manageSite || l.AllRoles
 }
 
 // ContactLink は、お問い合わせの行き先です。外部のフォームか、サイトの中のフォーム（お問い合わせ機能）のどちらか1つです。

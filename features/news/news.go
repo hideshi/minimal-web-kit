@@ -19,7 +19,7 @@ import (
 var migrationSQL string
 
 // Feature は同梱機能のお知らせ機能（news）です。お知らせの公開ページ・読み取りAPIと、記事の管理画面を提供します。
-// 管理者のログインは、同梱機能の管理者認証（features/auth）が担います（make add-news で一緒に有効になる）。
+// ログインは、同梱機能の管理者認証（features/auth）が担います（make add-news で一緒に有効になる）。
 // 公開ページ・APIと管理画面は、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
 	web.PublicNavigation

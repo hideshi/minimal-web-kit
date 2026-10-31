@@ -16,9 +16,10 @@ import (
 const (
 	roleAdmin  = string(features.RoleAdmin)
 	roleMember = string(features.RoleMember)
+	roleUser   = string(features.RoleUser)
 
 	maxAccountNameRunes = 50
-	// firstAdminName は、auth-setup・auth-recover が作る最初の管理者アカウントの呼び名です。
+	// firstAdminName は、auth-setup・auth-recover が作る最初のシステム管理者アカウントの呼び名です。
 	firstAdminName = "管理者"
 	// inviteTokenTTL は、管理画面で発行する登録URLの有効期限です（本人に渡すため、auth-setup より長い）。
 	inviteTokenTTL = 24 * time.Hour
@@ -29,7 +30,7 @@ var (
 	ErrNameTaken = errors.New("auth: account name already used")
 	// ErrSelfChange は、自分自身のロール変更・停止・削除を拒否したことを示します。
 	ErrSelfChange = errors.New("auth: cannot change own account")
-	// ErrLastAdmin は、有効な管理者が0人になる操作を拒否したことを示します。
+	// ErrLastAdmin は、有効なシステム管理者が0人になる操作を拒否したことを示します。
 	ErrLastAdmin = errors.New("auth: at least one active admin is required")
 	// ErrOldSchema は、アカウント導入前の形式の表が残っていることを示します。
 	ErrOldSchema = errors.New("auth: old schema found; run auth-recover -reset-schema")
@@ -37,7 +38,7 @@ var (
 	ErrChooseAccount = errors.New("auth: choose an admin account with -account <id>")
 )
 
-// effectiveAdminElsewhere は、指定したアカウント以外に「有効な管理者」（ロールが管理者・停止中でない・有効なパスキーが1件以上）が
+// effectiveAdminElsewhere は、指定したアカウント以外に「有効なシステム管理者」（ロールがシステム管理者・停止中でない・有効なパスキーが1件以上）が
 // いるかを判定するSQLの条件です。引数として除外するアカウントIDを1つ取ります（AUTH-INV-1）。
 const effectiveAdminElsewhere = `(SELECT COUNT(*) FROM auth_accounts a
 	WHERE a.role = 'admin' AND a.disabled_at IS NULL AND a.id != ?
@@ -51,7 +52,7 @@ func normalizeAccountName(name string) (string, error) {
 	return name, nil
 }
 
-func validRole(role string) bool { return role == roleAdmin || role == roleMember }
+func validRole(role string) bool { return role == roleAdmin || role == roleMember || role == roleUser }
 
 func newWebAuthnUserID() ([]byte, error) {
 	id := make([]byte, 16)
@@ -127,10 +128,13 @@ func (a accountInfo) IsAdmin() bool  { return a.Role == roleAdmin }
 func (a accountInfo) RoleLabel() string { return roleLabel(a.Role) }
 
 func roleLabel(role string) string {
-	if role == roleAdmin {
-		return "管理者"
+	switch role {
+	case roleAdmin:
+		return "システム管理者"
+	case roleMember:
+		return "サイト管理者"
 	}
-	return "メンバー"
+	return "一般ユーザー"
 }
 
 func unixOrZero(v sql.NullInt64) time.Time {
@@ -189,7 +193,7 @@ func (s *adminStore) getAccount(ctx context.Context, id int64) (accountInfo, err
 }
 
 // changeAccount は、他のアカウントのロール変更・停止・再開・削除を行います。
-// 自分自身は変更できず、有効な管理者が0人になる操作は1つの文の条件で拒否します。
+// 自分自身は変更できず、有効なシステム管理者が0人になる操作は1つの文の条件で拒否します。
 // 変更したアカウントの管理者セッションは、同じトランザクションで削除します（AUTH-INV-2・AUTH-INV-6）。
 func (s *adminStore) changeAccount(ctx context.Context, actorID, targetID int64, query string, args ...any) error {
 	if actorID == targetID {
@@ -219,7 +223,7 @@ func (s *adminStore) changeAccount(ctx context.Context, actorID, targetID int64,
 	return tx.Commit()
 }
 
-// setRole は他のアカウントのロールを変えます。管理者を降格して有効な管理者が0人になる場合は拒否します。
+// setRole は他のアカウントのロールを変えます。システム管理者を降格して有効なシステム管理者が0人になる場合は拒否します。
 func (s *adminStore) setRole(ctx context.Context, actorID, targetID int64, role string) error {
 	if !validRole(role) {
 		return ErrInvalidInput
@@ -250,7 +254,7 @@ func (s *adminStore) deleteAccount(ctx context.Context, actorID, targetID int64)
 
 // reissueToken は他のアカウント（または自分）の登録トークン（24時間）を発行し直します。
 // resetKeys なら、そのアカウントのパスキーとセッションを削除し、WebAuthnの user.id を作り直します（紛失・盗難時）。
-// 有効な管理者が0人になる場合は、resetKeys を拒否します。
+// 有効なシステム管理者が0人になる場合は、resetKeys を拒否します。
 func (s *adminStore) reissueToken(ctx context.Context, targetID int64, resetKeys bool) (string, error) {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -351,7 +355,7 @@ func ResetSchema(ctx context.Context, db *sql.DB) error {
 	return Migrate(db)
 }
 
-// firstAdmin は、最初の管理者として使うアカウント（最も古い管理者）を返し、無ければ作ります。
+// firstAdmin は、最初のシステム管理者として使うアカウント（最も古いシステム管理者）を返し、無ければ作ります。
 func firstAdmin(ctx context.Context, tx *sql.Tx, now time.Time) (int64, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, "SELECT id FROM auth_accounts WHERE role = 'admin' ORDER BY id LIMIT 1").Scan(&id)
@@ -364,8 +368,8 @@ func firstAdmin(ctx context.Context, tx *sql.Tx, now time.Time) (int64, error) {
 	return insertAccount(ctx, tx, firstAdminName, roleAdmin, now)
 }
 
-// Setup は、有効なパスキーが1件も無い場合だけ、最初の管理者アカウントの登録トークン（15分）を発行して返します。
-// 管理者アカウントが無ければ作り、あれば最も古い管理者に結びつけます。登録前なら何度でも発行し直せます。
+// Setup は、有効なパスキーが1件も無い場合だけ、最初のシステム管理者アカウントの登録トークン（15分）を発行して返します。
+// システム管理者アカウントが無ければ作り、あれば最も古いシステム管理者に結びつけます。登録前なら何度でも発行し直せます。
 func Setup(ctx context.Context, db *sql.DB, now time.Time) (string, error) {
 	if err := Migrate(db); err != nil {
 		return "", err
@@ -398,7 +402,7 @@ func Setup(ctx context.Context, db *sql.DB, now time.Time) (string, error) {
 
 // RecoverOptions は auth-recover の指定です。
 type RecoverOptions struct {
-	// AccountID は登録し直す管理者アカウントです。0なら、管理者アカウントが無い場合だけ新しく作ります。
+	// AccountID は登録し直すシステム管理者アカウントです。0なら、システム管理者アカウントが無い場合だけ新しく作ります。
 	AccountID int64
 	// Only なら、AccountID のアカウントだけを初期化します（他のアカウントは変えない）。
 	Only bool
@@ -439,7 +443,7 @@ func Recover(ctx context.Context, db *sql.DB, now time.Time, opt RecoverOptions)
 		} else if err != nil {
 			return "", err
 		}
-		// 全体の復旧では、登録し直すのは管理者に限る（他のアカウントは、その管理者が登録URLを再発行する）
+		// 全体の復旧では、登録し直すのはシステム管理者に限る（他のアカウントは、そのシステム管理者が登録URLを再発行する）
 		if !opt.Only && role != roleAdmin {
 			return "", fmt.Errorf("%w: account %d is not an admin", ErrChooseAccount, id)
 		}

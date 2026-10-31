@@ -218,7 +218,7 @@ func (a *agentAuth) fail(w http.ResponseWriter, status int, message string) {
 	a.render(w, status, map[string]any{"Title": "AIエージェントの接続", "Message": message})
 }
 
-// authorize は、別のアプリから届く認可要求を検査して保存します。ここには管理者のStrict Cookieが付かないため、ログイン状態を判定しません。
+// authorize は、別のアプリから届く認可要求を検査して保存します。ここにはシステム管理者のStrict Cookieが付かないため、ログイン状態を判定しません。
 // クライアントか戻り先が不正なら、そのURLへ転送しません。
 func (a *agentAuth) authorize(w http.ResponseWriter, r *http.Request) {
 	if !a.limiter.Allow() {

@@ -40,14 +40,14 @@ const (
 var errorMessages = map[string]string{
 	"bad_request":           "リクエストの形式が正しくありません。ページを再読み込みしてやり直してください。",
 	"forbidden":             "このリクエストは受け付けられません。管理画面を開き直してください。",
-	"setup_token_invalid":   "登録用のURLが無効か、期限切れです。管理者に登録URLを発行し直してもらってください（最初の管理者は、サーバーで make auth-setup を実行し直してください）。",
+	"setup_token_invalid":   "登録用のURLが無効か、期限切れです。システム管理者に登録URLを発行し直してもらってください（最初のシステム管理者は、サーバーで make auth-setup を実行し直してください）。",
 	"synced_credential":     "このサイトでは、同期型のパスキー（スマートフォン、Googleパスワードマネージャー、iCloudキーチェーンなど）を登録できない設定です。Windows Helloやセキュリティキーなど、この端末だけに保存される認証器を使ってください。",
 	"user_not_verified":     "指紋・顔・PINによる本人確認が必要です。認証器の設定を確認してください。",
 	"public_key_invalid":    "この認証器の鍵の種類には対応していません。別の認証器を使ってください。",
 	"credential_exists":     "この認証器は登録済みです。",
 	"label_invalid":         "端末名は1〜50文字で入力してください。",
 	"registration_rejected": "登録できませんでした。ページを開き直して、もう一度お試しください。",
-	"login_rejected":        "このパスキーではログインできません。別のパスキーでログインするか、管理者に登録URLを発行し直してもらってください。",
+	"login_rejected":        "このパスキーではログインできません。別のパスキーでログインするか、システム管理者に登録URLを発行し直してもらってください。",
 	"internal_error":        "処理に失敗しました。もう一度お試しください。",
 	"busy":                  "一時的に処理できませんでした。少し待ってから、もう一度お試しください。",
 }
@@ -178,7 +178,7 @@ type session struct {
 	token     string
 	accountID int64
 	role      string
-	disabled  bool   // 複製の疑いで無効化されたパスキーがあるか（管理者は全アカウント、メンバーは自分の分）
+	disabled  bool   // 複製の疑いで無効化されたパスキーがあるか（システム管理者は全アカウント、他のロールは自分の分）
 	path      string // 要求のパス。ナビの今いるページの印に使う
 }
 
@@ -194,7 +194,7 @@ func (s session) PageData(title, current string) map[string]any {
 		"Title":            title,
 		"Current":          current,
 		"RequestPath":      s.path,
-		"AdminNav":         s.f.adminNav(s.IsAdmin()),
+		"AdminNav":         s.f.adminNav(s.role),
 		"LoggedIn":         true,
 		"IsAdmin":          s.IsAdmin(),
 		"RoleLabel":        roleLabel(s.role),
@@ -205,11 +205,12 @@ func (s session) PageData(title, current string) map[string]any {
 }
 
 // adminNav は管理画面のナビです。他の機能のリンク（例: お知らせの管理）の後に、パスキーの管理を置きます。
-// 管理者には、アカウントの管理も出します。
-func (f *Feature) adminNav(isAdmin bool) []web.NavLink {
+// システム管理者には、アカウントの管理も出します。一般ユーザーには、AllRoles のリンクだけを出します。
+func (f *Feature) adminNav(role string) []web.NavLink {
+	isAdmin := role == roleAdmin
 	var nav []web.NavLink
 	for _, l := range f.navLinks {
-		if !l.AdminOnly || isAdmin {
+		if web.NavVisible(l, features.Role(role).CanManageSite(), isAdmin) {
 			nav = append(nav, l)
 		}
 	}
@@ -276,7 +277,19 @@ func (f *Feature) form(next func(w http.ResponseWriter, r *http.Request, s sessi
 	}
 }
 
-// adminOnly は、ロールが管理者でなければ403を返します（page・form の内側で使う）。
+// siteOnly は、各機能の管理画面を使えないロールに403を返します（page・form の内側で使う）。
+// 許可の一覧で判定するので、未知のロールも通しません。
+func siteOnly(next func(w http.ResponseWriter, r *http.Request, s session)) func(w http.ResponseWriter, r *http.Request, s session) {
+	return func(w http.ResponseWriter, r *http.Request, s session) {
+		if !s.Role().CanManageSite() {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r, s)
+	}
+}
+
+// adminOnly は、ロールがシステム管理者でなければ403を返します（page・form の内側で使う）。
 func adminOnly(next func(w http.ResponseWriter, r *http.Request, s session)) func(w http.ResponseWriter, r *http.Request, s session) {
 	return func(w http.ResponseWriter, r *http.Request, s session) {
 		if !s.IsAdmin() {
@@ -295,11 +308,11 @@ func toSession(next func(w http.ResponseWriter, r *http.Request, s features.Admi
 }
 
 func (a adminAPI) Page(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
-	return a.f.page(toSession(next))
+	return a.f.page(siteOnly(toSession(next)))
 }
 
 func (a adminAPI) Form(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
-	return a.f.form(toSession(next))
+	return a.f.form(siteOnly(toSession(next)))
 }
 
 func (a adminAPI) AdminPage(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
@@ -310,17 +323,26 @@ func (a adminAPI) AdminForm(next func(w http.ResponseWriter, r *http.Request, s 
 	return a.f.form(adminOnly(toSession(next)))
 }
 
+func (a adminAPI) AccountPage(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
+	return a.f.page(toSession(next))
+}
+
+func (a adminAPI) AccountForm(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
+	return a.f.form(toSession(next))
+}
+
 func (a adminAPI) Layout() web.Layout {
 	return web.Layout{FS: viewsFS, File: "views/admin_layout.html"}
 }
 
 // handleAdminHome は、管理画面の最初のページ（他の機能の管理画面、無ければパスキーの管理）へ移します。
 func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
-	if f.adminSession(r) == "" {
+	token, a := f.currentAccount(r)
+	if token == "" {
 		http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, f.adminNav(false)[0].Href, http.StatusSeeOther)
+	http.Redirect(w, r, f.adminNav(a.Role)[0].Href, http.StatusSeeOther)
 }
 
 func (f *Feature) handleSetupPage(w http.ResponseWriter, r *http.Request) {
@@ -336,7 +358,7 @@ func (f *Feature) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 	}
 	f.renderAdmin(w, "admin_login.html", map[string]any{
 		"AllowSynced": f.cfg.AllowSynced,
-		"Title":       "管理画面へのログイン",
+		"Title":       "ログイン",
 		"Registered":  r.URL.Query().Get("registered") == "1",
 	}, true)
 }

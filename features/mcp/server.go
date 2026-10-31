@@ -129,6 +129,10 @@ func (f *Feature) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		return
 	}
+	if !principal.Role.CanManageSite() { // ロールを下げた後の、発行済みのトークンも止める
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
 	if !f.limits.allow(principal.Client + "|" + strconv.FormatInt(principal.AccountID, 10)) {
 		w.Header().Set("Retry-After", "1")
 		w.WriteHeader(http.StatusTooManyRequests)

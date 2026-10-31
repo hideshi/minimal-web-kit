@@ -41,12 +41,12 @@ func (f *Feature) SetAdmin(admin features.Admin) error {
 	return nil
 }
 
-// AdminNavLinks は、管理画面のナビに「お問い合わせの管理」を、管理者にだけ出します（CONTACT-INV-3）。
+// AdminNavLinks は、管理画面のナビに「お問い合わせの管理」を、システム管理者にだけ出します（CONTACT-INV-3）。
 func (f *Feature) AdminNavLinks() []web.NavLink {
 	return []web.NavLink{{Label: "お問い合わせの管理", Href: "/admin/contact", AdminOnly: true}}
 }
 
-// registerAdmin は受信箱の経路を、管理者だけに許す AdminPage・AdminForm で登録します。
+// registerAdmin は受信箱の経路を、システム管理者だけに許す AdminPage・AdminForm で登録します。
 // 経路は文字列のリテラルで書く（管理画面の検査が、ソースに書いた経路と登録された経路を突き合わせる）。
 func (f *Feature) registerAdmin(mux *web.IsolatedMux) {
 	mux.HandleFunc("GET /admin/contact", f.admin.AdminPage(f.handleList))

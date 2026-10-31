@@ -19,7 +19,7 @@ import (
 //go:embed migration.sql
 var migrationSQL string
 
-// Feature は同梱機能のお問い合わせ機能（contact）です。公開のフォーム（/contact）と、管理者だけが見られる受信箱を提供します。
+// Feature は同梱機能のお問い合わせ機能（contact）です。公開のフォーム（/contact）と、システム管理者だけが見られる受信箱を提供します。
 // メールは送らず、IPアドレス・User-Agent・Cookieを使いません。スパム対策は docs/plans/contact-plan.md の4節。
 type Feature struct {
 	web.PublicNavigation
@@ -93,7 +93,7 @@ func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 			Kind:      "お問い合わせ",
 			Items:     "お問い合わせ内容、お名前（任意）、返信先（任意）、受付日時、対応の状態、対応の記録（運営者のメモ）",
 			Purpose:   "お問い合わせへの回答と対応",
-			Retention: fmt.Sprintf("受付から%d日で自動で削除。対応を続けている間は、最後の対応から%d日、受付から最長%d日まで保存します。管理者が先に削除することもあります。削除前のバックアップの複製には、その保持期間のあいだ残ります", days(f.cfg.Retention.Base), days(f.cfg.Retention.Base), days(f.cfg.Retention.ActiveMax)),
+			Retention: fmt.Sprintf("受付から%d日で自動で削除。対応を続けている間は、最後の対応から%d日、受付から最長%d日まで保存します。システム管理者が先に削除することもあります。削除前のバックアップの複製には、その保持期間のあいだ残ります", days(f.cfg.Retention.Base), days(f.cfg.Retention.Base), days(f.cfg.Retention.ActiveMax)),
 		}},
 	}}
 }

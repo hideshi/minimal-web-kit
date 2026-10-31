@@ -162,11 +162,16 @@ type SitemapConsumer interface {
 type Role string
 
 const (
-	// RoleAdmin（管理者）は、アカウントの追加・ロール変更・停止・削除と登録URLの発行ができます。
+	// RoleAdmin（システム管理者）は、アカウントの追加・ロール変更・停止・削除と登録URLの発行ができます。
 	RoleAdmin Role = "admin"
-	// RoleMember（メンバー）は、各機能の管理画面を使えます。アカウントの管理はできません。
+	// RoleMember（サイト管理者）は、各機能の管理画面を使えます。アカウントの管理はできません。
 	RoleMember Role = "member"
+	// RoleUser（一般ユーザー）は、AccountPage・AccountForm の画面だけを使えます。公開サイトの編集はできません。
+	RoleUser Role = "user"
 )
+
+// CanManageSite は、各機能の管理画面を使えるロールかを返します。未知の値は false です。
+func (r Role) CanManageSite() bool { return r == RoleAdmin || r == RoleMember }
 
 // AdminSession は、ログイン中のアカウントの要求に付く情報です（同梱機能の管理者認証 features/auth が作る）。
 type AdminSession interface {
@@ -175,7 +180,7 @@ type AdminSession interface {
 	AccountID() int64
 	// Role はアカウントのロールです。要求ごとにアカウントから読みます。
 	Role() Role
-	// IsAdmin はロールが管理者かを返します。
+	// IsAdmin はロールがシステム管理者かを返します。
 	IsAdmin() bool
 	// CSRFToken は、管理画面のフォームに埋め込むCSRFトークンです（name="csrf_token"）。
 	CSRFToken() string
@@ -185,16 +190,23 @@ type AdminSession interface {
 }
 
 // Admin は、管理者認証（features/auth）が、管理画面を持つ他の機能に提供する口です。
-// 他の機能は、管理者のログイン・セッション・CSRFを自分で実装せず、これを使います。
+// 他の機能は、ログイン・セッション・CSRFを自分で実装せず、これを使います。
 type Admin interface {
-	// Page は、管理者だけが見られる画面（GET）を守ります。未ログインならログイン画面へ移します。
+	// Page は、各機能の管理画面（GET）を守ります。未ログインならログイン画面へ移し、
+	// CanManageSite でないロールには403を返します。
 	Page(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
-	// Form は、管理者のフォーム送信（POST）を守ります。同一オリジン・セッション・CSRFトークンを確認します。
+	// Form は、各機能の管理画面のフォーム送信（POST）を守ります。同一オリジン・セッション・CSRFトークンを確認し、
+	// CanManageSite でないロールには403を返します。
 	Form(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
-	// AdminPage は Page と同じく守り、さらにロールが管理者でなければ403を返します。
+	// AdminPage は Page と同じく守り、さらにロールがシステム管理者でなければ403を返します。
 	AdminPage(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
-	// AdminForm は Form と同じく守り、さらにロールが管理者でなければ403を返します。
+	// AdminForm は Form と同じく守り、さらにロールがシステム管理者でなければ403を返します。
 	AdminForm(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
+	// AccountPage は、ログインしていれば全てのロールが見られる画面（GET）を守ります。
+	AccountPage(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
+	// AccountForm は、ログインしていれば全てのロールが送れるフォーム（POST）を守ります。
+	// 同一オリジン・セッション・CSRFトークンの確認は Form と同じです。
+	AccountForm(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
 	// Layout は、管理画面のレイアウト（ヘッダーのナビ、ログアウト、警告）です。
 	Layout() web.Layout
 }

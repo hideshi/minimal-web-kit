@@ -17,9 +17,9 @@ import (
 
 // Commands は、サーバーの実行ファイルから実行できる管理者認証の運用コマンドを返します。
 //
-//	minimal-web-kit auth-setup    有効なパスキーが無いときだけ、最初の管理者の登録URLを表示する
-//	minimal-web-kit auth-recover  パスキーとセッションを削除し、管理者の登録URLを表示する
-//	    -account <ID>   登録し直す管理者アカウント（全体の復旧で、管理者がいる場合は必須）
+//	minimal-web-kit auth-setup    有効なパスキーが無いときだけ、最初のシステム管理者の登録URLを表示する
+//	minimal-web-kit auth-recover  パスキーとセッションを削除し、システム管理者の登録URLを表示する
+//	    -account <ID>   登録し直すシステム管理者アカウント（全体の復旧で、システム管理者がいる場合は必須）
 //	    -only <ID>      そのアカウントだけを初期化する（他のアカウントは変えない）
 //	    -reset-schema   古い形式の表を作り直す（管理者認証の表だけを削除する）
 //	    -yes            確認の入力を省く
@@ -50,7 +50,7 @@ func oldSchemaError(err error) error {
 	return err
 }
 
-// runSetup は、有効なパスキーが無い場合だけ、最初の管理者の登録URLを表示します。
+// runSetup は、有効なパスキーが無い場合だけ、最初のシステム管理者の登録URLを表示します。
 func runSetup(ctx context.Context, db *sql.DB, args []string, in io.Reader, out io.Writer) error {
 	cfg, err := LoadConfig(os.Getenv)
 	if err != nil {
@@ -75,7 +75,7 @@ func confirm(in io.Reader, out io.Writer, message string) error {
 	return nil
 }
 
-// runRecover は確認のうえで、パスキー・セッション・登録トークンを削除し、管理者の登録URLを表示します。
+// runRecover は確認のうえで、パスキー・セッション・登録トークンを削除し、システム管理者の登録URLを表示します。
 // アカウント（呼び名・ロール）と、他の機能のデータ（お知らせの記事等）は残します。
 func runRecover(ctx context.Context, db *sql.DB, args []string, in io.Reader, out io.Writer) error {
 	cfg, err := LoadConfig(os.Getenv)
@@ -117,7 +117,7 @@ func runRecover(ctx context.Context, db *sql.DB, args []string, in io.Reader, ou
 		message = fmt.Sprintf("This deletes the passkeys, sessions and registration URLs of account %d only.", *only)
 	}
 	if opt.AccountID == 0 {
-		// 管理者がいれば、登録し直す管理者を選んでもらう（呼び名は端末に表示するだけ）
+		// システム管理者がいれば、登録し直すシステム管理者を選んでもらう（呼び名は端末に表示するだけ）
 		list, err := ListAccounts(ctx, db)
 		if err != nil {
 			return oldSchemaError(err)

@@ -443,7 +443,7 @@ func (s *adminStore) deleteCredential(ctx context.Context, accountID int64, id [
 }
 
 // countDisabledCredentials は無効化済みのパスキーの数を返します（管理画面上部の警告用）。
-// accountID が0なら全アカウントの分（管理者向け）、それ以外はそのアカウントの分です。
+// accountID が0なら全アカウントの分（システム管理者向け）、それ以外はそのアカウントの分です。
 func (s *adminStore) countDisabledCredentials(ctx context.Context, accountID int64) (int, error) {
 	var n int
 	if accountID == 0 {

@@ -15,7 +15,7 @@ type Config struct {
 	RPID string
 	// Origin は管理画面のオリジン（scheme://host[:port]）です。
 	Origin string
-	// SecureCookie は管理者CookieにSecure属性を付けるかです。
+	// SecureCookie はシステム管理者CookieにSecure属性を付けるかです。
 	SecureCookie bool
 	// AllowSynced は、同期・バックアップできるパスキー（Googleパスワードマネージャー等）を受け入れるかです。
 	// 既定は拒否（AUTH-INV-9）。許可すると、署名カウンタによる複製の検出が効かず、同期の提供者のアカウントの守りが前提になります。

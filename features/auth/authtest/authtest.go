@@ -18,7 +18,7 @@ import (
 // CookieName は管理者セッションのCookie名です。
 const CookieName = "admin_session"
 
-// NewSession は、ロールが管理者のアカウントと、その管理者セッションをDBに直接作り、Cookieを返します
+// NewSession は、ロールがシステム管理者のアカウントと、その管理者セッションをDBに直接作り、Cookieを返します
 // （管理者認証のマイグレーション適用後に使う）。
 func NewSession(t testing.TB, db *sql.DB) *http.Cookie {
 	t.Helper()

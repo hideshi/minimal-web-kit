@@ -29,7 +29,7 @@ const (
 	setupTokenTTL = 15 * time.Minute
 )
 
-// Feature は同梱機能の管理者認証です。ロール（管理者・メンバー）を持つ複数のアカウントが、パスキー（WebAuthn）だけでログインします。
+// Feature は同梱機能の管理者認証です。ロール（システム管理者・サイト管理者）を持つ複数のアカウントが、パスキー（WebAuthn）だけでログインします。
 // ログイン・パスキーの登録と管理・アカウントの管理の画面と、他の機能が管理画面を守るための口（features.Admin）を提供します。
 // 画面はすべて、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
@@ -66,11 +66,11 @@ func (f *Feature) Name() string {
 func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 	notices := []web.PrivacyNotice{{
 		Title: "管理画面のアカウントで保存する情報",
-		Lead:  "管理画面にログインする人（管理者・メンバー）について、次の情報を保存します。サイトの閲覧者の情報ではありません。氏名・メールアドレス・パスワード・生体情報は保存しません。",
+		Lead:  "管理画面にログインする人（システム管理者・サイト管理者・一般ユーザー）について、次の情報を保存します。サイトの閲覧者の情報ではありません。氏名・メールアドレス・パスワード・生体情報は保存しません。",
 		Rows: []web.PrivacyRow{
-			{Kind: "アカウント", Items: "呼び名（実名やメールアドレスを入れない運用のラベル）、ロール、認証器に登録するランダムな識別子、作成・停止・最終ログインの日時", Purpose: "管理画面へのログインと権限の判定", Retention: "管理者が削除するまで"},
-			{Kind: "パスキー", Items: "公開鍵、認証器の識別子、端末名、署名カウンタ、登録・最終使用の日時（秘密鍵と生体情報は認証器の外に出ません）", Purpose: "本人の確認と、複製の疑いの検出", Retention: "本人か管理者が削除するまで"},
-			{Kind: "管理者のログイン状態", Items: "Cookie（admin_session）のランダムなトークンと、そのSHA-256ハッシュ、発行・最終操作の日時", Purpose: "ログイン状態の維持", Retention: "無操作2時間または発行から12時間。ログアウト時等にも削除"},
+			{Kind: "アカウント", Items: "呼び名（実名やメールアドレスを入れない運用のラベル）、ロール、認証器に登録するランダムな識別子、作成・停止・最終ログインの日時", Purpose: "管理画面へのログインと権限の判定", Retention: "システム管理者が削除するまで"},
+			{Kind: "パスキー", Items: "公開鍵、認証器の識別子、端末名、署名カウンタ、登録・最終使用の日時（秘密鍵と生体情報は認証器の外に出ません）", Purpose: "本人の確認と、複製の疑いの検出", Retention: "本人かシステム管理者が削除するまで"},
+			{Kind: "ログイン状態", Items: "Cookie（admin_session）のランダムなトークンと、そのSHA-256ハッシュ、発行・最終操作の日時", Purpose: "ログイン状態の維持", Retention: "無操作2時間または発行から12時間。ログアウト時等にも削除"},
 			{Kind: "パスキーの登録用URL", Items: "登録トークンのSHA-256ハッシュ、有効期限、使用の日時", Purpose: "パスキーの登録（1回限り）", Retention: "発行から15分または24時間。使用済み・期限切れは自動で削除"},
 		},
 	}}
@@ -116,6 +116,9 @@ func Migrate(db *sql.DB) error {
 	}
 	if old {
 		return ErrOldSchema
+	}
+	if err := migrateRoles(context.Background(), db); err != nil {
+		return fmt.Errorf("auth role migration: %w", err)
 	}
 	if _, err := db.Exec(migrationSQL); err != nil {
 		return fmt.Errorf("auth migration: %w", err)

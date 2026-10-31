@@ -80,7 +80,7 @@ func (f *Feature) serverError(w http.ResponseWriter, err error) {
 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }
 
-// handleAddClient は接続を追加します。同じトランザクションで、操作した管理者に利用を許可します。
+// handleAddClient は接続を追加します。同じトランザクションで、操作したシステム管理者に利用を許可します。
 func (f *Feature) handleAddClient(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	in := clientInput{Redirect: r.PostForm.Get("redirect")}
 	label, err := form.Line(r.PostForm.Get("label"), 100, true)

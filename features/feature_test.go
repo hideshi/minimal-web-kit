@@ -80,3 +80,12 @@ func TestRegistry_NavLinkSource(t *testing.T) {
 		t.Fatalf("dynamic links must follow static ones: %v", got)
 	}
 }
+
+// 不変条件: AUTH-INV-26
+func TestRole_CanManageSiteIsAnAllowList(t *testing.T) {
+	for role, want := range map[Role]bool{RoleAdmin: true, RoleMember: true, RoleUser: false, "": false, "other": false} {
+		if got := role.CanManageSite(); got != want {
+			t.Errorf("%q: %v", role, got)
+		}
+	}
+}

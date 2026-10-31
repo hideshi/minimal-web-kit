@@ -170,7 +170,7 @@ func (s session) CSRFToken() string   { return s.f.csrf.Token(s.token) }
 func (s session) PageData(title, current string) map[string]any {
 	var nav []web.NavLink
 	for _, l := range s.f.navLinks {
-		if !l.AdminOnly || s.IsAdmin() {
+		if web.NavVisible(l, s.Role().CanManageSite(), s.IsAdmin()) {
 			nav = append(nav, l)
 		}
 	}
@@ -307,6 +307,17 @@ func (f *Feature) form(next func(w http.ResponseWriter, r *http.Request, s featu
 	}
 }
 
+// siteOnly は、各機能の管理画面を使えないロールに403を返します。許可の一覧で判定します。
+func siteOnly(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+		if !s.Role().CanManageSite() {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r, s)
+	}
+}
+
 func adminOnly(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 		if !s.IsAdmin() {
@@ -321,11 +332,11 @@ func adminOnly(next func(w http.ResponseWriter, r *http.Request, s features.Admi
 type adminAPI struct{ f *Feature }
 
 func (a adminAPI) Page(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
-	return a.f.page(next)
+	return a.f.page(siteOnly(next))
 }
 
 func (a adminAPI) Form(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
-	return a.f.form(next)
+	return a.f.form(siteOnly(next))
 }
 
 func (a adminAPI) AdminPage(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
@@ -334,6 +345,14 @@ func (a adminAPI) AdminPage(next func(w http.ResponseWriter, r *http.Request, s 
 
 func (a adminAPI) AdminForm(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
 	return a.f.form(adminOnly(next))
+}
+
+func (a adminAPI) AccountPage(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
+	return a.f.page(next)
+}
+
+func (a adminAPI) AccountForm(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
+	return a.f.form(next)
 }
 
 func (a adminAPI) Layout() web.Layout {
