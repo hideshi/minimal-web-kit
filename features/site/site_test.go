@@ -49,7 +49,6 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
       <span class="btn-sub-text">新しいタブで開きます</span>`,
 		`<div class="hero-links">`,
 		`<span class="btn-main-text">GitHubでキットを入手する</span>`,
-		`rel="noopener noreferrer">GitHub（新しいタブ）</a>`,
 		"<details",
 		"<summary>",
 		"/privacy",
@@ -71,10 +70,10 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 	}
 
 	// GitHubへのリンクは、すべて新しいタブで開き、opener・referrerを渡さないこと
-	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit"`); got != 3 {
-		t.Errorf("expected 3 GitHub CTAs (hero, how-it-works, nav), got %d", got)
+	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit"`); got != 2 {
+		t.Errorf("expected 2 GitHub CTAs (hero, how-it-works), got %d", got)
 	}
-	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer"`); got != 3 {
+	if got := strings.Count(bodyStr, `href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer"`); got != 2 {
 		t.Errorf("all GitHub CTAs must open in a new tab with noopener noreferrer, got %d", got)
 	}
 
@@ -255,9 +254,9 @@ func TestSiteAndCore_ShowFeatureNavLinks(t *testing.T) {
 	if !strings.Contains(body, running) || strings.Count(body, `<a href="/news">お知らせ</a>`) != 2 {
 		t.Fatal("the top must link to the features running on this server")
 	}
-	news, contact := strings.Index(body, `<a href="/news">お知らせ</a>`), strings.Index(body, `<a href="/#contact">お問い合わせ</a>`)
-	if news < 0 || contact < 0 || news > contact {
-		t.Fatal("the site nav must show the feature link before the contact link")
+	news, privacy := strings.Index(body, `<a href="/news">お知らせ</a>`), strings.Index(body, `<a href="/privacy">プライバシーポリシー</a>`)
+	if news < 0 || privacy < 0 || news > privacy {
+		t.Fatal("the site nav must show the feature link before the privacy link")
 	}
 	if !strings.Contains(body, `<a href="/privacy">プライバシーポリシー</a>`) {
 		t.Fatal("the site nav must use the label プライバシーポリシー")

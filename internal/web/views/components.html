@@ -128,3 +128,18 @@
 
 {{/* richtext の内部用。文字の並び */}}
 {{define "richtext-inline"}}{{range .}}{{if eq .Kind "strong"}}<strong>{{.Text}}</strong>{{else if eq .Kind "link"}}<a href="{{.Href}}">{{.Text}}</a>{{else}}{{.Text}}{{end}}{{end}}{{end}}
+
+{{/* 公開ページの共通メニュー。NavLinks と Contact は起動時の連携先から受け取る。 */}}
+{{define "public-menu"}}
+<nav class="public-nav" aria-label="メインナビゲーション">
+  <details class="public-menu">
+    <summary><span class="menu-closed">メニュー</span><span class="menu-open">閉じる</span></summary>
+    <div class="public-menu-links">
+      <a href="/"{{with navCurrent .CanonicalPath "/"}} aria-current="{{.}}"{{end}}>ホーム</a>
+      {{range .NavLinks}}<a href="{{.Href}}"{{with navCurrent $.CanonicalPath .Href}} aria-current="{{.}}"{{end}}>{{.Label}}</a>
+      {{end}}{{with .Contact}}<a href="{{.Href}}"{{if .External}} target="_blank" rel="noopener noreferrer"{{else}}{{with navCurrent $.CanonicalPath .Href}} aria-current="{{.}}"{{end}}{{end}}>お問い合わせ{{if .External}}（新しいタブ）{{end}}</a>
+      {{end}}<div class="public-menu-policy"><a href="/privacy"{{with navCurrent .CanonicalPath "/privacy"}} aria-current="{{.}}"{{end}}>プライバシーポリシー</a></div>
+    </div>
+  </details>
+</nav>
+{{end}}

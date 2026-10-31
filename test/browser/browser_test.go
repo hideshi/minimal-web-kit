@@ -118,7 +118,7 @@ var specialKeys = map[string]struct {
 	key, code, text string
 	vk              int64
 }{
-	"Enter": {"Enter", "Enter", "\r", 13}, "ArrowDown": {"ArrowDown", "ArrowDown", "", 40}, "ArrowUp": {"ArrowUp", "ArrowUp", "", 38},
+	"Space": {" ", "Space", " ", 32}, "Enter": {"Enter", "Enter", "\r", 13}, "ArrowDown": {"ArrowDown", "ArrowDown", "", 40}, "ArrowUp": {"ArrowUp", "ArrowUp", "", 38},
 	"Escape": {"Escape", "Escape", "", 27}, "Backspace": {"Backspace", "Backspace", "", 8}, "Tab": {"Tab", "Tab", "", 9},
 }
 

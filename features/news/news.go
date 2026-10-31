@@ -22,6 +22,7 @@ var migrationSQL string
 // 管理者のログインは、同梱機能の管理者認証（features/auth）が担います（make add-news で一緒に有効になる）。
 // 公開ページ・APIと管理画面は、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
+	web.PublicNavigation
 	logger      *slog.Logger
 	cfg         Config
 	db          *sql.DB

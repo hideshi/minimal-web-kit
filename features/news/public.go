@@ -54,6 +54,7 @@ func (f *Feature) SetLayout(layout web.Layout) error {
 
 // render はテンプレートをバッファに描画してから送信します（途中失敗で壊れたHTMLを返さないため）。
 func (f *Feature) render(w http.ResponseWriter, page string, data map[string]any) {
+	f.AddNavigation(data)
 	if f.layout != nil && f.layout.Data != nil {
 		f.layout.Data(data)
 	}

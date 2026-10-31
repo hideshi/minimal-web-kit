@@ -12,7 +12,10 @@ import (
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/features/auth"
+	"minimal-web-kit/features/catalog"
+	"minimal-web-kit/features/contact"
 	"minimal-web-kit/features/news"
+	"minimal-web-kit/features/pages"
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
@@ -77,7 +80,7 @@ func TestLayout_SiteLayoutIsSharedAcrossPages(t *testing.T) {
 		}
 		for _, want := range []string{
 			siteSubtitle,
-			`<a href="/#features">特長</a>`,
+			`<details class="public-menu">`,
 			`<a href="/news"`,
 			`<a href="/privacy">プライバシーポリシー・免責事項</a>`,
 			`<link rel="canonical" href="` + canonical + `">`,
@@ -317,7 +320,7 @@ func TestLayout_NavCurrent(t *testing.T) {
 		code int
 		want string // 空なら、印が1つも無いこと
 	}{
-		{"/", http.StatusOK, ""},
+		{"/", http.StatusOK, `<a href="/" aria-current="page">`},
 		{"/privacy", http.StatusOK, `<a href="/privacy" aria-current="page">`},
 		{"/news", http.StatusOK, `<a href="/news" aria-current="page">`},
 		{"/news?page=2", http.StatusOK, `<a href="/news" aria-current="page">`},
@@ -353,5 +356,93 @@ func TestLayout_NavCurrent(t *testing.T) {
 	h.Routes(nil, nil).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	if !strings.Contains(rec.Body.String(), `<a href="/" aria-current="page">`) {
 		t.Fatal("Base: ホームに印が無い")
+	}
+}
+
+// TestLayout_PublicMenu は、Siteの有無にかかわらず全公開ページが同じリンクを1組だけ描くことを確かめます。
+func TestLayout_PublicMenu(t *testing.T) {
+	for _, withSite := range []bool{false, true} {
+		t.Run(strconv.FormatBool(withSite), func(t *testing.T) {
+			t.Setenv("CONTACT_FORM_URL", "")
+			t.Setenv("AUTH_ORIGIN", "")
+			t.Setenv("AUTH_RP_ID", "")
+			core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer core.Close()
+			reg := features.NewRegistry()
+			if withSite {
+				reg.Register(site.NewFeature(discardLogger()))
+			}
+			reg.Register(auth.NewFeature(discardLogger()))
+			reg.Register(news.NewFeature(discardLogger()))
+			reg.Register(catalog.NewFeature(discardLogger()))
+			reg.Register(contact.NewFeature(discardLogger()))
+			pf := pages.NewFeature(discardLogger())
+			reg.Register(pf)
+			for _, f := range reg.All() {
+				if err := f.Init(core.DB()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			ctx := context.Background()
+			ps := pages.NewStore(core.DB())
+			id, err := ps.Save(ctx, 0, pages.Input{Slug: "about", Title: "紹介", Body: "本文", NavOrder: "1"}, func(string) bool { return false })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ps.SetPublished(ctx, id, true); err != nil {
+				t.Fatal(err)
+			}
+			if err := pf.Purge(ctx); err != nil {
+				t.Fatal(err)
+			}
+			routes, err := app.BuildRoutes(core, reg, false, discardLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range []string{"/", "/privacy", "/news", "/catalog", "/contact", "/about"} {
+				rec := httptest.NewRecorder()
+				routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+				if rec.Code != 200 {
+					t.Fatalf("%s: %d", path, rec.Code)
+				}
+				body := rec.Body.String()
+				start, end := strings.Index(body, "<header>"), strings.Index(body, "</header>")
+				if start < 0 || end < start {
+					t.Fatalf("%s: header missing", path)
+				}
+				header := body[start:end]
+				if strings.Count(header, `class="public-menu"`) != 1 {
+					t.Errorf("%s: public-menu must occur once", path)
+				}
+				for _, href := range []string{"/news", "/catalog", "/contact", "/about", "/privacy"} {
+					if strings.Count(header, `href="`+href+`"`) != 1 {
+						t.Errorf("%s: link %s must occur once", path, href)
+					}
+				}
+				for _, unexpected := range []string{"#features", "#quality", "#faq", "github.com"} {
+					if strings.Contains(header, unexpected) {
+						t.Errorf("%s: Site-specific item %s", path, unexpected)
+					}
+				}
+				if len(rec.Header().Values("Set-Cookie")) != 0 {
+					t.Errorf("%s: unexpected cookie", path)
+				}
+			}
+			// 固定ページのナビ更新は、描画のたびに同じ共通部品へ届く。
+			if err := ps.SetPublished(ctx, id, false); err != nil {
+				t.Fatal(err)
+			}
+			if err := pf.Purge(ctx); err != nil {
+				t.Fatal(err)
+			}
+			rec := httptest.NewRecorder()
+			routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/news", nil))
+			if strings.Contains(rec.Body.String(), `href="/about"`) {
+				t.Fatal("unpublished link remains")
+			}
+		})
 	}
 }

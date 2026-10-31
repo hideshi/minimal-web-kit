@@ -175,6 +175,7 @@ func (f *Feature) Layout() web.Layout {
 // layoutData は、レイアウトが必要とする値を加えます。画面が設定済みの値は上書きしません。
 func (f *Feature) layoutData(data map[string]any) {
 	data["NavLinks"] = f.currentNavLinks()
+	data["Contact"] = f.contactLink()
 	data["SiteURL"] = f.siteURL
 	data["OGImagePath"] = ogImagePath
 	data["OGImageAlt"] = ogImageAlt

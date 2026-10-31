@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chromedp/cdproto/accessibility"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/chromedp"
@@ -262,4 +264,129 @@ func clickPoint(t *testing.T, b *browser, x, y float64) {
 		}
 		return nil
 	}))
+}
+
+// TestPublicMenu は、同じリンクをスマホで開閉し、PCでは状態にかかわらず辿れることを確かめます。
+func TestPublicMenu(t *testing.T) {
+	srv, _ := newPublicServer(t)
+	b := newBrowser(t)
+	viewport := func(width int64) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(b.ctx, 10*time.Second)
+		defer cancel()
+		if _, err := chromedp.Run(ctx, chromedp.EmulateViewport(width, 800)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const menu = `document.querySelector('.public-menu')`
+	const summary = `document.querySelector('.public-menu > summary')`
+	const first = `document.querySelector('.public-menu-links a')`
+	viewport(360)
+	b.do(t, chromedp.Navigate(srv.URL+"/news"))
+	if evaluate[bool](t, b, menu+`.open`) {
+		t.Fatal("初期状態で開いている")
+	}
+	if evaluate[bool](t, b, first+`.focus(); document.activeElement === `+first) {
+		t.Fatal("閉じたリンクにフォーカスできる")
+	}
+	evaluate[bool](t, b, summary+`.focus(); document.activeElement === `+summary)
+	b.press(t, "Enter")
+	b.waitFor(t, menu+`.open`)
+	count := evaluate[int](t, b, `document.querySelectorAll('.public-menu-links a').length`)
+	for i := 0; i < count; i++ {
+		b.press(t, "Tab")
+		if !evaluate[bool](t, b, fmt.Sprintf(`document.activeElement === document.querySelectorAll('.public-menu-links a')[%d]`, i)) {
+			t.Fatalf("Tab順 %d", i)
+		}
+	}
+
+	// 開いた状態も撮影する（既存の公開画面テストは閉じた状態を撮る）。
+	if err := os.MkdirAll("shots", 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, width := range []int64{360, 1100} {
+		viewport(width)
+		ctx, cancel := context.WithTimeout(b.ctx, 10*time.Second)
+		shot, err := chromedp.Run(ctx, chromedp.CaptureScreenshot())
+		cancel()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(fmt.Sprintf("shots/28-public-menu-open-%d.png", width), shot, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, width := range []int64{320, 390, 639, 640, 768, 1100, 1440} {
+		viewport(width)
+		if !evaluate[bool](t, b, `document.documentElement.scrollWidth <= innerWidth`) {
+			t.Fatalf("幅%dで横にはみ出す", width)
+		}
+	}
+	viewport(360)
+	if !evaluate[bool](t, b, menu+`.open`) {
+		t.Fatal("幅変更で開閉状態が変わった")
+	}
+	evaluate[bool](t, b, summary+`.focus(); true`)
+	b.press(t, "Space")
+	b.waitFor(t, `!`+menu+`.open`)
+	viewport(1100)
+	if evaluate[string](t, b, `getComputedStyle(`+summary+`).display`) != "none" {
+		t.Fatal("PCでsummaryが残っている")
+	}
+	if !evaluate[bool](t, b, first+`.focus(); document.activeElement === `+first) {
+		t.Fatal("PCで閉じた状態のリンクに到達できない")
+	}
+	b.do(t, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
+		tree, err := cdp.Call(ctx, target, accessibility.GetFullAXTree, accessibility.GetFullAXTreeParams{})
+		if err != nil {
+			return err
+		}
+		home := false
+		for _, n := range tree.Nodes {
+			if n.Ignored || n.Name == nil || n.Role == nil {
+				continue
+			}
+			var name, role string
+			if err := json.Unmarshal(n.Name.Value, &name); err != nil {
+				return err
+			}
+			if err := json.Unmarshal(n.Role.Value, &role); err != nil {
+				return err
+			}
+			if name == "ホーム" && role == "link" {
+				home = true
+			}
+			if name == "メニュー" || name == "閉じる" {
+				return fmt.Errorf("PCのAXツリーに開閉操作が残る: %s", name)
+			}
+		}
+		if !home {
+			return fmt.Errorf("PCのAXツリーにホームリンクが無い")
+		}
+		return nil
+	}))
+	viewport(360)
+	evaluate[bool](t, b, summary+`.focus(); true`)
+	b.press(t, "Tab")
+	if evaluate[bool](t, b, `!!document.activeElement.closest('.public-menu-links')`) {
+		t.Fatal("閉じたメニューにTabが入る")
+	}
+
+	// 長い英単語や多数のリンク、文字200%でもメニューを切らずに折り返す。
+	evaluate[bool](t, b, `(() => {
+ const links=document.querySelector('.public-menu-links');
+ for(let i=0;i<20;i++) { const a=document.createElement('a'); a.href='/news'; a.textContent='VeryLongNavigationLabelWithoutSpaces'.repeat(4); links.prepend(a); }
+ document.documentElement.style.fontSize='200%';
+ return true;
+ })()`)
+	evaluate[bool](t, b, summary+`.focus(); true`)
+	b.press(t, "Enter")
+	b.waitFor(t, menu+`.open`)
+	for _, width := range []int64{320, 390, 1100} {
+		viewport(width)
+		if !evaluate[bool](t, b, `document.documentElement.scrollWidth <= innerWidth`) {
+			t.Fatalf("長いリンクと拡大で横にはみ出す: %d", width)
+		}
+	}
+	b.noErrors(t)
 }

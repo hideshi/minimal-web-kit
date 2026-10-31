@@ -24,3 +24,23 @@ func NavCurrent(current any, href string) string {
 	}
 	return ""
 }
+
+// PublicNavigation は公開メニューのリンクを受け取り、描画データに加えます。
+// 起動時に設定し、NavLinks は動的な固定ページの更新も描画ごとに反映します。
+type PublicNavigation struct {
+	links   func() []NavLink
+	contact *ContactLink
+}
+
+func (n *PublicNavigation) SetNavLinks(links func() []NavLink) { n.links = links }
+func (n *PublicNavigation) SetContactLink(link ContactLink)    { n.contact = &link }
+
+// AddNavigation は、公開画面の本文を描く前に呼びます。
+func (n *PublicNavigation) AddNavigation(data map[string]any) {
+	if n.links != nil {
+		data["NavLinks"] = n.links()
+	}
+	if n.contact != nil {
+		data["Contact"] = n.contact
+	}
+}

@@ -329,6 +329,9 @@ func ParseWithComponents(fsys fs.FS, patterns ...string) (*template.Template, er
 
 func (h *Handler) Render(w http.ResponseWriter, page string, data any) {
 	if m, ok := data.(map[string]any); ok {
+		if h.contact != nil {
+			m["Contact"] = h.contact
+		}
 		if h.navLinks != nil {
 			m["NavLinks"] = h.navLinks()
 		}

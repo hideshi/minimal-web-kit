@@ -26,6 +26,7 @@ import (
 var contentFS embed.FS
 
 type Feature struct {
+	web.PublicNavigation
 	logger                  *slog.Logger
 	store                   *Store
 	admin                   features.Admin
@@ -226,6 +227,7 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request) {
 		f.render(w, 200, f.publicPages["list.html"], "results", data)
 		return
 	}
+	f.AddNavigation(data)
 	if f.layout.Data != nil {
 		f.layout.Data(data)
 	}
@@ -260,6 +262,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := map[string]any{"Title": item.Title, "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": form.Paragraphs(item.Body)}
+	f.AddNavigation(data)
 	if f.layout.Data != nil {
 		f.layout.Data(data)
 	}

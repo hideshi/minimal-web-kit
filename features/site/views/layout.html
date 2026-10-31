@@ -28,22 +28,12 @@
   <a href="#main-content" class="skip-link">本文へ移動</a>
 
   <header>
-    <div class="site-header-inner">
+    <div class="site-header-inner public-header">
       <div>
         <div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
         <div class="site-subtitle">個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤</div>
       </div>
-      <nav aria-label="メインナビゲーション">
-        <a href="/#features">特長</a>
-        <a href="/#quality">検査</a>
-        <a href="/#use-cases">ユースケース</a>
-        <a href="/#how-it-works">仕組み</a>
-        <a href="/#faq">FAQ</a>
-        {{range .NavLinks}}<a href="{{.Href}}"{{with navCurrent $.CanonicalPath .Href}} aria-current="{{.}}"{{end}}>{{.Label}}</a>
-        {{end}}<a href="/#contact">お問い合わせ</a>
-        <a href="https://github.com/hideshi/minimal-web-kit" target="_blank" rel="noopener noreferrer">GitHub（新しいタブ）</a>
-        <a href="/privacy"{{with navCurrent $.CanonicalPath "/privacy"}} aria-current="{{.}}"{{end}}>プライバシーポリシー</a>
-      </nav>
+      {{template "public-menu" .}}
     </div>
   </header>
 

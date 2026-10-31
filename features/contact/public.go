@@ -89,6 +89,7 @@ func (f *Feature) renderForm(w http.ResponseWriter, status int, v contactForm, p
 		"RetentionDays": days(f.cfg.Retention.Base),
 		"ActiveMaxDays": days(f.cfg.Retention.ActiveMax),
 	}
+	f.AddNavigation(data)
 	if f.layout != nil && f.layout.Data != nil {
 		f.layout.Data(data)
 	}
