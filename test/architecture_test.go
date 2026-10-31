@@ -1,6 +1,8 @@
 package test
 
 import (
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -198,5 +200,83 @@ func TestSkills_LinkedForEveryTool(t *testing.T) {
 				t.Errorf("%s に %s のリンクが無い", dir, e.Name())
 			}
 		}
+	}
+}
+
+// usesForbiddenImport は、ファイルが unsafe か C をimportしているかを返します。
+func usesForbiddenImport(name string, src any) (bool, error) {
+	f, err := parser.ParseFile(token.NewFileSet(), name, src, parser.ImportsOnly)
+	if err != nil {
+		return false, err
+	}
+	for _, spec := range f.Imports {
+		if path := strings.Trim(spec.Path.Value, `"`); path == "unsafe" || path == "C" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// TestArchitecture_KitDoesNotUseUnsafe は、キット自身のコードが unsafe とcgoを使わないことを確かめます。
+// メモリ安全でない部分を、SQLiteの層などの依存の中に閉じ込めます。
+func TestArchitecture_KitDoesNotUseUnsafe(t *testing.T) {
+	for src, want := range map[string]bool{
+		"package p\nimport \"fmt\"\n":    false,
+		"package p\nimport \"unsafe\"\n": true,
+		"package p\nimport \"C\"\n":      true,
+		"package p\nimport u \"unsafe\"": true,
+	} {
+		if got, err := usesForbiddenImport("x.go", src); err != nil || got != want {
+			t.Errorf("%q: %v %v", src, got, err)
+		}
+	}
+	seen := 0
+	for _, root := range []string{"../features", "../internal", "../cmd"} {
+		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
+				return err
+			}
+			seen++
+			bad, err := usesForbiddenImport(path, nil)
+			if err != nil {
+				return err
+			}
+			if bad {
+				t.Errorf("%s: unsafe と C はキットのコードで使わない", path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if seen < 100 {
+		t.Fatalf("見たファイルが少なすぎる: %d", seen)
+	}
+}
+
+// TestArchitecture_ModulesHaveNoCgo は、組み込まれる外部モジュールにcgoのファイルが無いことを確かめます。
+// CGO_ENABLED=0 ではcgoのファイルが一覧から除かれて検査が空振りするので、有効にして調べます。
+func TestArchitecture_ModulesHaveNoCgo(t *testing.T) {
+	cmd := exec.Command("go", "list", "-deps", "-f", `{{if and .Module (not .Standard)}}{{.ImportPath}} {{len .CgoFiles}}{{end}}`, "./cmd/server", "./cmd/kit")
+	cmd.Dir = ".."
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64", "CGO_ENABLED=1")
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("go list: %v", err)
+	}
+	seen := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		seen++
+		if fields[1] != "0" {
+			t.Errorf("%s: cgoのファイルが %s 個ある", fields[0], fields[1])
+		}
+	}
+	if seen < 10 {
+		t.Fatalf("見たパッケージが少なすぎる: %d", seen)
 	}
 }

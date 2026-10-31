@@ -21,7 +21,7 @@ const (
 	admin   = int64(5)
 )
 
-func newStore(t *testing.T) (*Store, *sql.DB) {
+func newStore(t testing.TB) (*Store, *sql.DB) {
 	t.Helper()
 	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "docs.db"))
 	if err != nil {
@@ -464,4 +464,57 @@ func TestDelete_RemovesEverything(t *testing.T) {
 		}
 	}
 	_ = v
+}
+
+// FuzzSearch は、検索語に何が来ても、失敗せず、読める範囲の外を返さないことを確かめる。
+func FuzzSearch(f *testing.F) {
+	for _, seed := range []string{"", "%", "_", `\`, "'", `"`, "\x00", "\xff\xfe", "a\x00b", "秘密", "'; DROP TABLE documents;--"} {
+		f.Add(seed)
+	}
+	s, _ := newStore(f)
+	id, _ := func() (int64, int64) {
+		ctx := context.Background()
+		i, _ := s.Create(ctx, owner, Input{Title: "秘密", Body: "秘密の本文"})
+		_, v, _ := s.Draft(ctx, owner, i)
+		_ = s.Publish(ctx, owner, i, v.ID)
+		return i, v.ID
+	}()
+	f.Fuzz(func(t *testing.T, query string) {
+		items, err := s.List(context.Background(), alice, Filter{Query: query}, firstPage)
+		if err != nil {
+			t.Fatalf("%q: %v", query, err)
+		}
+		for _, it := range items {
+			if it.ID == id {
+				t.Fatalf("%q: an unshared document was listed", query)
+			}
+		}
+	})
+}
+
+// FuzzCreate は、どんな入力でも、拒否するか、同じ内容で保存するかのどちらかであることを確かめる。
+func FuzzCreate(f *testing.F) {
+	for _, seed := range []string{"題", "", " ", "\x00", "\xff\xfe", "a\nb", "| a |\n|---|\n| b | c |", "# 見出し"} {
+		f.Add(seed, seed)
+	}
+	s, _ := newStore(f)
+	f.Fuzz(func(t *testing.T, title, body string) {
+		ctx := context.Background()
+		id, err := s.Create(ctx, owner, Input{Title: title, Body: body})
+		var invalid InputError
+		if errors.As(err, &invalid) {
+			return
+		}
+		if err != nil {
+			t.Fatalf("%q %q: %v", title, body, err)
+		}
+		normalized, err := normalize(Input{Title: title, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, v, err := s.Draft(ctx, owner, id)
+		if err != nil || v.Title != normalized.Title || v.Body != normalized.Body {
+			t.Fatalf("saved %+v, %v", v, err)
+		}
+	})
 }
