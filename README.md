@@ -259,7 +259,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 
 ## 依存モジュール
 
-直接依存は `modernc.org/sqlite`（純Go版SQLiteドライバ）だけです。このドライバを通じて、次のモジュールが実行ファイルに組み込まれます（Linuxのamd64・arm64、CGO無効で確認）。
+通常の構成（共通認証を登録しない構成）に組み込まれる直接依存は `modernc.org/sqlite`（純Go版SQLiteドライバ）だけです。このドライバを通じて、次のモジュールが実行ファイルに組み込まれます（Linuxのamd64・arm64、CGO無効で確認）。
 
 | モジュール | 用途 | ライセンス |
 |---|---|---|
