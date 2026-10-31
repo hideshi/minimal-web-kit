@@ -1,6 +1,6 @@
 # 社内文書機能の計画
 
-状態: 計画のレビューを反映済み（2026-10-31）。実装の前。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
+状態: 実装済み（2026-10-31）。完成のレビューの前。今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md`。対象の時点は `9404ed4`。実装の後、今の仕様は `docs/domain/documents.md` と `docs/domain/auth.md` へ移す。
 
 ## 目的
 
@@ -184,7 +184,7 @@ stateDiagram-v2
 | `GET /admin/documents/{id}/reads` | 既読の状況 | 詳細 |
 | `GET /admin/documents/{id}/versions`、`/{version}` | 版の履歴と版の閲覧（承認の判断のフォーム） | 一覧、文書の閲覧 |
 | `GET /admin/documents/{id}/delete` | 削除の確認 | 削除の確認 |
-| `GET /admin/documents/folders` | フォルダ | 一覧＋追加 |
+| `GET /admin/document-folders` | フォルダ | 一覧＋追加 |
 | `GET /admin/documents/transfer` | 所有者の変更（`AdminPage`） | 一覧＋追加 |
 
 本文を読ませる画面は既存の「詳細」に合わないので、`docs/components.md` に「文書の閲覧」の型を足す。
@@ -229,3 +229,11 @@ stateDiagram-v2
 4. 承認、既読、移管。
 5. 仕様、台帳、ユースケース、README、トップのカード、`cmd/kit` の `bundles`、`make add-documents`。
 6. 完成のレビュー、紹介サイトへの適用は別に決める。
+
+## 実装で変えたこと
+
+- 一度でも承認を依頼した文書は、承認を経ないと公開できないようにした。改定や差し戻しの後に、承認なしで公開できる抜け道があったため。
+- 差し戻しと取り下げでは、所有者の操作を待たず、同じ内容の下書きを自動で作る。
+- 検索は今の版だけを対象にした。自分の下書きは「自分の文書」の一覧で見る。
+- 版の番号は、差し戻しや取り下げがあると飛ぶ。
+- 文書の閲覧は「詳細」に入れず、`docs/components.md` の型の外とした。新しい型は足していない。

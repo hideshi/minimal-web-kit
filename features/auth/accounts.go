@@ -508,6 +508,31 @@ func ListAccounts(ctx context.Context, db *sql.DB) ([]AccountSummary, error) {
 	return list, rows.Err()
 }
 
+// accountDirectory は、他の機能に渡す features.AccountDirectory の実装です。
+type accountDirectory struct{ db *sql.DB }
+
+func (d accountDirectory) Accounts(ctx context.Context) ([]features.DirectoryAccount, error) {
+	rows, err := d.db.QueryContext(ctx, "SELECT id, name, disabled_at IS NOT NULL FROM auth_accounts ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []features.DirectoryAccount
+	for rows.Next() {
+		var a features.DirectoryAccount
+		if err := rows.Scan(&a.ID, &a.Name, &a.Disabled); err != nil {
+			return nil, err
+		}
+		list = append(list, a)
+	}
+	return list, rows.Err()
+}
+
+// AccountDirectory は、アカウントの呼び名と状態を読む口を返します。
+func (f *Feature) AccountDirectory() features.AccountDirectory {
+	return accountDirectory{db: f.store.db}
+}
+
 // accountForRegistration は、ログイン中のアカウントが自分にパスキーを追加するときの登録先を返します。
 func (s *adminStore) accountForRegistration(ctx context.Context, accountID int64) (registrationTarget, error) {
 	var t registrationTarget

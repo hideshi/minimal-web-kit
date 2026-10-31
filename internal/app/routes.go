@@ -113,6 +113,27 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
+	// アカウントの一覧を、相手を選ぶ機能に配る
+	{
+		var directory features.AccountDirectory
+		for _, f := range reg.All() {
+			if p, ok := f.(features.AccountDirectoryProvider); ok {
+				directory = p.AccountDirectory()
+			}
+		}
+		for _, f := range reg.All() {
+			c, ok := f.(features.AccountDirectoryConsumer)
+			if !ok {
+				continue
+			}
+			if directory == nil {
+				logger.Error("feature requires the account directory", slog.String("feature", f.Name()))
+				return nil, fmt.Errorf("feature %s requires the auth feature with account names (federatedauth has none)", f.Name())
+			}
+			c.SetAccountDirectory(directory)
+		}
+	}
+
 	// エージェントの認証の提供者とMCPのツールを、MCPのサーバーに配る
 	{
 		var mcpFeatures []features.MCPFeature

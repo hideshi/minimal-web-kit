@@ -1,0 +1,34 @@
+{{define "content"}}
+<h1>自分の文書</h1>{{template "notice" .Notice}}
+<div class="action-bar"><a href="/admin/documents/new" class="btn btn-primary">文書を作成する</a><a href="/admin/documents">文書の一覧へ戻る</a></div>
+{{if .Items}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">自分の文書の一覧（更新の新しい順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">タイトル</th>
+        <th scope="col">最新の版</th>
+        <th scope="col">フォルダ</th>
+        <th scope="col">更新日時</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr>
+        <td><a href="/admin/documents/{{.ID}}/versions">{{.Title}}</a></td>
+        <td>{{.StateLabel}}</td>
+        <td>{{if .FolderName}}{{.FolderName}}{{else}}なし{{end}}</td>
+        <td>{{template "datetime" .UpdatedAt}}</td>
+        <td><a href="/admin/documents/{{.ID}}/share">共有<span class="visually-hidden">（{{.Title}}）</span></a> <a href="/admin/documents/{{.ID}}/delete">削除<span class="visually-hidden">（{{.Title}}）</span></a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" .Page}}
+{{else}}
+<p>自分の文書はまだありません。</p>
+{{end}}
+{{end}}

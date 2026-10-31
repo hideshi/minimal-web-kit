@@ -1,0 +1,6 @@
+{{define "content"}}
+<h1>文書の削除</h1>
+<p>次の文書を、全ての版、共有先、既読、承認の記録ごと削除します。元に戻せません。</p>
+<p class="card">{{.DocumentTitle}}</p>
+{{template "confirm-actions" (confirm (printf "/admin/documents/%d/delete" .ID) "/admin/documents/mine" .CSRFToken)}}
+{{end}}

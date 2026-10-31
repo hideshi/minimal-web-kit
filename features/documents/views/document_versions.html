@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1>版の履歴</h1>{{template "notice" .Notice}}
+<div class="action-bar"><a href="/admin/documents/{{.ID}}/share">共有先の設定</a><a href="/admin/documents/{{.ID}}/reads">既読の状況</a>{{if .Document.CurrentID}}<a href="/admin/documents/{{.ID}}">今の版を見る</a>{{end}}</div>
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">版の一覧（新しい順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">版</th>
+        <th scope="col">タイトル</th>
+        <th scope="col">状態</th>
+        <th scope="col">作成日時</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{$id := .ID}}{{$csrf := .CSRFToken}}{{$current := .Document.CurrentID}}
+      {{range .Versions}}
+      <tr>
+        <td>第{{.Number}}版{{if eq .ID $current}}（今の版）{{end}}</td>
+        <td><a href="/admin/documents/{{$id}}/versions/{{.ID}}">{{.Title}}</a></td>
+        <td>{{.StateLabel}}</td>
+        <td>{{template "datetime" .CreatedAt}}</td>
+        <td>{{if eq .State "draft"}}<a href="/admin/documents/{{$id}}/edit">編集<span class="visually-hidden">（{{.Title}}）</span></a>{{else if eq .State "pending"}}<form method="post" action="/admin/documents/{{$id}}/withdraw" class="inline-form"><input type="hidden" name="csrf_token" value="{{$csrf}}"><input type="hidden" name="version" value="{{.ID}}"><button type="submit" class="btn btn-secondary">取り下げる</button></form>{{else}}なし{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+<p><a href="/admin/documents/mine">自分の文書の一覧へ戻る</a></p>
+{{end}}

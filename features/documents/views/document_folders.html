@@ -1,0 +1,35 @@
+{{define "content"}}
+<h1>フォルダの管理</h1>{{template "notice" .Notice}}
+<div class="action-bar"><a href="/admin/documents">文書の一覧へ戻る</a></div>
+<p>フォルダは全員で共通の棚です。読める範囲は変わりません。</p>
+{{if .Folders}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">フォルダの一覧（名前の順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">名前</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{$can := .IsOwner}}
+      {{range .Folders}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{if call $can .}}<a href="/admin/document-folders/{{.ID}}">編集<span class="visually-hidden">（{{.Name}}）</span></a>{{else}}なし{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>フォルダはまだありません。</p>
+{{end}}
+<h2>フォルダの追加</h2>
+<form method="post" action="/admin/document-folders" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{template "field" .Field}}
+  <button type="submit" class="btn btn-primary">追加する</button>
+</form>
+{{end}}

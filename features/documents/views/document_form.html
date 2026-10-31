@@ -1,0 +1,33 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
+{{if .Rejection}}<p class="alert alert-warning" role="status">差し戻しの理由: {{.Rejection}}</p>{{end}}
+<form method="post" action="{{if .ID}}/admin/documents/{{.ID}}/edit{{else}}/admin/documents{{end}}" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{if .ID}}<input type="hidden" name="version" value="{{.Version.ID}}">{{end}}
+  {{range .Fields}}{{template "field" .}}{{end}}
+  <details class="richtext-help">
+    <summary>本文の書き方</summary>
+    <ul class="richtext-list">
+      <li>見出し: 行の先頭に「## 」（大）か「### 」（小）</li>
+      <li>段落: 空行で区切る。段落の中の改行はそのまま改行</li>
+      <li>箇条書き: 行の先頭に「- 」。番号付き: 「1. 」</li>
+      <li>リンク: [文字](/about) か [文字](https://example.com)</li>
+      <li>強調: **文字**</li>
+      <li>表: 「| 項目 | 内容 |」の次の行に「|---|---|」、続けて「| 社名 | 例 |」</li>
+      <li>記号をそのまま出すには、前に「\」を付けます。HTMLは書けません</li>
+    </ul>
+  </details>
+  <button type="submit" class="btn btn-primary">{{if .ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
+</form>
+{{if .ID}}
+<h2>公開と承認</h2>
+<p>編集中の内容は、先に保存してください。{{if .NeedsApproval}}この文書は承認を依頼したことがあるので、承認を経て公開します。{{else}}公開すると、共有先の人が読めるようになります。{{end}}</p>
+<div class="action-bar">
+  {{if not .NeedsApproval}}<form method="post" action="/admin/documents/{{.ID}}/publish" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="version" value="{{.Version.ID}}"><button type="submit" class="btn btn-secondary">公開する</button></form>{{end}}
+  <a href="/admin/documents/{{.ID}}/approval">承認を依頼する</a>
+  <a href="/admin/documents/{{.ID}}/share">共有先の設定</a>
+  <a href="/admin/documents/{{.ID}}/delete" class="btn btn-danger">削除する</a>
+</div>
+{{end}}
+<p><a href="/admin/documents/mine">自分の文書の一覧へ戻る</a></p>
+{{end}}

@@ -28,6 +28,7 @@ import (
 	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/catalog"
 	"minimal-web-kit/features/contact"
+	"minimal-web-kit/features/documents"
 	"minimal-web-kit/features/mcp"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
@@ -59,6 +60,7 @@ func newAdminUIRegistry(logger *slog.Logger) *features.Registry {
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(contact.NewFeature(logger))
 	reg.Register(pages.NewFeature(logger))
+	reg.Register(documents.NewFeature(logger))
 	reg.Register(mcp.NewFeature(logger))
 	return reg
 }
@@ -167,6 +169,38 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 		t.Fatal(err)
 	}
 	ui.ids["page_draft"], ui.ids["page_published"] = itoa(draftPage), itoa(publishedPage)
+
+	docs := documents.NewStore(db, time.Now)
+	if err := docs.AddFolder(ctx, adminID, "社内規定"); err != nil {
+		t.Fatal(err)
+	}
+	everyone := func(int64) bool { return true }
+	draftDoc, _ := docs.Create(ctx, adminID, documents.Input{Title: "下書きの文書", Body: "本文"})
+	publishedDoc, _ := docs.Create(ctx, adminID, documents.Input{Title: "公開中の回覧", Body: "## 見出し\n本文"})
+	_, v, err := docs.Draft(ctx, adminID, publishedDoc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := docs.Publish(ctx, adminID, publishedDoc, v.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := docs.SetSharing(ctx, adminID, publishedDoc, "selected", []int64{otherID}, everyone); err != nil {
+		t.Fatal(err)
+	}
+	pendingDoc, _ := docs.Create(ctx, otherID, documents.Input{Title: "承認待ちの規定", Body: "本文"})
+	_, pv, err := docs.Draft(ctx, otherID, pendingDoc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := docs.RequestApproval(ctx, otherID, pendingDoc, pv.ID, []int64{adminID}, everyone); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs.Create(ctx, stoppedID, documents.Input{Title: "移す文書", Body: "本文"}); err != nil {
+		t.Fatal(err)
+	}
+	folders, _ := docs.Folders(ctx)
+	ui.ids["doc_draft"], ui.ids["doc_published"], ui.ids["doc_pending"] = itoa(draftDoc), itoa(publishedDoc), itoa(pendingDoc)
+	ui.ids["doc_pending_version"], ui.ids["doc_folder"] = itoa(pv.ID), itoa(folders[0].ID)
 
 	inbox := contact.NewStore(db)
 	limits := contact.Limits{Hourly: 100, Daily: 100, Unread: 100}
@@ -296,6 +330,22 @@ var adminSamples = []adminSample{
 	{"GET /admin/pages/{id}", "/admin/pages/{page_draft}", "admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "member", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}/delete", "/admin/pages/{page_draft}/delete", "admin", "admin_page_delete.html", kindConfirm},
+	{"GET /admin/documents", "/admin/documents", "admin", "documents.html", kindList},
+	{"GET /admin/documents/mine", "/admin/documents/mine", "admin", "documents_mine.html", kindList},
+	{"GET /admin/documents/approvals", "/admin/documents/approvals", "admin", "documents_approvals.html", kindList},
+	{"GET /admin/documents/new", "/admin/documents/new", "admin", "document_form.html", kindForm},
+	{"GET /admin/documents/{id}", "/admin/documents/{doc_published}", "admin", "document.html", kindOther},
+	{"GET /admin/documents/{id}/edit", "/admin/documents/{doc_draft}/edit", "admin", "document_form.html", kindForm},
+	{"GET /admin/documents/{id}/share", "/admin/documents/{doc_published}/share", "admin", "document_share.html", kindForm},
+	{"GET /admin/documents/{id}/approval", "/admin/documents/{doc_draft}/approval", "admin", "document_approval.html", kindForm},
+	{"GET /admin/documents/{id}/reads", "/admin/documents/{doc_published}/reads", "admin", "document_reads.html", kindOther},
+	{"GET /admin/documents/{id}/versions", "/admin/documents/{doc_published}/versions", "admin", "document_versions.html", kindOther},
+	{"GET /admin/documents/{id}/versions/{version}", "/admin/documents/{doc_pending}/versions/{doc_pending_version}", "admin", "document.html", kindOther},
+	{"GET /admin/documents/{id}/delete", "/admin/documents/{doc_published}/delete", "admin", "document_delete.html", kindConfirm},
+	{"GET /admin/document-folders", "/admin/document-folders", "admin", "document_folders.html", kindListAdd},
+	{"GET /admin/document-folders/{id}", "/admin/document-folders/{doc_folder}", "admin", "document_folder.html", kindForm},
+	{"GET /admin/document-folders/{id}/delete", "/admin/document-folders/{doc_folder}/delete", "admin", "document_folder_delete.html", kindConfirm},
+	{"GET /admin/documents/transfer", "/admin/documents/transfer", "admin", "document_transfer.html", kindListAdd},
 	{"GET /admin/mcp", "/admin/mcp", "admin", "admin_mcp.html", kindListAdd},
 	{"GET /admin/mcp/clients/{id}", "/admin/mcp/clients/{agent_client}", "admin", "admin_mcp_client.html", kindDetail},
 	{"GET /admin/mcp", "/admin/mcp", "member", "admin_mcp.html", kindList},
@@ -327,6 +377,8 @@ type adminFailure struct {
 }
 
 var adminFailures = []adminFailure{
+	{"/admin/documents", url.Values{"title": {""}, "body": {"残す本文"}, "folder": {"0"}}, 400, "文書の作成", "document-title", "残す本文"},
+	{"/admin/document-folders", url.Values{"name": {""}}, 400, "フォルダの管理", "folder-name", ""},
 	{"/admin/catalog/classifications/categories", url.Values{"name": {"住宅"}}, 400, "カテゴリの管理", "classification-name", "住宅"},
 	{"/admin/catalog/classifications/tags", url.Values{"name": {" "}}, 400, "タグの管理", "classification-name", ""},
 	{"/admin/catalog/classifications/tags/{tag_unused}", url.Values{"name": {"新築"}}, 400, "タグの編集", "classification-name", "新築"},
@@ -577,6 +629,14 @@ var accountRoutes = []string{
 	"GET /admin/passkeys", "POST /admin/passkeys/{id}/label", "GET /admin/passkeys/{id}/delete", "POST /admin/passkeys/{id}/delete",
 	"POST /admin/webauthn/register/begin", "POST /admin/webauthn/register/finish", "POST /admin/webauthn/login/begin", "POST /admin/webauthn/login/finish",
 	"GET /admin/agent/authorize", // 同意の前の入口。続きの画面と承認で止まる
+	"GET /admin/documents", "GET /admin/documents/mine", "GET /admin/documents/approvals", "GET /admin/documents/new", "POST /admin/documents",
+	"GET /admin/document-folders", "POST /admin/document-folders", "GET /admin/document-folders/{id}", "POST /admin/document-folders/{id}",
+	"GET /admin/document-folders/{id}/delete", "POST /admin/document-folders/{id}/delete",
+	"GET /admin/documents/{id}", "GET /admin/documents/{id}/edit", "POST /admin/documents/{id}/edit", "POST /admin/documents/{id}/publish",
+	"POST /admin/documents/{id}/revise", "POST /admin/documents/{id}/withdraw", "GET /admin/documents/{id}/share", "POST /admin/documents/{id}/share",
+	"GET /admin/documents/{id}/approval", "POST /admin/documents/{id}/approval", "GET /admin/documents/{id}/reads", "GET /admin/documents/{id}/versions",
+	"GET /admin/documents/{id}/versions/{version}", "POST /admin/documents/{id}/versions/{version}/approve", "POST /admin/documents/{id}/versions/{version}/reject",
+	"GET /admin/documents/{id}/delete", "POST /admin/documents/{id}/delete",
 }
 
 // TestRoleUser_ReachesOnlyAccountRoutes は、登録された全ての管理画面の経路を一般ユーザーで開き、
@@ -614,7 +674,7 @@ func TestRoleUser_ReachesOnlyAccountRoutes(t *testing.T) {
 			t.Errorf("一般ユーザーのナビに %s が出ている", path)
 		}
 	}
-	if w := ui.get("user", "/admin"); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/passkeys" {
+	if w := ui.get("user", "/admin"); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/documents" {
 		t.Fatalf("/admin: %d %s", w.Code, w.Header().Get("Location"))
 	}
 }

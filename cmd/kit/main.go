@@ -118,6 +118,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("MCP registration disabled; stored settings are kept.")
+	case "add-documents":
+		if err := addDocuments(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling documents feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled internal documents with admin authentication. Sharing is off until an owner chooses who can read.")
+	case "remove-documents":
+		if err := removeDocuments(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling documents feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Documents registration disabled; stored documents are kept.")
 	case "add-news":
 		if err := addNews(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling news feature: %v\n", err)
@@ -156,6 +168,8 @@ func printUsage() {
 	fmt.Println("  remove-contact Disable the contact registration (stored messages are kept)")
 	fmt.Println("  add-pages    Enable fixed pages (/{slug}), together with admin authentication")
 	fmt.Println("  remove-pages Disable the pages registration (stored pages are kept)")
+	fmt.Println("  add-documents Enable internal documents, together with admin authentication")
+	fmt.Println("  remove-documents Disable the documents registration (stored documents are kept)")
 	fmt.Println("  add-mcp      Enable the MCP server for AI agents, together with admin authentication")
 	fmt.Println("  remove-mcp   Disable the MCP registration (stored settings are kept)")
 	fmt.Println("  add-news     Enable the news feature, together with admin authentication")
@@ -197,6 +211,7 @@ const (
 	bundledContactMarker   = "// minimal-web-kit: bundled-feature contact"
 	bundledPagesMarker     = "// minimal-web-kit: bundled-feature pages"
 	bundledMCPMarker       = "// minimal-web-kit: bundled-feature mcp"
+	bundledDocumentsMarker = "// minimal-web-kit: bundled-feature documents"
 )
 
 var (
@@ -209,9 +224,10 @@ var (
 	contactBundle   = bundle{name: "contact", label: "Contact", marker: bundledContactMarker, needsAdmin: true}
 	pagesBundle     = bundle{name: "pages", label: "Pages", marker: bundledPagesMarker, needsAdmin: true}
 	mcpBundle       = bundle{name: "mcp", label: "MCP", marker: bundledMCPMarker, needsAdmin: true}
+	documentsBundle = bundle{name: "documents", label: "Documents", marker: bundledDocumentsMarker, needsAdmin: true}
 
 	// bundles は全ての同梱機能です。機能を足したら、ここに加えます。
-	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
+	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, documentsBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -265,6 +281,17 @@ func addPages() error {
 	return toggleBundle(pagesBundle, true)
 }
 func removePages() error { return toggleBundle(pagesBundle, false) }
+
+func addDocuments() error {
+	if err := verifyBundle(documentsBundle); err != nil {
+		return err
+	}
+	if err := ensureAdminProvider(); err != nil {
+		return err
+	}
+	return toggleBundle(documentsBundle, true)
+}
+func removeDocuments() error { return toggleBundle(documentsBundle, false) }
 
 func addMCP() error {
 	if err := verifyBundle(mcpBundle); err != nil {

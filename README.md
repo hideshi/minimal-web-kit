@@ -191,6 +191,15 @@ minimal-web-kit federated-account -sub <sub> -role admin
 
 ### MCP（AIエージェント）
 
+`make add-documents` で有効化します（管理者認証も有効になります）。回覧や社内規定を作り、全員か特定の人へ共有します。全ての画面にログインが要ります。
+
+- 全ロールが文書を作れます。編集できるのは所有者だけで、共有された人は読むだけです。共有されていない文書は、システム管理者にも画面で見せません。
+- 開くと既読になり、所有者は読んだ人を確かめられます。本文を改定すると、既読は取り直します。
+- 承認は任意です。所有者が選んだ全員の承認で公開します。依頼すると版を固定し、改定したら承認を受け直します。承認は社内の確認の記録で、法的な電子署名や改ざんの証明ではありません。
+- 所有者が退職したら、システム管理者が `/admin/documents/transfer` で別の人へ移します。画面には件数だけが出ます。
+- 「システム管理者にも見せない」は画面の範囲の守りです。DBやバックアップを直接読む人、なりすましの操作までは防げません。添付、同時編集、グループ、外部への共有リンク、通知はありません。
+- 仕様は [domain/documents.md](docs/domain/documents.md)、保存内容は[データ台帳](docs/data-inventory.md)の11節にあります。保存項目が増えるので、`minimal-web-kit-privacy` スキルでプライバシーポリシーも見直してください。
+
 `make add-mcp` で有効化します（管理者認証も有効になります）。AIエージェントが、許可した機能の内容を読み、下書きや編集を行えます。お知らせ・カタログ・固定ページに対応し、別の機能も `features.MCPFeature` を実装すれば足せます。
 
 | 経路 | 内容 |
@@ -256,6 +265,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make add-catalog` / `make remove-catalog` | カタログの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-contact` / `make remove-contact` | お問い合わせの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-pages` / `make remove-pages` | 固定ページの登録を有効化・無効化（Authも有効化。データは保持） |
+| `make add-documents` / `make remove-documents` | 社内文書の登録を有効化・無効化（Authも有効化。データは保持）。`federatedauth` とは組み合わせられません |
 | `make add-mcp` / `make remove-mcp` | MCPサーバーの登録を有効化・無効化（Authも有効化。設定は保持）。機能ごとの有効化は `/admin/mcp` |
 | `make add-oidcop` / `make remove-oidcop` | 共通認証の提供機能。管理者認証を置き換え、外すと通常の管理者認証に戻る（連携の失効の状態は残る） |
 | `make add-federatedauth` / `make remove-federatedauth` | 共通認証の利用機能。管理者認証を置き換える（お知らせ等が有効な間は無効化できない） |

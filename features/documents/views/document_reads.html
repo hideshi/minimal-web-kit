@@ -1,0 +1,28 @@
+{{define "content"}}
+<h1>既読の状況</h1>
+{{if .Rows}}
+<p>{{len .Rows}}人のうち{{.Done}}人が、今の版を読みました。</p>
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">共有先の既読の一覧</caption>
+    <thead>
+      <tr>
+        <th scope="col">呼び名</th>
+        <th scope="col">最初に開いた日時</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{if .At.IsZero}}未読{{else}}{{template "datetime" .At}}{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>共有先はまだありません。</p>
+{{end}}
+<p><a href="/admin/documents/{{.ID}}/versions">版の履歴へ戻る</a></p>
+{{end}}

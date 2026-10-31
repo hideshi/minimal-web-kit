@@ -1,0 +1,6 @@
+{{define "content"}}
+<h1>フォルダの削除</h1>{{template "error" .Error}}
+<p>次のフォルダを削除します。元に戻せません。文書が入っているフォルダは削除できません。</p>
+<p class="card">{{.Folder.Name}}</p>
+{{template "confirm-actions" (confirm (printf "/admin/document-folders/%d/delete" .Folder.ID) "/admin/document-folders" .CSRFToken)}}
+{{end}}

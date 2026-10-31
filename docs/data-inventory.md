@@ -423,3 +423,80 @@ AIエージェントの接続の認可とトークンは4節の `auth_agent_*` �
 | `enabled` | INTEGER | NO | MCPの有効・無効 | 同上 | 行が無ければ無効 |
 | `generation` | INTEGER | NO | 確認の途中の設定変更の検出 | 同上 | 変更のたびに進む |
 | `updated_at` | INTEGER | NO | 変更の記録 | 同上 | UNIXエポック秒 |
+
+---
+
+## 11. 社内文書のデータ（`make add-documents` で有効化した場合のみ）
+
+`features/documents/migration.sql` の表です。認証の表とは外部キーでつなぎません。アカウントの削除では消えず、IDのまま残します。既読は従業員の行動の記録に当たるので、プライバシーポリシーの画面に載せます。呼び名は、共有先と承認者を選ぶ画面で、ログインしている全員に見えます。本文に個人情報を書くかは組織の運用によります。
+
+### テーブル: `document_folders`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | フォルダの識別 | 削除まで | AUTOINCREMENT |
+| `name` | TEXT | NO | 棚の名前 | 同上 | 50字以内・重複不可。全員に見える |
+| `created_by` | INTEGER | NO | 変更できる人の判定 | 同上 | アカウントID |
+| `created_at` | INTEGER | NO | 作成時刻 | 同上 | UNIXエポック秒 |
+
+### テーブル: `documents`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | 文書の識別 | 所有者が削除するまで | AUTOINCREMENT |
+| `owner_account_id` | INTEGER | NO | 編集できる人の判定 | 同上 | アカウントID |
+| `folder_id` | INTEGER | YES | 整理 | 同上 | |
+| `audience` | TEXT | NO | 読める範囲 | 同上 | `private`・`everyone`・`selected` |
+| `current_version_id` | INTEGER | YES | 共有先に見せる版 | 同上 | 公開の前は NULL |
+| `created_at` | INTEGER | NO | 作成時刻 | 同上 | UNIXエポック秒 |
+| `updated_at` | INTEGER | NO | 並び順 | 同上 | UNIXエポック秒 |
+
+### テーブル: `document_versions`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | 版の識別 | 文書の削除まで | AUTOINCREMENT |
+| `document_id` | INTEGER | NO | 文書への紐付け | 同上 | 外部キー（ON DELETE CASCADE） |
+| `number` | INTEGER | NO | 版の番号 | 同上 | 差し戻しや取り下げがあると飛ぶ |
+| `title` | TEXT | NO | タイトル | 同上 | 200字以内。ログに記録しない |
+| `body` | TEXT | NO | 本文 | 同上 | 5万字以内。ログに記録しない |
+| `state` | TEXT | NO | 版の状態 | 同上 | `draft`・`pending`・`rejected`・`withdrawn`・`published` |
+| `created_at` | INTEGER | NO | 作成時刻 | 同上 | UNIXエポック秒 |
+| `requested_at` | INTEGER | YES | 依頼の時刻 | 同上 | UNIXエポック秒 |
+| `published_at` | INTEGER | YES | 公開の時刻 | 同上 | UNIXエポック秒 |
+
+### テーブル: `document_shares`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `document_id` | INTEGER | NO | 文書への紐付け | 外すか文書の削除まで | 外部キー（ON DELETE CASCADE） |
+| `account_id` | INTEGER | NO | 指定の共有先 | 同上 | アカウントID |
+
+### テーブル: `document_approvers`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `version_id` | INTEGER | NO | 版への紐付け | 文書の削除まで | 外部キー（ON DELETE CASCADE） |
+| `account_id` | INTEGER | NO | 承認者 | 同上 | アカウントID |
+| `decision` | TEXT | YES | 判断 | 同上 | `approved`・`rejected`。未判断は NULL |
+| `reason` | TEXT | NO | 差し戻しの理由 | 同上 | 200字以内。ログに記録しない |
+| `decided_at` | INTEGER | YES | 判断の時刻 | 同上 | UNIXエポック秒 |
+
+### テーブル: `document_reads`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `version_id` | INTEGER | NO | 版への紐付け | 文書の削除まで | 外部キー（ON DELETE CASCADE） |
+| `account_id` | INTEGER | NO | 開いた人 | 同上 | アカウントID。所有者だけが見られる |
+| `first_read_at` | INTEGER | NO | 最初に開いた時刻 | 同上 | UNIXエポック秒 |
+
+### テーブル: `document_transfers`
+
+| 列名 | 型 | NULL許可 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|---|---|
+| `id` | INTEGER | NO | 記録の識別 | 3年 | `Purge` で削除 |
+| `from_account_id` | INTEGER | NO | 元の所有者 | 同上 | アカウントID |
+| `to_account_id` | INTEGER | NO | 新しい所有者 | 同上 | アカウントID |
+| `by_account_id` | INTEGER | NO | 操作した人 | 同上 | アカウントID |
+| `count` | INTEGER | NO | 移した件数 | 同上 | タイトルは残さない |
+| `transferred_at` | INTEGER | NO | 操作の時刻 | 同上 | UNIXエポック秒 |

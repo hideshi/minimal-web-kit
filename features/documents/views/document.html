@@ -1,0 +1,51 @@
+{{define "content"}}
+<h1>{{.Version.Title}}</h1>{{template "notice" .Notice}}
+<p>状態: {{.Version.StateLabel}}（第{{.Version.Number}}版）{{if not .Version.PublishedAt.IsZero}}、公開 {{template "datetime" .Version.PublishedAt}}{{end}}。作成者: {{.People.Name .Document.OwnerID}}</p>
+<section class="card" aria-label="本文">{{template "richtext" .Doc}}</section>
+{{if .Approvers}}
+<h2>承認の記録</h2>
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">この版の承認者と判断</caption>
+    <thead>
+      <tr>
+        <th scope="col">承認者</th>
+        <th scope="col">判断</th>
+        <th scope="col">日時</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{$people := .People}}
+      {{range .Approvers}}
+      <tr>
+        <td>{{$people.Name .AccountID}}</td>
+        <td>{{if eq .Decision "approved"}}承認{{else if eq .Decision "rejected"}}差し戻し（{{.Reason}}）{{else}}未判断{{end}}</td>
+        <td>{{if .DecidedAt.IsZero}}なし{{else}}{{template "datetime" .DecidedAt}}{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+<p class="field-hint">承認は社内の確認の記録で、法的な電子署名や改ざんの証明ではありません。</p>
+{{end}}
+{{if .CanDecide}}
+<h2>承認の判断</h2>
+<form method="post" action="/admin/documents/{{.Document.ID}}/versions/{{.Version.ID}}/approve" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-primary">承認する</button></form>
+<form method="post" action="/admin/documents/{{.Document.ID}}/versions/{{.Version.ID}}/reject" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{template "field" .ReasonField}}
+  <button type="submit" class="btn btn-secondary">差し戻す</button>
+</form>
+{{end}}
+{{if .Mine}}
+<h2>所有者の操作</h2>
+<div class="action-bar">
+  {{if .IsCurrent}}<a href="/admin/documents/{{.Document.ID}}/reads">既読の状況</a>{{end}}
+  <a href="/admin/documents/{{.Document.ID}}/share">共有先の設定</a>
+  <a href="/admin/documents/{{.Document.ID}}/versions">版の履歴</a>
+  {{if and .IsCurrent (not .Open.ID)}}<form method="post" action="/admin/documents/{{.Document.ID}}/revise" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-secondary">改定する</button></form>{{end}}
+  <a href="/admin/documents/{{.Document.ID}}/delete" class="btn btn-danger">削除する</a>
+</div>
+{{end}}
+<p><a href="/admin/documents">文書の一覧へ戻る</a></p>
+{{end}}

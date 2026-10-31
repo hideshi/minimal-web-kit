@@ -224,6 +224,32 @@ type AdminConsumer interface {
 	SetAdmin(admin Admin) error
 }
 
+// DirectoryAccount は、共有先や承認者を選ぶためのアカウントの情報です。Disabled は停止中かです。
+type DirectoryAccount struct {
+	ID       int64
+	Name     string
+	Disabled bool
+}
+
+// AccountDirectory は、機能がアカウントの呼び名と状態を読む口です。認証の表を直接読まずに、これを使います。
+// 一覧に無いIDは、削除済みのアカウントです。
+type AccountDirectory interface {
+	Accounts(ctx context.Context) ([]DirectoryAccount, error)
+}
+
+// AccountDirectoryProvider は、アカウントの一覧を提供する機能（features/auth）が実装します。
+type AccountDirectoryProvider interface {
+	Feature
+	AccountDirectory() AccountDirectory
+}
+
+// AccountDirectoryConsumer は、アカウントの一覧を使う機能（例: 社内文書）が実装します。
+// 提供する機能が無い場合（呼び名を持たない federatedauth 等）は、起動時にエラーになります。
+type AccountDirectoryConsumer interface {
+	Feature
+	SetAccountDirectory(directory AccountDirectory)
+}
+
 // AdminNavFeature は、管理画面のナビにリンク（例: お知らせ機能の「お知らせの管理」）を足す機能が実装します。
 type AdminNavFeature interface {
 	Feature

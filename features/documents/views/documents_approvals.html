@@ -1,0 +1,30 @@
+{{define "content"}}
+<h1>承認の依頼</h1>{{template "notice" .Notice}}
+<div class="action-bar"><a href="/admin/documents">文書の一覧へ戻る</a></div>
+{{if .Items}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">判断を待っている文書の一覧（依頼の古い順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">タイトル</th>
+        <th scope="col">依頼した人</th>
+        <th scope="col">依頼日時</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{$people := .People}}
+      {{range .Items}}
+      <tr>
+        <td><a href="/admin/documents/{{.ID}}/versions/{{.VersionID}}">{{.Title}}</a></td>
+        <td>{{$people.Name .OwnerID}}</td>
+        <td>{{template "datetime" .RequestedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>承認の依頼はまだありません。</p>
+{{end}}
+{{end}}

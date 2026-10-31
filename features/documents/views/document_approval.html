@@ -1,0 +1,11 @@
+{{define "content"}}
+<h1>承認の依頼の作成</h1>
+<p>「{{.Version.Title}}」の第{{.Version.Number}}版を固定して依頼します。依頼の間は本文を変えられません。直すときは依頼を取り下げます。承認者は、共有の設定にかかわらず、この版を読めます。</p>
+<form method="post" action="/admin/documents/{{.ID}}/approval" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <input type="hidden" name="version" value="{{.Version.ID}}">
+  {{template "choices" .Approvers}}
+  <button type="submit" class="btn btn-primary">承認を依頼する</button>
+</form>
+<p><a href="/admin/documents/{{.ID}}/edit">編集へ戻る</a></p>
+{{end}}

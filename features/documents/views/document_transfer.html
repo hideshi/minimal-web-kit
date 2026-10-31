@@ -1,0 +1,62 @@
+{{define "content"}}
+<h1>文書の所有者の変更</h1>{{template "notice" .Notice}}{{template "error" .Error}}
+<div class="action-bar"><a href="/admin/documents">文書の一覧へ戻る</a></div>
+<p>停止中か削除済みのアカウントの文書を、別の人へまとめて移します。この画面にはタイトルも内容も出ません。承認待ちの文書は、依頼を取り下げて下書きに戻します。</p>
+{{if .Owners}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">移せる文書の一覧</caption>
+    <thead>
+      <tr>
+        <th scope="col">所有者</th>
+        <th scope="col">件数</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Owners}}
+      <tr>
+        <td>{{.Name}}（ID {{.ID}}）</td>
+        <td>{{.Count}}件</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+<h2>所有者の変更の追加</h2>
+<form method="post" action="/admin/documents/transfer" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{range .Fields}}{{template "field" .}}{{end}}
+  <button type="submit" class="btn btn-primary">所有者を変更する</button>
+</form>
+{{else}}
+<p>移せる文書はまだありません。</p>
+{{end}}
+{{if .History}}
+<h2>変更の記録</h2>
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">所有者の変更の記録（新しい順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">元</th>
+        <th scope="col">先</th>
+        <th scope="col">操作した人</th>
+        <th scope="col">件数</th>
+        <th scope="col">日時</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .History}}
+      <tr>
+        <td>{{.From}}</td>
+        <td>{{.To}}</td>
+        <td>{{.By}}</td>
+        <td>{{.Count}}件</td>
+        <td>{{template "datetime" .At}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{end}}

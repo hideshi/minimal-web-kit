@@ -1,0 +1,11 @@
+{{define "content"}}
+<h1>共有先の設定</h1>
+<p>共有先の人は、公開した今の版を読めます。下書きは見えません。既定は自分だけです。</p>
+<form method="post" action="/admin/documents/{{.ID}}/share" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{template "choices" .Audience}}
+  {{template "choices" .Accounts}}
+  <button type="submit" class="btn btn-primary">変更を保存する</button>
+</form>
+<p><a href="/admin/documents/mine">自分の文書の一覧へ戻る</a></p>
+{{end}}

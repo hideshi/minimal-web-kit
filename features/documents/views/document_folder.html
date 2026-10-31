@@ -1,0 +1,10 @@
+{{define "content"}}
+<h1>フォルダの編集</h1>
+<form method="post" action="/admin/document-folders/{{.Folder.ID}}" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{template "field" .Field}}
+  <button type="submit" class="btn btn-primary">変更を保存する</button>
+</form>
+<div class="action-bar"><a href="/admin/document-folders/{{.Folder.ID}}/delete" class="btn btn-danger">削除する</a></div>
+<p><a href="/admin/document-folders">フォルダの一覧へ戻る</a></p>
+{{end}}

@@ -1,0 +1,38 @@
+{{define "content"}}
+<h1>文書</h1>{{template "notice" .Notice}}
+<div class="action-bar"><a href="/admin/documents/new" class="btn btn-primary">文書を作成する</a><a href="/admin/documents/mine">自分の文書</a><a href="/admin/documents/approvals">承認の依頼</a><a href="/admin/document-folders">フォルダの管理</a>{{if .IsAdmin}}<a href="/admin/documents/transfer">所有者の変更</a>{{end}}</div>
+<form method="get" action="/admin/documents" class="card">
+  {{range .Search}}{{template "field" .}}{{end}}
+  <button type="submit" class="btn btn-secondary">探す</button>
+</form>
+{{if .Items}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">読める文書の一覧（公開の新しい順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">タイトル</th>
+        <th scope="col">フォルダ</th>
+        <th scope="col">既読</th>
+        <th scope="col">公開日時</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Items}}
+      <tr>
+        <td><a href="/admin/documents/{{.ID}}">{{.Title}}</a></td>
+        <td>{{if .FolderName}}{{.FolderName}}{{else}}なし{{end}}</td>
+        <td>{{if .Unread}}未読{{else}}既読{{end}}</td>
+        <td>{{template "datetime" .UpdatedAt}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" .Page}}
+{{else if .Filtered}}
+<p>条件に合う文書はありません。</p>
+{{else}}
+<p>読める文書はまだありません。</p>
+{{end}}
+{{end}}
