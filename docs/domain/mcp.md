@@ -59,6 +59,10 @@ sequenceDiagram
 - ツールは `features.MCPFeature` で受け取る。「他の機能があるか」を判定しない。
 - HTTPの守りは `guard.SameOrigin` を使わない。CLIは `Sec-Fetch-Site` を送らないため、設定の公開オリジンとの一致と `Host` で確かめる。
 
+## ツールの一覧の更新
+
+`tools/list` と `server/discover` は `ttlMs: 0` で返し、変更の通知（`subscriptions/listen`）は持たない。機能を有効にしても、接続中のクライアントが一覧を読み直すかはクライアントによる。読み直さないときは、クライアントから接続し直す。
+
 ## 守らない範囲
 
 - 人の操作の証明。クライアントを自動応答に設定した場合は、その利用者の責任とする。

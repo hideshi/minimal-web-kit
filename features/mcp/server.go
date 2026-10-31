@@ -165,6 +165,8 @@ func (f *Feature) handle(w http.ResponseWriter, r *http.Request) {
 		reply(w, q.ID, map[string]any{
 			"supportedVersions": []string{protocolVersion},
 			"capabilities":      map[string]any{"tools": map[string]any{}},
+			"ttlMs":             0,
+			"cacheScope":        "private",
 			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]any{"name": "minimal-web-kit", "version": "1"}},
 		})
 	case "ping":
@@ -247,7 +249,8 @@ func (f *Feature) listTools(w http.ResponseWriter, r *http.Request, q rpcRequest
 		}
 		tools = append(tools, item)
 	}
-	reply(w, q.ID, map[string]any{"tools": tools})
+	// 機能の有効・無効は再起動なしで変わり、変更を送る経路を持たないので、キャッシュさせない。一覧はトークンの権限で変わる
+	reply(w, q.ID, map[string]any{"tools": tools, "ttlMs": 0, "cacheScope": "private"})
 }
 
 func (f *Feature) callTool(w http.ResponseWriter, r *http.Request, q rpcRequest, params callParams, p features.AgentPrincipal) {

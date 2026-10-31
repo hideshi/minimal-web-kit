@@ -552,8 +552,11 @@ func TestHTTP_SpecShapes(t *testing.T) {
 	if r := e.rpc(t, "good", "resources/list", "", nil); r.Status != 404 || r.Error == nil || r.Error.Code != codeMethodNotFound {
 		t.Fatalf("%+v", r)
 	}
-	if r := e.rpc(t, "good", "tools/list", "", nil); r.Result["resultType"] != "complete" {
-		t.Fatalf("%+v", r)
+	for _, method := range []string{"tools/list", "server/discover"} {
+		r := e.rpc(t, "good", method, "", nil)
+		if r.Result["resultType"] != "complete" || r.Result["ttlMs"] != float64(0) || r.Result["cacheScope"] != "private" {
+			t.Fatalf("%s: %+v", method, r)
+		}
 	}
 	if r := e.rpc(t, "read", "tools/call", "demo_read", map[string]any{"name": "demo_read"}); r.Result["resultType"] != "complete" {
 		t.Fatalf("%+v", r)
