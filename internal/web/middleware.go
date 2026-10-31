@@ -18,6 +18,12 @@ func (rw *statusResponseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Unwrap は、http.ResponseController が元の ResponseWriter に届くようにします。
+func (rw *statusResponseWriter) Unwrap() http.ResponseWriter { return rw.ResponseWriter }
+
+// defaultMaxBody は、リクエスト本文の全体の既定の上限です。
+const defaultMaxBody = 1024 * 1024
+
 // RequestID は各リクエストにユニークな追跡IDを付与するミドルウェアです。
 // クライアントからのヘッダー値に依存せず、常にサーバー側で12バイト（24文字Hex）の安全な乱数を生成し、
 // ログ注入やトークン反射を防ぎます。
@@ -79,12 +85,19 @@ func SecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-// MaxBytes はリクエスト本文のサイズを制限するミドルウェアです（DoS防止）。
-func MaxBytes(maxBytes int64) func(http.Handler) http.Handler {
+// maxBytesByRoute は、リクエスト本文のサイズを経路ごとに制限するミドルウェアです（DoS防止）。limits に無い経路は def です。
+// 本文を読むハンドラの内側からは緩められないため、最も外側で決めます。
+func maxBytesByRoute(mux *http.ServeMux, limits map[string]int64, def int64) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Body != nil {
-				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+				limit := def
+				if len(limits) > 0 {
+					if _, pattern := mux.Handler(r); limits[pattern] > 0 {
+						limit = limits[pattern]
+					}
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
 			}
 			next.ServeHTTP(w, r)
 		})

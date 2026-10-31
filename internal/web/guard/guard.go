@@ -9,10 +9,47 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
+
+// uploadTimeout は、認証を通したファイルの送信の、読み書きの期限です。遅い回線でも送り切れる長さにします。
+const uploadTimeout = 2 * time.Minute
+
+// maxTokenBytes は、multipart の csrf_token の部品の上限です。
+const maxTokenBytes = 256
+
+// ErrUploadForm は、multipart の形が決まりと違うことを示します。
+var ErrUploadForm = errors.New("guard: invalid upload form")
+
+// UploadToken は、multipart の先頭の部品から csrf_token を読み、続きを読む Reader と一緒に返します。
+// 必ず同一オリジンとセッションを確かめてから呼びます。読み書きの期限をこの要求だけ延ばします。
+// ParseMultipartForm は一時ファイルを書き得るため使わず、ファイルを読む前にCSRFを確かめられるよう、
+// csrf_token を最初の部品に決めます。
+func UploadToken(w http.ResponseWriter, r *http.Request) (*multipart.Reader, string, error) {
+	rc := http.NewResponseController(w)
+	deadline := time.Now().Add(uploadTimeout)
+	_ = rc.SetReadDeadline(deadline)
+	_ = rc.SetWriteDeadline(deadline)
+	reader, err := r.MultipartReader()
+	if err != nil {
+		return nil, "", ErrUploadForm
+	}
+	part, err := reader.NextRawPart()
+	if err != nil || part.FormName() != "csrf_token" || part.FileName() != "" {
+		return nil, "", ErrUploadForm
+	}
+	defer part.Close()
+	raw, err := io.ReadAll(io.LimitReader(part, maxTokenBytes+1))
+	if err != nil || len(raw) > maxTokenBytes {
+		return nil, "", ErrUploadForm
+	}
+	return reader, string(raw), nil
+}
 
 // SameOrigin は、要求が同じオリジンから送られたことを確認します。
 // Coreが Referrer-Policy: no-referrer を送るため、同一オリジンでも Origin は null になり得ます。

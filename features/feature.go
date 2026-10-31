@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"slices"
 	"strings"
@@ -208,6 +209,10 @@ type Admin interface {
 	// Form は、各機能の管理画面のフォーム送信（POST）を守ります。同一オリジン・セッション・CSRFトークンを確認し、
 	// CanManageSite でないロールには403を返します。
 	Form(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
+	// Upload は、ファイルを送るフォーム（multipart）を守ります。同一オリジン・セッション・ロールの確認は Form と同じで、
+	// 先頭の部品の csrf_token を確かめてから、続きの部品を読む Reader を渡します。経路は IsolatedMux の HandleUpload で登録します。
+	// Content-Length が maxBody を超えるときは、本文を読まずに Reader を nil で渡します（機能が413の画面を描く）。
+	Upload(maxBody int64, next func(w http.ResponseWriter, r *http.Request, s AdminSession, parts *multipart.Reader)) http.HandlerFunc
 	// AdminPage は Page と同じく守り、さらにロールがシステム管理者でなければ403を返します。
 	AdminPage(next func(w http.ResponseWriter, r *http.Request, s AdminSession)) http.HandlerFunc
 	// AdminForm は Form と同じく守り、さらにロールがシステム管理者でなければ403を返します。

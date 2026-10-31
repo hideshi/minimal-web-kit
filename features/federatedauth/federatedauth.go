@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"html/template"
 	"log/slog"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -345,6 +346,47 @@ func (a adminAPI) Page(next func(w http.ResponseWriter, r *http.Request, s featu
 
 func (a adminAPI) Form(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
 	return a.f.form(siteOnly(next))
+}
+
+func (a adminAPI) Upload(maxBody int64, next func(w http.ResponseWriter, r *http.Request, s features.AdminSession, parts *multipart.Reader)) http.HandlerFunc {
+	f := a.f
+	return func(w http.ResponseWriter, r *http.Request) {
+		web.NoTransform(w)
+		if !guard.SameOrigin(r, f.cfg.Origin) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		token, s, err := f.current(r)
+		if errors.Is(err, errNoSession) {
+			redirectLogin(w, r)
+			return
+		} else if err != nil {
+			f.unavailable(w)
+			return
+		}
+		if !f.authorize(w, r, token, s) {
+			return
+		}
+		admin := session{f: f, token: token, data: s, path: r.URL.Path}
+		if !admin.Role().CanManageSite() {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		if r.ContentLength > maxBody {
+			next(w, r, admin, nil)
+			return
+		}
+		parts, csrf, err := guard.UploadToken(w, r)
+		if err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		if !f.csrf.Valid(token, csrf) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r, admin, parts)
+	}
 }
 
 func (a adminAPI) AdminPage(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {

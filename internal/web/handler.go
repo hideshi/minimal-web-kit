@@ -58,8 +58,9 @@ type IsolatedMux struct {
 }
 
 type isolatedRoute struct {
-	pattern string
-	handler http.Handler
+	pattern  string
+	handler  http.Handler
+	maxBytes int64 // 0なら全体の既定の上限
 }
 
 func (m *IsolatedMux) Handle(pattern string, handler http.Handler) {
@@ -68,6 +69,12 @@ func (m *IsolatedMux) Handle(pattern string, handler http.Handler) {
 
 func (m *IsolatedMux) HandleFunc(pattern string, handler http.HandlerFunc) {
 	m.Handle(pattern, handler)
+}
+
+// HandleUpload は、全体の本文の上限より大きい本文を受ける経路を登録します（ファイルの送信等）。
+// 上限は認証より前に掛かるため、ハンドラは認証を通してから本文を読みます（features.Admin の Upload）。
+func (m *IsolatedMux) HandleUpload(pattern string, maxBytes int64, handler http.HandlerFunc) {
+	m.routes = append(m.routes, isolatedRoute{pattern: pattern, handler: handler, maxBytes: maxBytes})
 }
 
 // Patterns は登録された経路のパターン（例: "GET /admin/news/{id}"）を登録順に返します。
@@ -171,6 +178,7 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 		return pattern != ""
 	}
 
+	bodyLimits := map[string]int64{}
 	if registerIsolated != nil {
 		isolated := &IsolatedMux{}
 		registerIsolated(isolated)
@@ -178,11 +186,14 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 			// Core・Featureの経路との衝突を検出するため、到達しない形でappMuxにも登録する
 			appMux.Handle(route.pattern, http.NotFoundHandler())
 			rootMux.Handle(route.pattern, route.handler)
+			if route.maxBytes > 0 {
+				bodyLimits[route.pattern] = route.maxBytes
+			}
 		}
 	}
 
 	handler = AccessLog(h.logger)(rootMux)
-	handler = MaxBytes(1024 * 1024)(handler)
+	handler = maxBytesByRoute(rootMux, bodyLimits, defaultMaxBody)(handler)
 	handler = SecurityHeaders(handler)
 	handler = Recoverer(h.logger)(handler)
 	handler = RequestID(handler)

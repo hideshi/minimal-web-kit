@@ -9,6 +9,7 @@ import (
 	"html/template"
 	"log/slog"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"strconv"
 	"time"
@@ -313,6 +314,40 @@ func (a adminAPI) Page(next func(w http.ResponseWriter, r *http.Request, s featu
 
 func (a adminAPI) Form(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
 	return a.f.form(siteOnly(toSession(next)))
+}
+
+func (a adminAPI) Upload(maxBody int64, next func(w http.ResponseWriter, r *http.Request, s features.AdminSession, parts *multipart.Reader)) http.HandlerFunc {
+	f := a.f
+	return func(w http.ResponseWriter, r *http.Request) {
+		web.NoTransform(w)
+		if !f.sameOrigin(r) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		s, ok := f.loadSession(w, r)
+		if !ok {
+			http.Redirect(w, r, "/admin/login", http.StatusSeeOther)
+			return
+		}
+		if !s.Role().CanManageSite() {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		if r.ContentLength > maxBody {
+			next(w, r, s, nil)
+			return
+		}
+		parts, token, err := guard.UploadToken(w, r)
+		if err != nil {
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+		if !f.validCSRF(s.token, token) {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+		next(w, r, s, parts)
+	}
 }
 
 func (a adminAPI) AdminPage(next func(w http.ResponseWriter, r *http.Request, s features.AdminSession)) http.HandlerFunc {
