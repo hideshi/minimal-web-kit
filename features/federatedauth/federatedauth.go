@@ -33,6 +33,7 @@ var migrationSQL string
 var viewsFS embed.FS
 
 const (
+	dataNoticePath    = "/admin/data-notice"
 	sessionCookieName = "federated_session"
 	attemptCookieName = "sso_attempt"
 	exchangeTimeout   = 5 * time.Second
@@ -59,15 +60,16 @@ func configFromEnv() Config {
 
 // Feature は同梱機能の外部認証です。管理者認証（features/auth）と同時には登録できません（BuildRoutes が拒否する）。
 type Feature struct {
-	logger   *slog.Logger
-	cfg      Config
-	store    *sessionStore
-	upstream *upstream
-	attempts *attempts
-	csrf     *guard.CSRF
-	pages    map[string]*template.Template
-	navLinks []web.NavLink
-	now      func() time.Time
+	accountNotices []web.PrivacyNotice
+	logger         *slog.Logger
+	cfg            Config
+	store          *sessionStore
+	upstream       *upstream
+	attempts       *attempts
+	csrf           *guard.CSRF
+	pages          map[string]*template.Template
+	navLinks       []web.NavLink
+	now            func() time.Time
 }
 
 // NewFeature は環境変数から設定を読む機能を返します。
@@ -113,7 +115,7 @@ func (f *Feature) Init(db *sql.DB) error {
 	f.store = &sessionStore{db: db, issuer: f.cfg.Issuer, now: f.now}
 	f.upstream = newUpstream(f.cfg, value, f.now)
 	f.attempts = newAttempts(f.now)
-	f.pages, err = web.ParsePages(f.Admin().Layout(), viewsFS, "home.html", "login.html", "redirect.html", "unavailable.html")
+	f.pages, err = web.ParsePages(f.Admin().Layout(), viewsFS, "home.html", "login.html", "redirect.html", "unavailable.html", "data_notice.html")
 	return err
 }
 
@@ -123,11 +125,15 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {}
 // RegisterIsolatedRoutes は、ログインの経路を登録します。
 func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("GET /admin", f.page(f.handleHome))
+	mux.HandleFunc("GET "+dataNoticePath, f.page(f.handleDataNotice))
 	mux.HandleFunc("GET /admin/login", f.handleLogin)
 	mux.HandleFunc("POST /admin/sso/start", f.handleStart)
 	mux.HandleFunc("GET /admin/sso/callback", f.handleCallback)
 	mux.HandleFunc("POST /admin/logout", f.handleLogout)
 }
+
+// SetAccountNotices は、ログイン後の画面に出す、保存する情報を受け取ります。
+func (f *Feature) SetAccountNotices(notices []web.PrivacyNotice) { f.accountNotices = notices }
 
 // SetAdminNavLinks は、他の機能の管理画面へのリンクを、管理画面のナビに加えます。
 func (f *Feature) SetAdminNavLinks(links []web.NavLink) { f.navLinks = links }
@@ -140,11 +146,12 @@ func (f *Feature) Purge(ctx context.Context) error {
 	return f.store.purge(ctx)
 }
 
-// PrivacyNotices は、保存する情報をプライバシーポリシーに載せます。内容は docs/data-inventory.md の9節と揃えます。
+// PrivacyNotices は、保存する情報を返します。社内の人の情報なのでログイン後の画面に載せます。内容は docs/data-inventory.md の9節と揃えます。
 func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 	return []web.PrivacyNotice{{
-		Title: "管理画面の利用者について保存する情報",
-		Lead:  "管理画面のログインは、別のシステムの認証基盤で行います。このシステムには氏名・メールアドレス・パスキーを保存しません。",
+		Title:    "管理画面の利用者について保存する情報",
+		Internal: true,
+		Lead:     "管理画面のログインは、別のシステムの認証基盤で行います。このシステムには氏名・メールアドレス・パスキーを保存しません。",
 		Rows: []web.PrivacyRow{
 			{Kind: "利用者", Items: "認証基盤のURL、認証基盤が発行したランダムな識別子、ロール、作成・停止の日時", Purpose: "利用者の識別と権限の判定", Retention: "運用者が削除するまで"},
 			{Kind: "ログイン状態", Items: "Cookie（federated_session）のランダムなトークンと、そのSHA-256ハッシュ、失効の世代、本人確認・発行・最終操作の日時", Purpose: "ログイン状態の維持と、認証基盤での停止の反映", Retention: "無操作2時間または本人確認から12時間。ログアウト時等にも削除"},
@@ -174,6 +181,7 @@ func (s session) PageData(title, current string) map[string]any {
 			nav = append(nav, l)
 		}
 	}
+	nav = append(nav, web.NavLink{Label: "保存する情報", Href: dataNoticePath})
 	return map[string]any{
 		"Title":       title,
 		"Current":     current,
@@ -364,11 +372,18 @@ func (f *Feature) Admin() features.Admin { return adminAPI{f} }
 
 // handleHome は、最初の管理画面へ移します。他に管理画面が無ければ、ログイン中であることを表示します。
 func (f *Feature) handleHome(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
-	if nav, _ := s.PageData("", "")["AdminNav"].([]web.NavLink); len(nav) > 0 {
+	if nav, _ := s.PageData("", "")["AdminNav"].([]web.NavLink); len(nav) > 1 {
 		http.Redirect(w, r, nav[0].Href, http.StatusSeeOther)
 		return
 	}
 	f.render(w, http.StatusOK, "home.html", s.PageData("管理画面", ""))
+}
+
+// handleDataNotice は、ログインして使う人について保存する情報を出します。
+func (f *Feature) handleDataNotice(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
+	data := s.PageData("保存する情報", dataNoticePath)
+	data["Notices"] = f.accountNotices
+	f.render(w, http.StatusOK, "data_notice.html", data)
 }
 
 func (f *Feature) handleLogin(w http.ResponseWriter, r *http.Request) {

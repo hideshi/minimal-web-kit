@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -16,10 +17,17 @@ var sqlMethods = map[string]int{
 	"ExecContext": 1, "QueryContext": 1, "QueryRowContext": 1, "PrepareContext": 1,
 }
 
+// sqlMethodValues は、関数の値として取り出すと追跡できなくなるメソッドです。
+// Query は構造体の欄（Filter.Query 等）と見分けられないので、ここに入れません。これは検査の限界です。
+var sqlMethodValues = map[string]bool{
+	"Exec": true, "QueryRow": true, "Prepare": false,
+	"ExecContext": true, "QueryContext": true, "QueryRowContext": true, "PrepareContext": true,
+}
+
 // sqlExceptions は、機械で固定と言えない文の許可リストです。値は、そのファイルで許す箇所の数です。
 // 足すときは、外部の入力が文に入らないことを確かめ、理由をここに書きます。
 var sqlExceptions = map[string]int{
-	// 表の名前は呼び出し側の定数。Rebuild の値はコードの中だけで決まる
+	// 表の定義と列の名前はDBのファイルから読む。起動するDBは信頼の境界の内側で、DBを書ける人は既に全権を持つ
 	"internal/store/rebuild.go": 2,
 	// バックアップのファイルから読んだ表の名前を、quoteIdentifier で引用して数える
 	"internal/store/backup.go": 1,
@@ -28,15 +36,15 @@ var sqlExceptions = map[string]int{
 // sqlChecker は、1つのパッケージのSQLの呼び出しを調べます。
 type sqlChecker struct {
 	fset    *token.FileSet
-	static  map[string]bool // 定数と、go:embed の変数
-	funcs   map[string]bool // 最初の戻り値が必ず固定の文字列の関数
-	sinks   map[string]int  // 文を引数で受け取り、SQLへ渡す関数と、その引数の位置
+	static  map[string]bool         // 定数と、go:embed の変数
+	funcs   map[string]bool         // 最初の戻り値が必ず固定の文字列の関数
+	sinks   map[string]map[int]bool // 文を引数で受け取り、SQLへ渡す関数と、その引数の位置
 	bad     []token.Pos
 	checked int
 }
 
 func newSQLChecker(fset *token.FileSet, files []*ast.File) *sqlChecker {
-	c := &sqlChecker{fset: fset, static: map[string]bool{}, funcs: map[string]bool{}, sinks: map[string]int{}}
+	c := &sqlChecker{fset: fset, static: map[string]bool{}, funcs: map[string]bool{}, sinks: map[string]map[int]bool{}}
 	for changed := true; changed; {
 		changed = false
 		for _, f := range files {
@@ -63,7 +71,7 @@ func newSQLChecker(fset *token.FileSet, files []*ast.File) *sqlChecker {
 		for _, f := range files {
 			for _, d := range f.Decls {
 				fn, ok := d.(*ast.FuncDecl)
-				if ok && fn.Body != nil && !c.funcs[fn.Name.Name] && c.returnsStatic(fn) {
+				if ok && fn.Body != nil && fn.Recv == nil && !c.funcs[fn.Name.Name] && c.returnsStatic(fn) {
 					c.funcs[fn.Name.Name] = true
 					changed = true
 				}
@@ -97,6 +105,9 @@ func (c *sqlChecker) isStatic(e ast.Expr, local map[string]bool) bool {
 		return c.static[v.Name]
 	case *ast.CallExpr:
 		if id, ok := v.Fun.(*ast.Ident); ok {
+			if _, shadowed := local[id.Name]; shadowed {
+				return false // 同じ名前のローカルの関数の値
+			}
 			return c.funcs[id.Name]
 		}
 		// 「?,?,?」のように、固定の文字列を繰り返すだけの呼び出し
@@ -163,11 +174,30 @@ func (c *sqlChecker) locals(fn *ast.FuncDecl) map[string]bool {
 				for i, id := range s.Names {
 					changed = mark(id.Name, i < len(s.Values) && c.isStatic(s.Values[i], local)) || changed
 				}
+			case *ast.UnaryExpr:
+				// ポインタを取った変数は、後で書き換えられるので追跡しない
+				if id, ok := s.X.(*ast.Ident); ok && s.Op == token.AND {
+					changed = mark(id.Name, false) || changed
+				}
+			case *ast.FuncLit:
+				for _, name := range funcLitParams(s) {
+					changed = mark(name, false) || changed
+				}
 			}
 			return true
 		})
 	}
 	return local
+}
+
+func funcLitParams(lit *ast.FuncLit) []string {
+	var names []string
+	for _, field := range lit.Type.Params.List {
+		for _, name := range field.Names {
+			names = append(names, name.Name)
+		}
+	}
+	return names
 }
 
 // staticRange は、固定の文字列の配列を回す値かを返します（例: for _, q := range []string{"..."}）。
@@ -225,47 +255,83 @@ func (c *sqlChecker) run(files []*ast.File) {
 		c.bad, c.checked = nil, 0
 		for _, f := range files {
 			for _, d := range f.Decls {
-				fn, ok := d.(*ast.FuncDecl)
-				if !ok || fn.Body == nil {
-					continue
+				switch decl := d.(type) {
+				case *ast.FuncDecl:
+					if decl.Body != nil {
+						changed = c.scan(decl.Body, c.locals(decl), paramNames(decl), decl.Name.Name) || changed
+					}
+				case *ast.GenDecl:
+					// パッケージ変数の関数リテラルの本文も調べる
+					changed = c.scan(decl, map[string]bool{}, nil, "") || changed
 				}
-				local := c.locals(fn)
-				params := paramNames(fn)
-				ast.Inspect(fn.Body, func(n ast.Node) bool {
-					call, ok := n.(*ast.CallExpr)
-					if !ok {
-						return true
-					}
-					name, method := calleeName(call)
-					at, known := c.sinks[name]
-					if m, isSQL := sqlMethods[name]; isSQL && method {
-						at, known = m, true
-					}
-					if !known || at >= len(call.Args) {
-						return true
-					}
-					c.checked++
-					arg := call.Args[at]
-					if c.isStatic(arg, local) {
-						return true
-					}
-					if id, ok := arg.(*ast.Ident); ok {
-						for i, p := range params {
-							if p == id.Name {
-								if _, seen := c.sinks[fn.Name.Name]; !seen {
-									c.sinks[fn.Name.Name] = i
-									changed = true
-								}
-								return true
-							}
-						}
-					}
-					c.bad = append(c.bad, call.Pos())
-					return true
-				})
 			}
 		}
 	}
+}
+
+// scan は、本文の中のSQLの呼び出しを調べます。新しい受け渡しの関数を見つけたら true を返します。
+func (c *sqlChecker) scan(body ast.Node, local map[string]bool, params []string, owner string) bool {
+	changed := false
+	called := map[ast.Node]bool{}
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch v := n.(type) {
+		case *ast.FuncLit:
+			for _, name := range funcLitParams(v) {
+				local[name] = false
+			}
+		case *ast.CallExpr:
+			called[v.Fun] = true
+			if sel, ok := v.Fun.(*ast.SelectorExpr); ok {
+				called[sel.Sel] = true
+			}
+			name, method := calleeName(v)
+			positions := c.sinks[name]
+			if at, isSQL := sqlMethods[name]; isSQL && method {
+				positions = map[int]bool{at: true}
+			}
+			// mcp の Prepare 等と分けるため、引数が1つの呼び出しだけをSQLの文として見る
+			if name == "Prepare" && method && len(v.Args) == 1 {
+				positions = map[int]bool{0: true}
+			}
+			for at := range positions {
+				if at >= len(v.Args) {
+					continue
+				}
+				c.checked++
+				arg := v.Args[at]
+				if c.isStatic(arg, local) {
+					continue
+				}
+				// 公開の関数は別のパッケージから呼べて、呼び出し元を追えない
+				if id, ok := arg.(*ast.Ident); ok && slices.Contains(params, id.Name) && owner != "" && !ast.IsExported(owner) {
+					if c.sinks[owner] == nil {
+						c.sinks[owner] = map[int]bool{}
+					}
+					i := slices.Index(params, id.Name)
+					if !c.sinks[owner][i] {
+						c.sinks[owner][i] = true
+						changed = true
+					}
+					continue
+				}
+				c.bad = append(c.bad, v.Pos())
+			}
+		case *ast.SelectorExpr:
+			// メソッドの値を取り出すと、呼び出しを追えない
+			if sqlMethodValues[v.Sel.Name] && !called[v] {
+				c.bad = append(c.bad, v.Pos())
+			}
+		case *ast.Ident:
+			// 文を受け渡す関数を別の名前に入れると、呼び出しを追えない
+			if _, sink := c.sinks[v.Name]; sink && !called[v] {
+				if _, isLocal := local[v.Name]; !isLocal {
+					c.bad = append(c.bad, v.Pos())
+				}
+			}
+		}
+		return true
+	})
+	return changed
 }
 
 // TestSQL_StatementsAreStatic は、SQLの文が固定の文字列だけでできていることを確かめる。
@@ -344,6 +410,19 @@ func TestSQL_CheckerFindsUnsafeStatements(t *testing.T) {
 		"range value":   {`func f(db D, name string) { for _, q := range []string{"A", name} { db.Exec(q) } }`, 1},
 		"func value":    {`func v(k string) (string, error) { return k, nil }; func f(db D, k string) { t, _ := v(k); db.Query(t) }`, 1},
 		"context":       {`func f(db D, ctx C, name string) { db.QueryContext(ctx, name+"x") }`, 1},
+		"prepare":       {`func f(db D, name string) { db.Prepare("x" + name) }`, 1},
+		"not sql":       {`func f(t T, ctx C, a, b X) { t.Prepare(ctx, a, b) }`, 0},
+		"method value":  {`func f(db D, q string) { e := db.Exec; e(q) }`, 1},
+		"func field":    {`func f(db D, s S) { s.run = db.ExecContext }`, 1},
+		"sink alias":    {`func g(db D, q string) { db.Query(q) }; func f(db D, n string) { h := g; h(db, n) }`, 1},
+		"package var":   {`var run = func(db D, q string) { db.Query(q) }`, 1},
+		"closure":       {`func f(db D) { go func(q string) { db.Query(q) }("x") }`, 1},
+		"local shadow":  {`func f(db D, k string) { table := func(string) string { return k }; db.Query(table(k)) }`, 1},
+		"method name":   {`type T struct{}; func (T) tbl() string { return "t" }; func tbl(k string) string { return k }; func f(db D, k string) { db.Query(tbl(k)) }`, 1},
+		"const shadow":  {`func f(db D) { go func(safe string) { db.Query(safe) }("x") }`, 1},
+		"exported sink": {`func Run(db D, q string) { db.Query(q) }`, 1},
+		"pointer":       {`func f(db D, n string) { q := "SELECT 1"; p := &q; *p = n; db.Query(q) }`, 1},
+		"two sql args":  {`func g(db D, a, b string) { db.Query(a); db.Query(b) }; func f(db D, n string) { g(db, "SELECT 1", "x"+n) }`, 1},
 	} {
 		fset := token.NewFileSet()
 		file, err := parser.ParseFile(fset, "x.go", head+c.body, 0)
