@@ -290,14 +290,44 @@ func TestPublicMenu(t *testing.T) {
 		t.Fatal("閉じたリンクにフォーカスできる")
 	}
 	evaluate[bool](t, b, summary+`.focus(); document.activeElement === `+summary)
+	mainTop := evaluate[float64](t, b, `document.querySelector('main').getBoundingClientRect().top`)
 	b.press(t, "Enter")
 	b.waitFor(t, menu+`.open`)
+	if got := evaluate[float64](t, b, `document.querySelector('main').getBoundingClientRect().top`); got != mainTop {
+		t.Fatalf("メニュー開閉で本文が動いた: %v -> %v", mainTop, got)
+	}
+	if evaluate[string](t, b, `getComputedStyle(document.querySelector('.public-menu-links')).position`) != "absolute" {
+		t.Fatal("スマホでメニューが本文に重ならない")
+	}
+	if evaluate[string](t, b, `getComputedStyle(`+summary+`).listStyleType`) != "none" {
+		t.Fatal("三角マーカーが残る")
+	}
+	if !evaluate[bool](t, b, `(() => { const icons=[...document.querySelectorAll('.public-menu summary svg')]; return icons.length===2 && icons.every(e=>e.getAttribute('aria-hidden')==='true') && getComputedStyle(document.querySelector('.menu-open')).display!=='none' && getComputedStyle(document.querySelector('.menu-closed')).display==='none'; })()`) {
+		t.Fatal("アイコンまたは開閉表示が不正")
+	}
+
 	count := evaluate[int](t, b, `document.querySelectorAll('.public-menu-links a').length`)
 	for i := 0; i < count; i++ {
 		b.press(t, "Tab")
 		if !evaluate[bool](t, b, fmt.Sprintf(`document.activeElement === document.querySelectorAll('.public-menu-links a')[%d]`, i)) {
 			t.Fatalf("Tab順 %d", i)
 		}
+	}
+
+	// 開いたまま本文へ進んでも、フォーカスがパネルの裏に隠れない。
+	b.press(t, "Tab")
+	if !evaluate[bool](t, b, `(() => {
+		const a = document.activeElement, r = a.getBoundingClientRect();
+		return !!a.closest('main, footer') && a.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+	})()`) {
+		t.Fatal("メニューを出たフォーカスが隠れている")
+	}
+	if !evaluate[bool](t, b, menu+`.open`) {
+		t.Fatal("本文へ進んだだけで開閉状態が変わった")
+	}
+	evaluate[bool](t, b, summary+`.focus(); true`)
+	if evaluate[string](t, b, `getComputedStyle(document.querySelector('.public-menu-links')).display`) == "none" {
+		t.Fatal("開閉操作へ戻ってもパネルが出ない")
 	}
 
 	// 開いた状態も撮影する（既存の公開画面テストは閉じた状態を撮る）。
@@ -335,6 +365,10 @@ func TestPublicMenu(t *testing.T) {
 	}
 	if !evaluate[bool](t, b, first+`.focus(); document.activeElement === `+first) {
 		t.Fatal("PCで閉じた状態のリンクに到達できない")
+	}
+	evaluate[bool](t, b, `document.querySelector('main a').focus(); true`)
+	if evaluate[string](t, b, `getComputedStyle(document.querySelector('.public-menu-links')).display`) == "none" {
+		t.Fatal("PCで本文にフォーカスするとリンクが消える")
 	}
 	b.do(t, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
 		tree, err := cdp.Call(ctx, target, accessibility.GetFullAXTree, accessibility.GetFullAXTreeParams{})

@@ -903,7 +903,7 @@ select[aria-invalid="true"] {
 }
 
 
-/* 公開メニュー。スマホは文書の流れで展開し、本文を押し下げる。 */
+/* 公開メニュー。狭い画面は本文に重ねる非モーダルのナビゲーション。 */
 .public-header {
   position: relative;
   display: block;
@@ -927,25 +927,56 @@ select[aria-invalid="true"] {
   padding: 0.5rem;
   cursor: pointer;
   font-weight: 700;
+  list-style: none;
+}
+.public-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.menu-icon {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.public-menu .menu-closed,
+.public-menu .menu-open {
+  align-items: center;
+  gap: 0.375rem;
+}
+.public-menu .menu-closed {
+  display: inline-flex;
 }
 .public-menu .menu-open,
 .public-menu[open] .menu-closed {
   display: none;
 }
 .public-menu[open] .menu-open {
-  display: inline;
+  display: inline-flex;
 }
 .public-menu-links {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-xs);
-  padding-top: var(--space-md);
+  position: absolute;
+  z-index: 10;
+  top: 100%;
+  inset-inline: 0;
+  max-height: 70dvh;
+  overflow-y: auto;
+  padding: var(--space-md);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 0.25rem 0.5rem rgb(0 0 0 / 12%);
   overflow-wrap: anywhere;
 }
 .public-menu-links a {
   min-height: 2.75rem;
   padding-block: 0.625rem;
+}
+/* 開いたままTabで本文へ進んだとき、フォーカスがパネルの裏に隠れないよう下げる。 */
+:where(body:has(main:focus-within, footer:focus-within)) .public-menu-links {
+  display: none;
 }
 .public-menu-policy {
   border-top: 1px solid var(--color-text);
@@ -977,6 +1008,13 @@ select[aria-invalid="true"] {
       content-visibility: visible;
     }
     .public-menu-links {
+      display: flex;
+      position: static;
+      max-height: none;
+      overflow-y: visible;
+      padding: var(--space-md) 0 0;
+      border: 0;
+      box-shadow: none;
       flex-direction: row;
       align-items: center;
       flex-wrap: wrap;
