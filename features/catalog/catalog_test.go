@@ -538,6 +538,34 @@ func TestClassificationIDsAreNotReused(t *testing.T) {
 	}
 }
 
+// 公開一覧のJSは、今の版のURLだけを長くキャッシュし、版なし・古い版は短くすること。一覧のHTMLはキャッシュさせないこと。
+func TestCatalogScripts_VersionedCache(t *testing.T) {
+	fx := setup(t, false)
+	list := fx.send("GET", "/catalog", nil, nil, nil)
+	if !strings.Contains(list.Header().Get("Cache-Control"), "no-store") {
+		t.Fatalf("the list must stay uncached: %q", list.Header().Get("Cache-Control"))
+	}
+	for _, url := range []string{htmxURL, catalogScriptURL} {
+		if !strings.Contains(list.Body.String(), `<script src="`+url+`" defer></script>`) {
+			t.Fatalf("the list must load %s", url)
+		}
+		w := fx.send("GET", url, nil, nil, nil)
+		if w.Code != 200 || w.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" || len(w.Result().Cookies()) != 0 {
+			t.Fatalf("%s: %d %q", url, w.Code, w.Header().Get("Cache-Control"))
+		}
+		base, _, _ := strings.Cut(url, "?")
+		for _, stale := range []string{base, base + "?v=000000000000"} {
+			w := fx.send("GET", stale, nil, nil, nil)
+			if w.Code != 200 || w.Header().Get("Cache-Control") != "public, max-age=600" {
+				t.Fatalf("%s: %d %q", stale, w.Code, w.Header().Get("Cache-Control"))
+			}
+		}
+	}
+	if !strings.Contains(fx.send("GET", "/catalog/1", nil, nil, nil).Header().Get("Cache-Control"), "no-store") {
+		t.Fatal("other catalog pages must stay uncached")
+	}
+}
+
 // 閲覧者は、カテゴリとタグとキーワードで公開項目を絞り込めること。条件は組み合わせられること。
 //
 // ユースケース: UC-CATALOG-1

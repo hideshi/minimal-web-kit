@@ -34,3 +34,9 @@ type SitemapEntry struct {
 func NoTransform(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store, max-age=0, no-transform")
 }
+
+// WriteBusy は、書き込みの競合（store.Busy）の応答を書きます。時間を置けば通るので、503と Retry-After で再試行を促します。
+func WriteBusy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "1")
+	http.Error(w, "一時的に処理できませんでした。時間を置いて再試行してください。", http.StatusServiceUnavailable)
+}

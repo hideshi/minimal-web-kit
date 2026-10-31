@@ -29,8 +29,7 @@ var assetVersions = func() map[string]string {
 		if err != nil {
 			return err
 		}
-		sum := sha256.Sum256(b)
-		versions[strings.TrimPrefix(path, "static/")] = hex.EncodeToString(sum[:])[:assetVersionLen]
+		versions[strings.TrimPrefix(path, "static/")] = ContentVersion(b)
 		return nil
 	})
 	if err != nil {
@@ -59,15 +58,26 @@ func AssetURL(name string) (string, error) {
 	return "/static/" + name + "?v=" + v, nil
 }
 
-// staticCache は /static/ の応答のキャッシュを決めます。?v= が今の版と一致すれば中身は変わらないため1年、
-// それ以外（版なし・古い版）は短くします。古い版の URL に今の中身を長くキャッシュさせないためです。
-func staticCache(w http.ResponseWriter, r *http.Request) {
-	name := strings.TrimPrefix(r.URL.Path, "/static/")
-	if v := r.URL.Query().Get("v"); v != "" && v == assetVersions[name] {
+// ContentVersion は、ファイルの中身から版の文字列を作ります。機能が自分で配るファイルの版付きのURLに使います。
+func ContentVersion(content []byte) string {
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])[:assetVersionLen]
+}
+
+// VersionedCache は、版付きのファイルの応答のキャッシュを決めます。?v= が今の版と一致すれば中身が変わらないので長くし、
+// それ以外（版なし・古い版）は短くします。古い版のURLに今の中身を長くキャッシュさせないためです。
+func VersionedCache(w http.ResponseWriter, r *http.Request, version string) {
+	if v := r.URL.Query().Get("v"); v != "" && v == version {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		return
 	}
 	PublicCache(w, staticCacheSeconds)
+}
+
+// staticCache は /static/ の応答のキャッシュを決めます。?v= が今の版と一致すれば中身は変わらないため1年、
+// それ以外（版なし・古い版）は短くします。古い版の URL に今の中身を長くキャッシュさせないためです。
+func staticCache(w http.ResponseWriter, r *http.Request) {
+	VersionedCache(w, r, assetVersions[strings.TrimPrefix(r.URL.Path, "/static/")])
 }
 
 // checkTemplates は、解析したテンプレートの全定義を、実行しない分岐も含めてたどり、次を確かめます。

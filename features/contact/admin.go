@@ -79,8 +79,7 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 	case errors.Is(err, ErrNotFound):
 		http.NotFound(w, r)
 	case store.Busy(err):
-		w.Header().Set("Retry-After", "1")
-		http.Error(w, "一時的に処理できませんでした。時間を置いて再試行してください。", http.StatusServiceUnavailable)
+		web.WriteBusy(w)
 	default:
 		f.logger.Error("contact admin failed", web.RequestIDAttr(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

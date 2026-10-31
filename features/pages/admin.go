@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/notice"
@@ -77,6 +78,8 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 		return false
 	case errors.Is(err, ErrNotFound):
 		http.NotFound(w, r)
+	case store.Busy(err):
+		web.WriteBusy(w)
 	default:
 		f.logger.Error("pages admin failed", web.RequestIDAttr(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

@@ -15,12 +15,13 @@
 | | `form.Paragraphs(body)` | プレーンテキストの本文を段落と行に分ける（画面部品 `paragraphs` に渡す） |
 | | `form.FieldErrors` と `For(invalid, names...)` | 欄の名前から、その欄に出すエラーの文言を引く表 |
 | | `form.Field` | 画面部品 `field` に渡す入力欄の値 |
-| `internal/web/guard` | `guard.SameOrigin(r, origin)` | 独立経路（`IsolatedRoutesFeature`）で、別サイトからのPOSTを拒否する |
+| `internal/web/guard` | `guard.SameOrigin(r, origin)` | 独立経路（`IsolatedRoutesFeature`）で、別サイトからのPOSTを拒否する。`same-origin` を必須にする。Coreの `CSRFProtect` は `cross-site` だけを見出しで拒否し、残りはトークンで判定する（`TestCSRFProtect_Table`） |
 | | `guard.NewCSRF()`・`Token`・`Valid` | セッションに結びつけたCSRFトークンの発行・検証 |
 | `internal/web/page` | `page.Parse(r, size, maxPage)`・`Limit`・`Offset`・`page.Trim` | 一覧のページ送り。1件多く取得して次のページの有無を決める |
 | `internal/web/notice` | `notice.Messages`・`From`・`Redirect`・`URL` | 操作の完了メッセージの受け渡し（`?notice=` に固定の語だけを載せる） |
 | `internal/store` | `store.AffectedOne(res, err, ifNone)` | 更新・削除が1行に当たったかを確かめる。0行なら `ifNone`（例: `ErrNotFound`） |
 | | `store.Busy(err)` | SQLiteの一時的な書き込みの競合（BUSY・LOCKED）かを判定する。503と `Retry-After` で返すかは画面ごとに決める |
+| `internal/web` | `web.WriteBusy(w)` | 競合の応答を書く（503と `Retry-After`）。文言は読み書きの両方に使える形にしている。入力を残す画面は、機能が自分で描き直す |
 | | `form.Combobox`・`form.Option` | 画面部品 `combobox` に渡す値（候補、上限、要素idの接頭辞） |
 | `internal/web` | `web.ParseWithComponents(fsys, files...)` | 共通の画面部品と、機能のテンプレートを一緒に解析する |
 | | `web.ParsePages(layout, fsys, names...)` | レイアウトと `views/` の各ファイルを解析し、ファイル名をキーにした表を返す |

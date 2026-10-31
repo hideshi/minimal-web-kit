@@ -107,7 +107,7 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 				t.Errorf("%s may contain only %s", file, tag)
 			}
 		} else if filepath.ToSlash(file) == "../features/catalog/views/list.html" {
-			for _, tag := range []string{`<script src="/catalog/static/htmx.min.js" defer></script>`, `<script src="/catalog/static/catalog.js" defer></script>`} {
+			for _, tag := range []string{`<script src="{{.HTMXURL}}" defer></script>`, `<script src="{{.CatalogScriptURL}}" defer></script>`} {
 				if strings.Count(str, tag) != 1 {
 					t.Errorf("missing approved catalog script: %s", tag)
 				}

@@ -112,8 +112,7 @@ func (f *Feature) result(w http.ResponseWriter, r *http.Request, err error) bool
 		return true
 	}
 	if store.Busy(err) {
-		w.Header().Set("Retry-After", "1")
-		http.Error(w, "一時的に処理できませんでした。時間を置いて再試行してください。", http.StatusServiceUnavailable)
+		web.WriteBusy(w)
 	} else if errors.Is(err, ErrNotFound) {
 		http.NotFound(w, r)
 	} else {
@@ -207,7 +206,7 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request) {
 		pg.Prev = 0
 		pg.Next = 0
 	}
-	data := map[string]any{"Title": "カタログ", "Description": "公開中のカタログです。", "CanonicalPath": "/catalog", "Items": items, "Filter": filter, "Page": pg}
+	data := map[string]any{"HTMXURL": htmxURL, "CatalogScriptURL": catalogScriptURL, "Title": "カタログ", "Description": "公開中のカタログです。", "CanonicalPath": "/catalog", "Items": items, "Filter": filter, "Page": pg}
 	shown := filter
 	if invalidFilter {
 		// 公開候補に無い分類の指定は、存在しないものと同じ扱い（CATALOG-INV-1）。選択の状態は出さない
@@ -287,6 +286,17 @@ func (f *Feature) SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error
 	}
 	return entries, rows.Err()
 }
+// scriptURL は、公開一覧が読み込むJSの版付きのURLを返します。ファイルは埋め込みなので、起動の後は変わりません。
+func scriptURL(name string) string {
+	body, err := contentFS.ReadFile("static/" + name)
+	if err != nil {
+		panic(err)
+	}
+	return "/catalog/static/" + name + "?v=" + web.ContentVersion(body)
+}
+
+var htmxURL, catalogScriptURL = scriptURL("htmx.min.js"), scriptURL("catalog.js")
+
 func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("GET /catalog", f.handleList)
 	mux.HandleFunc("GET /catalog/{id}", f.handleShow)
@@ -298,6 +308,7 @@ func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 				f.fail(w)
 				return
 			}
+			web.VersionedCache(w, r, web.ContentVersion(body))
 			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 			_, _ = w.Write(body)
 		})

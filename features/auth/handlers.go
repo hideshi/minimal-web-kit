@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/guard"
 	"minimal-web-kit/internal/web/notice"
@@ -48,6 +49,7 @@ var errorMessages = map[string]string{
 	"registration_rejected": "登録できませんでした。ページを開き直して、もう一度お試しください。",
 	"login_rejected":        "このパスキーではログインできません。別のパスキーでログインするか、管理者に登録URLを発行し直してもらってください。",
 	"internal_error":        "処理に失敗しました。もう一度お試しください。",
+	"busy":                  "一時的に処理できませんでした。少し待ってから、もう一度お試しください。",
 }
 
 func parseTemplates() map[string]*template.Template {
@@ -86,6 +88,27 @@ func (f *Feature) renderAdminStatus(w http.ResponseWriter, status int, page stri
 
 func (f *Feature) writeError(w http.ResponseWriter, status int, code string) {
 	f.writeJSON(w, status, map[string]string{"error": code, "message": errorMessages[code]})
+}
+
+// writeFailed は、画面の送信の書き込みの失敗を返します。競合は再試行できるので503にします。
+func (f *Feature) writeFailed(w http.ResponseWriter, event string, err error) {
+	if store.Busy(err) {
+		f.logger.Warn(event, f.requestID(w))
+		web.WriteBusy(w)
+		return
+	}
+	f.logger.Error(event, f.requestID(w))
+	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+}
+
+// writeStoreError は、WebAuthnのAPIの書き込みの失敗を返します。競合は再試行できるので503にします。
+func (f *Feature) writeStoreError(w http.ResponseWriter, err error) {
+	if store.Busy(err) {
+		w.Header().Set("Retry-After", "1")
+		f.writeError(w, http.StatusServiceUnavailable, "busy")
+		return
+	}
+	f.writeError(w, http.StatusInternalServerError, "internal_error")
 }
 
 // --- 同一オリジン・CSRF・セッション ---
@@ -603,7 +626,7 @@ func (f *Feature) handleLoginFinish(w http.ResponseWriter, r *http.Request, body
 		reject("account_disabled")
 		return
 	} else if err != nil {
-		f.writeError(w, http.StatusInternalServerError, "internal_error")
+		f.writeStoreError(w, err)
 		return
 	}
 	f.setAdminCookie(w, token)
