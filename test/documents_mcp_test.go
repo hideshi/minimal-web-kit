@@ -351,9 +351,12 @@ func TestDocumentsMCP_WritesAreConfirmedAndGuarded(t *testing.T) {
 	if strings.Contains(body, "input_required") || !strings.Contains(body, "承認を経て公開") {
 		t.Fatalf("publish after asking: %s", body)
 	}
-	// 下書きがある文書は改定を始められない
-	_, body = owner.raw("tools/call", "documents_revise", map[string]any{"name": "documents_revise", "arguments": map[string]any{"id": id}})
-	if strings.Contains(body, "input_required") {
+	// 公開中の文書に下書きがあると、確認の前に改定を断る
+	published := resultID(t, owner.run("documents_create", map[string]any{"title": "公開中", "body": "本文"}))
+	owner.run("documents_publish", map[string]any{"id": published})
+	owner.run("documents_revise", map[string]any{"id": published})
+	_, body = owner.raw("tools/call", "documents_revise", map[string]any{"name": "documents_revise", "arguments": map[string]any{"id": published}})
+	if strings.Contains(body, "input_required") || !strings.Contains(body, "改定を始められません") {
 		t.Fatalf("revise with a draft: %s", body)
 	}
 	// 自分を承認者に選べない
