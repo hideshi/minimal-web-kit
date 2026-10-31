@@ -3,6 +3,7 @@ package test
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -165,5 +166,37 @@ func TestArchitecture_FederationDependenciesStayOptional(t *testing.T) {
 	}
 	if modules := listDeps(t, moduleFormat, "./features/auth/oidcop"); !slices.Contains(modules, "github.com/zitadel/oidc/v3") {
 		t.Error("the provider no longer uses the OIDC library; update the dependency allow list")
+	}
+}
+
+// TestSkills_LinkedForEveryTool は、skills/ の全てのスキルが、各ツール向けのリンクから読めることを確かめます。
+// 実体は skills/ だけに置き、リンク先と別のコピーを作りません。
+func TestSkills_LinkedForEveryTool(t *testing.T) {
+	entries, err := os.ReadDir("../skills")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, dir := range []string{"../.claude/skills", "../.agents/skills"} {
+		links, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := map[string]bool{}
+		for _, l := range links {
+			found[l.Name()] = true
+			path := filepath.Join(dir, l.Name())
+			if l.Type()&os.ModeSymlink == 0 {
+				t.Errorf("%s はリンクにする（実体は skills/ に置く）", path)
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(path, "SKILL.md")); err != nil {
+				t.Errorf("%s のリンク先が読めない", path)
+			}
+		}
+		for _, e := range entries {
+			if e.IsDir() && !found[e.Name()] {
+				t.Errorf("%s に %s のリンクが無い", dir, e.Name())
+			}
+		}
 	}
 }
