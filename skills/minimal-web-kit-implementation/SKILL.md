@@ -26,7 +26,7 @@ AIが安易に外部ライブラリを追加しないよう、以下の標準解
 ## 2. 機能（Feature）の作り方
 新しく書く前に `docs/components.md` の部品（入力の検査、独立経路の守り、ページ送り、完了メッセージ、画面部品）で作れないかを確かめる。テンプレートは `web.ParseWithComponents` で解析し、部品を使う。
 1. **配置**: `features/<名前>/` に機能を作り、`cmd/server/features.go` で登録する。`features/` にある同梱機能の名前（`site`・`news`・`auth`・`catalog`・`contact`・`pages` 等）は予約名で、自作機能には使わない。
-   同梱機能を足したら、`features/site/views/index.html` にカードを足す（`test/landing_test.go` が確かめる）。
+   キット本体に同梱機能を足したら、`features/site/views/index.html` にカードを足す（`test/landing_test.go` が確かめる）。別のサイトでトップを書き換えたら、同じファイルの先頭の印 `kit-landing` を消す。
 2. **スキーマ**: テーブルは `features/<名前>/migration.sql` に書き、`Init` から同じファイルを適用する。同時に `docs/data-inventory.md` を更新する（台帳テストは全 `features/*/migration.sql` を照合する）。`internal/store/migrations/` はCoreのスキーマだけに使う。
 3. **経路**: 匿名セッションを使う画面は `RegisterRoutes` に載せる（CoreのCSRF検査とOwnerIDの解決を通る）。データはOwnerIDで分離する。Cookieを使わない公開ページや独自認証の管理画面は `IsolatedRoutesFeature` に載せ、認証・CSRF・Origin検査を機能自身で実装する。
 4. **任意のインターフェース**: 口の一覧の正本は `features/feature.go` で、使う前にそこから選ぶ。例: トップ画面の差し替えは `CustomRootFeature`、期限切れデータの削除は `PurgeFeature`、ナビへのリンクは `NavLinkFeature`（再起動なしで変わるなら `DynamicNavLinkFeature`）、サイト全体のヘッダー・フッターは `LayoutFeature` と `LayoutConsumer`、どの経路にも当たらないGET・HEADを受けるのは `FallbackFeature`、運用コマンドは `CommandFeature`、管理画面の利用者等の保存情報をプライバシーポリシーに載せるのは `PrivacyFeature`。「他の機能があるか」で分岐するコードは書かず、これらの口を使う。

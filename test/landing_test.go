@@ -1,7 +1,9 @@
 package test
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,14 +21,25 @@ var bundledLabels = map[string]string{
 	"federatedauth": "共通認証（自社システム向け）",
 }
 
+// landingMark は、トップがキットの紹介ページのままであることの印です。
+// キットから別のサイトを作ってトップを書き換えたら、印を消します。
+const landingMark = "<!-- kit-landing:"
+
 // TestLanding_KeepsUpWithTheKit は、機能やスキルを足してもトップが古くならないように、
 // 同梱機能のカード、スキルの本数を実物と突き合わせます。文章の正しさまでは確かめません。
+// キットの紹介ページだけが対象で、印が無いトップやSiteを消したアプリでは検査しません。
 func TestLanding_KeepsUpWithTheKit(t *testing.T) {
 	raw, err := os.ReadFile("../features/site/views/index.html")
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Skip("Siteが無いので、紹介ページの検査はしない")
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
 	page := string(raw)
+	if !strings.Contains(page, landingMark) {
+		t.Skip("トップに印が無いので、紹介ページの検査はしない")
+	}
 
 	entries, err := os.ReadDir("../features")
 	if err != nil {
@@ -38,7 +51,7 @@ func TestLanding_KeepsUpWithTheKit(t *testing.T) {
 		}
 		label, ok := bundledLabels[e.Name()]
 		if !ok {
-			t.Errorf("features/%s をトップの同梱機能に載せ、bundledLabels に足す", e.Name())
+			t.Errorf("features/%s をトップの同梱機能に載せ、bundledLabels に足す（別のサイトならトップの印 kit-landing を消す）", e.Name())
 			continue
 		}
 		if !strings.Contains(page, `<h3 class="card-title">`+label+`</h3>`) {
