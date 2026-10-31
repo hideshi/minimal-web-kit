@@ -23,7 +23,7 @@
         <td>{{.Writes}}</td>
         {{if $.IsAdmin}}
         <td>
-          <form method="post" action="/admin/mcp/{{.Name}}/{{if .Enabled}}disable{{else}}enable{{end}}">
+          <form method="post" action="/admin/mcp/{{.Name}}/{{if .Enabled}}disable{{else}}enable{{end}}" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
             <button type="submit" class="btn btn-secondary">{{if .Enabled}}無効にする{{else}}有効にする{{end}}</button>
           </form>

@@ -237,3 +237,27 @@ func featureViews() ([]string, error) {
 	nested, err := filepath.Glob("../features/*/*/views/*.html")
 	return append(files, nested...), err
 }
+
+// TestTemplate_TableFormsAreInline は、表の中のフォームに inline-form を求めます。無いとフォームの下余白でボタンが上に寄ります。
+func TestTemplate_TableFormsAreInline(t *testing.T) {
+	files, err := filepath.Glob("../features/*/views/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cell := regexp.MustCompile(`(?s)<td[^>]*>.*?</td>`)
+	form := regexp.MustCompile(`<form\b[^>]*>`)
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, td := range cell.FindAllString(string(raw), -1) {
+			for _, tag := range form.FindAllString(td, -1) {
+				// label-form は入力欄付きの部品で、自分の余白を持つ
+				if !strings.Contains(tag, "inline-form") && !strings.Contains(tag, "label-form") {
+					t.Errorf("%s: 表の中のフォームに inline-form が無い: %s", f, tag)
+				}
+			}
+		}
+	}
+}

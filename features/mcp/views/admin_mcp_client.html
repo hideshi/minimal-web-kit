@@ -32,7 +32,7 @@
         <td>{{if .Allowed}}許可{{else}}なし{{end}}</td>
         <td>
           {{if or .Allowed $.Client.Enabled}}
-          <form method="post" action="/admin/mcp/clients/{{$.Client.ID}}/accounts/{{.ID}}/{{if .Allowed}}revoke{{else}}allow{{end}}">
+          <form method="post" action="/admin/mcp/clients/{{$.Client.ID}}/accounts/{{.ID}}/{{if .Allowed}}revoke{{else}}allow{{end}}" class="inline-form">
             <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
             <button type="submit" class="btn btn-secondary">{{if .Allowed}}取り消す{{else}}許可する{{end}}<span class="visually-hidden">（{{.Name}}）</span></button>
           </form>
