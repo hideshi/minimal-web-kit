@@ -18,11 +18,21 @@ verify:
 	go vet ./...
 
 # 既知の脆弱性を調べる（道具は版を固定して実行し、go.mod には足さない）。手順は skills/minimal-web-kit-vuln
-GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.9.0
+# test/browser はファイルが全部テストなので、ソースの検査では依存を見ない。テストの実行ファイルを作って検査する。
+# 片方が失敗しても、もう片方を実行し、最後に失敗を返す。
+GOVULNCHECK := go run golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
 vuln:
-	go run $(GOVULNCHECK) ./...
-	cd test/browser && go run $(GOVULNCHECK) ./...
+	@status=0; \
+	$(GOVULNCHECK) -show version ./... || status=1; \
+	tmp=$$(mktemp -d); \
+	if (cd test/browser && go test -c -o "$$tmp/browser.test" .) && go version -m "$$tmp/browser.test" | grep -q chromedp/chromedp; then \
+		(cd test/browser && $(GOVULNCHECK) -show version -mode=binary "$$tmp/browser.test") || status=1; \
+	else \
+		echo "test/browser could not be scanned" >&2; status=1; \
+	fi; \
+	rm -rf "$$tmp"; \
+	exit $$status
 
 # 画面部品をChrome・Chromiumで操作するテスト（別モジュール。Chromeが無ければ飛ばす。CHROME_PATHで指定可）
 test-ui:

@@ -10,8 +10,8 @@ description: minimal-web-kitとそこから作ったアプリの、Go本体・�
 ## 1. 境界
 - やること: 手元での調査、当たるかの判定、作業用のブランチでの版上げ、検証。
 - やらないこと: 本番の操作、動いているサイトへの検査、攻撃の形の入力を作ること。配備は `minimal-web-kit-deploy` の承認に従う。
-- 版を上げるだけなら、`AGENTS.md` の承認は要らない。**別の部品への差し替えと、新しい直接依存の追加は承認が要る。**
-- キットは公開リポジトリなので、修正前の脆弱性の詳しい条件を、IssueやPull Requestに書かない（`SECURITY.md`）。
+- 同じ部品の版を変えること自体は、`AGENTS.md` の境界1に当たらない。別の部品への差し替えと、新しい直接依存の追加は当たる。版を上げて通信・保存データ・公開経路等が変わるなら、それぞれの境界を別に確かめる。
+- キットは公開リポジトリなので、修正前の脆弱性の詳しい条件を、Issue、Pull Request、レビューのコメント、コミットの件名と本文、公開のログに書かない（`SECURITY.md`）。公開済みの告知のIDと修正版は書いてよい。
 
 ## 2. 調べる層
 `govulncheck` だけでは足りない。次の層を全部見て、見なかった層は「未確認」と報告する。
@@ -19,26 +19,32 @@ description: minimal-web-kitとそこから作ったアプリの、Go本体・�
 | 層 | 調べ方 | 注意 |
 |---|---|---|
 | Go本体 | `make vuln`、[Goのセキュリティリリース](https://go.dev/doc/devel/release) | 一番影響が大きい。依存が少ないキットでは、見つかるのは主にここ |
-| Goの依存 | `make vuln`、下のGitHubの勧告 | 本体と `test/browser` の2つのモジュールを見る。`test/browser` は実行ファイルに入らない |
-| SQLite本体 | `go test -v -run TestSQLiteVersion ./internal/store` の版と、[SQLiteのCVEの一覧](https://www.sqlite.org/cves.html) | `modernc.org/sqlite` に変換されて入っている。`govulncheck` では見えない |
-| htmx | `features/catalog/static/README.md` の版と、GitHubの勧告（npmの `htmx.org`） | ファイルで同梱している。`govulncheck` では見えない。カタログの公開一覧でだけ読み込む |
-| 本番の実行ファイル | `go version -m <ファイル>`、`govulncheck -mode=binary <ファイル>` | 手元のコードではなく、動いている版で判定する |
+| Goの依存 | `make vuln`、下のGitHubの勧告 | 本体はソース、`test/browser` はテストの実行ファイルで調べる。後者は本番に入らない。間接依存も見る |
+| SQLite本体 | `go test -v -run TestSQLiteVersion ./internal/store` の版と、[SQLiteのCVEの一覧](https://www.sqlite.org/cves.html) | `modernc.org/sqlite` に変換されて入っている。`govulncheck` では見えない。これはソースの版で、本番の版の証明ではない |
+| 同梱のファイル | `features/catalog/static/README.md` の版と、GitHubの勧告（npmの `htmx.org`） | `govulncheck` では見えない。カタログの公開一覧でだけ読み込む。他の同梱のJS・CSSは自前で、フォントは同梱していない。増えたらここに足す |
+| 本番の実行ファイル | `go version -m <ファイル>`、`govulncheck -mode=binary <ファイル>` | **版の照合だけで、呼び出し経路は分からない。** 経路は、同じ版のソースと構成で別に調べる |
+| 開発とCI | `.github/workflows/` のアクションの告知、Chrome、`govulncheck` の版 | 本番には入らない。ハッシュでの固定は、既知の脆弱性の確認の代わりにならない |
 | サーバーと前段 | OSの更新、リバースプロキシ、トンネル等 | キットの外。アプリの手順書で扱う |
 
-データベースの更新には遅れがある。`make vuln` の `DB updated` の日時を報告し、直接依存は次でも確かめる。
+`make vuln` の `DB updated` の日時を報告する。データベースには遅れがあり、日時が新しくても、個別の告知が入っているとは限らない。直接依存と主な間接依存は次でも確かめる。
 
 ```sh
-gh api -X GET /advisories -f ecosystem=go -f affects=<モジュール> --jq '.[]|[.ghsa_id,.severity,.published_at,.summary]|@tsv'
+gh api --paginate -X GET /advisories -f ecosystem=go -f affects=<モジュール> --jq '.[]|[.ghsa_id,.severity,.published_at,.summary]|@tsv'
+gh api --paginate -X GET /advisories -f ecosystem=npm -f affects=htmx.org --jq '.[]|[.ghsa_id,.severity,.published_at,.summary]|@tsv'
 go list -m -u -f '{{if and (not .Indirect) .Update}}{{.Path}} {{.Version}} -> {{.Update.Version}}{{end}}' all
 ```
 
-`-f affects` の結果は修正済みの勧告も含む。版が範囲に入るかは、勧告の本文で確かめる。`No vulnerabilities found.` は「データベースの時点で、呼び出し経路のある既知の問題が無い」という意味で、安全の証明ではない。
+- 勧告の検索は修正済みも含み、レビュー済みのものだけが出る。版が範囲に入るかは本文で確かめる。空の結果は、告知が無いことの証明ではない。
+- `go list -m -u` は更新の候補で、安全な版の判定ではない。
+- 通信や解析に失敗したら「検出なし」にせず、確認不能とする。
+- `No vulnerabilities found.` は、そのデータベースと構成で、ツールが呼び出し経路のある既知の問題を検出しなかったという意味で、安全の証明ではない。
 
 ## 3. 入口
 ### 定期の点検
 1. 2節の全部の層を調べる。
-2. 前回の結果と比べて、増えたものを先に報告する。
-3. 当たるものは4節で判定し、5節へ進む。変化が無ければ「変化なし」とだけ報告する。
+2. 記録を非公開の保存先に残す: 対象のコミットと未コミットの変更の有無、構成、Go本体と依存の実際の版、道具の版、データベースの時点、結果と終了コード、告知のIDと判定。
+3. 前回の記録と比べて、増えたものを先に報告する。当たるものは4節で判定し、5節へ進む。
+4. 全部の層を調べられて、前回と同じ範囲で、差が無いときだけ「変化なし」と報告する。初回、一部の失敗、範囲の変更は「変化なし」にしない。
 
 ### 特定の告知
 1. 記事ではなく、提供元の公式の告知を読む。公開日、影響する版、修正された版、成立する条件を書き出す。
@@ -54,40 +60,42 @@ go list -m -u -f '{{if and (not .Indirect) .Update}}{{.Path}} {{.Version}} -> {{
 | 版が対象外 | 版が範囲の外 |
 | 確認不能 | 証拠が足りない。「当たらない」と扱わない |
 
-- `govulncheck` の呼び出し経路は手がかりで、攻撃できることの証明ではない。経路が無くても、機能を足すと変わる。
+- `govulncheck` の呼び出し経路は手がかりで、攻撃できることの証明ではない。経路が出ないことも、当たらないことの証明ではない。リフレクション等は解析が見落とすことがあり、機能を足すと変わる。
 - 有効な機能で変わる。OIDCの依存は、共通認証を登録したときだけ実行ファイルに入る。キット全体の結果と、本番の構成の結果を分ける（`go version -m` の `dep` の行）。
 - 「版は対象だが当たらない」でも、更新が不要とは限らない。低い手間で上げられるなら上げる。
 
 ## 5. 版を上げる
-1. **行き先**: 同じ系列の、修正を含む最新の版を基本にする（Goなら 1.27.x の最新）。主な版を上げるのは別の変更にする。
-2. **変える**: 作業用のブランチで、両方のモジュールを同じ版にそろえる。
+1. **行き先**: 同じ系列の、修正を含む最新の版を基本にする（Goなら 1.27.x の最新）。同じ系列に修正が無ければ、主な版を上げる別の変更にする。修正が間接依存だけに入ることもある。
+2. **変える**: 作業用のブランチで、両方のモジュールを調整する。
 
    ```sh
    go get go@<版>
    go get <モジュール>@<版>
    go mod tidy
-   (cd test/browser && go get go@<版> && go mod tidy)
+   (cd test/browser && go get go@<版> && go get <モジュール>@<版> && go mod tidy)
    ```
 
-   READMEの前提の版も直す。`go.mod` の差分を読み、直接依存が増えていないか、間接依存の増減を確かめる。
-3. **確かめる**: `go test -race ./...`、`make verify`、`make test-ui`、`make vuln`。修正された版が入ったことを `go list -m` で確かめる。
+   `replace` があっても、`test/browser` の選択版は別に決まる。両方で `go list -m <モジュール>` の版を確かめる。`go.mod` の `go` 行と `toolchain` 行、`go version` の実際の版、CIの版も見る。READMEの前提の版も直す。`go.mod` の差分を読み、直接依存が増えていないか、間接依存の増減を確かめる。
+3. **確かめる**: `go test -race ./...`、`make verify`、`make test-ui`、`make vuln`。詳しい確認は `minimal-web-kit-audit` に従う。
 4. **検査に頼れない変更**: 暗号・認証・解析の部品の更新では、変更履歴を読み、拒否の条件や既定値の変更が無いかを確かめる。共通認証は `test/federated_auth_test.go` が守る。
-5. **htmxを更新するとき**: 固定の版のファイルを置き換え、`features/catalog/static/README.md` の版を直す。読み込むファイルや画面を増やすなら、承認の境界4・5に当たる。
+5. **SQLiteと保存処理の更新**: ドライバやSQLite本体の更新では、既存のDBの複製で読み書きを確かめる。結果は `minimal-web-kit-deploy` の戻し方の判断に渡す。
+6. **htmxを更新するとき**: `features/catalog/static/README.md` の手順に従う（ハッシュ、ライセンス、差分、検証のテスト）。CSP・通信・戻る進むをブラウザで確かめる。読み込むファイルや画面を増やすなら、境界4・5に当たる。
 
 ## 6. 本番へ届ける
 キットを直しただけでは、本番は直らない。
 
 1. キットの変更を、アプリのリポジトリへ取り込む。
-2. アプリで `make vuln` を実行する。有効な機能が違うので、キットの結果を流用しない。
+2. アプリで `make vuln` を実行する。有効な機能と独自の依存が違うので、キットの結果を流用しない。選択された版も確かめる。
 3. 配備は `minimal-web-kit-deploy` に従う。Goの更新も、実行ファイルを作り直して配備するまで効かない。
 4. 急ぐ理由と、配備までの間の危険を、利用者に伝える。
+5. 版を上げても、過去の侵害が無かったことの証明にはならない。公開されていた期間や悪用の報告から必要と思われるときは、利用者に伝え、ログの調査は別の承認で行う。
 
 ## 7. 報告
 冒頭の3行を、この順で書く。
 
 ```text
 当たるもの: あり／なし／確認不能（件数）
-層ごとの結果: Go本体、依存、SQLite、htmx、本番の実行ファイル（見なかった層は未確認）
+層ごとの結果: Go本体、依存、SQLite、同梱のファイル、本番の実行ファイル、開発とCI、サーバーと前段（見なかった層は未確認）
 次にすること: 版上げの案、配備の要否
 ```
 
