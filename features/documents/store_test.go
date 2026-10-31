@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"minimal-web-kit/internal/store"
 	"minimal-web-kit/internal/web/page"
@@ -515,6 +516,9 @@ func FuzzCreate(f *testing.F) {
 		_, v, err := s.Draft(ctx, owner, id)
 		if err != nil || v.Title != normalized.Title || v.Body != normalized.Body {
 			t.Fatalf("saved %+v, %v", v, err)
+		}
+		if !utf8.ValidString(v.Title) || !utf8.ValidString(v.Body) {
+			t.Fatalf("invalid text was saved: %q %q", title, body)
 		}
 	})
 }
