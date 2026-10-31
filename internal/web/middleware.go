@@ -62,6 +62,13 @@ const defaultCSP = "default-src 'self'; style-src 'self'; script-src 'none'; for
 // scriptCSP は、承認した画面だけで使うCSPです。defaultCSP との違いは script-src 'self' だけです。
 const scriptCSP = "default-src 'self'; style-src 'self'; script-src 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
 
+// analyticsCSP は、解析を有効にした公開ページの応答だけで使うCSPです。同意の後に gtag.js を読み込むために、
+// Googleの配信元と送信先を許します。値は docs/plans/analytics-plan.md の公式の資料によります。
+const analyticsCSP = "default-src 'self'; style-src 'self'; script-src 'self' https://www.googletagmanager.com; " +
+	"connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com; " +
+	"img-src 'self' https://www.googletagmanager.com https://*.google-analytics.com; " +
+	"form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';"
+
 // AllowScripts は、この応答だけ自サイトのJSファイルを読み込めるようにします（インラインのJSと eval は許しません）。
 // 部品のJS等を読み込む画面で、描画に成功した後、WriteHeader より前に呼びます。
 // 既定のCSPのときだけ置き換え、機能が独自に設定したCSPは変えません。

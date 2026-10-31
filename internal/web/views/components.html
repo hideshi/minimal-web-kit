@@ -12,6 +12,21 @@
   <link rel="apple-touch-icon" href="{{asset "img/apple-touch-icon.png"}}">
   <link rel="stylesheet" href="{{asset "css/style.css"}}">{{end}}
 
+{{/*
+  アクセス解析の同意の案内と、analytics.js の読み込み。引数は web.Analytics（無ければ何も出さない）。
+  同意するまでGoogleのスクリプトは読み込まない。JSが動かなければ、案内は hidden のままで計測もしない。
+*/}}
+{{define "analytics"}}{{if .}}<section id="analytics-consent" class="consent" aria-labelledby="analytics-consent-title" tabindex="-1" hidden>
+  <h2 id="analytics-consent-title">Cookieの設定</h2>
+  <p>このサイトは、利用状況を知るためにGoogle AnalyticsのCookieを使います。同意した場合だけ、閲覧の情報がGoogleへ送られます。<a href="/privacy">プライバシーポリシー</a></p>
+  <p id="analytics-consent-status" role="status"></p>
+  <div class="action-bar">
+    <button type="button" class="btn btn-secondary" data-analytics-consent="granted">同意する</button>
+    <button type="button" class="btn btn-secondary" data-analytics-consent="denied">同意しない</button>
+  </div>
+</section>
+<script src="{{asset "js/analytics.js"}}" data-ga4-id="{{.GA4ID}}" defer></script>{{end}}{{end}}
+
 {{/* 完了メッセージ。引数は文字列（空なら何も出さない）。読み上げソフトに穏やかに伝える */}}
 {{define "notice"}}{{if .}}<p class="alert alert-info" role="status">{{.}}</p>{{end}}{{end}}
 

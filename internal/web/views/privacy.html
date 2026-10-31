@@ -44,6 +44,7 @@
 </div>
 {{end}}
 
+{{if .Analytics}}<p><button type="button" class="btn btn-secondary" data-analytics-settings hidden>Cookieの設定</button></p>{{end}}
 {{- range .Notices}}
 <h2>{{.Title}}</h2>
 {{if .Lead}}<p>{{.Lead}}</p>{{end}}

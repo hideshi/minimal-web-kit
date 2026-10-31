@@ -156,6 +156,9 @@
       <span class="card-badge">MEDIA</span>
       <h3 class="card-title">画像</h3>
       <p class="card-content">お知らせ・カタログ・固定ページに画像を載せられます。DBに保存するため、バックアップも1つで済みます。撮影位置等の情報は保存しません。</p>
+      <span class="card-badge">ANALYTICS</span>
+      <h3 class="card-title">アクセス解析</h3>
+      <p class="card-content">必要なサイトだけ、Google Analyticsを有効にできます。同意の案内を出し、同意するまでGoogleのスクリプトを読み込みません。標準では何も入りません。</p>
     </article>
 
     <article class="card">
@@ -263,7 +266,7 @@
     <details class="faq-item">
       <summary>JavaScriptやフロントエンドフレームワーク（React / Vue等）は必要ですか？</summary>
       <div class="faq-answer">
-        <p>いいえ、不要です。画面はサーバーサイドレンダリング（SSR）で作り、公開ページはJavaScriptが無効な環境でも閲覧できます。JavaScriptを読み込むのは、パスキーを扱う管理者認証の画面（ログインにはJavaScriptが必要です）、カタログ公開一覧の絞り込み（htmx）、カタログ項目編集のタグ選択の3か所だけで、どれも自サイトから配信するファイルです。</p>
+        <p>いいえ、不要です。画面はサーバーサイドレンダリング（SSR）で作り、公開ページはJavaScriptが無効な環境でも閲覧できます。標準の構成の話で、アクセス解析を有効にしたサイトは別です。JavaScriptを読み込むのは、パスキーを扱う管理者認証の画面（ログインにはJavaScriptが必要です）、カタログ公開一覧の絞り込み（htmx）、カタログ項目編集のタグ選択の3か所だけで、どれも自サイトから配信するファイルです。</p>
       </div>
     </details>
 

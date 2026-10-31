@@ -1,6 +1,9 @@
 package web
 
-import "strings"
+import (
+	"net/http"
+	"strings"
+)
 
 // NavCurrent は、ナビのリンク href が今の画面に当たるかを、aria-current の値で返します。
 // current は描画のデータの CanonicalPath で、404のように値の無い画面では nil や空になり、印を出しません。
@@ -28,8 +31,34 @@ func NavCurrent(current any, href string) string {
 // PublicNavigation は公開メニューのリンクを受け取り、描画データに加えます。
 // 起動時に設定し、NavLinks は動的な固定ページの更新も描画ごとに反映します。
 type PublicNavigation struct {
+	AnalyticsSlot
 	links   func() []NavLink
 	contact *ContactLink
+}
+
+// Analytics はアクセス解析の設定です。
+type Analytics struct {
+	GA4ID string
+}
+
+// AnalyticsSlot は、アクセス解析の設定を持ち、計測する画面に部品とCSPを加えます。
+type AnalyticsSlot struct {
+	analytics *Analytics
+}
+
+// SetAnalytics は起動時に設定を受け取ります。
+func (s *AnalyticsSlot) SetAnalytics(a Analytics) { s.analytics = &a }
+
+// AddAnalytics は、計測する画面の処理が描画の前に呼びます。部品のデータとCSPの緩和を同時に行います。
+// 呼ばない画面（お問い合わせ、管理画面、404等）には、どちらも付きません。
+func (s *AnalyticsSlot) AddAnalytics(w http.ResponseWriter, data map[string]any) {
+	if s.analytics == nil {
+		return
+	}
+	data["Analytics"] = s.analytics
+	if csp := w.Header().Get("Content-Security-Policy"); csp == defaultCSP || csp == scriptCSP {
+		w.Header().Set("Content-Security-Policy", analyticsCSP)
+	}
 }
 
 func (n *PublicNavigation) SetNavLinks(links func() []NavLink) { n.links = links }

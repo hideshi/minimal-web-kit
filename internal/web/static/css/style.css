@@ -1064,3 +1064,15 @@ select[aria-invalid="true"] {
     }
   }
 }
+
+/* アクセス解析の同意の案内。本文に重ねず、ページの先頭に置く */
+.consent {
+  background: var(--color-surface);
+  border-bottom: 2px solid var(--color-border);
+  padding: 1rem;
+}
+
+.consent h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}

@@ -131,6 +131,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("MCP registration disabled; stored settings are kept.")
+	case "add-analytics":
+		if err := addAnalytics(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling analytics feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled analytics. Set ANALYTICS_GA4_ID, and review the privacy policy.")
+	case "remove-analytics":
+		if err := removeAnalytics(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling analytics feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Analytics registration disabled.")
 	case "add-documents":
 		if err := addDocuments(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling documents feature: %v\n", err)
@@ -183,6 +195,8 @@ func printUsage() {
 	fmt.Println("  remove-pages Disable the pages registration (stored pages are kept)")
 	fmt.Println("  add-media    Enable images for news, catalog and pages, together with admin authentication")
 	fmt.Println("  remove-media Disable the media registration (stored images are kept)")
+	fmt.Println("  add-analytics Enable Google Analytics 4 with a consent notice (needs ANALYTICS_GA4_ID)")
+	fmt.Println("  remove-analytics Disable the analytics registration")
 	fmt.Println("  add-documents Enable internal documents, together with admin authentication")
 	fmt.Println("  remove-documents Disable the documents registration (stored documents are kept)")
 	fmt.Println("  add-mcp      Enable the MCP server for AI agents, together with admin authentication")
@@ -228,6 +242,7 @@ const (
 	bundledMediaMarker     = "// minimal-web-kit: bundled-feature media"
 	bundledMCPMarker       = "// minimal-web-kit: bundled-feature mcp"
 	bundledDocumentsMarker = "// minimal-web-kit: bundled-feature documents"
+	bundledAnalyticsMarker = "// minimal-web-kit: bundled-feature analytics"
 )
 
 var (
@@ -242,9 +257,10 @@ var (
 	mediaBundle     = bundle{name: "media", label: "Media", marker: bundledMediaMarker, needsAdmin: true}
 	mcpBundle       = bundle{name: "mcp", label: "MCP", marker: bundledMCPMarker, needsAdmin: true}
 	documentsBundle = bundle{name: "documents", label: "Documents", marker: bundledDocumentsMarker, needsAdmin: true}
+	analyticsBundle = bundle{name: "analytics", label: "Analytics", marker: bundledAnalyticsMarker}
 
 	// bundles は全ての同梱機能です。機能を足したら、ここに加えます。
-	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, mediaBundle, documentsBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
+	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, mediaBundle, documentsBundle, analyticsBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -310,6 +326,13 @@ func addMedia() error {
 	return toggleBundle(mediaBundle, true)
 }
 func removeMedia() error { return toggleBundle(mediaBundle, false) }
+func addAnalytics() error {
+	if err := verifyBundle(analyticsBundle); err != nil {
+		return err
+	}
+	return toggleBundle(analyticsBundle, true)
+}
+func removeAnalytics() error { return toggleBundle(analyticsBundle, false) }
 
 func addDocuments() error {
 	if err := verifyBundle(documentsBundle); err != nil {

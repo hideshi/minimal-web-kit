@@ -42,7 +42,7 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	slices.Sort(found)
-	approved := []string{"../features/auth/static/webauthn.js", "../features/catalog/static/catalog.js", "../features/catalog/static/htmx.min.js", "../internal/web/static/js/combobox.js"}
+	approved := []string{"../features/auth/static/webauthn.js", "../features/catalog/static/catalog.js", "../features/catalog/static/htmx.min.js", "../internal/web/static/js/analytics.js", "../internal/web/static/js/combobox.js"}
 	if !slices.Equal(found, approved) {
 		t.Fatalf("only explicitly approved auth/catalog JavaScript is allowed, found %v", found)
 	}
@@ -115,6 +115,12 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 			}
 			if strings.Contains(str, "<script") {
 				t.Errorf("unapproved catalog script in %s", file)
+			}
+		} else if filepath.Base(file) == "components.html" {
+			// 承認済みの例外: アクセス解析の部品だけ、自サイトの analytics.js を1つ読み込める
+			tag := `<script src="{{asset "js/analytics.js"}}" data-ga4-id="{{.GA4ID}}" defer></script>`
+			if strings.Count(str, "<script") != 1 || strings.Count(str, tag) != 1 {
+				t.Errorf("%s may contain only %s", file, tag)
 			}
 		} else if strings.Contains(str, "<script") {
 			t.Errorf("<script> tag found in %s. Inline scripts are prohibited for security and simplicity.", file)

@@ -19,6 +19,7 @@ var bundledLabels = map[string]string{
 	"pages":         "固定ページ",
 	"media":         "画像",
 	"documents":     "社内文書",
+	"analytics":     "アクセス解析",
 	"mcp":           "MCP（AIエージェント）",
 	"auth":          "パスキーの管理者認証",
 	"federatedauth": "共通認証（自社システム向け）",

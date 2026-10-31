@@ -24,9 +24,10 @@ type Handler struct {
 	navLinks  func() []NavLink
 	layout    *Layout
 	privacy   []PrivacyNotice
-	contact   *ContactLink
-	fallback  http.Handler
-	taken     func(path string) bool
+	AnalyticsSlot
+	contact  *ContactLink
+	fallback http.Handler
+	taken    func(path string) bool
 }
 
 // corePages はCoreが描画する画面です。
@@ -388,12 +389,14 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 		maskedOwnerID = string(ownerID[:8]) + "..."
 	}
 
-	h.Render(w, "index.html", map[string]any{
+	data := map[string]any{
 		"Title":         "minimal-web-kit ホーム",
 		"CanonicalPath": "/",
 		"MaskedOwnerID": maskedOwnerID,
 		"CSRFToken":     GetCSRFToken(r.Context()),
-	})
+	}
+	h.AddAnalytics(w, data)
+	h.Render(w, "index.html", data)
 }
 
 func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode bool) {
@@ -401,7 +404,7 @@ func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode
 		// Siteの /privacy はセッションを照合せず、誰が開いても同じ内容のため、キャッシュしてよい
 		PublicCache(w, PublicCacheSeconds)
 	}
-	h.Render(w, "privacy.html", map[string]any{
+	data := map[string]any{
 		"Title":         "プライバシーポリシー",
 		"Description":   "このサイトで保存する情報、アクセスの記録、お問い合わせで提供される情報の扱いと、免責事項について説明します。",
 		"CanonicalPath": "/privacy",
@@ -409,7 +412,9 @@ func (h *Handler) handlePrivacy(w http.ResponseWriter, r *http.Request, siteMode
 		"Notices":       h.privacy,
 		"Contact":       h.contact,
 		"CSRFToken":     GetCSRFToken(r.Context()),
-	})
+	}
+	h.AddAnalytics(w, data)
+	h.Render(w, "privacy.html", data)
 }
 
 func (h *Handler) handleDeleteConfirm(w http.ResponseWriter, r *http.Request) {

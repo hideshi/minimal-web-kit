@@ -71,6 +71,7 @@
 - 先に [components.md](components.md) の部品（コンボボックス）で作れないかを確かめる。
 - WAI-ARIAの作成パターンに沿って、役割・状態の属性とキーボード操作を作り込む。
 - HTMLはサーバーが描き、JSは属性・`textContent`・`<template>` の複製だけで画面を変える。`innerHTML`・`eval`・`new Function`・通信・ブラウザの保存領域・`style` 属性は使わない。
+- 例外: アクセス解析の `analytics.js` だけは、同意の結果を `localStorage` に保存し、同意の後に `gtag.js` を読み込む。
 - JSが動かないときは、標準のフォーム部品（チェックボックス等）だけで同じ値を送信できるようにし、強化したUIは準備ができてから表示する。
 - 読み込む画面の応答だけ `web.AllowScripts` でCSPを緩め、テンプレートの検査（`test/template_test.go`）の許可リストに足す。
 - ブラウザでの操作を `test/browser/` のテスト（`make test-ui`）に書く。画面読み上げソフトでの確認は手で行い、未確認なら未確認と書く。

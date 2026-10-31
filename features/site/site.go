@@ -26,6 +26,7 @@ var viewsFS embed.FS
 // Feature は同梱機能のSite（LPテンプレート）です。
 // DBテーブルを必要とせず、完全な静的配信・SSRで動作します。
 type Feature struct {
+	web.AnalyticsSlot
 	pages          map[string]*template.Template
 	logger         *slog.Logger
 	contactFormURL string
@@ -152,11 +153,13 @@ func (f *Feature) SetContactLink(link web.ContactLink) {
 func (f *Feature) HandleRoot(w http.ResponseWriter, r *http.Request) {
 	// LPはCookieも利用者ごとの内容も持たないため、キャッシュしてよい
 	web.PublicCache(w, web.PublicCacheSeconds)
-	f.render(w, http.StatusOK, "index.html", map[string]any{
+	data := map[string]any{
 		"Title":         "個人情報と依存を最小限に抑えるWeb開発基盤",
 		"CanonicalPath": "/",
 		"Contact":       f.contactLink(),
-	})
+	}
+	f.AddAnalytics(w, data)
+	f.render(w, http.StatusOK, "index.html", data)
 }
 
 // HandleNotFound は、静的ホスティング用の 404.html を描画します（export-static で書き出す）。

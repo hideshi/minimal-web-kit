@@ -38,6 +38,25 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
+	// アクセス解析の設定を、計測する画面を持つ機能に配る。設定が不正なら起動を止める
+	for _, f := range reg.All() {
+		p, ok := f.(features.AnalyticsProvider)
+		if !ok {
+			continue
+		}
+		analytics, err := p.Analytics()
+		if err != nil {
+			logger.Error("analytics config invalid")
+			return nil, fmt.Errorf("analytics config: %w", err)
+		}
+		handler.SetAnalytics(analytics)
+		for _, c := range reg.All() {
+			if consumer, ok := c.(features.AnalyticsConsumer); ok {
+				consumer.SetAnalytics(analytics)
+			}
+		}
+	}
+
 	// 機能が保存する情報を、外部の人の情報はプライバシーポリシーの画面に、社内の人の情報はログイン後の画面に載せる
 	{
 		var public, internal []web.PrivacyNotice

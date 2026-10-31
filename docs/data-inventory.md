@@ -533,3 +533,25 @@ AIエージェントの接続の認可とトークンは4節の `auth_agent_*` �
 | `media_id` | TEXT | NO | 使われている画像 | 記事が使っている間 | 外部キー（ON DELETE RESTRICT）。使用中は消せない |
 | `owner` | TEXT | NO | 記事の機能の名前 | 同上 | pages / news / catalog |
 | `ref_key` | TEXT | NO | 記事の識別 | 同上 | 記事のID |
+
+---
+
+---
+
+## 13. アクセス解析のデータ（`make add-analytics` で有効化した場合のみ）
+
+サーバーには何も保存しません。公開ページの案内で同意した閲覧者についてだけ、ブラウザからGoogleへ情報が送られます。同意しなければ、Googleのスクリプトを読み込みません。要約は `PrivacyNotices`（`features/analytics/analytics.go`）で公開のプライバシーポリシーの画面に載ります。
+
+### ブラウザの保存項目: `mwk-analytics-consent`（localStorage）
+
+| 値 | 保存目的 | 保持期間 | 備考 |
+|---|---|---|---|
+| `granted`・`denied` | 同じ案内を繰り返さない | 消すまで | サーバーへは送らない。ブラウザが消すこともある |
+
+### Google Analyticsへ送られる情報
+
+見たページのURL、参照元、利用環境、Cookie（`_ga` で始まるもの）の識別子です。Cookieは `cookie_domain: none` で設定し（ドメインを指定しない）、取り消すと、このサイトが発行した分を消します。Googleシグナルと広告のパーソナライズは無効にします。送り先での保持期間は、運営者のGoogle Analyticsの設定によります。
+
+### 外部通信
+
+同意した閲覧者のブラウザから `www.googletagmanager.com` と `*.google-analytics.com` 等へ通信します。サーバーからの通信はありません。

@@ -18,13 +18,15 @@ import (
 	"minimal-web-kit/internal/store"
 )
 
+type staticPage struct {
+	path, file string
+	optional   bool
+}
+
 // staticPages は書き出す経路と、書き出し先のファイル名です。
 // 静的ホスティング（Cloudflare Workers・Pages等）は privacy.html を /privacy で配信します。
 // optional の経路は、404なら書き出さない（例: SITE_URL 未設定時の sitemap.xml）。
-var staticPages = []struct {
-	path, file string
-	optional   bool
-}{
+var staticPages = []staticPage{
 	{"/", "index.html", false},
 	{"/privacy", "privacy.html", false},
 	{"/static/css/style.css", "static/css/style.css", false},
@@ -46,14 +48,24 @@ var staticHeaders = []string{"Content-Security-Policy", "X-Content-Type-Options"
 
 const headersFile = "_headers"
 
+// optionalExportFile は、機能を有効にしたときだけ書き出すファイルです。機能を外した再書き出しでは消します。
+const optionalExportFile = "static/js/analytics.js"
+
 // ExportStatic は、Cookieも保存データも使わない公開ページ（Siteの / と /privacy）とCSSを、
 // 静的ファイルとして dir に書き出します。セキュリティヘッダーは _headers に書き出します。
 // セッションや管理画面を使う機能（お知らせ機能等）が有効な場合は、静的にできないため拒否します。
 func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error {
 	var root features.CustomRootFeature
+	pages := staticPages
 	for _, f := range reg.All() {
 		if cr, ok := f.(features.CustomRootFeature); ok && root == nil {
 			root = cr
+			continue
+		}
+		if e, ok := f.(features.StaticExportFeature); ok {
+			for _, path := range e.StaticFiles() {
+				pages = append(pages[:len(pages):len(pages)], staticPage{path, strings.TrimPrefix(path, "/"), false})
+			}
 			continue
 		}
 		return fmt.Errorf("feature %s has pages that cannot be exported as static files; enable only Site (e.g. make remove-news)", f.Name())
@@ -71,7 +83,7 @@ func ExportStatic(reg *features.Registry, dir string, logger *slog.Logger) error
 
 	files := map[string][]byte{}
 	var headers http.Header
-	for _, p := range staticPages {
+	for _, p := range pages {
 		rec := httptest.NewRecorder()
 		routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, p.path, nil))
 		if p.optional && rec.Code == http.StatusNotFound {
@@ -154,6 +166,8 @@ func writeExport(dir string, files map[string][]byte) error {
 	for _, p := range staticPages {
 		known = append(known, filepath.FromSlash(p.file))
 	}
+	// 前回の書き出しに含まれていて、今回は無いことがあるファイル
+	known = append(known, filepath.FromSlash(optionalExportFile))
 	if info, err := os.Lstat(dir); err == nil {
 		if !info.IsDir() {
 			return fmt.Errorf("%s is not a directory", dir)

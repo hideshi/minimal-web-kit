@@ -283,6 +283,7 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.AddNavigation(data)
+	f.AddAnalytics(w, data)
 	if f.layout.Data != nil {
 		f.layout.Data(data)
 	}
@@ -323,6 +324,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 	}
 	data["Cover"] = covers[item.CoverFile]
 	f.AddNavigation(data)
+	f.AddAnalytics(w, data)
 	if f.layout.Data != nil {
 		f.layout.Data(data)
 	}

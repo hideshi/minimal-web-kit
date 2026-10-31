@@ -74,6 +74,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `richtext` | `richtext.Doc`（`internal/web/richtext` の `Parse` で読んだもの。固定ページは `ParseWithImages` と `ResolveImages`） | 書き方を絞ったMarkdownの本文（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）。規則の正本は [richtext.md](richtext.md)。利用者の入力はHTMLとして出さず、リンクは小文字の `https://` とサイト内のパスだけ。保存の前に `Parse` を通して、表の上限を欄のエラーにする |
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
+| `analytics` | `web.Analytics` | アクセス解析の同意の案内と `analytics.js`。`AddAnalytics` を呼んだ応答にだけ出る。公開のレイアウトの `</body>` の前で呼ぶ |
 | `static-head` | なし | CSSとアイコンの `<link>`（CSS 1本、アイコン3つ）。URLは中身の版付き（`?v=`）で、CSSを変えるとすぐ新しい版が読まれる。レイアウトの `<head>` で `{{template "static-head"}}` と書く。予約名で、利用側で同じ名前を定義すると解析でエラーになる |
 
 **CSSとアイコンの読み込み**: 同梱の7つのレイアウト（Base・Site・お知らせ・カタログ・お問い合わせ・固定ページ・管理画面）は、`static-head` の1か所から読み込みます。共通部品は登録されるだけでレイアウトに自動では入らないため、自作のレイアウトでも `<head>` に `{{template "static-head"}}` を書きます。`/static/...` を直接書いたレイアウトも動きますが、版が付かず、CSSの更新が届くまでキャッシュの期間（10分。前段のCDNが引き上げることがある）だけ遅れます。`/static/` の他のファイルは、`{{asset "js/combobox.js"}}` で版付きのURLにします。`asset` の引数は文字列だけで、`/static/` に無いファイルや文字列以外の引数は、実行しない分岐の中でも解析（`web.ParseWithComponents`・`web.ParsePage`）でエラーになります。版はファイルごとの中身のSHA-256の先頭12桁で、CSSを変えてもアイコンのURLは変わりません。

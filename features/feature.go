@@ -335,6 +335,26 @@ type MediaOwner interface {
 	MediaReferences(ctx context.Context) (map[string][]string, error)
 }
 
+// AnalyticsProvider は、アクセス解析の設定を返す機能（features/analytics）が実装します。
+// 設定が不正ならエラーを返し、起動と静的書き出しを止めます。
+type AnalyticsProvider interface {
+	Feature
+	Analytics() (web.Analytics, error)
+}
+
+// AnalyticsConsumer は、計測する公開ページを持つ機能が実装します（web.PublicNavigation を埋め込むと実装される）。
+type AnalyticsConsumer interface {
+	Feature
+	SetAnalytics(a web.Analytics)
+}
+
+// StaticExportFeature は、経路もDBも持たず、静的書き出しを妨げない機能が実装します。
+// StaticFiles は、一緒に書き出す /static/ のパスです。
+type StaticExportFeature interface {
+	Feature
+	StaticFiles() []string
+}
+
 // DirectoryAccount は、共有先や承認者を選ぶためのアカウントの情報です。Disabled は停止中かです。
 type DirectoryAccount struct {
 	ID       int64

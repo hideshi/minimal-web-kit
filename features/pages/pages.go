@@ -241,6 +241,7 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 		"Doc":           doc,
 	}
 	f.AddNavigation(data)
+	f.AddAnalytics(w, data)
 	if f.layout != nil && f.layout.Data != nil {
 		f.layout.Data(data)
 	}

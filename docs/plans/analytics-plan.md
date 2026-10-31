@@ -1,6 +1,6 @@
 # アクセス解析の計画
 
-状態: 計画のレビュー前（2026-11-01）。対象の時点は `85919c5`。実装の後、今の仕様は `docs/domain/analytics.md` へ移す。
+状態: 計画のレビューを反映済み（2026-11-01）。対象の時点は `85919c5`。実装の後、今の仕様は `docs/domain/analytics.md` へ移す。
 
 ## 目的
 
@@ -30,54 +30,54 @@
 - 同じオリジンの外部JSから初期化してよいとは明記されていない（禁止もされていない）。インラインのJSを使わない方針なので、実機の確認を受け入れの条件にする。
 - 外部送信規律の総務省のページは、取得で文字化けして読めなかった。キットは法的な判断をせず、運営者が確かめる項目にする。
 
-## 仕組み
+## 仕組み（計画レビューを反映）
 
 ### 有効にする方法
 
-- `features/analytics`、`make add-analytics`。環境変数 `ANALYTICS_GA4_ID` に測定IDを入れる。形式 `^G-[A-Z0-9]{4,20}$` に合わなければ起動を止める。
-- 機能を登録しなければ、公開ページのHTML、CSP、通信は今と同じ。
+- `features/analytics`、`make add-analytics`。環境変数 `ANALYTICS_GA4_ID` に測定IDを入れる。登録したのに空か、形式 `^G-[A-Z0-9]{4,20}$` に合わなければ起動を止める。
+- 機能は `features.AnalyticsProvider` で設定を返し、`BuildRoutes` が配る。`Init` を通らない `export-static` でも同じ検査が走る。
 
-### 画面への組み込み
+### 出す画面は応答ごとに決める
 
-- 共通の部品 `analytics` を `components.html` に足し、公開のレイアウト（Core、Site、news、catalog、pages）から呼ぶ。お問い合わせと管理画面のレイアウトからは呼ばない。
-- 測定IDは `web.EnableAnalytics(id)` で起動時に1回だけ設定し、部品の関数が読む。画面ごとのデータに足さない（全機能の描画に手を入れずに済むため）。未設定なら部品は何も出さない。
-- 部品は、案内の `<section hidden>` と、`<script src="/static/js/analytics.js" data-ga4-id="..." defer>` を出す。
+レイアウトでは決めない。お問い合わせはSiteのレイアウトを使うことがあるため。
+
+- 計測する画面の処理が `AddAnalytics(w, data)` を明示的に呼ぶ。これが部品のデータとCSPの緩和を同時に行う。呼ばない画面は、部品もCSPも変わらない。経路の除外の一覧は持たない。
+- 呼ぶ画面: トップ（CoreとSite）、`/privacy`、お知らせの一覧と記事、カタログの一覧と項目、固定ページ。
+- 呼ばない画面: お問い合わせ、管理画面、ログイン、404、削除の確認。
+- 設定はインスタンスごとに持つ（`web.PublicNavigation`・`Handler`・Site）。全体の変数にしない。
 
 ### CSP
 
-`SecurityHeaders` で、有効なときだけ、公開の経路に次のCSPを使う。
+`AllowAnalytics(w)` は、応答のCSPが既定か `scriptCSP` のときだけ、次に置き換える。
 
 ```text
 default-src 'self'; style-src 'self';
 script-src 'self' https://www.googletagmanager.com;
 connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com;
 img-src 'self' https://www.googletagmanager.com https://*.google-analytics.com;
-form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+form-action 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self';
 ```
 
-- `/admin`、`/contact`、`/mcp`、`/oidc`、`/api`、`/agent` の経路は既定のCSPのまま。
-- 除外する経路の判定を1つの関数にする。経路を足したときに緩む向きなので、レイアウトの部品が無ければスクリプトは読まれないことを2重目の守りにする。
-- `AllowScripts` は既定のCSPのときだけ置き換えるので、カタログの公開一覧でも解析用のCSPが残り、`'self'` のJSも動く。
-- `Referrer-Policy` は緩めない。サイト内の遷移の参照元は取れない。
+`Referrer-Policy` は緩めない。サイト内の遷移の参照元は取れない。
 
 ### 同意の動き（`internal/web/static/js/analytics.js`）
 
-インラインのJSは使わない。
+インラインのJSは使わない。部品は `{{asset "js/analytics.js"}}` で読み込む。
 
-1. `localStorage` の `mwk-analytics-consent` を読む。`granted` なら読み込み、`denied` なら何もしない。無ければ案内を出す。
-2. 同意: 保存してから `gtag.js` を読み込む。
+1. `localStorage` の `mwk-analytics-consent` を読む。値は `granted`・`denied` だけを認める。保存領域が使えなければ、案内を出さず計測もしない。
+2. 同意: 保存に成功してから、`dataLayer` と `config` を準備し、`gtag.js` を1度だけ挿入する。保存に失敗したら読み込まず、案内の中に伝える。
 3. 拒否: 保存して案内を閉じる。
-4. `/privacy` の「Cookieの設定」: 案内をもう一度出す。同意を取り消したら、`window['ga-disable-<ID>'] = true` にして、`_ga` で始まるCookieを消し、ページを読み直す。
-5. `localStorage` が使えないときは、未回答として扱い、計測しない。
-6. `config` には `allow_google_signals: false` と `allow_ad_personalization_signals: false` を渡す。
+4. 取り消し: `ga-disable-<ID>` を立て、`denied` を保存し、`_ga` で始まるCookieを消して読み直す。保存に失敗したら完了と言わない。
+5. `config` には `allow_google_signals: false`、`allow_ad_personalization_signals: false`、`cookie_domain: "none"` を渡す。ドメインを指定しないCookieにして、消す時に同じ指定を使うため（完成レビューで変更）。
+6. 複数タブ: `storage` イベントで他のタブの回答を受ける。`denied` なら止めて読み直し、`granted` なら読み込み、どちらも案内を閉じる。BFCacheからの復帰は `pageshow` で読み直す。
 
-JSが動かなければ案内は `hidden` のままで、計測もしない。
+JSが動かなければ案内も設定のボタンも `hidden` のままで、計測もしない。
 
 ### 案内の画面
 
-- `<section aria-label="Cookieの設定">` を本文の後に置く。ページの操作を妨げず、フォーカスも奪わない。
-- ボタンは「同意する」「同意しない」の2つで、同じ見た目にする。`/privacy` へのリンクを添える。
-- CSSは `style.css` に足す。ファイルは増やさない。
+- ページの先頭（スキップリンクの次）の `<section>` に見出し `<h2>` を置く。本文に重ねない（完成レビューで変更。`sticky` は狭い画面で本文を覆った）。
+- 初回の自動表示ではフォーカスを動かさない。`/privacy` の「Cookieの設定」から開いたときは案内へ移し、閉じたらボタンへ戻す。
+- ボタンは「同意する」「同意しない」の2つで、同じ見た目にする。今の選択を文で示す。
 
 文面の案:
 
@@ -85,20 +85,26 @@ JSが動かなければ案内は `hidden` のままで、計測もしない。
 
 ### プライバシー
 
-- `PrivacyFeature` で公開の説明を足す（`Internal` なし。閲覧者の情報なので）。項目: GoogleのCookie、閲覧の情報、送り先、目的、同意の保存。
-- `privacy.html` に「Cookieの設定」のボタンを、有効なときだけ出す。
+- `PrivacyFeature` で公開の説明を足す（閲覧者の情報なので `Internal` なし）。
+- `privacy.html` に「Cookieの設定」のボタンを、有効な応答だけ出す。
 - `docs/data-inventory.md` に節を足す。サーバーには保存しない。
-- プライバシーのスキルに、外部送信規律と外国への提供の確認を、運営者の確認項目として足す。
+- プライバシーのスキルに、外部送信規律と外国への提供の確認を足す。
 
 ### 静的書き出し
 
-`export-static` は全ページに同じヘッダーを求める。書き出す公開ページは全て同じCSPになるはずだが、実装で確かめる。
+解析の機能は経路もDBも持たないので、書き出しを許す。`analytics.js` を書き出しの対象に足す。`_headers` は全パス共通なので、404にも解析用のCSPが付く（スクリプトは読まれない）。
+
+### 規約
+
+`AGENTS.md` の例外、`docs/ui-guidelines.md`（素のJSは保存領域と通信を使わない、の例外）、`docs/components.md`、監査と実装のスキル、READMEを同じ変更で直す。
 
 ## 守らない範囲
 
 - 法令への適合は保証しない。EU等の要件を満たすかは運営者が確かめる。
 - 同意を拒否した人、案内を操作しない人は数えない。
 - 同意の後に読み込んだ `gtag.js` の中身はキットの管理外で、そのページでは外部のスクリプトが動く。
+- ブラウザが保存領域を消すと、案内が再び出ることがある。
+- Google広告との連携は対象外。使うならCSPの許可先を足す必要がある。
 
 ## 不変条件の案（`ANALYTICS-INV-n`）
 
@@ -112,15 +118,12 @@ JSが動かなければ案内は `hidden` のままで、計測もしない。
 
 ## テスト
 
-- 既存の `test/template_test.go` の、JSの許可の一覧に足す。レイアウトごとに部品の有無を固定する。
-- 無効のときの回帰: 公開ページのHTMLとCSPが今と同じ。
-- 有効のときのCSP: 公開の経路だけが変わり、除外の経路は `script-src 'none'` のまま。
-- `test/browser/`: 外部への通信を遮断して記録し、同意前に0件、同意でgtagへの要求が1件、拒否で0件、再訪の動き、取り消しの動き、キーボード操作、`localStorage` が使えないときを確かめる。
-- 実機の確認（受け入れ）: 実際の測定IDで、GA4のリアルタイムに表示が出ること、CSPの違反が出ないこと。
+- テンプレート検査、無効のときの回帰、有効のときの画面ごとのCSPと部品（Site＋お問い合わせの `/contact` に出ないことを含む）、書き出し。
+- `test/browser/`: 外部への通信を遮断し、スクリプトの挿入を数える。同意前0、同意で1、拒否で0、再訪、取り消し、他のタブの取り消し、保存領域が使えないとき。Chromeが要るのでCIの `go test` では走らない。
+- 実機の確認（受け入れ）: 実際の測定IDで、GA4のリアルタイムの表示、CSPの違反が無いこと、取り消しでCookieが消え送信が止まること。測定IDを持つ利用者が行う。
 
 ## 進め方
 
-1. この計画のレビューを受ける（外部通信とCSPに触れるため）。
-2. 実装、仕様、台帳、AGENTS.md の例外の追記。
-3. 完成のレビュー。
-4. 実機の確認は、測定IDを持つ利用者が行う。紹介サイトには入れない。
+1. 実装、仕様、台帳、規約の更新。
+2. 完成のレビュー。
+3. 紹介サイトには入れない。

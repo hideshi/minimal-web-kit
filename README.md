@@ -189,6 +189,15 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - Siteと一緒に使うと、LPのお問い合わせのボタンが `/contact` を指します。`CONTACT_FORM_URL`（外部のフォーム）と同時に有効にすると、起動を止めます。
 - 仕様と不変条件は [domain/contact.md](docs/domain/contact.md)、保存内容は[データ台帳](docs/data-inventory.md)の7節、設計の経緯は [contact-plan.md](docs/plans/contact-plan.md) にあります。
 
+### アクセス解析
+
+`make add-analytics` で有効化し、`ANALYTICS_GA4_ID` に測定ID（`G-` で始まる）を設定します。標準では何も入りません。
+
+- 公開ページに同意の案内を出し、同意するまでGoogleのスクリプトを読み込みません。拒否した人は計測しません。同意は `/privacy` の「Cookieの設定」から変えられます。
+- 管理画面、ログイン、お問い合わせの画面では読み込みません。有効にしたサイトでは、「JavaScriptなし」「外部通信なし」は成り立ちません。LPの文言も合わせてください。
+- 法令への適合は保証しません。外部送信規律、外国への提供、EU等の要件は、`minimal-web-kit-privacy` スキルを使って運営者が確かめてください。
+- 仕様は [domain/analytics.md](docs/domain/analytics.md)、保存内容は[データ台帳](docs/data-inventory.md)の13節にあります。
+
 ### 社内文書
 
 `make add-documents` で有効化します（管理者認証も有効になります）。回覧や社内規定を作り、全員か特定の人へ共有します。全ての画面にログインが要ります。
@@ -285,6 +294,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make add-contact` / `make remove-contact` | お問い合わせの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-pages` / `make remove-pages` | 固定ページの登録を有効化・無効化（Authも有効化。データは保持） |
 | `make add-media` / `make remove-media` | 画像の登録を有効化・無効化（Authも有効化。データは保持） |
+| `make add-analytics` / `make remove-analytics` | アクセス解析（GA4）の登録を有効化・無効化。`ANALYTICS_GA4_ID` が要ります |
 | `make add-documents` / `make remove-documents` | 社内文書の登録を有効化・無効化（Authも有効化。データは保持）。`federatedauth` とは組み合わせられません |
 | `make add-mcp` / `make remove-mcp` | MCPサーバーの登録を有効化・無効化（Authも有効化。設定は保持）。機能ごとの有効化は `/admin/mcp` |
 | `make add-oidcop` / `make remove-oidcop` | 共通認証の提供機能。管理者認証を置き換え、外すと通常の管理者認証に戻る（連携の失効の状態は残る） |
