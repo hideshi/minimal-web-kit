@@ -173,7 +173,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 		}
 	}
 	in := readInput(r)
-	id, err := f.store.Save(r.Context(), p.ID, in, f.taken)
+	id, err := f.save(r.Context(), p.ID, in)
 	var invalid InputError
 	if errors.As(err, &invalid) {
 		f.formPage(w, r, s, p, pageForm{Input: in, Invalid: invalid.Field}, http.StatusBadRequest, nil)
@@ -182,7 +182,6 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 	if f.failed(w, r, err) {
 		return
 	}
-	f.afterChange(r)
 	f.logger.Info("pages page saved", slog.Int64("page_id", id))
 	key := "saved"
 	if p.ID == 0 {
@@ -223,10 +222,9 @@ func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.
 		if !ok {
 			return
 		}
-		if f.failed(w, r, f.store.SetPublished(r.Context(), id, published)) {
+		if f.failed(w, r, f.setPublished(r.Context(), id, published)) {
 			return
 		}
-		f.afterChange(r)
 		key := "unpublished"
 		if published {
 			key = "published"
@@ -258,16 +256,35 @@ func (f *Feature) handleDelete(w http.ResponseWriter, r *http.Request, s feature
 	if f.failed(w, r, f.store.Delete(r.Context(), id)) {
 		return
 	}
-	f.afterChange(r)
+	f.afterChange(r.Context())
 	f.logger.Info("pages page deleted", slog.Int64("page_id", id))
 	notice.Redirect(w, r, "/admin/pages", "deleted")
+}
+
+// save は、ページを保存してナビを更新します。管理画面以外の経路も、これを通します（PAGES-INV-6）。
+func (f *Feature) save(ctx context.Context, id int64, in Input) (int64, error) {
+	saved, err := f.store.Save(ctx, id, in, f.taken)
+	if err != nil {
+		return saved, err
+	}
+	f.afterChange(ctx)
+	return saved, nil
+}
+
+// setPublished は、公開状態を変えてナビを更新します。管理画面以外の経路も、これを通します（PAGES-INV-6）。
+func (f *Feature) setPublished(ctx context.Context, id int64, published bool) error {
+	if err := f.store.SetPublished(ctx, id, published); err != nil {
+		return err
+	}
+	f.afterChange(ctx)
+	return nil
 }
 
 // afterChange は、ナビのスナップショットを作り直します。変更はコミット済みなので、利用者が接続を切っても続けます。
 // 失敗したら、非公開にしたページのリンクを残さないよう、固定ページのリンクをナビから外します（PAGES-INV-6）。
 // 定期のGC（Purge）か、次の変更で戻ります。
-func (f *Feature) afterChange(r *http.Request) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
+func (f *Feature) afterChange(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := f.refreshNav(ctx); err != nil {
 		f.mu.Lock()
