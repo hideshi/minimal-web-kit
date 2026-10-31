@@ -1,0 +1,54 @@
+{{define "content"}}
+<h1>AIエージェントの接続</h1>{{template "notice" .Notice}}
+<dl>
+  <dt>名前</dt>
+  <dd>{{.Client.Label}}</dd>
+  <dt>状態</dt>
+  <dd>{{if .Client.Enabled}}有効{{else}}停止中{{end}}</dd>
+  <dt>戻り先</dt>
+  <dd>{{.Client.Redirect}}</dd>
+</dl>
+{{template "field" .IDField}}
+{{template "field" .CommandField}}
+<p>コマンドを実行した後、Claude Codeの <code>/mcp</code> から認証します。</p>
+
+<h2>利用を許可するアカウント</h2>
+{{if .Client.Accounts}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">有効なアカウントの一覧</caption>
+    <thead>
+      <tr>
+        <th scope="col">アカウント</th>
+        <th scope="col">利用</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Client.Accounts}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{if .Allowed}}許可{{else}}なし{{end}}</td>
+        <td>
+          {{if or .Allowed $.Client.Enabled}}
+          <form method="post" action="/admin/mcp/clients/{{$.Client.ID}}/accounts/{{.ID}}/{{if .Allowed}}revoke{{else}}allow{{end}}">
+            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+            <button type="submit" class="btn btn-secondary">{{if .Allowed}}取り消す{{else}}許可する{{end}}<span class="visually-hidden">（{{.Name}}）</span></button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+<h2>接続の停止</h2>
+<p>停止すると、この接続の発行済みのトークンは使えなくなります。再開しても、認証をやり直すまで使えません。</p>
+<form method="post" action="/admin/mcp/clients/{{.Client.ID}}/{{if .Client.Enabled}}disable{{else}}enable{{end}}">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  <button type="submit" class="btn btn-secondary">{{if .Client.Enabled}}停止する{{else}}再開する{{end}}</button>
+</form>
+<p><a href="/admin/mcp">MCPの設定へ戻る</a></p>
+{{end}}

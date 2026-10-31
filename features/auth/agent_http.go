@@ -56,6 +56,52 @@ func (a *agentAuth) Origin() string { return a.f.cfg.Origin }
 
 func (a *agentAuth) store() *FederationStore { return NewFederationStore(a.f.db) }
 
+// AgentClients は features.AgentAuth の実装です。
+func (a *agentAuth) AgentClients(ctx context.Context) ([]features.AgentClient, error) {
+	return a.store().AgentClients(ctx)
+}
+
+// AgentClient は features.AgentAuth の実装です。
+func (a *agentAuth) AgentClient(ctx context.Context, id string) (features.AgentClient, error) {
+	return a.store().AgentClientDetail(ctx, id)
+}
+
+// AddAgentClient は features.AgentAuth の実装です。
+func (a *agentAuth) AddAgentClient(ctx context.Context, label, redirect string, owner int64) (features.AgentClient, error) {
+	c, err := a.store().addAgentClient(ctx, label, redirect, owner)
+	if errors.Is(err, ErrInvalidInput) {
+		return features.AgentClient{}, features.ErrAgentInvalid
+	} else if err != nil {
+		return features.AgentClient{}, err
+	}
+	return a.store().AgentClientDetail(ctx, c.ID)
+}
+
+// SetAgentClientEnabled は features.AgentAuth の実装です。OIDCの連携先は対象にしません（AUTH-INV-24）。
+func (a *agentAuth) SetAgentClientEnabled(ctx context.Context, id string, enabled bool) error {
+	if _, err := a.store().AgentClientDetail(ctx, id); err != nil {
+		return err
+	}
+	return a.store().SetClientEnabled(ctx, id, enabled)
+}
+
+// SetAgentGrant は features.AgentAuth の実装です。OIDCの連携先は対象にしません（AUTH-INV-24）。
+func (a *agentAuth) SetAgentGrant(ctx context.Context, id string, account int64, allowed bool) error {
+	if _, err := a.store().AgentClientDetail(ctx, id); err != nil {
+		return err
+	}
+	var err error
+	if allowed {
+		_, err = a.store().Grant(ctx, id, account)
+	} else {
+		err = a.store().Revoke(ctx, id, account)
+	}
+	if errors.Is(err, ErrNotFound) {
+		return features.ErrAgentNotFound
+	}
+	return err
+}
+
 // VerifyBearer は features.AgentAuth の実装です。
 func (a *agentAuth) VerifyBearer(ctx context.Context, token, resource string) (features.AgentPrincipal, error) {
 	return a.store().VerifyAgentToken(ctx, token, resource)

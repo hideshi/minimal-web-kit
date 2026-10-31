@@ -61,6 +61,11 @@ func agentRedirectMatches(registered, requested string) bool {
 
 // CreateAgentClient は、秘密値を持たない公開クライアントを登録します。種類は登録で決まり、要求の内容では変わりません。
 func (s *FederationStore) CreateAgentClient(ctx context.Context, label, redirect string) (FederationClient, error) {
+	return s.addAgentClient(ctx, label, redirect, 0)
+}
+
+// addAgentClient は、owner が0でなければ、同じトランザクションでそのアカウントに利用を許可します。
+func (s *FederationStore) addAgentClient(ctx context.Context, label, redirect string, owner int64) (FederationClient, error) {
 	if !validAgentRedirect(redirect) || label == "" || len(label) > 100 {
 		return FederationClient{}, ErrInvalidInput
 	}
@@ -73,10 +78,81 @@ func (s *FederationStore) CreateAgentClient(ctx context.Context, label, redirect
 		if _, err := x.ExecContext(ctx, "INSERT INTO auth_oidc_clients (client_id, label, redirect_uri) VALUES (?, ?, ?)", id, label, redirect); err != nil {
 			return err
 		}
-		_, err := x.ExecContext(ctx, "INSERT INTO auth_agent_clients (client_id) VALUES (?)", id)
+		if _, err := x.ExecContext(ctx, "INSERT INTO auth_agent_clients (client_id) VALUES (?)", id); err != nil {
+			return err
+		}
+		if owner == 0 {
+			return nil
+		}
+		_, err := s.grantIn(ctx, id, owner)
 		return err
 	})
 	return FederationClient{id, label, redirect}, err
+}
+
+// AgentClients は、公開クライアントを停止中も含めて返します。OIDCの連携先は含みません。
+func (s *FederationStore) AgentClients(ctx context.Context) ([]features.AgentClient, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT c.client_id, c.label, c.redirect_uri, c.enabled FROM auth_oidc_clients c
+		 JOIN auth_agent_clients a USING (client_id) ORDER BY c.label, c.client_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []features.AgentClient{}
+	for rows.Next() {
+		var c features.AgentClient
+		if err := rows.Scan(&c.ID, &c.Label, &c.Redirect, &c.Enabled); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	for i := range out {
+		if out[i].Accounts, err = s.agentAccounts(ctx, out[i].ID); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (s *FederationStore) agentAccounts(ctx context.Context, id string) ([]features.AgentAccount, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT a.id, a.name, COALESCE(g.allowed, 0) FROM auth_accounts a
+		 LEFT JOIN auth_federated_subjects f ON f.account_id = a.id
+		 LEFT JOIN auth_oidc_grants g ON g.sub = f.sub AND g.client_id = ?
+		 WHERE a.disabled_at IS NULL ORDER BY a.id`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []features.AgentAccount
+	for rows.Next() {
+		var v features.AgentAccount
+		if err := rows.Scan(&v.ID, &v.Name, &v.Allowed); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// AgentClientDetail は、公開クライアント1件を、停止中も含めて返します。無ければ features.ErrAgentNotFound です。
+func (s *FederationStore) AgentClientDetail(ctx context.Context, id string) (features.AgentClient, error) {
+	var c features.AgentClient
+	err := s.executor(ctx).QueryRowContext(ctx,
+		`SELECT c.client_id, c.label, c.redirect_uri, c.enabled FROM auth_oidc_clients c
+		 JOIN auth_agent_clients a USING (client_id) WHERE c.client_id = ?`, id).Scan(&c.ID, &c.Label, &c.Redirect, &c.Enabled)
+	if errors.Is(err, sql.ErrNoRows) {
+		return c, features.ErrAgentNotFound
+	} else if err != nil {
+		return c, err
+	}
+	c.Accounts, err = s.agentAccounts(ctx, id)
+	return c, err
 }
 
 // AgentClient は、有効な公開クライアントを返します。OIDCの連携先は返しません。無ければ sql.ErrNoRows です。

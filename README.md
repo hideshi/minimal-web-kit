@@ -201,13 +201,8 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - 確認の手順は強制しますが、人の操作かは証明できません。クライアントを自動応答に設定した場合は、その利用者の責任です。
 - 初版に削除とタグの新規作成はありません。全文を確認に出せない大きな変更（4000文字を超える確認）は拒否するので、管理画面を使います。
 - トークンの期限は発行から8時間で固定で、切れたらクライアントから認可し直します。アカウントの停止などは次の要求から効きます。
-- クライアントは事前に登録します。
-
-```sh
-minimal-web-kit agent-client -create -label "Claude Code" -redirect http://localhost/callback
-minimal-web-kit agent-client -client <client_id> -grant -account <アカウントのID>
-claude mcp add --transport http --client-id <client_id> --callback-port 18767 mysite https://example.com/mcp
-```
+- クライアントは事前に登録します。`/admin/mcp` の「接続の追加」で名前を入れると、追加した管理者に利用が許可され、Claude Codeに登録するコマンドが表示されます。同じ画面で、許可するアカウントの変更と接続の停止ができます。
+- 管理画面に入れないときのために、コマンド（`minimal-web-kit agent-client`）も残しています。
 
 - 通常の管理者認証と共通認証の提供機能で動き、OIDCのライブラリは要りません。共通認証の利用機能（`make add-federatedauth`）とは組み合わせられません。
 - 仕様と不変条件は [domain/mcp.md](docs/domain/mcp.md)、保存内容は[データ台帳](docs/data-inventory.md)の4節と10節にあります。

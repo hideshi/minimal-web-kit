@@ -83,7 +83,7 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {}
 func (f *Feature) SetAdmin(a features.Admin) error {
 	f.admin = a
 	var err error
-	f.pages, err = web.ParsePages(a.Layout(), viewsFS, "admin_mcp.html")
+	f.pages, err = web.ParsePages(a.Layout(), viewsFS, "admin_mcp.html", "admin_mcp_client.html")
 	return err
 }
 
@@ -164,6 +164,12 @@ func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 		mux.HandleFunc("GET /admin/mcp", f.admin.Page(f.handleSettings))
 		mux.HandleFunc("POST /admin/mcp/{feature}/enable", f.admin.AdminForm(f.handleChange(true)))
 		mux.HandleFunc("POST /admin/mcp/{feature}/disable", f.admin.AdminForm(f.handleChange(false)))
+		mux.HandleFunc("POST /admin/mcp/clients", f.admin.AdminForm(f.handleAddClient))
+		mux.HandleFunc("GET /admin/mcp/clients/{id}", f.admin.AdminPage(f.handleClient))
+		mux.HandleFunc("POST /admin/mcp/clients/{id}/enable", f.admin.AdminForm(f.handleClientEnabled(true)))
+		mux.HandleFunc("POST /admin/mcp/clients/{id}/disable", f.admin.AdminForm(f.handleClientEnabled(false)))
+		mux.HandleFunc("POST /admin/mcp/clients/{id}/accounts/{account}/allow", f.admin.AdminForm(f.handleClientGrant(true)))
+		mux.HandleFunc("POST /admin/mcp/clients/{id}/accounts/{account}/revoke", f.admin.AdminForm(f.handleClientGrant(false)))
 	}
 }
 

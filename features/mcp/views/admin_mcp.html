@@ -37,4 +37,38 @@
 {{else}}
 <p>MCPに対応した機能はありません。</p>
 {{end}}
+{{if .IsAdmin}}
+<h2>AIエージェントの接続</h2>
+{{if .Clients}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">登録した接続の一覧（名前順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">名前</th>
+        <th scope="col">状態</th>
+        <th scope="col">許可したアカウント</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Clients}}
+      <tr>
+        <td><a href="/admin/mcp/clients/{{.ID}}">{{.Label}}</a></td>
+        <td>{{if .Enabled}}有効{{else}}停止中{{end}}</td>
+        <td>{{.Allowed}}件</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>接続はまだありません。</p>
+{{end}}
+<h3>接続の追加</h3>
+<form method="post" action="/admin/mcp/clients" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{range .ClientFields}}{{template "field" .}}{{end}}
+  <button type="submit" class="btn btn-primary">追加する</button>
+</form>
+{{end}}
 {{end}}

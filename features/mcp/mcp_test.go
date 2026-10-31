@@ -33,6 +33,17 @@ func (a *fakeAuth) RegisterAgentRoutes(*web.IsolatedMux) {}
 func (a *fakeAuth) AuthorizationServers() []string       { return []string{testOrigin} }
 func (a *fakeAuth) Resource() string                     { return testOrigin + "/mcp" }
 func (a *fakeAuth) Origin() string                       { return testOrigin }
+func (a *fakeAuth) AgentClients(context.Context) ([]features.AgentClient, error) {
+	return nil, nil
+}
+func (a *fakeAuth) AgentClient(context.Context, string) (features.AgentClient, error) {
+	return features.AgentClient{}, features.ErrAgentNotFound
+}
+func (a *fakeAuth) AddAgentClient(context.Context, string, string, int64) (features.AgentClient, error) {
+	return features.AgentClient{}, nil
+}
+func (a *fakeAuth) SetAgentClientEnabled(context.Context, string, bool) error { return nil }
+func (a *fakeAuth) SetAgentGrant(context.Context, string, int64, bool) error  { return nil }
 func (a *fakeAuth) VerifyBearer(_ context.Context, token, resource string) (features.AgentPrincipal, error) {
 	if a.broken {
 		return features.AgentPrincipal{}, errors.New("database unavailable")

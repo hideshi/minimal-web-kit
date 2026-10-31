@@ -245,6 +245,17 @@ func (s *FederationStore) RevokeAll(ctx context.Context) error {
 func (s *FederationStore) Grant(ctx context.Context, clientID string, accountID int64) (string, error) {
 	var subject string
 	err := s.Atomic(ctx, func(ctx context.Context) error {
+		var err error
+		subject, err = s.grantIn(ctx, clientID, accountID)
+		return err
+	})
+	return subject, err
+}
+
+// grantIn は Atomic の中で利用を許可します。
+func (s *FederationStore) grantIn(ctx context.Context, clientID string, accountID int64) (string, error) {
+	var subject string
+	err := func() error {
 		x := s.executor(ctx)
 		if _, err := s.Client(ctx, clientID); errors.Is(err, sql.ErrNoRows) {
 			return ErrNotFound
@@ -273,7 +284,7 @@ func (s *FederationStore) Grant(ctx context.Context, clientID string, accountID 
 			 ON CONFLICT (client_id, sub) DO UPDATE SET allowed = 1, grant_epoch = grant_epoch + 1 WHERE allowed = 0`,
 			clientID, subject)
 		return err
-	})
+	}()
 	return subject, err
 }
 

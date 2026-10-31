@@ -250,6 +250,26 @@ func (p AgentPrincipal) HasScope(name string) bool {
 	return slices.Contains(p.Scopes, name)
 }
 
+// エージェントのクライアントの管理の失敗です。入力の誤りと、対象が無いことを分けます。
+var (
+	ErrAgentInvalid  = errors.New("features: invalid agent client input")
+	ErrAgentNotFound = errors.New("features: agent client not found")
+)
+
+// AgentAccount は、クライアントの利用を許可できるアカウントです。Name は管理画面に出す呼び名です。
+type AgentAccount struct {
+	ID      int64
+	Name    string
+	Allowed bool
+}
+
+// AgentClient は、登録したエージェントのクライアントです。ID は秘密の値ではありません。
+type AgentClient struct {
+	ID, Label, Redirect string
+	Enabled             bool
+	Accounts            []AgentAccount
+}
+
 // AgentAuth は、エージェントの認証の口です。呼び出した機能が RegisterAgentRoutes で経路を足します。
 type AgentAuth interface {
 	RegisterAgentRoutes(mux *web.IsolatedMux)
@@ -260,6 +280,16 @@ type AgentAuth interface {
 	Resource() string
 	// Origin は、サイトのオリジンです。
 	Origin() string
+	// AgentClients は、登録したクライアントを返します。OIDCの連携先は含みません。
+	AgentClients(ctx context.Context) ([]AgentClient, error)
+	// AgentClient は、1件と、有効なアカウントごとの許可の状態を返します。
+	AgentClient(ctx context.Context, id string) (AgentClient, error)
+	// AddAgentClient は、クライアントを登録し、同じトランザクションで owner に利用を許可します。
+	AddAgentClient(ctx context.Context, label, redirect string, owner int64) (AgentClient, error)
+	// SetAgentClientEnabled は、停止・再開します。停止すると発行済みのトークンも無効になります。
+	SetAgentClientEnabled(ctx context.Context, id string, enabled bool) error
+	// SetAgentGrant は、アカウントへの許可を変えます。取り消すと発行済みのトークンも無効になります。
+	SetAgentGrant(ctx context.Context, id string, account int64, allowed bool) error
 }
 
 // AgentAuthProvider は、エージェントの認証を提供する機能（features/auth）が実装します。

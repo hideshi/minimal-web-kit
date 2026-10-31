@@ -116,6 +116,7 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ui.ids["agent_client"] = agent.ID
 	ui.ids["agent_query"] = url.Values{"client_id": {agent.ID}, "redirect_uri": {"http://localhost:18767/callback"}, "response_type": {"code"}, "scope": {"mcp:read"},
 		"state": {"sample-state"}, "code_challenge": {strings.Repeat("A", 43)}, "code_challenge_method": {"S256"}, "resource": {"http://localhost:8080/mcp"}}.Encode()
 	if err := auth.NewFederationStore(db).NewAgentRequest(ctx, "sample-flow", auth.AgentRequest{ID: "sample-request", Client: agent.ID, Redirect: "http://localhost:18767/callback",
@@ -293,7 +294,8 @@ var adminSamples = []adminSample{
 	{"GET /admin/pages/{id}", "/admin/pages/{page_draft}", "admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "member", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}/delete", "/admin/pages/{page_draft}/delete", "admin", "admin_page_delete.html", kindConfirm},
-	{"GET /admin/mcp", "/admin/mcp", "admin", "admin_mcp.html", kindList},
+	{"GET /admin/mcp", "/admin/mcp", "admin", "admin_mcp.html", kindListAdd},
+	{"GET /admin/mcp/clients/{id}", "/admin/mcp/clients/{agent_client}", "admin", "admin_mcp_client.html", kindDetail},
 	{"GET /admin/mcp", "/admin/mcp", "member", "admin_mcp.html", kindList},
 	// 認可の要求は同じブラウザの古い手続きを消すので、続きの画面を先に開く
 	{"GET /admin/agent/continue", "/admin/agent/continue", "admin", "admin_agent_flow.html", kindOther},

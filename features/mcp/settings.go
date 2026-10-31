@@ -68,6 +68,22 @@ func (f *Feature) handleSettings(w http.ResponseWriter, r *http.Request, s featu
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	rows := f.settingRows(settings)
+	data := s.PageData("MCPの設定", "/admin/mcp")
+	data["Rows"] = rows
+	data["IsAdmin"] = s.IsAdmin()
+	data["Notice"] = settingsMessages.From(r)
+	if s.IsAdmin() {
+		if err := f.addClientData(r.Context(), data, clientInput{Redirect: defaultRedirect}); err != nil {
+			f.logger.Error("mcp clients read failed", web.RequestIDAttr(w))
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	}
+	f.render(w, http.StatusOK, "admin_mcp.html", data)
+}
+
+func (f *Feature) settingRows(settings map[string]setting) []settingRow {
 	var rows []settingRow
 	for _, m := range f.sources {
 		row := settingRow{Name: m.Name(), Label: m.MCPLabel(), Enabled: settings[m.Name()].Enabled}
@@ -80,18 +96,19 @@ func (f *Feature) handleSettings(w http.ResponseWriter, r *http.Request, s featu
 		}
 		rows = append(rows, row)
 	}
-	data := s.PageData("MCPの設定", "/admin/mcp")
-	data["Rows"] = rows
-	data["IsAdmin"] = s.IsAdmin()
-	data["Notice"] = settingsMessages.From(r)
+	return rows
+}
+
+func (f *Feature) render(w http.ResponseWriter, status int, page string, data map[string]any) {
 	web.NoTransform(w)
 	var buf bytes.Buffer
-	if err := f.pages["admin_mcp.html"].ExecuteTemplate(&buf, "layout", data); err != nil {
+	if err := f.pages[page].ExecuteTemplate(&buf, "layout", data); err != nil {
 		f.logger.Error("mcp render failed", web.RequestIDAttr(w))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	_, _ = buf.WriteTo(w)
 }
 

@@ -433,3 +433,165 @@ func TestMCP_ConditionalWritesRefuseStaleReads(t *testing.T) {
 		t.Fatalf("%+v", p)
 	}
 }
+
+// formPost は、指定したアカウントの管理画面のフォームを送ります。
+func (e *mcpEnv) formPost(cookie *http.Cookie, csrf, path, form string) *httptest.ResponseRecorder {
+	e.t.Helper()
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("csrf_token="+csrf+"&"+form))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Origin", "http://localhost:8080")
+	req.AddCookie(cookie)
+	w := httptest.NewRecorder()
+	e.routes.ServeHTTP(w, req)
+	return w
+}
+
+func (e *mcpEnv) adminGet(path string) *httptest.ResponseRecorder {
+	e.t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.AddCookie(e.admin)
+	w := httptest.NewRecorder()
+	e.routes.ServeHTTP(w, req)
+	return w
+}
+
+// TestMCP_ClientsFromTheAdminScreen は、管理画面で接続を追加し、追加した管理者に許可され、停止と取り消しが効くことを確かめます。
+// ユースケース: UC-MCP-5
+// 不変条件: MCP-INV-10
+func TestMCP_ClientsFromTheAdminScreen(t *testing.T) {
+	e := newMCPEnv(t)
+	ctx := context.Background()
+	db := e.core.DB()
+	w := e.formPost(e.admin, e.csrf, "/admin/mcp/clients", "label=%E7%94%BB%E9%9D%A2%E3%81%AE%E6%8E%A5%E7%B6%9A&redirect=http%3A%2F%2Flocalhost%2Fcallback")
+	if w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	path := strings.Split(w.Header().Get("Location"), "?")[0]
+	id := strings.TrimPrefix(path, "/admin/mcp/clients/")
+	detail := e.adminGet(path)
+	body := detail.Body.String()
+	if detail.Code != 200 || !strings.Contains(body, id) || !strings.Contains(body, "claude mcp add -s user --transport http --client-id "+id+" --callback-port 18767 site http://localhost:8080/mcp") {
+		t.Fatal(detail.Code, body)
+	}
+	if !strings.Contains(e.adminGet("/admin/mcp").Body.String(), "画面の接続") {
+		t.Fatal("client not listed")
+	}
+	var granted int
+	if err := db.QueryRow("SELECT COUNT(*) FROM auth_oidc_grants WHERE client_id = ? AND allowed = 1", id).Scan(&granted); err != nil || granted != 1 {
+		t.Fatal(granted, err)
+	}
+
+	// 追加した管理者は、許可の操作なしで認可を受けられる
+	var account int64
+	if err := db.QueryRow("SELECT f.account_id FROM auth_federated_subjects f JOIN auth_oidc_grants g ON g.sub = f.sub WHERE g.client_id = ?", id).Scan(&account); err != nil {
+		t.Fatal(err)
+	}
+	fed := auth.NewFederationStore(db)
+	sum := sha256.Sum256([]byte(mcpVerifier))
+	resource := "http://localhost:8080/mcp"
+	issue := func(request string) auth.AgentGrant {
+		t.Helper()
+		req := auth.AgentRequest{ID: request, Client: id, Redirect: "http://localhost:18767/callback", State: "state-state", Challenge: base64.RawURLEncoding.EncodeToString(sum[:]), Resource: resource, Scope: "mcp:read"}
+		if err := fed.NewAgentRequest(ctx, request+"-flow", req); err != nil {
+			t.Fatal(err)
+		}
+		code, err := fed.ApproveAgent(ctx, req.ID, e.admin.Value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		g, err := fed.ExchangeAgentCode(ctx, id, code, req.Redirect, mcpVerifier, resource)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return g
+	}
+	grant := issue("request-a")
+	account2 := strconv.FormatInt(account, 10)
+
+	// 取り消すとトークンが止まり、許可し直しても戻らない
+	if w := e.formPost(e.admin, e.csrf, path+"/accounts/"+account2+"/revoke", ""); w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code)
+	}
+	if _, err := fed.VerifyAgentToken(ctx, grant.Token, resource); !errors.Is(err, features.ErrBearerInvalid) {
+		t.Fatal(err)
+	}
+	if w := e.formPost(e.admin, e.csrf, path+"/accounts/"+account2+"/allow", ""); w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code)
+	}
+	if _, err := fed.VerifyAgentToken(ctx, grant.Token, resource); !errors.Is(err, features.ErrBearerInvalid) {
+		t.Fatal("token came back:", err)
+	}
+
+	// 停止するとトークンが止まる
+	second := issue("request-b")
+	if w := e.formPost(e.admin, e.csrf, path+"/disable", ""); w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code)
+	}
+	if _, err := fed.VerifyAgentToken(ctx, second.Token, resource); !errors.Is(err, features.ErrBearerInvalid) {
+		t.Fatal(err)
+	}
+	if w := e.formPost(e.admin, e.csrf, path+"/enable", ""); w.Code != http.StatusSeeOther {
+		t.Fatal(w.Code)
+	}
+}
+
+// TestMCP_ClientManagementIsAdminOnly は、メンバーが操作できず、OIDCの連携先と不正な戻り先を扱わないことを確かめます。
+// 不変条件: MCP-INV-10, AUTH-INV-24
+func TestMCP_ClientManagementIsAdminOnly(t *testing.T) {
+	e := newMCPEnv(t)
+	ctx := context.Background()
+	fed := auth.NewFederationStore(e.core.DB())
+	client, err := fed.CreateAgentClient(ctx, "既存", "http://localhost/callback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	member, memberID := authtest.NewAccountSession(t, e.core.DB(), "member")
+	csrf := authtest.CSRFToken(t, e.routes, "/admin/mcp", member)
+	for _, path := range []string{"/admin/mcp/clients", "/admin/mcp/clients/" + client.ID + "/disable", "/admin/mcp/clients/" + client.ID + "/accounts/" + strconv.FormatInt(memberID, 10) + "/allow"} {
+		if w := e.formPost(member, csrf, path, "label=x&redirect=http%3A%2F%2Flocalhost%2Fcallback"); w.Code != http.StatusForbidden {
+			t.Errorf("%s: %d", path, w.Code)
+		}
+	}
+	req := httptest.NewRequest(http.MethodGet, "/admin/mcp/clients/"+client.ID, nil)
+	req.AddCookie(member)
+	rec := httptest.NewRecorder()
+	e.routes.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatal(rec.Code)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/admin/mcp", nil)
+	req.AddCookie(member)
+	rec = httptest.NewRecorder()
+	e.routes.ServeHTTP(rec, req)
+	if rec.Code != 200 || strings.Contains(rec.Body.String(), "接続の追加") || strings.Contains(rec.Body.String(), client.ID) {
+		t.Fatal("clients shown to a member")
+	}
+	oidc, _, err := fed.CreateClient(ctx, "OIDC", "https://b.example/cb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := e.adminGet("/admin/mcp/clients/" + oidc.ID); w.Code != http.StatusNotFound {
+		t.Fatal(w.Code)
+	}
+	for _, path := range []string{"/disable", "/accounts/1/allow"} {
+		if w := e.formPost(e.admin, e.csrf, "/admin/mcp/clients/"+oidc.ID+path, ""); w.Code != http.StatusNotFound {
+			t.Errorf("%s: %d", path, w.Code)
+		}
+	}
+	for name, form := range map[string]string{
+		"outside":   "label=x&redirect=https%3A%2F%2Fevil.example%2Fcb",
+		"port":      "label=x&redirect=http%3A%2F%2Flocalhost%3A1%2Fcb",
+		"no label":  "label=&redirect=http%3A%2F%2Flocalhost%2Fcallback",
+		"long name": "label=" + strings.Repeat("a", 101) + "&redirect=http%3A%2F%2Flocalhost%2Fcallback",
+	} {
+		w := e.formPost(e.admin, e.csrf, "/admin/mcp/clients", form)
+		if w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `aria-invalid="true"`) {
+			t.Errorf("%s: %d", name, w.Code)
+		}
+	}
+	var n int
+	if err := e.core.DB().QueryRow("SELECT COUNT(*) FROM auth_agent_clients").Scan(&n); err != nil || n != 2 { // newMCPEnv の1件と既存の1件
+		t.Fatal(n, err)
+	}
+}
