@@ -33,6 +33,7 @@ func TestRebuildTable_Twice(t *testing.T) {
 		t.Fatal(err)
 	}
 	second := step("IN ('b')", "IN ('c')")
+	second.Label = "sample-second" // 複製の名前は秒までなので、同じ秒に同じ語で作れない
 	second.Columns = map[string]string{"kind": "CASE kind WHEN 'b' THEN 'c' ELSE kind END"}
 	if err := RebuildTable(ctx, db, second); err != nil {
 		t.Fatal(err)
