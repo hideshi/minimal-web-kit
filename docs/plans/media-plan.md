@@ -1,6 +1,6 @@
 # 画像機能 実装計画
 
-状態: 2026-11-01、利用者が14節の3項目と、第1段階の承認境界2・5を承認した。未実装。計画のレビュー（Fable・Sol）の指摘を反映した（17節）。実際の写真での確認の前。対象の時点は `main` の `8b38887` の後。今の仕様の正本は、実装の前に `docs/domain/media.md` として作る。関連する正本: [お知らせ](../domain/news.md)、[カタログ](../domain/catalog.md)、[固定ページ](../domain/pages.md)、[本文の書き方](../richtext.md)、[MCP](../domain/mcp.md)。
+状態: 2026-11-01、第1段階を実装した（13節の11まで）。完成のレビューの前。第2段階（MCPのアップロード）は別の計画にする。対象の時点は `main` の `8b38887` の後。今の仕様の正本は `docs/domain/media.md`。実装で変えた点: 画像の行の順は `docs/richtext.md` の順5.5、CMYKのJPEGも1,200万画素まで、固定ページの本文の説明は本文の文字。関連する正本: [お知らせ](../domain/news.md)、[カタログ](../domain/catalog.md)、[固定ページ](../domain/pages.md)、[本文の書き方](../richtext.md)、[MCP](../domain/mcp.md)。
 
 ## 1. 目的と範囲
 
