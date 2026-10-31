@@ -83,6 +83,7 @@
 | AUTH-INV-25 | エージェントの同意は、画面に出した要求だけを承認できる。Cookieの要求とフォームの要求が違えば、何も発行しない | `approve` |
 | AUTH-INV-26 | 一般ユーザーは、`AccountPage`・`AccountForm` の画面、自分のパスキーの管理、ログアウト、エージェントの接続の同意だけを使える。公開サイトの編集、アカウントの管理はできず、ナビにも出ない。MCPは `AllRoles` のツールだけを使える。`Page`・`Form` とMCPは許可の一覧で判定し、未知のロールも通さない。ロールを下げると、発行済みのエージェントのトークンも次の要求から狭まる | `CanManageSite`・`Known`・`siteOnly`・`handle`・`usable` |
 | AUTH-INV-27 | ロールの移行で、アカウント、参照する行、トリガーを失わず、削除済みのIDも再利用しない。旧称の `member` は `site_admin` に写す。移行の前に複製を作り、失敗したら元のままで起動を止める。外部キーを止めた接続はプールへ返さない | `migrateRoles`・`migrate`・`RebuildTable`・`setForeignKeys` |
+| AUTH-INV-28 | ログインして使う人について保存する情報は、公開の `/privacy` に載せず、ログイン後の `/admin/data-notice` に出す。全ロールが読める | `PrivacyNotices`・`handleDataNotice`・`BuildRoutes` |
 
 前提: AUTH-INV-1・AUTH-INV-4・AUTH-INV-7・AUTH-INV-8 は、判定と更新を1つの文（またはトランザクション）で行い、同時操作でも破れないようにしています。これは、SQLiteが書き込みを1つずつしか通さないことに頼っています。DBを替えるときは見直してください。たとえばPostgreSQLの既定の分離レベル（READ COMMITTED）では、2人のシステム管理者が同時にお互いを降格すると、どちらの文も相手を有効なシステム管理者と数えて通り、有効なシステム管理者が0人になりえます。その場合は `SERIALIZABLE` にするか、対象の行をロック（`SELECT ... FOR UPDATE`）してから判定します。
 

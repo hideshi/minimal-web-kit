@@ -1,0 +1,25 @@
+{{define "content"}}
+<h1>保存する情報</h1>
+<p>ログインして使う人について、このシステムが保存する情報です。サイトの閲覧者の情報は、公開の<a href="/privacy">プライバシーポリシー</a>に書いています。</p>
+{{- range .Notices}}
+<h2>{{.Title}}</h2>
+{{if .Lead}}<p>{{.Lead}}</p>{{end}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">{{.Title}}</caption>
+    <thead>
+      <tr>
+        <th scope="col">データ種別</th>
+        <th scope="col">保存項目</th>
+        <th scope="col">保存の目的</th>
+        <th scope="col">保持期間</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}<tr><td>{{.Kind}}</td><td>{{.Items}}</td><td>{{.Purpose}}</td><td>{{.Retention}}</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{- end}}
+{{end}}

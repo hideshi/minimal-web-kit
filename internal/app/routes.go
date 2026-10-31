@@ -38,15 +38,28 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
-	// 機能が保存する情報（閲覧者以外の人の情報）を、プライバシーポリシーの画面に載せる
+	// 機能が保存する情報を、外部の人の情報はプライバシーポリシーの画面に、社内の人の情報はログイン後の画面に載せる
 	{
-		var notices []web.PrivacyNotice
+		var public, internal []web.PrivacyNotice
 		for _, f := range reg.All() {
-			if p, ok := f.(features.PrivacyFeature); ok {
-				notices = append(notices, p.PrivacyNotices()...)
+			p, ok := f.(features.PrivacyFeature)
+			if !ok {
+				continue
+			}
+			for _, n := range p.PrivacyNotices() {
+				if n.Internal {
+					internal = append(internal, n)
+				} else {
+					public = append(public, n)
+				}
 			}
 		}
-		handler.SetPrivacyNotices(notices)
+		handler.SetPrivacyNotices(public)
+		for _, f := range reg.All() {
+			if c, ok := f.(features.AccountNoticeConsumer); ok {
+				c.SetAccountNotices(internal)
+			}
+		}
 	}
 
 	// お問い合わせの行き先を、ボタンを描く機能とプライバシーポリシーに配る。申告は1つまで

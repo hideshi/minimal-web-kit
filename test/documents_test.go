@@ -328,6 +328,27 @@ func TestDocuments_PaginationKeepsTheSearch(t *testing.T) {
 	}
 }
 
+// 社内の人の情報は公開のプライバシーポリシーに載せず、ログイン後の画面に出す。
+// 不変条件: AUTH-INV-28, DOC-INV-14
+func TestNotices_InternalStayBehindLogin(t *testing.T) {
+	e := newDocsEnv(t, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	public := e.get(docsUser{}, "/privacy").Body.String()
+	for _, title := range []string{"社内文書で保存する情報", "管理画面のアカウントで保存する情報"} {
+		if strings.Contains(public, title) {
+			t.Errorf("/privacy must not show %s", title)
+		}
+	}
+	if w := e.get(docsUser{}, "/admin/data-notice"); w.Code != http.StatusSeeOther {
+		t.Fatalf("notice page without login: %d", w.Code)
+	}
+	body := e.get(e.user("user"), "/admin/data-notice").Body.String()
+	for _, title := range []string{"社内文書で保存する情報", "管理画面のアカウントで保存する情報"} {
+		if !strings.Contains(body, title) {
+			t.Errorf("the notice page must show %s", title)
+		}
+	}
+}
+
 // 呼び名を持たない認証と組み合わせると、起動を止める。
 // 不変条件: DOC-INV-1
 func TestDocuments_RequiresAccountDirectory(t *testing.T) {

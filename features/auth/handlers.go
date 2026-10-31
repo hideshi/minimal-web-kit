@@ -55,7 +55,7 @@ var errorMessages = map[string]string{
 func parseTemplates() map[string]*template.Template {
 	pages := map[string]*template.Template{}
 	for _, page := range []string{
-		"admin_setup.html", "admin_login.html", "admin_passkeys.html", "admin_passkey_delete.html",
+		"admin_setup.html", "admin_login.html", "admin_passkeys.html", "admin_passkey_delete.html", "admin_data_notice.html",
 		"admin_agent_flow.html", "admin_accounts.html", "admin_account_form.html", "admin_account_created.html", "admin_account.html", "admin_account_delete.html", "admin_account_passkey_delete.html",
 	} {
 		pages[page] = template.Must(web.ParseWithComponents(viewsFS, "views/admin_layout.html", "views/account_parts.html", "views/"+page))
@@ -214,7 +214,7 @@ func (f *Feature) adminNav(role string) []web.NavLink {
 			nav = append(nav, l)
 		}
 	}
-	nav = append(nav, web.NavLink{Label: "パスキーの管理", Href: "/admin/passkeys"})
+	nav = append(nav, web.NavLink{Label: "パスキーの管理", Href: "/admin/passkeys"}, web.NavLink{Label: "保存する情報", Href: "/admin/data-notice"})
 	if isAdmin {
 		nav = append(nav, web.NavLink{Label: "アカウントの管理", Href: "/admin/accounts"})
 	}
@@ -343,6 +343,13 @@ func (f *Feature) handleAdminHome(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, f.adminNav(a.Role)[0].Href, http.StatusSeeOther)
+}
+
+// handleDataNotice は、ログインして使う人について保存する情報を出します。公開のプライバシーポリシーには載せない内容です。
+func (f *Feature) handleDataNotice(w http.ResponseWriter, r *http.Request, s session) {
+	data := s.PageData("保存する情報", "/admin/data-notice")
+	data["Notices"] = f.accountNotices
+	f.renderAdmin(w, "admin_data_notice.html", data, false)
 }
 
 func (f *Feature) handleSetupPage(w http.ResponseWriter, r *http.Request) {
@@ -692,6 +699,7 @@ func (f *Feature) registerRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("GET /admin/setup", f.handleSetupPage)
 	mux.HandleFunc("GET /admin/login", f.handleLoginPage)
 	mux.HandleFunc("POST /admin/logout", f.form(f.handleLogout))
+	mux.HandleFunc("GET /admin/data-notice", f.page(f.handleDataNotice))
 	mux.HandleFunc("GET /admin/static/webauthn.js", f.handleStaticJS)
 	mux.HandleFunc("POST /admin/webauthn/register/begin", f.jsonEndpoint(f.handleRegisterBegin))
 	mux.HandleFunc("POST /admin/webauthn/register/finish", f.jsonEndpoint(f.handleRegisterFinish))

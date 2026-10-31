@@ -73,12 +73,19 @@ type NavLinkFeature interface {
 	NavLinks() []web.NavLink
 }
 
-// PrivacyFeature は、閲覧者以外の人（管理画面の利用者等）について情報を保存する機能が実装します。
-// 返した内容は、Coreのプライバシーポリシーの画面に表として載ります（例: 管理者認証のアカウント・パスキー）。
+// PrivacyFeature は、保存する情報を説明する機能が実装します。
+// 外部の人（閲覧者、問い合わせる人等）の情報は、Coreのプライバシーポリシーの画面に表として載ります（例: お問い合わせ）。
+// ログインして使う社内の人の情報は Internal を付け、ログイン後の画面に出します（例: アカウント、社内文書）。
 // 内容は docs/data-inventory.md と揃えます。
 type PrivacyFeature interface {
 	Feature
 	PrivacyNotices() []web.PrivacyNotice
+}
+
+// AccountNoticeConsumer は、社内の人向けの保存する情報を、ログイン後の画面に出す機能（features/auth）が実装します。
+type AccountNoticeConsumer interface {
+	Feature
+	SetAccountNotices(notices []web.PrivacyNotice)
 }
 
 // FallbackFeature は、どの経路にも当たらなかったGET・HEADを受ける機能が実装します（例: 固定ページの /{slug}）。

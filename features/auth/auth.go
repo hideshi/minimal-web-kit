@@ -33,16 +33,17 @@ const (
 // ログイン・パスキーの登録と管理・アカウントの管理の画面と、他の機能が管理画面を守るための口（features.Admin）を提供します。
 // 画面はすべて、CoreのCSRF検査と匿名セッションの照合を通さない独立経路で提供します。
 type Feature struct {
-	logger     *slog.Logger
-	cfg        Config
-	db         *sql.DB
-	store      *adminStore
-	challenges *challenges
-	csrf       *guard.CSRF
-	pages      map[string]*template.Template
-	navLinks   []web.NavLink
-	loginNext  func(*http.Request) string
-	now        func() time.Time
+	logger         *slog.Logger
+	cfg            Config
+	db             *sql.DB
+	store          *adminStore
+	accountNotices []web.PrivacyNotice
+	challenges     *challenges
+	csrf           *guard.CSRF
+	pages          map[string]*template.Template
+	navLinks       []web.NavLink
+	loginNext      func(*http.Request) string
+	now            func() time.Time
 	// agentEnabled は、エージェントの認証を使う機能が登録されているかです。
 	agentEnabled bool
 }
@@ -61,12 +62,13 @@ func (f *Feature) Name() string {
 	return "auth"
 }
 
-// PrivacyNotices は、管理画面を使うアカウントについて保存する情報を、プライバシーポリシーの画面に載せます。
+// PrivacyNotices は、管理画面を使うアカウントについて保存する情報を返します。社内の人の情報なので、ログイン後の画面に載せます。
 // 内容は docs/data-inventory.md の4節と揃えます。
 func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 	notices := []web.PrivacyNotice{{
-		Title: "管理画面のアカウントで保存する情報",
-		Lead:  "管理画面にログインする人（システム管理者・サイト管理者・一般ユーザー）について、次の情報を保存します。サイトの閲覧者の情報ではありません。氏名・メールアドレス・パスワード・生体情報は保存しません。",
+		Title:    "管理画面のアカウントで保存する情報",
+		Internal: true,
+		Lead:     "管理画面にログインする人（システム管理者・サイト管理者・一般ユーザー）について、次の情報を保存します。サイトの閲覧者の情報ではありません。氏名・メールアドレス・パスワード・生体情報は保存しません。",
 		Rows: []web.PrivacyRow{
 			{Kind: "アカウント", Items: "呼び名（実名やメールアドレスを入れない運用のラベル）、ロール、認証器に登録するランダムな識別子、作成・停止・最終ログインの日時", Purpose: "管理画面へのログインと権限の判定", Retention: "システム管理者が削除するまで"},
 			{Kind: "パスキー", Items: "公開鍵、認証器の識別子、端末名、署名カウンタ、登録・最終使用の日時（秘密鍵と生体情報は認証器の外に出ません）", Purpose: "本人の確認と、複製の疑いの検出", Retention: "本人かシステム管理者が削除するまで"},
@@ -76,8 +78,9 @@ func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 	}}
 	if f.agentEnabled {
 		notices = append(notices, web.PrivacyNotice{
-			Title: "AIエージェントの接続で保存する情報",
-			Lead:  "管理画面のアカウントでAIエージェントを接続する人について、次の情報を保存します。書き込みの内容は、確認のために保存しません。",
+			Title:    "AIエージェントの接続で保存する情報",
+			Internal: true,
+			Lead:     "管理画面のアカウントでAIエージェントを接続する人について、次の情報を保存します。書き込みの内容は、確認のために保存しません。",
 			Rows: []web.PrivacyRow{
 				{Kind: "接続の手続き", Items: "手続きのCookie（agent_flow）のSHA-256ハッシュ、クライアント、戻り先、クライアントが発行した一時的な値、接続先、権限", Purpose: "接続の完了", Retention: "5分。完了したものは、コードの再利用の検出のため8時間"},
 				{Kind: "アクセストークン", Items: "トークンのSHA-256ハッシュ、クライアント、連携用の識別子、接続先、権限、失効の世代、発行日時", Purpose: "AIエージェントの要求の本人確認", Retention: "発行から8時間"},
@@ -139,6 +142,9 @@ func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 func (f *Feature) Admin() features.Admin {
 	return adminAPI{f}
 }
+
+// SetAccountNotices は、ログイン後の画面に出す、保存する情報を受け取ります。
+func (f *Feature) SetAccountNotices(notices []web.PrivacyNotice) { f.accountNotices = notices }
 
 // SetAdminNavLinks は、他の機能の管理画面へのリンク（例: お知らせの管理）を、管理画面のナビに加えます。
 func (f *Feature) SetAdminNavLinks(links []web.NavLink) {

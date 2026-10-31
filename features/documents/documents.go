@@ -71,11 +71,13 @@ func (f *Feature) AdminNavLinks() []web.NavLink {
 // Purge は保持期間を過ぎた移管の記録を消します。
 func (f *Feature) Purge(ctx context.Context) error { return f.store.Purge(ctx) }
 
-// PrivacyNotices は、文書の機能で保存する情報をプライバシーポリシーの画面に載せます。docs/data-inventory.md の11節と揃えます。
+// PrivacyNotices は、文書の機能で保存する情報を、ログイン後の画面に載せます。社内の人の情報なので公開のポリシーには載せません。
+// docs/data-inventory.md の11節と揃えます。
 func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 	return []web.PrivacyNotice{{
-		Title: "社内文書で保存する情報",
-		Lead:  "ログインして文書の機能を使う人について、次の情報を保存します。呼び名は、共有先や承認者を選ぶ画面で、ログインしている全員に見えます。AIエージェントの接続で文書の機能を有効にしたサイトでは、接続を許可された人が読み取った本文・タイトル・呼び名が、その人の使うAIのサービスへ送られます。",
+		Title:    "社内文書で保存する情報",
+		Internal: true,
+		Lead:     "ログインして文書の機能を使う人について、次の情報を保存します。呼び名は、共有先や承認者を選ぶ画面で、ログインしている全員に見えます。AIエージェントの接続で文書の機能を有効にしたサイトでは、接続を許可された人が読み取った本文・タイトル・呼び名が、その人の使うAIのサービスへ送られます。",
 		Rows: []web.PrivacyRow{
 			{Kind: "文書", Items: "タイトル、本文、所有者のアカウントID、共有先、作成・更新の日時", Purpose: "文書の作成と共有", Retention: "所有者が削除するまで"},
 			{Kind: "既読", Items: "文書の版、開いた人のアカウントID、最初に開いた日時", Purpose: "所有者が読んだ人を確かめる", Retention: "文書を削除するまで"},

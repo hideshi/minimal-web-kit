@@ -68,6 +68,7 @@ stateDiagram-v2
 | DOC-INV-11 | アカウントの停止と削除で文書は消えない | `documents` を認証の表に結びつけない |
 | DOC-INV-13 | MCPから承認、差し戻し、共有先の変更、削除、移管はできない。MCPの読み取りは既読を記録しない。権限は接続したアカウント本人のもので、確認の後に文書や共有の範囲が変わっていたら実行しない | `MCPTools`・`checkState` |
 | DOC-INV-12 | 変更はPOSTで行う。例外は、開いたときの既読の記録だけ | `RegisterIsolatedRoutes`・`handleShow` |
+| DOC-INV-14 | 文書で保存する情報の説明は、公開の `/privacy` に載せず、ログイン後の画面に出す | `PrivacyNotices` |
 
 ## 5. 権限
 

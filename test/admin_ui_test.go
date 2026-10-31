@@ -290,6 +290,7 @@ var adminSamples = []adminSample{
 	{"GET /admin/login", "/admin/login", "", "admin_login.html", kindOther},
 	{"GET /admin/setup", "/admin/setup", "", "admin_setup.html", kindOther},
 	{"GET /admin/passkeys", "/admin/passkeys", "admin", "admin_passkeys.html", kindOther},
+	{"GET /admin/data-notice", "/admin/data-notice", "admin", "admin_data_notice.html", kindOther},
 	{"GET /admin/passkeys/{id}/delete", "/admin/passkeys/{self_key}/delete", "admin", "admin_passkey_delete.html", kindConfirm},
 	{"GET /admin/accounts", "/admin/accounts", "admin", "admin_accounts.html", kindList},
 	{"GET /admin/accounts/new", "/admin/accounts/new", "admin", "admin_account_form.html", kindForm},
@@ -626,7 +627,7 @@ func checkAdminPage(doc *node, kind string) []string {
 // accountRoutes は、一般ユーザーが通ってよい管理画面の経路です。足すときは、その画面が公開サイトの編集やアカウントの
 // 管理に当たらないことを確かめてから足す。
 var accountRoutes = []string{
-	"GET /admin", "GET /admin/login", "GET /admin/setup", "POST /admin/logout",
+	"GET /admin", "GET /admin/login", "GET /admin/setup", "POST /admin/logout", "GET /admin/data-notice",
 	"GET /admin/passkeys", "POST /admin/passkeys/{id}/label", "GET /admin/passkeys/{id}/delete", "POST /admin/passkeys/{id}/delete",
 	"POST /admin/webauthn/register/begin", "POST /admin/webauthn/register/finish", "POST /admin/webauthn/login/begin", "POST /admin/webauthn/login/finish",
 	"GET /admin/agent/authorize", "GET /admin/agent/continue", "POST /admin/agent/approve", // 接続の同意。文書のツールだけに使える

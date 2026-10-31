@@ -220,6 +220,8 @@ type PrivacyNotice struct {
 	Title string // 節の見出し（例: "管理画面のアカウントで保存する情報"）
 	Lead  string // 節の説明（任意）
 	Rows  []PrivacyRow
+	// Internal は、ログインして使う人（社内の人）の情報に付ける。公開の /privacy には載せず、ログイン後の画面に出す
+	Internal bool
 }
 
 // PrivacyRow は、PrivacyNotice の表の1行です。内容は docs/data-inventory.md と揃えます。

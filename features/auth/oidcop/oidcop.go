@@ -177,8 +177,9 @@ func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
 func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 	notices := f.Feature.PrivacyNotices()
 	notices = append(notices, web.PrivacyNotice{
-		Title: "連携先のシステムへのログインで保存する情報",
-		Lead:  "管理画面のアカウントで自社の別システムにログインする人について、次の情報を保存します。氏名・メールアドレスは連携先に渡しません。",
+		Title:    "連携先のシステムへのログインで保存する情報",
+		Internal: true,
+		Lead:     "管理画面のアカウントで自社の別システムにログインする人について、次の情報を保存します。氏名・メールアドレスは連携先に渡しません。",
 		Rows: []web.PrivacyRow{
 			{Kind: "連携用の識別子", Items: "ランダムな識別子（連携先に渡す。連携先どうしで共通）、失効の世代", Purpose: "本人の識別と、停止時のログインの無効化", Retention: "アカウントの削除から12時間2分後まで"},
 			{Kind: "利用許可", Items: "連携先、許可の有無、失効の世代", Purpose: "連携先ごとの利用の可否の判定", Retention: "連携用の識別子の削除まで"},
