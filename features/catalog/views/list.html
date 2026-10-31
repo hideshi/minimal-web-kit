@@ -1,7 +1,7 @@
 {{define "page_head"}}
 <meta name="htmx-config" content='{"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false,"selfRequestsOnly":true,"historyCacheSize":0,"historyRestoreAsHxRequest":false,"refreshOnHistoryMiss":true,"attributesToSettle":["class"],"scrollIntoViewOnBoost":false}'>
-<script src="/catalog/static/htmx.min.js" defer></script>
-<script src="/catalog/static/catalog.js" defer></script>
+<script src="{{.HTMXURL}}" defer></script>
+<script src="{{.CatalogScriptURL}}" defer></script>
 {{end}}
 {{define "content"}}
 <h1>カタログ</h1>
