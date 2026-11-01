@@ -62,9 +62,6 @@ func TestTemplate_StaticAssetsUseAsset(t *testing.T) {
 		if direct.Match(b) {
 			t.Errorf("%s loads /static/ directly; use {{template \"static-head\"}} or {{asset \"...\"}}", file)
 		}
-		if strings.Contains(file, "layout") && !strings.Contains(string(b), `{{template "static-head"}}`) {
-			t.Errorf("%s must load CSS and icons with {{template \"static-head\"}}", file)
-		}
 	}
 }
 
@@ -242,6 +239,57 @@ func featureViews() ([]string, error) {
 	}
 	nested, err := filepath.Glob("../features/*/*/views/*.html")
 	return append(files, nested...), err
+}
+
+// TestTemplate_LayoutsUseShell は、同梱のレイアウトが自分で文書の骨組みを書かず、枠の部品を使うことを検証します。
+// ヘッダー・フッター・スキップリンクを1か所で直せるようにします。
+func TestTemplate_LayoutsUseShell(t *testing.T) {
+	var files []string
+	for _, pattern := range []string{"../internal/web/views/*layout.html", "../features/*/views/*layout.html"} {
+		matched, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, matched...)
+	}
+	if len(files) < 4 {
+		t.Fatalf("layouts not found: %v", files)
+	}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if problem := layoutProblem(string(raw)); problem != "" {
+			t.Errorf("%s: %s", f, problem)
+		}
+	}
+	for _, bad := range []string{`{{define "layout"}}<!DOCTYPE html>{{end}}`, `{{define "layout"}}<header></header>{{end}}`} {
+		if layoutProblem(bad) == "" {
+			t.Errorf("not detected: %s", bad)
+		}
+	}
+
+	raw, err := os.ReadFile("../internal/web/views/components.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, shell := range []string{"public-shell", "admin-shell"} {
+		_, body, ok := strings.Cut(string(raw), `{{define "`+shell+`"}}`)
+		if !ok || !strings.Contains(body, `{{template "static-head"}}`) {
+			t.Errorf("%s must load CSS and icons with {{template \"static-head\"}}", shell)
+		}
+	}
+}
+
+func layoutProblem(source string) string {
+	if !strings.Contains(source, `{{template "public-shell" .}}`) && !strings.Contains(source, `{{template "admin-shell" .}}`) {
+		return "レイアウトは public-shell か admin-shell を呼ぶ"
+	}
+	if strings.Contains(source, "<html") || strings.Contains(source, "<header") || strings.Contains(source, "<body") {
+		return "骨組みは枠の部品に置く"
+	}
+	return ""
 }
 
 // TestTemplate_TableFormsAreInline は、表の中のフォームに inline-form を求めます。無いとフォームの下余白でボタンが上に寄ります。

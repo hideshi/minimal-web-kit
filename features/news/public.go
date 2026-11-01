@@ -34,7 +34,7 @@ const (
 var publicPageNames = []string{"news_list.html", "news_show.html"}
 
 func parsePublicTemplates() map[string]*template.Template {
-	pages, err := web.ParsePages(web.Layout{FS: viewsFS, File: "views/layout.html"}, viewsFS, publicPageNames...)
+	pages, err := web.ParsePages(web.PublicLayout(), viewsFS, publicPageNames...)
 	if err != nil {
 		panic(err)
 	}

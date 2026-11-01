@@ -1,40 +1,11 @@
-{{define "layout"}}
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{.Title}} - minimal-web-kit</title>
-  {{template "static-head"}}
-</head>
-<body>
-  <a href="#main-content" class="skip-link">本文へ移動</a>
-  {{template "analytics" .Analytics}}
+{{define "layout"}}{{template "public-shell" .}}{{end}}
 
-  <header>
-    <div class="site-header-inner public-header">
-      <div>
-        <div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
-        <div class="site-subtitle">個人情報・外部依存を最小限に抑えたWebアプリのひな形</div>
-      </div>
-      {{template "public-menu" .}}
-    </div>
-  </header>
+{{define "site-brand"}}<div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
+<div class="site-subtitle">個人情報・外部依存を最小限に抑えたWebアプリのひな形</div>{{end}}
 
-  <main id="main-content" tabindex="-1">
-    {{template "content" .}}
-  </main>
-
-  <footer>
-    <div class="footer-inner">
-      <p>minimal-web-kit: 閲覧のために氏名や連絡先の登録は必要ありません。</p>
-      {{if .SiteMode}}
-      <p>公開ページの閲覧ではセッションCookieを使用しません。</p>
-      {{else}}
-      <p>セッションCookieを削除すると、この端末からのアクセス識別が切断されます。サーバー上の関連レコードは最終アクセスから30日経過後の自動削除対象になります。</p>
-      {{end}}
-    </div>
-  </footer>
-</body>
-</html>
-{{end}}
+{{define "site-footer"}}<p>minimal-web-kit: 閲覧のために氏名や連絡先の登録は必要ありません。</p>
+{{if .SiteMode}}
+<p>公開ページの閲覧ではセッションCookieを使用しません。</p>
+{{else}}
+<p>セッションCookieを削除すると、この端末からのアクセス識別が切断されます。サーバー上の関連レコードは最終アクセスから30日経過後の自動削除対象になります。</p>
+{{end}}{{end}}

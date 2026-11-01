@@ -1,11 +1,8 @@
-{{define "layout"}}
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{.Title}} - minimal-web-kit</title>
-  <meta name="description" content="{{.Description}}">
+{{define "layout"}}{{template "public-shell" .}}{{end}}
+
+{{define "page-title"}}{{.Title}} - minimal-web-kit{{end}}
+
+{{define "site-meta"}}<meta name="description" content="{{.Description}}">
   {{if .NoIndex}}<meta name="robots" content="noindex">
   {{end}}{{if .SiteURL}}{{if .CanonicalPath}}<link rel="canonical" href="{{.SiteURL}}{{.CanonicalPath}}">
   <meta property="og:url" content="{{.SiteURL}}{{.CanonicalPath}}">
@@ -21,33 +18,10 @@
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="{{.OGImageAlt}}">
   <meta name="twitter:card" content="summary_large_image">
-  {{end}}{{template "static-head"}}
-  {{block "page_head" .}}{{end}}
-</head>
-<body>
-  <a href="#main-content" class="skip-link">本文へ移動</a>
-  {{template "analytics" .Analytics}}
+  {{end}}{{end}}
 
-  <header>
-    <div class="site-header-inner public-header">
-      <div>
-        <div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
-        <div class="site-subtitle">個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤</div>
-      </div>
-      {{template "public-menu" .}}
-    </div>
-  </header>
+{{define "site-brand"}}<div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
+<div class="site-subtitle">個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤</div>{{end}}
 
-  <main id="main-content" tabindex="-1">
-    {{template "content" .}}
-  </main>
-
-  <footer>
-    <div class="footer-inner">
-      <p>&copy; 2026 minimal-web-kit. 通常の構成に組み込まれる直接依存はSQLiteドライバだけ。公開ページはCookieなしで閲覧できます。</p>
-      <p><a href="/privacy">プライバシーポリシー・免責事項</a></p>
-    </div>
-  </footer>
-</body>
-</html>
-{{end}}
+{{define "site-footer"}}<p>&copy; 2026 minimal-web-kit. 通常の構成に組み込まれる直接依存はSQLiteドライバだけ。公開ページはCookieなしで閲覧できます。</p>
+<p><a href="/privacy">プライバシーポリシー・免責事項</a></p>{{end}}

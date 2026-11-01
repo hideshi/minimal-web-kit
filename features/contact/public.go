@@ -27,7 +27,7 @@ var publicPageNames = []string{"contact.html"}
 var publicNotices = notice.Messages{"sent": "お問い合わせを受け付けました。返信が必要な場合は、書いていただいた返信先へご連絡します。"}
 
 func parsePublicTemplates() map[string]*template.Template {
-	pages, err := web.ParsePages(web.Layout{FS: viewsFS, File: "views/layout.html"}, viewsFS, publicPageNames...)
+	pages, err := web.ParsePages(web.PublicLayout(), viewsFS, publicPageNames...)
 	if err != nil {
 		panic(err)
 	}

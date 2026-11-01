@@ -50,7 +50,7 @@ type Feature struct {
 func NewFeature(logger *slog.Logger) *Feature {
 	return &Feature{
 		logger:     logger,
-		publicPage: template.Must(web.ParseWithComponents(viewsFS, "views/layout.html", "views/page.html")),
+		publicPage: template.Must(web.ParsePage(web.PublicLayout(), viewsFS, "views/page.html")),
 		notFound:   http.NotFound,
 		now:        time.Now,
 		media:      features.NoMedia{},

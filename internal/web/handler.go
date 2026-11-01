@@ -280,6 +280,9 @@ type Layout struct {
 	Data func(data map[string]any)
 }
 
+// PublicLayout は、Siteが無いときの公開ページのレイアウトです。機能の予備のレイアウトに使います。
+func PublicLayout() Layout { return Layout{FS: contentFS, File: "views/public_layout.html"} }
+
 // ParsePages は、names の各ファイル（fsys の views/ の下）を、レイアウトと共通の画面部品と一緒に解析します。
 // 戻り値のキーはファイル名（例: "admin_list.html"）。1つでも失敗したらエラーを返します。
 func ParsePages(layout Layout, fsys fs.FS, names ...string) (map[string]*template.Template, error) {

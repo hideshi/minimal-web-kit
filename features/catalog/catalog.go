@@ -40,7 +40,7 @@ type Feature struct {
 
 func NewFeature(logger *slog.Logger) *Feature {
 	f := &Feature{logger: logger, media: features.NoMedia{}}
-	if err := f.SetLayout(web.Layout{FS: contentFS, File: "views/layout.html"}); err != nil {
+	if err := f.SetLayout(web.PublicLayout()); err != nil {
 		panic(err)
 	}
 	return f
