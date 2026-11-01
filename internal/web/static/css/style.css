@@ -202,19 +202,36 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   line-height: 1.8;
 }
 
-/* 主のボタン（GitHub）を1段目に大きく、補助のボタンを2段目に並べる */
+/* 主のボタン（GitHub）を1段目に大きく、補助のボタンを2段目に並べる。2段の左右の端をそろえる */
 .hero-cta {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: var(--space-md);
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
 }
 
 .hero-links {
-  display: flex;
-  justify-content: center;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+/* 狭い画面では、語の途中で折り返さないよう、補助のボタンを縦に並べて余白を詰める */
+@media (max-width: 39.99rem) {
+  .hero-cta {
+    width: 100%;
+  }
+
+  .hero-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-cta .btn-cta {
+    padding-inline: var(--space-sm);
+  }
 }
 
 /* セクション共通 */
