@@ -84,3 +84,26 @@ func TestLanding_KeepsUpWithTheKit(t *testing.T) {
 		}
 	}
 }
+
+// TestLanding_OneFeaturePerCard は、同梱機能のカード1枚に、機能が1つだけ載っていることを確かめる。
+func TestLanding_OneFeaturePerCard(t *testing.T) {
+	b, err := os.ReadFile("../features/site/views/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(b)
+	if !strings.Contains(src, landingMark) {
+		t.Skip("the top page is not the kit's landing page")
+	}
+	cards := 0
+	for _, part := range strings.Split(src, "<article")[1:] {
+		card, _, _ := strings.Cut(part, "</article>")
+		if n := strings.Count(card, `class="card-badge"`); n > 1 {
+			t.Errorf("a card has %d features: %.60s", n, card)
+		}
+		cards++
+	}
+	if cards == 0 {
+		t.Fatal("no cards found")
+	}
+}
