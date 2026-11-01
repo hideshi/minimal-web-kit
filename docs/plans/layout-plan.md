@@ -73,8 +73,8 @@
 | 新規 `TestTemplate_LayoutsUseShell` | `views/` の `layout.html`・`*_layout.html`・`public_layout.html` が `public-shell` か `admin-shell` を呼ぶ。自分で `<html>` を書かない。落ちるべき例を持つ |
 | 新規 `TestTemplate_SingleButtonFormsUseComponent` | 機能のテンプレートに `class="inline-form"` の直書きが無い。ボタンの直書きを見つける検査が落ちる例を持つ |
 | 変更 `TestTemplate_StaticAssetsUseAsset` | レイアウトのソースに `static-head` を直接求める検査を、枠が `static-head` を呼ぶ検査に置き換える。`/static/` の直書きの禁止は保つ。描画の結果は `TestLayout_StaticHeadOnEveryLayout` が見る |
-| 変更 `TestTemplate_TableFormsAreInline` | ソースの検査は部品の導入で空振りするので、`checkAdminPage` に、描画した各 `td` のフォームが `inline-form` か `label-form` であることの検査を足す。クラスの無いHTMLで落ちる例を持つ |
-| 新規 `post-button` の単体テスト | エスケープ、CSRF、任意の指定、既定のスタイル、`primaryButton` と `hiddenField` の併用、数値の隠し欄。Coreの `admin-shell` のログアウトも部品を使うこと |
+| 追加 `checkAdminPage` の検査 | `TestTemplate_TableFormsAreInline` のソースの検査は部品を使う行を見ないので、そのまま残し、描画した各 `td` のフォームが `inline-form` か `label-form` であることの検査を足す。クラスの無いHTMLで落ちる例を持つ |
+| 新規 `post-button` の単体テスト | エスケープ、CSRF、任意の指定、既定のスタイル、`primaryButton` と `hiddenField` の併用、数値の隠し欄。`admin-shell` のログアウトが部品を使うことは `TestTemplate_SingleButtonFormsUseComponent` で確かめる |
 | 既存 | `TestLayout_StaticHeadOnEveryLayout`、`TestAdminUI_*`、`ANALYTICS-INV-3`、`test/browser/layout_consistency_test.go` |
 
 ### 変わっていないことの確かめ方
@@ -97,12 +97,13 @@ WebAuthnの `script` は描画の比較とCSPで確かめる。ブラウザの�
 4. 戻るリンクの規則と、検査を足す。
 5. `docs/components.md`、`docs/README.md` の該当があれば、README、実装スキルの9番を更新する。
 
-1〜4は別のコミットにする。
+公開と管理画面のレイアウト（1・2）を1つのコミットに、部品と戻るリンクと文書（3〜5）を1つのコミットにした。
 
 ## 危険と対策
 
 - **ブロックの定義の順**: `text/template` は後の定義で置き換わる。部品 → レイアウト → 本文の順に解析するので、Baseや機能の定義が既定に勝つ。空白だけの定義は、中身のある定義を置き換えないので、既定を空にしたいブロックは作らない（`site-footer` を消す用途は想定しない）。
 - **`html/template` の文脈**: 枠の中の `{{block}}` が別ファイルで定義されても、エスケープは実行の直前に全体で行われる。`site-meta` は `<head>` の中、`site-footer` は `<div>` の中で、今と文脈は変わらない。
+- **レイアウトを書き換えていたアプリ**: Siteの `layout.html` と、`auth`・`federatedauth` の `admin_layout.html` を書き換えていたアプリも衝突する。全文の形を残すと `TestTemplate_LayoutsUseShell` が落ちるので、ブロックへ移す。手順はREADMEに書いた。
 - **自作のレイアウト**: `{{define "layout"}}` を丸ごと書いた機能は、そのまま動く。枠は強制せず、検査はキットの同梱のファイルだけを見る。キットから作ったアプリが、消す4ファイルを書き換えていた場合は、取り込みのときに衝突する。自分のレイアウトを残すには `web.Layout` を渡す形に変える必要がある。
 - **`static-head` の定義し直し検査**: `checkTemplates` はそのまま動く。
 

@@ -75,7 +75,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `post-button` | `form.PostButton`（テンプレートでは `postButton` 関数） | ボタン1つのPOSTフォーム。CSRFの隠し欄を含み、既定は `btn-secondary`。`primaryButton`、表の行の補足の `rowName`、隠し欄の `hiddenField` を足せる。入力欄のあるフォームには使わない。ボタン1つのフォームを直書きするとテストが落ちる |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
-| `analytics` | `web.Analytics` | アクセス解析の同意の案内と `analytics.js`。`AddAnalytics` を呼んだ応答にだけ出る。公開のレイアウトの `</body>` の前で呼ぶ |
+| `analytics` | `web.Analytics` | アクセス解析の同意の案内と `analytics.js`。`AddAnalytics` を呼んだ応答にだけ出る。`public-shell` がスキップリンクの直後で呼ぶので、枠を使うレイアウトでは呼ばなくてよい |
 | `list-header` | `listHeader` の戻り値 | 一覧の画面の先頭（見出し、完了の案内、操作の並び）。`primaryAction`・`linkAction` で操作を渡す。条件で変わる操作や説明の段落を挟む画面は、操作なしで呼んで、後ろに `action-bar` を置く |
 | `public-shell` | 画面のデータ | 公開ページの文書全体（`<head>`、スキップリンク、`analytics`、ヘッダー、`main`、フッター）。レイアウトは `{{define "layout"}}{{template "public-shell" .}}{{end}}` と書き、違う箇所だけブロック（`page-title`・`site-meta`・`page_head`・`site-brand`・`site-footer`）を定義する。Siteが無いときの機能のレイアウトは `web.PublicLayout()` |
 | `admin-shell` | 画面のデータ | 管理画面の文書全体。ブロックは `script` と `admin-alerts`。同梱のレイアウトが自分で `<html>` を書くとテストが落ちる |

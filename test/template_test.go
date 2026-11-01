@@ -241,6 +241,16 @@ func featureViews() ([]string, error) {
 	return append(files, nested...), err
 }
 
+// allViews は、機能とCoreの全部のテンプレートを返します。
+func allViews() ([]string, error) {
+	files, err := featureViews()
+	if err != nil {
+		return nil, err
+	}
+	core, err := filepath.Glob("../internal/web/views/*.html")
+	return append(files, core...), err
+}
+
 // TestTemplate_LayoutsUseShell は、同梱のレイアウトが自分で文書の骨組みを書かず、枠の部品を使うことを検証します。
 // ヘッダー・フッター・スキップリンクを1か所で直せるようにします。
 func TestTemplate_LayoutsUseShell(t *testing.T) {
@@ -299,7 +309,7 @@ func layoutProblem(source string) string {
 // TestTemplate_SingleButtonFormsUseComponent は、ボタン1つのPOSTフォームを直書きせず、部品を使うことを検証します。
 // inline-form を書けるのは、部品（post-button・confirm-actions）の定義だけです。
 func TestTemplate_SingleButtonFormsUseComponent(t *testing.T) {
-	files, err := filepath.Glob("../features/*/views/*.html")
+	files, err := allViews()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,6 +317,9 @@ func TestTemplate_SingleButtonFormsUseComponent(t *testing.T) {
 		t.Fatal("no templates found")
 	}
 	for _, f := range files {
+		if filepath.Base(f) == "components.html" {
+			continue // 部品の定義は下で確かめる
+		}
 		raw, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
@@ -337,16 +350,12 @@ func directInlineForm(source string) bool {
 
 // TestTemplate_BackLinkWording は、戻るリンクの文言を「〜へ戻る」か「〜ずに戻る」にそろえます。
 func TestTemplate_BackLinkWording(t *testing.T) {
-	files, err := filepath.Glob("../features/*/views/*.html")
-	if err != nil {
-		t.Fatal(err)
-	}
-	core, err := filepath.Glob("../internal/web/views/*.html")
+	files, err := allViews()
 	if err != nil {
 		t.Fatal(err)
 	}
 	checked := 0
-	for _, f := range append(files, core...) {
+	for _, f := range files {
 		raw, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)

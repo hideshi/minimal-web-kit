@@ -52,7 +52,9 @@ Siteを有効化しても、サーバーは起動時にSQLiteのDBファイル�
 
 ### Siteの編集とお問い合わせ窓口
 
-本文は `features/site/views/index.html`、ヘッダー・フッターは `features/site/views/layout.html`、共通CSSは `internal/web/static/css/style.css` で編集します。GitHubへのリンク（ヒーローと、ページ末尾の「まず手元で動かしてみる」の2か所）はこのキットの公開リポジトリを指します。別の製品サイトへ流用する際は、リンク先や紹介文も見直してください。トップを別のサイトに書き換えたら、`index.html` の先頭の印 `kit-landing` も消してください。`test/landing_test.go` の紹介ページの検査が止まります（テストを消す必要はありません）。
+本文は `features/site/views/index.html`、サイト名・サブタイトル・フッターの文・SEOの情報は `features/site/views/layout.html` のブロック、ナビやスキップリンクなどの骨組みは `internal/web/views/components.html` の `public-shell`、共通CSSは `internal/web/static/css/style.css` で編集します。GitHubへのリンク（ヒーローと、ページ末尾の「まず手元で動かしてみる」の2か所）はこのキットの公開リポジトリを指します。別の製品サイトへ流用する際は、リンク先や紹介文も見直してください。トップを別のサイトに書き換えたら、`index.html` の先頭の印 `kit-landing` も消してください。`test/landing_test.go` の紹介ページの検査が止まります（テストを消す必要はありません）。
+
+枠の部品の導入より前に `features/site/views/layout.html` や、管理者認証・共通認証の `admin_layout.html` を書き換えていたアプリは、取り込むと衝突します。全文の形のまま残すとテストが落ちるので、名前とサブタイトルは `site-brand`、フッターの文は `site-footer`、SEOの情報は `site-meta`、管理画面の警告は `admin-alerts` のブロックへ移してください。お知らせ・カタログ・お問い合わせ・固定ページの `views/layout.html` は消えました。書き換えていた場合は、Siteの `layout.html` に移すか、機能が `web.Layout` で自分のレイアウトを使うように変えてください。
 
 お問い合わせボタンのURLは `CONTACT_FORM_URL` 環境変数で、`https://` で始まるURLを設定します。未設定やhttps以外の値の場合はボタンを表示せず「お問い合わせ窓口は現在準備中です。」と表示し、起動時に警告ログを出します（設定値はログに記録しません）。ボタンの補足文は「Googleフォーム」なので、別のサービスを使う場合は `index.html` の文言も変更してください。検索結果やSNSのカードに出る説明文は `features/site/site.go` の `description`、カード用の画像（1200×630px）は `internal/web/static/img/ogp.png` です。`SITE_URL` を設定すると、canonical・OGP・Xカードのタグと `sitemap.xml` が有効になります。`robots.txt` は常に返します。お知らせ機能が有効なら、お知らせの記事は本文の冒頭を説明文にし、`og:type` を `article` にして、`sitemap.xml` に更新日時付きで載せます。アイコンは `internal/web/static/img/` の `favicon.svg`・`favicon-32.png`・`apple-touch-icon.png` です。同梱の画像とアイコンはこのキットの紹介用なので、別のサイトでは差し替えてください。
 
