@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>{{.Title}}</h1>{{template "notice" .Notice}}
+{{template "list-header" (listHeader .Title .Notice)}}
 {{if .Values}}
 <div class="table-container">
   <table>

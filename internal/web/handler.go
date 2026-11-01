@@ -331,6 +331,15 @@ var componentFuncs = template.FuncMap{
 	"confirm": func(action, back, csrfToken string) form.Confirm {
 		return form.Confirm{Action: action, Back: back, CSRFToken: csrfToken}
 	},
+	"listHeader": func(title string, notice any, actions ...form.ActionLink) form.ListHeader {
+		return form.ListHeader{Title: title, Notice: notice, Actions: actions}
+	},
+	"primaryAction": func(label, href string) form.ActionLink {
+		return form.ActionLink{Label: label, Href: href, Primary: true}
+	},
+	"linkAction": func(label, href string) form.ActionLink {
+		return form.ActionLink{Label: label, Href: href}
+	},
 	"asset":      AssetURL,
 	"navCurrent": NavCurrent,
 }

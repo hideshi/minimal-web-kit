@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>お問い合わせの管理</h1>{{template "notice" .Notice}}
+{{template "list-header" (listHeader "お問い合わせの管理" .Notice)}}
 <p>未読 {{.Unread}}件、対応中 {{.Active}}件。受付から{{.RetentionDays}}日で自動で削除します。対応中のものは、最後の更新から{{.RetentionDays}}日、受付から最長{{.ActiveMaxDays}}日まで残します。返信先へは、各自の手段で連絡してください（この画面からは送りません）。</p>
 <div class="action-bar">{{if .OpenOnly}}<a href="/admin/contact/all">すべてのお問い合わせを見る</a>{{else}}<a href="/admin/contact">未読と対応中だけを見る</a>{{end}}{{if .Spam}}<a href="/admin/contact/spam/delete">スパムをまとめて削除する（{{.Spam}}件）</a>{{end}}</div>
 {{if .Messages}}

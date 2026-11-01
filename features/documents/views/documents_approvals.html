@@ -1,6 +1,5 @@
 {{define "content"}}
-<h1>承認の依頼</h1>{{template "notice" .Notice}}
-<div class="action-bar"><a href="/admin/documents">文書の一覧へ戻る</a></div>
+{{template "list-header" (listHeader "承認の依頼" .Notice (linkAction "文書の一覧へ戻る" "/admin/documents"))}}
 {{if .Items}}
 <div class="table-container">
   <table>

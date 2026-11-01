@@ -127,6 +127,19 @@ type Choices struct {
 	Options  []Option
 }
 
+// ActionLink は、操作の並びの1つです。Primary なら主のボタンとして描きます。
+type ActionLink struct {
+	Label, Href string
+	Primary     bool
+}
+
+// ListHeader は、一覧の画面の先頭（見出し、完了の案内、操作の並び）です。画面の部品 "list-header" に渡します。
+type ListHeader struct {
+	Title   string
+	Notice  any
+	Actions []ActionLink
+}
+
 // Confirm は、共通の画面部品 "confirm-actions"（削除の確認画面の操作の並び）に渡す値です。
 type Confirm struct {
 	Action    string // 削除を送信する先

@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>MCPの設定</h1>{{template "notice" .Notice}}
+{{template "list-header" (listHeader "MCPの設定" .Notice)}}
 <p>AIエージェントが操作できる機能を決めます。無効の機能は、エージェントから見えません。読み取りには下書きも含みます。書き込みは、実行のたびにAIエージェントの画面で確認を求めます。</p>
 {{if .Rows}}
 <div class="table-container">

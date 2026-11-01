@@ -1,6 +1,5 @@
 {{define "content"}}
-<h1>カタログの管理</h1>{{template "notice" .Notice}}
-<div class="action-bar"><a href="/admin/catalog/new" class="btn btn-primary">項目を作成する</a><a href="/admin/catalog/classifications/categories">カテゴリの管理</a><a href="/admin/catalog/classifications/tags">タグの管理</a><a href="/catalog">公開一覧を見る</a></div>
+{{template "list-header" (listHeader "カタログの管理" .Notice (primaryAction "項目を作成する" "/admin/catalog/new") (linkAction "カテゴリの管理" "/admin/catalog/classifications/categories") (linkAction "タグの管理" "/admin/catalog/classifications/tags") (linkAction "公開一覧を見る" "/catalog"))}}
 {{if .Items}}
 <div class="table-container">
   <table>

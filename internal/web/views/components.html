@@ -27,6 +27,14 @@
 </section>
 <script src="{{asset "js/analytics.js"}}" data-ga4-id="{{.GA4ID}}" defer></script>{{end}}{{end}}
 
+{{/*
+  一覧の画面の先頭。見出し、完了の案内、操作の並びを、全ての一覧で同じ形にする。
+  例: {{template "list-header" (listHeader "お知らせの管理" .Notice (primaryAction "お知らせを作成する" "/admin/news/new"))}}
+  説明の段落を挟む画面は、操作なしで呼び、段落の後に action-bar を置く。
+*/}}
+{{define "list-header"}}<h1>{{.Title}}</h1>{{template "notice" .Notice}}{{if .Actions}}
+<div class="action-bar">{{range .Actions}}<a href="{{.Href}}"{{if .Primary}} class="btn btn-primary"{{end}}>{{.Label}}</a>{{end}}</div>{{end}}{{end}}
+
 {{/* 完了メッセージ。引数は文字列（空なら何も出さない）。読み上げソフトに穏やかに伝える */}}
 {{define "notice"}}{{if .}}<p class="alert alert-info" role="status">{{.}}</p>{{end}}{{end}}
 

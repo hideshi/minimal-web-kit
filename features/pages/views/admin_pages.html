@@ -1,6 +1,5 @@
 {{define "content"}}
-<h1>固定ページの管理</h1>{{template "notice" .Notice}}
-<div class="action-bar"><a href="/admin/pages/new" class="btn btn-primary">固定ページを作成する</a></div>
+{{template "list-header" (listHeader "固定ページの管理" .Notice (primaryAction "固定ページを作成する" "/admin/pages/new"))}}
 {{if .Pages}}
 <div class="table-container">
   <table>

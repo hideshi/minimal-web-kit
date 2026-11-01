@@ -1,6 +1,5 @@
 {{define "content"}}
-<h1>自分の文書</h1>{{template "notice" .Notice}}
-<div class="action-bar"><a href="/admin/documents/new" class="btn btn-primary">文書を作成する</a><a href="/admin/documents">文書の一覧へ戻る</a></div>
+{{template "list-header" (listHeader "自分の文書" .Notice (primaryAction "文書を作成する" "/admin/documents/new") (linkAction "文書の一覧へ戻る" "/admin/documents"))}}
 {{if .Items}}
 <div class="table-container">
   <table>

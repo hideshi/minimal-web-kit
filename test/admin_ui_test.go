@@ -703,22 +703,40 @@ func TestRoleUser_ReachesOnlyAccountRoutes(t *testing.T) {
 	}
 }
 
-// TestAdminUI_ListButtonsUseActionBar は、一覧の作成のボタンが、画面ごとに同じ位置に並ぶことを確かめる。
-// docs/components.md の「一覧」の型で、操作の並びは action-bar に置く。段落に入れると縦の位置がずれる。
-func TestAdminUI_ListButtonsUseActionBar(t *testing.T) {
-	files, err := filepath.Glob("../features/*/views/*.html")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("%v %v", files, err)
+// TestAdminUI_ListScreensUseHeader は、一覧の画面の先頭が共通の部品でできていること、
+// 実測のテスト（test/browser/layout_consistency_test.go）の対象に全部の一覧が入っていることを確かめる。
+func TestAdminUI_ListScreensUseHeader(t *testing.T) {
+	measured, err := os.ReadFile("browser/layout_consistency_test.go")
+	if err != nil {
+		t.Fatal(err)
 	}
-	inParagraph := regexp.MustCompile(`<p[^>]*>\s*<a href="[^"]*/new" class="btn`)
-	for _, file := range append(files, must(filepath.Glob("../features/auth/views/*.html"))...) {
+	templates := map[string]bool{}
+	for _, s := range adminSamples {
+		if s.Kind != kindList && s.Kind != kindListAdd {
+			continue
+		}
+		templates[s.Template] = true
+		if !strings.Contains(string(measured), `"`+s.Pattern[len("GET "):]+`"`) {
+			t.Errorf("%s: 実測のテストの listScreens に足す", s.Pattern)
+		}
+	}
+	files := must(filepath.Glob("../features/*/views/*.html"))
+	seen := 0
+	for _, file := range files {
+		if !templates[filepath.Base(file)] {
+			continue
+		}
+		seen++
 		b, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if inParagraph.Match(b) {
-			t.Errorf("%s: 一覧の作成のボタンは action-bar に置く", file)
+		if !strings.Contains(string(b), `{{template "list-header"`) || strings.Contains(string(b), "<h1") {
+			t.Errorf("%s: 一覧の先頭は部品 list-header で書く", file)
 		}
+	}
+	if seen < 10 {
+		t.Fatalf("見た一覧が少なすぎる: %d", seen)
 	}
 }
 

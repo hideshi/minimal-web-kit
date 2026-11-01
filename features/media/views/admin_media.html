@@ -1,7 +1,5 @@
 {{define "content"}}
-<h1>画像の管理</h1>
-
-{{template "notice" .Notice}}
+{{template "list-header" (listHeader "画像の管理" .Notice)}}
 
 <p>使用量: {{.Used}}MB ／ 上限 {{.Limit}}MB</p>
 

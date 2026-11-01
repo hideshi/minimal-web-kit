@@ -1,5 +1,5 @@
 {{define "content"}}
-<h1>文書</h1>{{template "notice" .Notice}}
+{{template "list-header" (listHeader "文書" .Notice)}}
 <div class="action-bar"><a href="/admin/documents/new" class="btn btn-primary">文書を作成する</a><a href="/admin/documents/mine">自分の文書</a><a href="/admin/documents/approvals">承認の依頼</a><a href="/admin/document-folders">フォルダの管理</a>{{if .IsAdmin}}<a href="/admin/documents/transfer">所有者の変更</a>{{end}}</div>
 <form method="get" action="/admin/documents" class="card">
   {{range .Search}}{{template "field" .}}{{end}}

@@ -75,6 +75,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
 | `analytics` | `web.Analytics` | アクセス解析の同意の案内と `analytics.js`。`AddAnalytics` を呼んだ応答にだけ出る。公開のレイアウトの `</body>` の前で呼ぶ |
+| `list-header` | `listHeader` の戻り値 | 一覧の画面の先頭（見出し、完了の案内、操作の並び）。`primaryAction`・`linkAction` で操作を渡す。条件で変わる操作や説明の段落を挟む画面は、操作なしで呼んで、後ろに `action-bar` を置く |
 | `static-head` | なし | CSSとアイコンの `<link>`（CSS 1本、アイコン3つ）。URLは中身の版付き（`?v=`）で、CSSを変えるとすぐ新しい版が読まれる。レイアウトの `<head>` で `{{template "static-head"}}` と書く。予約名で、利用側で同じ名前を定義すると解析でエラーになる |
 
 **CSSとアイコンの読み込み**: 同梱の7つのレイアウト（Base・Site・お知らせ・カタログ・お問い合わせ・固定ページ・管理画面）は、`static-head` の1か所から読み込みます。共通部品は登録されるだけでレイアウトに自動では入らないため、自作のレイアウトでも `<head>` に `{{template "static-head"}}` を書きます。`/static/...` を直接書いたレイアウトも動きますが、版が付かず、CSSの更新が届くまでキャッシュの期間（10分。前段のCDNが引き上げることがある）だけ遅れます。`/static/` の他のファイルは、`{{asset "js/combobox.js"}}` で版付きのURLにします。`asset` の引数は文字列だけで、`/static/` に無いファイルや文字列以外の引数は、実行しない分岐の中でも解析（`web.ParseWithComponents`・`web.ParsePage`）でエラーになります。版はファイルごとの中身のSHA-256の先頭12桁で、CSSを変えてもアイコンのURLは変わりません。
@@ -136,7 +137,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 
 | 型 | 構成（上から） | 見本 |
 |---|---|---|
-| 一覧 | `h1`（「〜の管理」）→ `notice` → 操作の並び（`action-bar`。主操作は `btn-primary` 1つ、他はリンク）→ 表（`table-container`、`caption`、`th scope`、最後の列が「操作」）か、空のときの `<p>`（「〜はまだありません。」）→ `pagination` | `features/news/views/admin_posts.html` |
+| 一覧 | `list-header`（`h1`「〜の管理」→ `notice` → 操作の並び（`action-bar`。主操作は `btn-primary` 1つ、他はリンク）→ 表（`table-container`、`caption`、`th scope`、最後の列が「操作」）か、空のときの `<p>`（「〜はまだありません。」）→ `pagination` | `features/news/views/admin_posts.html` |
 | 一覧＋追加 | 一覧の後に、`h2`（「〜の追加」）→ `error` → フォーム（`card`）。追加の失敗はこの画面のまま、入力欄にエラーを出す | `features/catalog/views/admin_classifications.html` |
 | 作成・編集 | `h1`（「〜の作成」「〜の編集」）→ `notice`・`error` →（プレビューを持つ場合は、フォームの上にプレビューの節）→ フォーム（`card`、入力欄は部品、送信は `btn-primary`。プレビューのボタンは保存の後に置き `formaction` で送る）→ 公開などの別操作（`action-bar`、フォームは `inline-form`）→ 削除（`btn-danger` のリンク、編集のときだけ）→ 一覧へ戻るリンク | `features/news/views/admin_post_form.html`、プレビューは `features/pages/views/admin_page_form.html` |
 | 詳細（状態と操作） | `h1`（「〜: 名前」）→ `notice`・`error` → 状態の表 → 操作ごとの `h2` とフォーム → 削除（`btn-danger` のリンク）→ 一覧へ戻るリンク | `features/auth/views/admin_account.html` |
@@ -158,6 +159,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 
 - `test/admin_ui_test.go`: 登録された管理画面の経路を全部集め、見本のデータ（状態の違うものを含む）と空の状態で開いて、`h1` と `<title>`、`id` の重複と参照先、ラベル、選択肢の組、CSRFトークン、素の箇条書き、表の `caption`・`scope`、表の中の削除ボタン、削除の確認の操作の並び、一覧の空の1文を確かめる。わざと失敗する送信では、状態コード・`h1`・エラーの場所・入力の保持を確かめる。
 - `test/template_test.go`: 機能のテンプレートで入力欄を直接書かないこと（例外は理由つきの許可リスト）、全部の表の `caption`・`scope`。
+- `test/browser/layout_consistency_test.go`（`make test-ui`）: 一覧の画面どうしで、見出しと操作の並びの位置と大きさを実測で比べる。一覧を足したら `listScreens` に足す（足さないとテストが落ちる）。
 - **管理画面を足したら**、`adminSamples`（開くURLと画面の型）に見本を足す。成功で画面を返す送信は `adminPostSamples`、入力の失敗は `adminFailures` に足す。見本の無い経路・テンプレートがあるとテストが落ちる。経路は文字列のリテラルで登録する（ソースの経路との突き合わせに使う）。
 - 見た目（余白・並び・狭い画面）は検査できないため、`make test-ui` が `test/browser/shots/` に撮る主な画面を見て確かめる。
 
