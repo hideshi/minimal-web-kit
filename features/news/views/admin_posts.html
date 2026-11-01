@@ -1,9 +1,6 @@
 {{define "content"}}
-<h1>お知らせの管理</h1>
-
-{{template "notice" .Notice}}
-
-<p><a href="/admin/news/new" class="btn btn-primary">お知らせを作成する</a></p>
+<h1>お知らせの管理</h1>{{template "notice" .Notice}}
+<div class="action-bar"><a href="/admin/news/new" class="btn btn-primary">お知らせを作成する</a></div>
 
 {{if .Posts}}
 <div class="table-container">

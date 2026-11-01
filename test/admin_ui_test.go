@@ -703,6 +703,32 @@ func TestRoleUser_ReachesOnlyAccountRoutes(t *testing.T) {
 	}
 }
 
+// TestAdminUI_ListButtonsUseActionBar は、一覧の作成のボタンが、画面ごとに同じ位置に並ぶことを確かめる。
+// docs/components.md の「一覧」の型で、操作の並びは action-bar に置く。段落に入れると縦の位置がずれる。
+func TestAdminUI_ListButtonsUseActionBar(t *testing.T) {
+	files, err := filepath.Glob("../features/*/views/*.html")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("%v %v", files, err)
+	}
+	inParagraph := regexp.MustCompile(`<p[^>]*>\s*<a href="[^"]*/new" class="btn`)
+	for _, file := range append(files, must(filepath.Glob("../features/auth/views/*.html"))...) {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inParagraph.Match(b) {
+			t.Errorf("%s: 一覧の作成のボタンは action-bar に置く", file)
+		}
+	}
+}
+
+func must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 // TestAdminUI_AllPagesFollowStandard は、全管理画面を見本のデータで開き、UI標準の構造を満たすかを確かめる。
 // 不変条件ではなく、docs/components.md の「画面の型」の検査。
 func TestAdminUI_AllPagesFollowStandard(t *testing.T) {
