@@ -63,9 +63,10 @@ func (f *Feature) SetAdmin(admin features.Admin) error {
 // SetAccountDirectory はアカウントの一覧を受け取ります。
 func (f *Feature) SetAccountDirectory(d features.AccountDirectory) { f.directory = d }
 
-// AdminNavLinks は、全てのロールのナビに「文書」を加えます。
+// AdminNavLinks は、全てのロールのナビに「社内文書」を加えます。
+// 一般ユーザーも読む入口のため、「〜の管理」にしません。
 func (f *Feature) AdminNavLinks() []web.NavLink {
-	return []web.NavLink{{Label: "文書", Href: "/admin/documents", AllRoles: true}}
+	return []web.NavLink{{Label: "社内文書", Href: "/admin/documents", AllRoles: true}}
 }
 
 // Purge は保持期間を過ぎた移管の記録を消します。

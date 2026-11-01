@@ -244,7 +244,7 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 		return
 	}
 	folder.Options[0].Label = "全てのフォルダ"
-	data := s.PageData("文書", root)
+	data := s.PageData("社内文書", root)
 	data["Items"] = items
 	data["Page"] = p
 	data["Notice"] = messages.From(r)

@@ -137,7 +137,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 
 | 型 | 構成（上から） | 見本 |
 |---|---|---|
-| 一覧 | `list-header`（`h1`「〜の管理」→ `notice` → 操作の並び（`action-bar`。主操作は `btn-primary` 1つ、他はリンク）→ 表（`table-container`、`caption`、`th scope`、最後の列が「操作」）か、空のときの `<p>`（「〜はまだありません。」）→ `pagination` | `features/news/views/admin_posts.html` |
+| 一覧 | `list-header`（`h1`「〜の管理」。全てのロールが使う画面は機能の名前（例: 「社内文書」）→ `notice` → 操作の並び（`action-bar`。主操作は `btn-primary` 1つ、他はリンク）→ 表（`table-container`、`caption`、`th scope`、最後の列が「操作」）か、空のときの `<p>`（「〜はまだありません。」）→ `pagination` | `features/news/views/admin_posts.html` |
 | 一覧＋追加 | 一覧の後に、`h2`（「〜の追加」）→ `error` → フォーム（`card`）。追加の失敗はこの画面のまま、入力欄にエラーを出す | `features/catalog/views/admin_classifications.html` |
 | 作成・編集 | `h1`（「〜の作成」「〜の編集」）→ `notice`・`error` →（プレビューを持つ場合は、フォームの上にプレビューの節）→ フォーム（`card`、入力欄は部品、送信は `btn-primary`。プレビューのボタンは保存の後に置き `formaction` で送る）→ 公開などの別操作（`action-bar`、フォームは `inline-form`）→ 削除（`btn-danger` のリンク、編集のときだけ）→ 一覧へ戻るリンク | `features/news/views/admin_post_form.html`、プレビューは `features/pages/views/admin_page_form.html` |
 | 詳細（状態と操作） | `h1`（「〜: 名前」）→ `notice`・`error` → 状態の表 → 操作ごとの `h2` とフォーム → 削除（`btn-danger` のリンク）→ 一覧へ戻るリンク | `features/auth/views/admin_account.html` |

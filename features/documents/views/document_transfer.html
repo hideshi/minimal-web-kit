@@ -1,6 +1,6 @@
 {{define "content"}}
 {{template "list-header" (listHeader "文書の所有者の変更" .Notice)}}{{template "error" .Error}}
-<div class="action-bar"><a href="/admin/documents">文書の一覧へ戻る</a></div>
+<div class="action-bar"><a href="/admin/documents">社内文書の一覧へ戻る</a></div>
 <p>停止中か削除済みのアカウントの文書を、別の人へまとめて移します。この画面にはタイトルも内容も出ません。承認待ちの文書は、依頼を取り下げて下書きに戻します。</p>
 {{if .Owners}}
 <div class="table-container">
