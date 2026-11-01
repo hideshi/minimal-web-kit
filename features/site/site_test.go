@@ -65,7 +65,7 @@ func TestSiteFeature_HandleRoot(t *testing.T) {
 		"共通認証（自社システム向け）",
 		"社内ツール &amp; 業務Webアプリ",
 		"マイクロSaaS",
-		"公開ページの閲覧ではCookieを発行せず、セッションも作りません。",
+		"標準の構成では、公開ページの閲覧でCookieを発行せず、セッションも作りません。",
 		"STANDARD LIBRARY FIRST",
 		"プライバシーポリシー・免責事項",
 		"公開ページはCookieなしで閲覧できます。",

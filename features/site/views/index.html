@@ -112,6 +112,18 @@
       <h3 class="card-title">既知の脆弱性の毎日の点検</h3>
       <p class="card-content">Go本体と依存の既知の脆弱性を、CIで毎日調べます。本番へ届けるには配備が要ります。</p>
     </article>
+
+    <article class="card">
+      <span class="card-badge">SQL</span>
+      <h3 class="card-title">SQLの文の検査</h3>
+      <p class="card-content">SQLの文が固定の文字列だけでできているかを確かめます。利用者の値を文の中につなぐと、テストが落ちます。</p>
+    </article>
+
+    <article class="card">
+      <span class="card-badge">BOUNDARY</span>
+      <h3 class="card-title">境界の値の検査</h3>
+      <p class="card-content">長すぎる値や変な文字列を検索と保存へ流し、想定の応答になるかを確かめます。本文の記法と画像の読み取りは、ファズでも確かめます。</p>
+    </article>
   </div>
 </section>
 
@@ -206,13 +218,13 @@
     <article class="card">
       <span class="card-badge">WEBSITE</span>
       <h3 class="card-title">企業サイト &amp; サービスLP</h3>
-      <p class="card-content">公開ページの閲覧ではCookieを発行せず、セッションも作りません。お知らせ・固定ページ・お問い合わせを足せます。</p>
+      <p class="card-content">標準の構成では、公開ページの閲覧でCookieを発行せず、セッションも作りません。お知らせ・固定ページ・お問い合わせ・画像を足せます。</p>
     </article>
 
     <article class="card">
       <span class="card-badge">CATALOG SITE</span>
       <h3 class="card-title">事例集 &amp; 商品紹介</h3>
-      <p class="card-content">カタログと管理画面で、公開する内容を複数人で更新できます。注文や在庫の機能は含みません。</p>
+      <p class="card-content">カタログと管理画面で、公開する内容を複数人で更新できます。項目には代表画像を付けられます。注文や在庫の機能は含みません。</p>
     </article>
 
     <article class="card">
@@ -290,7 +302,14 @@
     <details class="faq-item">
       <summary>バックアップは必要ですか？</summary>
       <div class="faq-answer">
-        <p>管理画面を使うなら必要です。データは1つのSQLiteのファイルにあり、サーバーごと失うと戻せません。複製と検査のコマンドはありますが、サーバーの外へ送る仕組みは運用で用意してください。戻せることも、定期的に試してください。</p>
+        <p>管理画面を使うなら必要です。データは1つのSQLiteのファイルにあり、サーバーごと失うと戻せません。複製と検査のコマンドはありますが、サーバーの外へ送る仕組みは運用で用意してください。戻せることも、定期的に試してください。画像もDBに入るため、画像が増えると、複製の容量も世代の分だけ増えます。</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary>画像はどれくらい載せられますか？</summary>
+      <div class="faq-answer">
+        <p>画像機能を有効にすると、JPEGとPNGを1枚8MBまで受け取り、長辺1,600pxに縮小して保存します。全体の上限は既定で300MBで、設定で変えられます。SVG・GIF・WebP・HEICは使えません。画像はDBに保存するため、写真が大量に増えるサイトには向きません。</p>
       </div>
     </details>
 
