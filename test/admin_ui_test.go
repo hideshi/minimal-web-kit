@@ -607,6 +607,9 @@ func checkAdminPage(doc *node, kind string) []string {
 				if n.has("btn-danger") {
 					add("表の中に btn-danger（表の削除は確認画面へのリンクにする）")
 				}
+				if n.name == "form" && !n.has("inline-form") && !n.has("label-form") {
+					add("表の中のフォーム（%s）に inline-form が無い", n.attr["action"])
+				}
 			})
 		}
 	}
@@ -700,6 +703,24 @@ func TestRoleUser_ReachesOnlyAccountRoutes(t *testing.T) {
 	}
 	if w := ui.get("user", "/admin"); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/documents" {
 		t.Fatalf("/admin: %d %s", w.Code, w.Header().Get("Location"))
+	}
+}
+
+// 表の中のフォームの検査が、クラスの無いフォームを見つけることを確かめる。
+func TestAdminUI_CheckerFindsTableFormWithoutClass(t *testing.T) {
+	table := func(class string) string {
+		return `<html><head><title>x</title></head><body><main><h1>x</h1><table><caption>x</caption><tr><th scope="col">x</th></tr><tr><td><form method="post" action="/x"` + class + `><input type="hidden" name="csrf_token" value="x"></form></td></tr></table></main></body></html>`
+	}
+	has := func(problems []string) bool {
+		return strings.Contains(strings.Join(problems, "\n"), "inline-form")
+	}
+	if !has(checkAdminPage(parseHTML(t, table("")), kindOther)) {
+		t.Error("form without a class was not reported")
+	}
+	for _, class := range []string{` class="inline-form"`, ` class="label-form"`} {
+		if has(checkAdminPage(parseHTML(t, table(class)), kindOther)) {
+			t.Errorf("%s was reported", class)
+		}
 	}
 }
 

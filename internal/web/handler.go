@@ -343,8 +343,12 @@ var componentFuncs = template.FuncMap{
 	"linkAction": func(label, href string) form.ActionLink {
 		return form.ActionLink{Label: label, Href: href}
 	},
-	"asset":      AssetURL,
-	"navCurrent": NavCurrent,
+	"postButton":    form.NewPostButton,
+	"primaryButton": form.PrimaryButton,
+	"rowName":       form.RowName,
+	"hiddenField":   form.HiddenInput,
+	"asset":         AssetURL,
+	"navCurrent":    NavCurrent,
 }
 
 // ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field・choices・

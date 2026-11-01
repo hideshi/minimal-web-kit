@@ -24,10 +24,7 @@
         {{if $.IsAdmin}}
         <td>
           {{if and .Notice (not .Enabled)}}<a href="/admin/mcp/features/{{.Name}}/enable" class="btn btn-secondary">有効にする<span class="visually-hidden">（{{.Label}}）</span></a>{{else}}
-          <form method="post" action="/admin/mcp/{{.Name}}/{{if .Enabled}}disable{{else}}enable{{end}}" class="inline-form">
-            <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
-            <button type="submit" class="btn btn-secondary">{{if .Enabled}}無効にする{{else}}有効にする{{end}}</button>
-          </form>{{end}}
+          {{if .Enabled}}{{template "post-button" (postButton (printf "/admin/mcp/%v/disable" .Name) $.CSRFToken "無効にする")}}{{else}}{{template "post-button" (postButton (printf "/admin/mcp/%v/enable" .Name) $.CSRFToken "有効にする")}}{{end}}{{end}}
         </td>
         {{end}}
       </tr>

@@ -4,6 +4,7 @@ package form
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
@@ -138,6 +139,41 @@ type ListHeader struct {
 	Title   string
 	Notice  any
 	Actions []ActionLink
+}
+
+// PostButton は、共通の画面部品 "post-button"（ボタン1つのPOSTフォーム）の値です。
+// テンプレートでは postButton 関数で作り、primaryButton・rowName・hiddenField で指定を足します。
+type PostButton struct {
+	Action, CSRFToken, Label string
+	Primary                  bool   // 主操作のボタンにする。既定は btn-secondary
+	RowName                  string // 表の行のボタンで、どの行かを読み上げる補足
+	Hidden                   []HiddenField
+}
+
+// HiddenField は、フォームの隠し欄です。
+type HiddenField struct{ Name, Value string }
+
+// PostButtonOption は、PostButton の任意の指定です。
+type PostButtonOption func(*PostButton)
+
+// NewPostButton は、PostButton の値を作ります。
+func NewPostButton(action, csrfToken, label string, options ...PostButtonOption) PostButton {
+	b := PostButton{Action: action, CSRFToken: csrfToken, Label: label}
+	for _, apply := range options {
+		apply(&b)
+	}
+	return b
+}
+
+// PrimaryButton は、主操作のボタンにします。
+func PrimaryButton() PostButtonOption { return func(b *PostButton) { b.Primary = true } }
+
+// RowName は、表の行のボタンの補足を足します。
+func RowName(name string) PostButtonOption { return func(b *PostButton) { b.RowName = name } }
+
+// HiddenInput は隠し欄を足します。値は文字列でも数値でも構いません。
+func HiddenInput(name string, value any) PostButtonOption {
+	return func(b *PostButton) { b.Hidden = append(b.Hidden, HiddenField{name, fmt.Sprint(value)}) }
 }
 
 // Confirm は、共通の画面部品 "confirm-actions"（削除の確認画面の操作の並び）に渡す値です。

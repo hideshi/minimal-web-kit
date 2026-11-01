@@ -63,7 +63,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 |---|---|---|
 | `notice` | 文字列 | 完了メッセージ。`role="status"` で読み上げソフトに穏やかに伝える。空なら何も出さない |
 | `error` | 文字列 | 画面全体のエラー。`role="alert"` ですぐに伝える。空なら何も出さない |
-| `public-menu` | 画面のデータ | 公開用6レイアウトの共通メニュー。ホーム、`NavLinks`、有効な `Contact`、プライバシーポリシーを1組だけ描く。管理画面は対象外 |
+| `public-menu` | 画面のデータ | 公開ページの共通メニュー。ホーム、`NavLinks`、有効な `Contact`、プライバシーポリシーを1組だけ描く。管理画面は対象外 |
 | `pagination` | `page.Page` | 前後のページへのリンクを `<nav aria-label>` で出す。検索の条件を残すときは `Params` に入れる。`rel="prev"`・`rel="next"` 付き。1ページだけなら何も出さない |
 | `field` | `form.Field` | ラベル・説明・エラーを入力欄に関連付ける（`for`、`aria-describedby`、`aria-invalid`）。`Required` なら「（必須）」、`Optional` なら「（任意）」を同じ見た目で表示する（ラベルの文字に直接書かない）。`Rows` が1以上なら複数行、`Options` があれば選択（`select`）、`Type: "checkbox"` なら単独のチェックボックス（`Checked`）。`Type: "file"` と `Accept` でファイルの選択。`LabelHidden` は表の中の欄のようにラベルを読み上げ専用にし、`Readonly` は登録URLのような表示用の値に使う |
 | `choices` | `form.Choices` | 同じ名前のラジオ（`Multiple` ならチェックボックス）の組。`fieldset`・`legend` で囲み、説明・エラーを組に関連付ける。選択肢が1つなら `field` の `checkbox` を使う |
@@ -73,12 +73,15 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `datetime`・`date` | `time.Time` | 日時（「2026年1月2日 15:04」）と日付（「2026年1月2日」）を `<time datetime>` で出す。時刻帯は渡す側で決める（例: `time.Local`）。予定の短い表示（登録URLの期限「1月2日 15:04」）だけは画面で書く |
 | `richtext` | `richtext.Doc`（`internal/web/richtext` の `Parse` で読んだもの。固定ページは `ParseWithImages` と `ResolveImages`） | 書き方を絞ったMarkdownの本文（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）。規則の正本は [richtext.md](richtext.md)。利用者の入力はHTMLとして出さず、リンクは小文字の `https://` とサイト内のパスだけ。保存の前に `Parse` を通して、表の上限を欄のエラーにする |
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
+| `post-button` | `form.PostButton`（テンプレートでは `postButton` 関数） | ボタン1つのPOSTフォーム。CSRFの隠し欄を含み、既定は `btn-secondary`。`primaryButton`、表の行の補足の `rowName`、隠し欄の `hiddenField` を足せる。入力欄のあるフォームには使わない。ボタン1つのフォームを直書きするとテストが落ちる |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
 | `analytics` | `web.Analytics` | アクセス解析の同意の案内と `analytics.js`。`AddAnalytics` を呼んだ応答にだけ出る。公開のレイアウトの `</body>` の前で呼ぶ |
 | `list-header` | `listHeader` の戻り値 | 一覧の画面の先頭（見出し、完了の案内、操作の並び）。`primaryAction`・`linkAction` で操作を渡す。条件で変わる操作や説明の段落を挟む画面は、操作なしで呼んで、後ろに `action-bar` を置く |
+| `public-shell` | 画面のデータ | 公開ページの文書全体（`<head>`、スキップリンク、`analytics`、ヘッダー、`main`、フッター）。レイアウトは `{{define "layout"}}{{template "public-shell" .}}{{end}}` と書き、違う箇所だけブロック（`page-title`・`site-meta`・`page_head`・`site-brand`・`site-footer`）を定義する。Siteが無いときの機能のレイアウトは `web.PublicLayout()` |
+| `admin-shell` | 画面のデータ | 管理画面の文書全体。ブロックは `script` と `admin-alerts`。同梱のレイアウトが自分で `<html>` を書くとテストが落ちる |
 | `static-head` | なし | CSSとアイコンの `<link>`（CSS 1本、アイコン3つ）。URLは中身の版付き（`?v=`）で、CSSを変えるとすぐ新しい版が読まれる。レイアウトの `<head>` で `{{template "static-head"}}` と書く。予約名で、利用側で同じ名前を定義すると解析でエラーになる |
 
-**CSSとアイコンの読み込み**: 同梱の7つのレイアウト（Base・Site・お知らせ・カタログ・お問い合わせ・固定ページ・管理画面）は、`static-head` の1か所から読み込みます。共通部品は登録されるだけでレイアウトに自動では入らないため、自作のレイアウトでも `<head>` に `{{template "static-head"}}` を書きます。`/static/...` を直接書いたレイアウトも動きますが、版が付かず、CSSの更新が届くまでキャッシュの期間（10分。前段のCDNが引き上げることがある）だけ遅れます。`/static/` の他のファイルは、`{{asset "js/combobox.js"}}` で版付きのURLにします。`asset` の引数は文字列だけで、`/static/` に無いファイルや文字列以外の引数は、実行しない分岐の中でも解析（`web.ParseWithComponents`・`web.ParsePage`）でエラーになります。版はファイルごとの中身のSHA-256の先頭12桁で、CSSを変えてもアイコンのURLは変わりません。
+**CSSとアイコンの読み込み**: 同梱のレイアウトは、枠の部品（`public-shell`・`admin-shell`）の中の `static-head` から読み込みます。共通部品は登録されるだけでレイアウトに自動では入らないため、枠を使わない自作のレイアウトでは `<head>` に `{{template "static-head"}}` を書きます。`/static/...` を直接書いたレイアウトも動きますが、版が付かず、CSSの更新が届くまでキャッシュの期間（10分。前段のCDNが引き上げることがある）だけ遅れます。`/static/` の他のファイルは、`{{asset "js/combobox.js"}}` で版付きのURLにします。`asset` の引数は文字列だけで、`/static/` に無いファイルや文字列以外の引数は、実行しない分岐の中でも解析（`web.ParseWithComponents`・`web.ParsePage`）でエラーになります。版はファイルごとの中身のSHA-256の先頭12桁で、CSSを変えてもアイコンのURLは変わりません。
 
 **公開メニュー**: 公開レイアウトのヘッダーで `{{template "public-menu" .}}` を呼びます。ヘッダーの内枠は `site-header-inner public-header`、部品のクラスは `public-nav`・`public-menu`・`public-menu-links`・`public-menu-policy` です。機能側は `web.PublicNavigation` を埋め込み、描画前に `AddNavigation(data)` を呼ぶと、起動時に配られた機能のリンクとお問い合わせ先が入ります。外部のお問い合わせには新しいタブの説明と `noopener noreferrer` を付けます。Siteのレイアウトも同じリンクを使い、トップ内の目次（`page-contents`）やGitHubへの案内は本文に置きます。以前の「開く階層がないのでメニューを折りたたまない」方針は、リンクが増えた狭い画面での移動を整理するため変更しました。
 
@@ -113,8 +116,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | ボタンの並び | `action-bar`（中央寄せは `action-bar-center`） | 送信と取り消しのボタン等。フォームを並べるときは `inline-form`。幅40rem未満ではボタンが全幅になる |
 | 表 | `table-container` で `<table>` を囲む | 狭い画面では表だけが横に動く。`<th scope="col">` と `<caption>` を付ける。下の「表の横スクロール」を参照 |
 | 入力 | `form-group`、`field-hint`、`field-error` | 直接書くより、部品の `field` を使う |
-| ページ送り | `public-menu` | 画面のデータ | 公開用6レイアウトの共通メニュー。ホーム、`NavLinks`、有効な `Contact`、プライバシーポリシーを1組だけ描く。管理画面は対象外 |
-| `pagination` | 部品の `pagination` を使う |
+| ページ送り | `pagination` | 部品の `pagination` を使う |
 | 区切り | `section`、`section-header`、`section-lead` | LP等の大きな区切り |
 | 読み上げ専用 | `visually-hidden` | 画面には出さず、読み上げソフトにだけ伝える文字（表の中の入力欄のラベル等） |
 | 開閉 | `faq-list`、`faq-item`、`faq-answer` | `<details>` と組み合わせる |
@@ -149,6 +151,8 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 - ログイン・初回登録・登録URLの表示・パスキーの追加（JSで開くフォーム）、文書の閲覧（本文を読ませる画面。`features/documents/views/document.html`）は型の外で、6節の共通の検査だけを当てる。
 
 ## 5. 用語とメッセージ
+
+戻るリンクの文言は「〜へ戻る」か、操作をやめる場合の「〜ずに戻る」にします（`TestTemplate_BackLinkWording`）。部品にはしません。
 
 - 操作: 「〜を作成する」（新しく作る主操作）、「保存する」「変更を保存する」、「追加する」（一覧の画面で足す）、「削除する」、「削除せずに戻る」、「〜の一覧へ戻る」、「公開する」「非公開（下書き）に戻す」。表の操作列は「編集」「削除」。
 - 件数: 「○件」。0件のときは「〜はありません。」のように言い換える（「0件の項目で使用中」と書かない）。

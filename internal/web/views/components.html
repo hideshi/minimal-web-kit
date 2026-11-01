@@ -194,6 +194,12 @@
 {{end}}
 
 {{/*
+  ボタン1つのPOSTフォーム。入力欄のあるフォームには使わない。
+  {{template "post-button" (postButton (printf "/admin/x/%v/publish" .ID) .CSRFToken "公開する" primaryButton (hiddenField "version" .Version))}}
+*/}}
+{{define "post-button"}}<form method="post" action="{{.Action}}" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}<button type="submit" class="btn {{if .Primary}}btn-primary{{else}}btn-secondary{{end}}">{{.Label}}{{if .RowName}}<span class="visually-hidden">（{{.RowName}}）</span>{{end}}</button></form>{{end}}
+
+{{/*
   公開ページの枠。レイアウトは {{define "layout"}}{{template "public-shell" .}}{{end}} と書き、違う箇所だけブロックを定義する。
   ブロックを空にしたいときに空白だけの定義を書いても、既定は置き換わらない。
 */}}
@@ -262,10 +268,7 @@
         {{end}}{{end}}
         <a href="/">サイトを表示</a>
         {{if .LoggedIn}}
-        <form method="post" action="/admin/logout" class="inline-form">
-          <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-          <button type="submit" class="btn btn-secondary">ログアウト</button>
-        </form>
+        {{template "post-button" (postButton "/admin/logout" .CSRFToken "ログアウト")}}
         {{end}}
       </nav>
     </div>

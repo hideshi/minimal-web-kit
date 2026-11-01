@@ -292,6 +292,88 @@ func layoutProblem(source string) string {
 	return ""
 }
 
+// TestTemplate_SingleButtonFormsUseComponent は、ボタン1つのPOSTフォームを直書きせず、部品を使うことを検証します。
+// inline-form を書けるのは、部品（post-button・confirm-actions）の定義だけです。
+func TestTemplate_SingleButtonFormsUseComponent(t *testing.T) {
+	files, err := filepath.Glob("../features/*/views/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) == 0 {
+		t.Fatal("no templates found")
+	}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if directInlineForm(string(raw)) {
+			t.Errorf("%s: ボタン1つのフォームは post-button を使う", f)
+		}
+	}
+	raw, err := os.ReadFile("../internal/web/views/components.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, shells, ok := strings.Cut(string(raw), `{{define "public-shell"}}`)
+	if !ok {
+		t.Fatal("public-shell not found")
+	}
+	if directInlineForm(shells) || !strings.Contains(shells, `{{template "post-button" (postButton "/admin/logout"`) {
+		t.Error("枠の中のフォームも post-button を使う")
+	}
+	if !directInlineForm(`<form method="post" action="/x" class="inline-form"></form>`) {
+		t.Error("direct form was not detected")
+	}
+}
+
+func directInlineForm(source string) bool {
+	return regexp.MustCompile(`<form\b[^>]*\binline-form\b`).MatchString(source)
+}
+
+// TestTemplate_BackLinkWording は、戻るリンクの文言を「〜へ戻る」か「〜ずに戻る」にそろえます。
+func TestTemplate_BackLinkWording(t *testing.T) {
+	files, err := filepath.Glob("../features/*/views/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	core, err := filepath.Glob("../internal/web/views/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := 0
+	for _, f := range append(files, core...) {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, text := range backLinkTexts(string(raw)) {
+			checked++
+			if !backLinkOK(text) {
+				t.Errorf("%s: 戻るリンクは「〜へ戻る」にする: %s", f, text)
+			}
+		}
+	}
+	if checked < 10 {
+		t.Fatalf("back links not found: %d", checked)
+	}
+	if got := backLinkTexts(`<a href="/x">一覧に戻る</a>`); len(got) != 1 || backLinkOK(got[0]) {
+		t.Errorf("not detected: %v", got)
+	}
+}
+
+func backLinkTexts(source string) []string {
+	var texts []string
+	for _, m := range regexp.MustCompile(`<a\b[^>]*>([^<]*戻る)</a>`).FindAllStringSubmatch(source, -1) {
+		texts = append(texts, m[1])
+	}
+	return texts
+}
+
+func backLinkOK(text string) bool {
+	return strings.HasSuffix(text, "へ戻る") || strings.HasSuffix(text, "ずに戻る")
+}
+
 // TestTemplate_TableFormsAreInline は、表の中のフォームに inline-form を求めます。無いとフォームの下余白でボタンが上に寄ります。
 func TestTemplate_TableFormsAreInline(t *testing.T) {
 	files, err := filepath.Glob("../features/*/views/*.html")

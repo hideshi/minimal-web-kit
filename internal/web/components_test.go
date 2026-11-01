@@ -157,6 +157,32 @@ func TestComponents_ConfirmActions(t *testing.T) {
 	}
 }
 
+func TestComponents_PostButton(t *testing.T) {
+	out := renderComponent(t, `{{template "post-button" .}}`, form.NewPostButton("/admin/x/1/publish", "tok", "公開する"))
+	for _, want := range []string{`<form method="post" action="/admin/x/1/publish" class="inline-form">`, `name="csrf_token" value="tok"`, `class="btn btn-secondary">公開する</button>`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+	if strings.Contains(out, "visually-hidden") || strings.Count(out, "<input") != 1 {
+		t.Errorf("optional parts must not appear by default: %s", out)
+	}
+
+	out = renderComponent(t, `{{template "post-button" .}}`, form.NewPostButton("/x", "tok", "有効にする", form.PrimaryButton(), form.HiddenInput("confirmed", "1"), form.HiddenInput("version", int64(7)), form.RowName("見本")))
+	for _, want := range []string{`class="btn btn-primary"`, `name="confirmed" value="1"`, `name="version" value="7"`, `<span class="visually-hidden">（見本）</span>`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+
+	out = renderComponent(t, `{{template "post-button" .}}`, form.NewPostButton("/x", `"><script>`, `<b>`, form.RowName("<i>"), form.HiddenInput("k", `"><s>`)))
+	for _, bad := range []string{"<script>", "<b>", "<i>", "<s>"} {
+		if strings.Contains(out, bad) {
+			t.Errorf("%s was not escaped: %s", bad, out)
+		}
+	}
+}
+
 func TestComponents_Combobox(t *testing.T) {
 	field := form.Combobox{ID: "tags", Name: "tag", Label: "タグ<b>", Hint: "20個まで", Limit: 20, Options: []form.Option{
 		{Value: "1", Label: "設計"}, {Value: "2 x", Label: "<script>", Selected: true},

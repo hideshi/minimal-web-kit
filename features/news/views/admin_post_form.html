@@ -23,15 +23,9 @@
 <h2>公開と削除</h2>
 <div class="action-bar">
   {{if .Post.Published}}
-  <form method="post" action="/admin/news/{{.Post.ID}}/unpublish" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-secondary">{{if .Post.ScheduledAt .Now}}予約を取り消す（下書きに戻す）{{else}}非公開（下書き）に戻す{{end}}</button>
-  </form>
+  {{if .Post.ScheduledAt .Now}}{{template "post-button" (postButton (printf "/admin/news/%v/unpublish" .Post.ID) .CSRFToken "予約を取り消す（下書きに戻す）")}}{{else}}{{template "post-button" (postButton (printf "/admin/news/%v/unpublish" .Post.ID) .CSRFToken "非公開（下書き）に戻す")}}{{end}}
   {{else}}
-  <form method="post" action="/admin/news/{{.Post.ID}}/publish" class="inline-form">
-    <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-primary">{{if .Post.PublishedAt.After .Now}}公開を予約する{{else}}公開する{{end}}</button>
-  </form>
+  {{if .Post.PublishedAt.After .Now}}{{template "post-button" (postButton (printf "/admin/news/%v/publish" .Post.ID) .CSRFToken "公開を予約する" primaryButton)}}{{else}}{{template "post-button" (postButton (printf "/admin/news/%v/publish" .Post.ID) .CSRFToken "公開する" primaryButton)}}{{end}}
   {{end}}
   <a href="/admin/news/{{.Post.ID}}/delete" class="btn btn-danger">削除する</a>
 </div>

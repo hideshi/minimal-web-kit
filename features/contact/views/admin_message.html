@@ -23,10 +23,10 @@
 <h2>状態の変更</h2>
 {{if .DeleteOnChange}}<p>受付から保持期間を過ぎています。対応中以外にすると、1時間以内に削除されます。</p>{{end}}
 <div class="action-bar">
-  {{if ne .Message.Status "active"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="active"><button type="submit" class="btn btn-secondary">対応中にする</button></form>{{end}}
-  {{if ne .Message.Status "done"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="done"><button type="submit" class="btn btn-secondary">完了にする</button></form>{{end}}
-  {{if ne .Message.Status "unread"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="unread"><button type="submit" class="btn btn-secondary">未読に戻す</button></form>{{end}}
-  {{if ne .Message.Status "spam"}}<form method="post" action="/admin/contact/{{.Message.ID}}/status" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="status" value="spam"><button type="submit" class="btn btn-secondary">スパムにする</button></form>{{end}}
+  {{if ne .Message.Status "active"}}{{template "post-button" (postButton (printf "/admin/contact/%v/status" .Message.ID) .CSRFToken "対応中にする" (hiddenField "status" "active"))}}{{end}}
+  {{if ne .Message.Status "done"}}{{template "post-button" (postButton (printf "/admin/contact/%v/status" .Message.ID) .CSRFToken "完了にする" (hiddenField "status" "done"))}}{{end}}
+  {{if ne .Message.Status "unread"}}{{template "post-button" (postButton (printf "/admin/contact/%v/status" .Message.ID) .CSRFToken "未読に戻す" (hiddenField "status" "unread"))}}{{end}}
+  {{if ne .Message.Status "spam"}}{{template "post-button" (postButton (printf "/admin/contact/%v/status" .Message.ID) .CSRFToken "スパムにする" (hiddenField "status" "spam"))}}{{end}}
 </div>
 <h2>削除</h2>
 <p><a href="/admin/contact/{{.Message.ID}}/delete" class="btn btn-danger">削除する</a></p>

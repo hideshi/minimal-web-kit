@@ -29,10 +29,7 @@
 </form>
 
 <h2>停止・再開</h2>
-<form method="post" action="/admin/accounts/{{.Account.ID}}/{{if .Account.Disabled}}enable{{else}}disable{{end}}" class="inline-form">
-  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-  <button type="submit" class="btn btn-secondary">{{if .Account.Disabled}}アカウントを再開する{{else}}アカウントを停止する（ログイン状態も解除）{{end}}</button>
-</form>
+{{if .Account.Disabled}}{{template "post-button" (postButton (printf "/admin/accounts/%v/enable" .Account.ID) .CSRFToken "アカウントを再開する")}}{{else}}{{template "post-button" (postButton (printf "/admin/accounts/%v/disable" .Account.ID) .CSRFToken "アカウントを停止する（ログイン状態も解除）")}}{{end}}
 {{end}}
 
 <h2>登録URLの発行</h2>

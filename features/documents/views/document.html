@@ -30,7 +30,7 @@
 {{end}}
 {{if .CanDecide}}
 <h2>承認の判断</h2>
-<form method="post" action="/admin/documents/{{.Document.ID}}/versions/{{.Version.ID}}/approve" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-primary">承認する</button></form>
+{{template "post-button" (postButton (printf "/admin/documents/%v/versions/%v/approve" .Document.ID .Version.ID) .CSRFToken "承認する" primaryButton)}}
 <form method="post" action="/admin/documents/{{.Document.ID}}/versions/{{.Version.ID}}/reject" class="card">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   {{template "field" .ReasonField}}
@@ -43,8 +43,8 @@
   {{if .IsCurrent}}<a href="/admin/documents/{{.Document.ID}}/reads">既読の状況</a>{{end}}
   <a href="/admin/documents/{{.Document.ID}}/share">共有先の設定</a>
   <a href="/admin/documents/{{.Document.ID}}/versions">版の履歴</a>
-  {{if and .IsCurrent (not .Open.ID)}}<form method="post" action="/admin/documents/{{.Document.ID}}/revise" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><button type="submit" class="btn btn-secondary">改定する</button></form>{{end}}
-  {{if eq .Version.State "pending"}}<form method="post" action="/admin/documents/{{.Document.ID}}/withdraw" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}"><input type="hidden" name="version" value="{{.Version.ID}}"><button type="submit" class="btn btn-secondary">依頼を取り下げる</button></form>{{end}}
+  {{if and .IsCurrent (not .Open.ID)}}{{template "post-button" (postButton (printf "/admin/documents/%v/revise" .Document.ID) .CSRFToken "改定する")}}{{end}}
+  {{if eq .Version.State "pending"}}{{template "post-button" (postButton (printf "/admin/documents/%v/withdraw" .Document.ID) .CSRFToken "依頼を取り下げる" (hiddenField "version" .Version.ID))}}{{end}}
   <a href="/admin/documents/{{.Document.ID}}/delete" class="btn btn-danger">削除する</a>
 </div>
 {{end}}
