@@ -244,8 +244,12 @@ func featureViews() ([]string, error) {
 // TestTemplate_LayoutsUseShell は、同梱のレイアウトが自分で文書の骨組みを書かず、枠の部品を使うことを検証します。
 // ヘッダー・フッター・スキップリンクを1か所で直せるようにします。
 func TestTemplate_LayoutsUseShell(t *testing.T) {
+	patterns := []string{"../internal/web/views/*layout.html"}
+	for _, b := range collectBundles(t) { // 自作機能のレイアウトは、枠を使わなくてもよい
+		patterns = append(patterns, "../features/"+b.dir+"/views/*layout.html")
+	}
 	var files []string
-	for _, pattern := range []string{"../internal/web/views/*layout.html", "../features/*/views/*layout.html"} {
+	for _, pattern := range patterns {
 		matched, err := filepath.Glob(pattern)
 		if err != nil {
 			t.Fatal(err)
