@@ -34,6 +34,7 @@ CI（`.github/workflows/test.yml`）を変えるときは、アクションを�
 | ログ・Cookie | `canary_test.go`（`TestCanary_LogAndPrivacyProtection`） | 公開ページのセッション非発行と、ログへの漏洩。業務データを網羅した保証ではない |
 | SQL | `sql_static_test.go`（`TestSQL_StatementsAreStatic`） | SQLの文が固定の文字列だけでできていること。値を文につなぐと落ちる。例外は `sqlExceptions` に理由と数で載せる。SQLインジェクションの守りで、SQLite内部の不具合は防げない |
 | 依存の境界 | `architecture_test.go`（`TestArchitecture_KitDoesNotUseUnsafe`・`TestArchitecture_ModulesHaveNoCgo`） | キット自身が `unsafe` とcgoを使わないこと、全機能の依存のうちLinuxのamd64・arm64で選ばれるパッケージにcgoのファイルが無いこと |
+| README | `readme_test.go`（`TestREADME_ListsWhatExists`） | 同梱機能・環境変数・`make` のコマンド・主なディレクトリが載っていること。内容が今も正しいかは見ないので、読んで確かめる |
 | 入力とDB | `boundary_test.go`（`TestBoundary_StrangeValuesAreHandled`・`TestDatabase_IntegrityAfterOperations`） | SQLiteへ届く入力の長さの上限、変な文字列への経路ごとの応答と、保存した値の読み返し、操作の後にDBの構造が壊れないこと。SQLite内部の不具合そのものは見つけられない |
 
 `test/browser/` は別モジュールで、`go test ./...` では走らない。画面部品の操作と撮影は `make test-ui` で確かめる。
@@ -76,7 +77,7 @@ CI（`.github/workflows/test.yml`）を変えるときは、アクションを�
 - 前段のCDNが中身を書き換える機能（Cloudflareの Email Address Obfuscation 等。`docs/deploy.md` の6節）を確かめる。管理画面の応答に `Cache-Control: no-transform` が付いていることを、CDNを通して確かめる。確認には、書き換えの対象になる中身（メールアドレス入りのお問い合わせ等）がある画面を使う。対象が無い画面だけを見て、書き換えが無いと判断しない。
 - CSSを変えて配備したら、本番のHTMLのCSSのURLの版と、その応答のヘッダー・中身を確かめる（`docs/deploy.md` の6節・10節）。版はファイルごとの中身から作るため、テンプレートだけの変更では変わらない。手元で再現しない見た目の不具合は、まずブラウザや前段のCDNに古いCSSが残っていないかを疑う。
 - `CONTACT_FORM_URL` が実際のフォームを指すか、入力項目と利用目的・保持期間・削除窓口がポリシーに一致するかを確認する。仮URLを実用の窓口として案内しない。
-- LP・README・スキル・コードを照合し、同梱済み機能（Site・お知らせ機能・管理者認証・カタログ・お問い合わせ・固定ページ）と範囲外（各 `docs/domain/<機能>.md` の「守らない範囲」）を区別する。未実装の権限管理・画像アップロード等や未確認の性能を提供済みと表現しない。
+- LP・README・スキル・コードを照合し、同梱済み機能（`features/` にあるもの）と範囲外（各 `docs/domain/<機能>.md` の「守らない範囲」）を区別する。未実装の機能や未確認の性能を提供済みと表現しない。逆に、実装済みの機能を「含みません」と書いた古い文も残さない。
 - 管理者認証を有効にした場合は、パスキーでの登録・ログイン、同期型パスキーを既定で拒否し `AUTH_ALLOW_SYNCED_PASSKEYS=true` のときだけ受け入れること、WebAuthnのJSが認証画面だけで動くこと、管理画面の全経路が `Page`・`Form` で守られていることを確認する。共通認証を有効にした場合は、提供者が1つだけで、Baseと通常の管理者認証にOIDCのライブラリが組み込まれないこと、停止がログイン済みの連携先に次の要求から効くこと、Aの障害が503になりセッションを消さないことを確認する。お知らせ機能を有効にした場合は、`/news`・`/api/news` がCookieを扱わないこと、CORSが既定で無許可であることも確認する。
 - 動きのあるUIが `docs/ui-guidelines.md` の順（標準の要素 → htmx → 素のJS）で選ばれ、JSを使う箇所でも、変化の通知・フォーカス・キーボード操作・JSなしでの重要な操作が成り立つかを確認する。画面部品のJSを変えたら `make test-ui` も実行する。
 - ナビ・見出し・ボタンの用語が、Base・Site・お知らせ機能の画面で揃っているか（表記揺れ）を確認する。管理画面は `TestAdminUI_*` が構造を検査するため、`make test-ui` が `test/browser/shots/` に撮る画面を見て、余白・並び・狭い画面での崩れと文の自然さを確かめる。公開ページ（一覧の絞り込み・お問い合わせ・固定ページ等）も撮って見る。項目の数で形が変わる画面は、多い状態（例: タグ20個）でも見る。
