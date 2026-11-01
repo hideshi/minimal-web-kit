@@ -4,13 +4,13 @@
 
 ## 1. 用語
 
-| 用語 | 意味 |
-|---|---|
-| 認証基盤 | アカウントとパスキーを持ち、本人を確認するシステム（`features/auth/oidcop`） |
-| 連携先 | 認証基盤でログインするシステム（`features/federatedauth`、または同じ契約を実装した他のシステム） |
-| 世代 | `account_epoch`・`client_epoch`・`grant_epoch`。ログイン時に固定する |
-| 照会 | 連携先が保護された要求のたびに、固定した世代が今も有効かを認証基盤に問うこと（`POST /oidc/check`） |
-| 確認不能 | 照会の結果が、正しい形式の有効・無効のどちらでもないこと |
+| 用語 | 英語名 | 意味 |
+|---|---|---|
+| 認証基盤 | `oidcop` | アカウントとパスキーを持ち、本人を確認するシステム（`features/auth/oidcop`） |
+| 連携先 | `federatedauth` | 認証基盤でログインするシステム（`features/federatedauth`、または同じ契約を実装した他のシステム） |
+| 世代 | `Epochs` | `account_epoch`・`client_epoch`・`grant_epoch`。ログイン時に固定する |
+| 照会 | `upstream.check` | 連携先が保護された要求のたびに、固定した世代が今も有効かを認証基盤に問うこと（`POST /oidc/check`） |
+| 確認不能 | — | 照会の結果が、正しい形式の有効・無効のどちらでもないこと |
 
 ## 2. ログインの流れ
 
@@ -123,7 +123,7 @@ sequenceDiagram
 | FEDAUTH-INV-6 | 認証基盤が公開するのは、下の「連携先との契約」に列挙した経路だけ。UserInfo等の未実装の機能は広告も受付もしない。CORSを許可しない。アクセストークンは保存せず、受け付ける経路も持たない | `RegisterIsolatedRoutes`・`discovery` |
 | FEDAUTH-INV-7 | 連携先の通信は、設定から作った3つのURLと完全一致するHTTPSにだけ接続し、転送を追わない。期限（交換5秒、鍵と照会2秒）と本文の上限（交換32KiB、鍵64KiB、照会8KiB）を守り、秘密値はBasic認証でだけ送る | `federation.Client`・`newUpstream` |
 | FEDAUTH-INV-8 | IDトークンはES256だけを受け付け、issuer・audience（1件）・azp・nonce・有効期限・発行時刻・`auth_time`・世代の形式を確かめる。`at_hash` があれば照合する。時刻のずれの許容は2分、IDトークンの寿命は5分 | `upstream.exchange`・`IDTokenLifetime` |
-| FEDAUTH-INV-9 | コード・state・nonce・PKCEの値・秘密値・識別子をログに出さない | 各ハンドラのログ呼び出し |
+| FEDAUTH-INV-9 | コード・state・nonce・PKCEの値・秘密値・識別子をログに出さない | `accountSession.LogValue`・`Epochs.LogValue`（ログに値を出さない） |
 
 ### 連携先との契約
 
