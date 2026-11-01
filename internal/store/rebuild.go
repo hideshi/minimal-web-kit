@@ -138,10 +138,16 @@ func rebuild(ctx context.Context, conn *sql.Conn, r Rebuild) error {
 	if err != nil {
 		return err
 	}
-	var seq sql.NullInt64
-	err = conn.QueryRowContext(ctx, "SELECT seq FROM sqlite_sequence WHERE name = ?", r.Table).Scan(&seq)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	sequence, err := tableSQL(ctx, conn, "sqlite_sequence") // AUTOINCREMENT の表が1つも無いDBには、この表が無い
+	if err != nil {
 		return err
+	}
+	var seq sql.NullInt64
+	if sequence != "" {
+		err = conn.QueryRowContext(ctx, "SELECT seq FROM sqlite_sequence WHERE name = ?", r.Table).Scan(&seq)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
 	}
 	for _, q := range []string{
 		create,
@@ -153,8 +159,10 @@ func rebuild(ctx context.Context, conn *sql.Conn, r Rebuild) error {
 			return err
 		}
 	}
-	if _, err := conn.ExecContext(ctx, "DELETE FROM sqlite_sequence WHERE name = ?", r.Table); err != nil {
-		return err
+	if sequence != "" {
+		if _, err := conn.ExecContext(ctx, "DELETE FROM sqlite_sequence WHERE name = ?", r.Table); err != nil {
+			return err
+		}
 	}
 	if seq.Valid {
 		if _, err := conn.ExecContext(ctx, "INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)", r.Table, seq.Int64); err != nil {
