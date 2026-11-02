@@ -60,6 +60,16 @@ func Migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	// 予約公開の列。NULL は「公開すればすぐ出る」で、既存の行の公開の状態を変えない
+	var hasPublishAt int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('catalog_items') WHERE name = 'publish_at'").Scan(&hasPublishAt); err != nil {
+		return err
+	}
+	if hasPublishAt == 0 {
+		if _, err := db.Exec("ALTER TABLE catalog_items ADD COLUMN publish_at INTEGER"); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 func (f *Feature) Init(db *sql.DB) error {
@@ -332,7 +342,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 }
 func (f *Feature) SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error) {
 	// 本文の大きさに関係なく、公開IDと更新日時だけを取得する。
-	rows, err := f.store.db.QueryContext(ctx, "SELECT id,updated_at FROM catalog_items WHERE status='published' ORDER BY id DESC LIMIT 49000")
+	rows, err := f.store.db.QueryContext(ctx, "SELECT i.id,i.updated_at FROM catalog_items i WHERE "+publicItem+" ORDER BY i.id DESC LIMIT 49000", f.store.now().Unix())
 	if err != nil {
 		return nil, err
 	}

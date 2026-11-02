@@ -43,8 +43,19 @@ type Feature struct {
 	adminPages map[string]*template.Template
 	now        func() time.Time
 
-	mu  sync.RWMutex
-	nav []web.NavLink // 公開中でナビの順のあるページ（スナップショット。PAGES-INV-6）
+	// rebuildMu は、ナビの作り直し（DBの読み取りからスナップショットの交換まで）を直列にします。
+	// 古い読み取りの結果が、後から新しい結果を上書きしないためです。
+	rebuildMu sync.Mutex
+	mu        sync.RWMutex
+	nav       []navEntry // 公開の状態でナビの順のあるページ（予約中を含む。スナップショット。PAGES-INV-6）
+	// afterNavRead は、テストで、ナビの読み取りと交換の間に割り込むための口です。本番では nil です。
+	afterNavRead func()
+}
+
+// navEntry はナビの候補です。publishAt を過ぎるまでは載せません。
+type navEntry struct {
+	link      web.NavLink
+	publishAt int64 // 0 なら公開すればすぐ載る
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
@@ -103,8 +114,20 @@ func (f *Feature) Init(db *sql.DB) error {
 	if _, err := db.Exec(migrationSQL); err != nil {
 		return fmt.Errorf("pages migration: %w", err)
 	}
+	// 予約公開の列を、既存のDBに足す。NULL は「公開すればすぐ出る」で、既存の行の公開の状態を変えない
+	var hasPublishAt int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('pages') WHERE name = 'publish_at'").Scan(&hasPublishAt); err != nil {
+		return fmt.Errorf("pages migration: %w", err)
+	}
+	if hasPublishAt == 0 {
+		if _, err := db.Exec("ALTER TABLE pages ADD COLUMN publish_at INTEGER"); err != nil {
+			return fmt.Errorf("pages migration: %w", err)
+		}
+	}
 	f.store = NewStore(db)
 	f.store.now = func() time.Time { return f.now() }
+	f.rebuildMu.Lock()
+	defer f.rebuildMu.Unlock()
 	return f.refreshNav(context.Background())
 }
 
@@ -130,21 +153,22 @@ func (f *Feature) SetLayout(layout web.Layout) error {
 	return nil
 }
 
-// refreshNav は、公開中でナビの順のあるページのリンクを作り直します。保存・公開・非公開・削除の後に呼びます。
+// refreshNav は、公開の状態でナビの順のあるページ（予約中を含む）を読み直します。保存・公開・非公開・削除の後に呼びます。
+// 呼ぶ側が rebuildMu を持ちます。予約中のものは、描画のたびに DynamicNavLinks が時刻で絞ります。
 func (f *Feature) refreshNav(ctx context.Context) error {
-	rows, err := f.store.db.QueryContext(ctx, "SELECT slug, title, nav_order FROM pages WHERE status = 'published' AND nav_order IS NOT NULL")
+	rows, err := f.store.db.QueryContext(ctx, "SELECT slug, title, nav_order, COALESCE(publish_at, 0) FROM pages WHERE status = 'published' AND nav_order IS NOT NULL")
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	type entry struct {
-		link  web.NavLink
+		navEntry
 		order int
 	}
 	var entries []entry
 	for rows.Next() {
 		var e entry
-		if err := rows.Scan(&e.link.Href, &e.link.Label, &e.order); err != nil {
+		if err := rows.Scan(&e.link.Href, &e.link.Label, &e.order, &e.publishAt); err != nil {
 			return err
 		}
 		e.link.Href = "/" + e.link.Href
@@ -159,9 +183,13 @@ func (f *Feature) refreshNav(ctx context.Context) error {
 		}
 		return entries[i].link.Href < entries[j].link.Href
 	})
-	nav := make([]web.NavLink, len(entries))
+	rows.Close() // 読み取りを先に終える（読み取りの間、書き込みを待たせない）
+	if f.afterNavRead != nil {
+		f.afterNavRead()
+	}
+	nav := make([]navEntry, len(entries))
 	for i, e := range entries {
-		nav[i] = e.link
+		nav[i] = e.navEntry
 	}
 	f.mu.Lock()
 	f.nav = nav
@@ -174,19 +202,29 @@ func (f *Feature) Purge(ctx context.Context) error {
 	if f.store == nil {
 		return nil
 	}
+	f.rebuildMu.Lock()
+	defer f.rebuildMu.Unlock()
 	return f.refreshNav(ctx)
 }
 
 // DynamicNavLinks は、公開ナビに載せるページのリンクを返します（描画のたびに呼ばれる。DBは読まない）。
+// 予約中のページは、公開日時を過ぎた後の最初の描画から載ります（PAGES-INV-6）。
 func (f *Feature) DynamicNavLinks() []web.NavLink {
+	now := f.now().Unix()
 	f.mu.RLock()
 	defer f.mu.RUnlock()
-	return append([]web.NavLink(nil), f.nav...)
+	links := make([]web.NavLink, 0, len(f.nav))
+	for _, e := range f.nav {
+		if e.publishAt <= now {
+			links = append(links, e.link)
+		}
+	}
+	return links
 }
 
 // SitemapEntries は、公開中のページを sitemap.xml に載せます。
 func (f *Feature) SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error) {
-	rows, err := f.store.db.QueryContext(ctx, "SELECT slug, updated_at FROM pages WHERE status = 'published' ORDER BY slug")
+	rows, err := f.store.db.QueryContext(ctx, "SELECT slug, updated_at FROM pages WHERE "+publicPage+" ORDER BY slug", f.now().Unix())
 	if err != nil {
 		return nil, err
 	}

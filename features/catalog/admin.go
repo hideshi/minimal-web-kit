@@ -16,31 +16,39 @@ import (
 	"minimal-web-kit/internal/web/page"
 )
 
-var messages = notice.Messages{"saved": "変更を保存しました。", "published": "公開しました。", "unpublished": "下書きに戻しました。", "deleted": "削除しました。"}
+var messages = notice.Messages{"saved": "変更を保存しました。", "published": "公開しました。", "released": "変更を保存しました。公開日時を過ぎているため、公開ページに出ています。", "scheduled": "公開を予約しました。公開日時から公開ページに出ます。", "unpublished": "下書きに戻しました。", "deleted": "削除しました。"}
 
 // itemErrors は、項目の入力の誤りの文言。欄のエラーはその欄に、タグの数・存在はタグ選択の部品にエラーの場所が無いため画面全体に出す。
 var itemErrors = form.FieldErrors{
-	"title":    "タイトルは1〜200文字で、改行を含めずに入力してください。",
-	"body":     "本文は5万文字以内で入力してください。",
-	"category": "選んだカテゴリが見つかりません。選び直してください。",
-	"new_tags": "新規タグの名前は、1行に1つ、各50文字以内で入力してください。",
-	"cover":    "選んだ画像が見つかりません。選び直してください。",
-	"tags":     "タグは、新規タグを含めて合計20個までです。選んだタグが削除されていた場合は、選び直してください。",
+	"title":           "タイトルは1〜200文字で、改行を含めずに入力してください。",
+	"body":            "本文は5万文字以内で入力してください。",
+	"category":        "選んだカテゴリが見つかりません。選び直してください。",
+	"new_tags":        "新規タグの名前は、1行に1つ、各50文字以内で入力してください。",
+	"cover":           "選んだ画像が見つかりません。選び直してください。",
+	"tags":            "タグは、新規タグを含めて合計20個までです。選んだタグが削除されていた場合は、選び直してください。",
+	"publish_at":      "公開日時の形式が正しくありません。日付と時刻を選び直してください。",
+	"publish_at_live": "公開中の項目の公開日時を未来にはできません。先に「非公開（下書き）に戻す」を押してから、日時を保存してください。",
 }
 
 type itemForm struct {
 	Title, Body, Category, NewTags string
+	PublishAt                      string // 公開日時（datetime-local の値）
 	Cover                          string // 代表画像のファイル名
 	Tags                           []int64
 	Invalid                        string // 誤りのある欄（InputError.Field）
 }
 
-func (itemForm) LogValue() slog.Value            { return slog.StringValue("[catalog form]") }
+func (itemForm) LogValue() slog.Value { return slog.StringValue("[catalog form]") }
+
+// publishAtHint は、公開日時の欄の説明です。公開のボタンは保存済みの日時に従います。
+const publishAtHint = "決めた時刻に公開したいときに使います。未来の日時を入れて保存してから「公開を予約する」を押すと、その日時から公開されます。空欄で保存しても、今の日時は変わりません。予約中に過去の日時を保存すると、すぐ公開されます。日時を消すには「予約を取り消す（下書きに戻す）」を使います。時刻はサーバーのタイムゾーンです。"
+
 func (v itemForm) fieldError(name string) string { return itemErrors.For(v.Invalid, name) }
 func (v itemForm) Fields() []form.Field {
 	return []form.Field{
 		{ID: "item-title", Name: "title", Label: "タイトル", Value: v.Title, Required: true, MaxLength: 200, Error: v.fieldError("title"), Hint: "1〜200文字、改行なし。"},
 		{ID: "item-body", Name: "body", Label: "本文", Value: v.Body, Rows: 12, Error: v.fieldError("body"), Hint: "5万文字以内のプレーンテキスト。HTMLは文字として表示されます。個人情報は書かないでください。"},
+		{ID: "item-publish-at", Name: "publish_at", Label: "公開日時", Optional: true, Type: "datetime-local", Value: v.PublishAt, Error: v.fieldError("publish_at") + v.fieldError("publish_at_live"), Hint: publishAtHint},
 	}
 }
 
@@ -61,7 +69,13 @@ func (v itemForm) newTagsField() form.Field {
 func readInput(r *http.Request) (itemForm, Input, error) {
 	v := itemForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), Category: r.PostForm.Get("category"), NewTags: r.PostForm.Get("new_tags")}
 	v.Cover = r.PostForm.Get("cover")
+	v.PublishAt = r.PostForm.Get("publish_at")
 	in := Input{Title: v.Title, Body: v.Body, Cover: v.Cover}
+	at, ok := form.ParseLocalDateTime(v.PublishAt)
+	if !ok {
+		return v, in, InputError{"publish_at"}
+	}
+	in.PublishAt = at
 	if len(r.PostForm["tag"]) > 20 {
 		return v, in, InputError{"tags"}
 	}
@@ -92,6 +106,7 @@ func readInput(r *http.Request) (itemForm, Input, error) {
 func (f *Feature) adminData(s features.AdminSession, title string, r *http.Request) map[string]any {
 	data := s.PageData(title, "/admin/catalog")
 	data["Notice"] = messages.From(r)
+	data["Now"] = f.store.now()
 	return data
 }
 func (f *Feature) renderAdmin(w http.ResponseWriter, status int, name string, data map[string]any) {
@@ -178,7 +193,7 @@ func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.
 	if !f.result(w, r, err) {
 		return
 	}
-	v := itemForm{Title: item.Title, Body: item.Body, Cover: item.CoverFile}
+	v := itemForm{Title: item.Title, Body: item.Body, Cover: item.CoverFile, PublishAt: form.FormatLocalDateTime(item.PublishAt)}
 	if item.CategoryID > 0 {
 		v.Category = idString(item.CategoryID)
 	}
@@ -227,7 +242,13 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 		return
 	}
 	f.logger.Info("catalog item saved", slog.Int64("item_id", id))
-	notice.Redirect(w, r, "/admin/catalog/"+idString(id), "saved")
+	key := "saved"
+	if now := f.store.now(); item.Scheduled(now) {
+		if after, err := f.store.Get(r.Context(), id, false); err == nil && after.Live(now) {
+			key = "released"
+		}
+	}
+	notice.Redirect(w, r, "/admin/catalog/"+idString(id), key)
 }
 func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.Request, features.AdminSession) {
 	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
@@ -241,6 +262,9 @@ func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.
 		key := "unpublished"
 		if published {
 			key = "published"
+			if item, err := f.store.Get(r.Context(), id, false); err == nil && item.Scheduled(f.store.now()) {
+				key = "scheduled"
+			}
 		}
 		f.logger.Info("catalog publication changed", slog.Int64("item_id", id))
 		notice.Redirect(w, r, "/admin/catalog/"+idString(id), key)

@@ -144,15 +144,8 @@ func readPostForm(r *http.Request) postForm {
 
 // parsePublishedAt は公開日時の入力を解析します。空ならゼロ値（変更しない）を返します。
 func (f *Feature) parsePublishedAt(raw string) (time.Time, error) {
-	if raw == "" {
-		return time.Time{}, nil
-	}
-	// ブラウザによっては秒まで送るため、両方の形式を受け付ける
-	t, err := time.ParseInLocation(datetimeInputLayout, raw, time.Local)
-	if err != nil {
-		t, err = time.ParseInLocation(datetimeInputLayout+":05", raw, time.Local)
-	}
-	if err != nil || t.Year() < 1970 {
+	t, ok := form.ParseLocalDateTime(raw)
+	if !ok {
 		return time.Time{}, InputError{"published_at"}
 	}
 	return t, nil

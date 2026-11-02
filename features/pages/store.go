@@ -50,13 +50,23 @@ type Page struct {
 	Published            bool
 	NavOrder             *int
 	CreatedAt, UpdatedAt time.Time
+	PublishAt            time.Time // 公開を始める日時。無ければゼロ値
 }
+
+// Scheduled は、公開の状態で、公開日時がまだ来ていないかを返します（予約公開）。
+func (p Page) Scheduled(now time.Time) bool {
+	return p.Published && !p.PublishAt.IsZero() && p.PublishAt.After(now)
+}
+
+// Live は、公開ページに出ているかを返します。
+func (p Page) Live(now time.Time) bool { return p.Published && !p.Scheduled(now) }
 
 func (Page) LogValue() slog.Value { return slog.StringValue("[page]") }
 
 // Input は管理画面の入力です。NavOrder は空ならナビに出さない。
 type Input struct {
 	Slug, Title, Body, NavOrder string
+	PublishAt                   string // datetime-local の値。空なら今の公開日時を変えない
 }
 
 func (Input) LogValue() slog.Value { return slog.StringValue("[page input]") }
@@ -65,7 +75,8 @@ func (Input) LogValue() slog.Value { return slog.StringValue("[page input]") }
 type normalized struct {
 	slug, title, body string
 	navOrder          *int
-	images            []string // 本文が使う画像のファイル名
+	images            []string  // 本文が使う画像のファイル名
+	publishAt         time.Time // ゼロ値なら変えない
 }
 
 // normalize は入力を検査します。taken は、登録済みの経路に当たるパスかを返す関数（nil なら確かめない）。
@@ -97,6 +108,11 @@ func normalize(in Input, taken func(string) bool) (normalized, error) {
 		}
 		n.navOrder = &v
 	}
+	at, ok := form.ParseLocalDateTime(strings.TrimSpace(in.PublishAt))
+	if !ok {
+		return n, InputError{"publish_at"}
+	}
+	n.publishAt = at
 	return n, nil
 }
 
@@ -123,15 +139,47 @@ func (s *Store) saveRefs(ctx context.Context, c *sql.Conn, id int64, images []st
 	return err
 }
 
-const columns = "id, slug, title, body, status, nav_order, created_at, updated_at"
+const columns = "id, slug, title, body, status, nav_order, created_at, updated_at, COALESCE(publish_at, 0)"
+
+// publicPage は、公開ページに出すページの条件です。予約公開の日時を過ぎたものだけを出します。引数は今の時刻（Unix秒）です。
+const publicPage = "status = 'published' AND (publish_at IS NULL OR publish_at <= ?)"
+
+func publishArg(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t.Unix()
+}
+
+// checkPublishAt は、公開ページに出ているページを未来の日時にする保存を拒みます。保存のトランザクションの中で、今の行と時刻で判定します。
+func (s *Store) checkPublishAt(ctx context.Context, c *sql.Conn, id int64, at time.Time) error {
+	if at.IsZero() || id == 0 || !at.After(s.now()) {
+		return nil
+	}
+	var status string
+	var current sql.NullInt64
+	if err := c.QueryRowContext(ctx, "SELECT status, publish_at FROM pages WHERE id = ?", id).Scan(&status, &current); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if status == statusPublished && (!current.Valid || current.Int64 <= s.now().Unix()) {
+		return InputError{"publish_at_live"}
+	}
+	return nil
+}
 
 func scan(row interface{ Scan(...any) error }) (Page, error) {
 	var p Page
 	var status string
 	var nav sql.NullInt64
-	var created, updated int64
-	if err := row.Scan(&p.ID, &p.Slug, &p.Title, &p.Body, &status, &nav, &created, &updated); err != nil {
+	var created, updated, publishAt int64
+	if err := row.Scan(&p.ID, &p.Slug, &p.Title, &p.Body, &status, &nav, &created, &updated, &publishAt); err != nil {
 		return p, err
+	}
+	if publishAt > 0 {
+		p.PublishAt = time.Unix(publishAt, 0).In(time.Local)
 	}
 	p.Published = status == statusPublished
 	if nav.Valid {
@@ -169,7 +217,7 @@ func (s *Store) Get(ctx context.Context, id int64) (Page, error) {
 
 // Published は、公開中のページをスラッグで返します。下書き・存在しないページは ErrNotFound（PAGES-INV-1）。
 func (s *Store) Published(ctx context.Context, slug string) (Page, error) {
-	p, err := scan(s.db.QueryRowContext(ctx, "SELECT "+columns+" FROM pages WHERE slug = ? AND status = 'published'", slug))
+	p, err := scan(s.db.QueryRowContext(ctx, "SELECT "+columns+" FROM pages WHERE slug = ? AND "+publicPage, slug, s.now().Unix()))
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}
@@ -188,8 +236,11 @@ func (s *Store) Save(ctx context.Context, id int64, in Input, taken func(string)
 	}
 	now := s.now().Unix()
 	err = store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		if err := s.checkPublishAt(ctx, c, id, n.publishAt); err != nil {
+			return err
+		}
 		if id == 0 {
-			res, err := c.ExecContext(ctx, "INSERT INTO pages (slug, title, body, nav_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", n.slug, n.title, n.body, nav, now, now)
+			res, err := c.ExecContext(ctx, "INSERT INTO pages (slug, title, body, nav_order, created_at, updated_at, publish_at) VALUES (?, ?, ?, ?, ?, ?, ?)", n.slug, n.title, n.body, nav, now, now, publishArg(n.publishAt))
 			if err != nil {
 				return uniqueError(err)
 			}
@@ -197,7 +248,7 @@ func (s *Store) Save(ctx context.Context, id int64, in Input, taken func(string)
 				return err
 			}
 		} else {
-			res, err := c.ExecContext(ctx, "UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ? WHERE id = ?", n.slug, n.title, n.body, nav, now, id)
+			res, err := c.ExecContext(ctx, "UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ?, publish_at = COALESCE(?, publish_at) WHERE id = ?", n.slug, n.title, n.body, nav, now, publishArg(n.publishAt), id)
 			if err != nil {
 				return uniqueError(err)
 			}
@@ -221,12 +272,13 @@ func uniqueError(err error) error {
 	return err
 }
 
+// SetPublished は公開状態を変えます。非公開に戻すと公開日時も消します（次に公開するときに古い予約を残さない）。
 func (s *Store) SetPublished(ctx context.Context, id int64, published bool) error {
-	status := statusDraft
 	if published {
-		status = statusPublished
+		res, err := s.db.ExecContext(ctx, "UPDATE pages SET status = 'published', updated_at = ? WHERE id = ?", s.now().Unix(), id)
+		return store.AffectedOne(res, err, ErrNotFound)
 	}
-	res, err := s.db.ExecContext(ctx, "UPDATE pages SET status = ?, updated_at = ? WHERE id = ?", status, s.now().Unix(), id)
+	res, err := s.db.ExecContext(ctx, "UPDATE pages SET status = 'draft', publish_at = NULL, updated_at = ? WHERE id = ?", s.now().Unix(), id)
 	return store.AffectedOne(res, err, ErrNotFound)
 }
 
@@ -236,7 +288,7 @@ func mcpState(p Page) string {
 	if p.NavOrder != nil {
 		nav = *p.NavOrder
 	}
-	return features.MCPState("page", p.ID, p.Slug, p.Title, p.Body, p.Published, nav)
+	return features.MCPState("page", p.ID, p.Slug, p.Title, p.Body, p.Published, nav, publishArg(p.PublishAt))
 }
 
 func navArg(n *int) any {
@@ -260,10 +312,13 @@ func (s *Store) SaveIfUnchanged(ctx context.Context, cur Page, in Input, taken f
 		return err
 	}
 	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		if err := s.checkPublishAt(ctx, c, cur.ID, n.publishAt); err != nil {
+			return err
+		}
 		res, err := c.ExecContext(ctx,
-			`UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ?
-			 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ?`,
-			n.slug, n.title, n.body, navArg(n.navOrder), s.now().Unix(), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder))
+			`UPDATE pages SET slug = ?, title = ?, body = ?, nav_order = ?, updated_at = ?, publish_at = COALESCE(?, publish_at)
+			 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ? AND publish_at IS ?`,
+			n.slug, n.title, n.body, navArg(n.navOrder), s.now().Unix(), publishArg(n.publishAt), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder), publishArg(cur.PublishAt))
 		if err != nil {
 			return uniqueError(err)
 		}
@@ -276,10 +331,11 @@ func (s *Store) SaveIfUnchanged(ctx context.Context, cur Page, in Input, taken f
 
 // SetPublishedIfUnchanged は、読み取った内容のままのときだけ公開状態を変えます。
 func (s *Store) SetPublishedIfUnchanged(ctx context.Context, cur Page, published bool) error {
+	// 非公開に戻すと公開日時も消す。照合には公開日時も含める
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE pages SET status = ?, updated_at = ?
-		 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ?`,
-		statusOf(published), s.now().Unix(), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder))
+		`UPDATE pages SET status = ?, updated_at = ?, publish_at = CASE WHEN ? = 'draft' THEN NULL ELSE publish_at END
+		 WHERE id = ? AND slug = ? AND title = ? AND body = ? AND status = ? AND nav_order IS ? AND publish_at IS ?`,
+		statusOf(published), s.now().Unix(), statusOf(published), cur.ID, cur.Slug, cur.Title, cur.Body, statusOf(cur.Published), navArg(cur.NavOrder), publishArg(cur.PublishAt))
 	return store.AffectedOne(res, err, features.ErrMCPConflict)
 }
 
@@ -318,7 +374,7 @@ func (s *Store) imageRefs(ctx context.Context) (map[string][]string, error) {
 // publishedUses は、ページが公開中で、本文がその画像を使っているかを1回の読み取りで確かめます。
 func (s *Store) publishedUses(ctx context.Context, id int64, file string) (bool, error) {
 	var body string
-	err := s.db.QueryRowContext(ctx, "SELECT body FROM pages WHERE id = ? AND status = 'published'", id).Scan(&body)
+	err := s.db.QueryRowContext(ctx, "SELECT body FROM pages WHERE id = ? AND "+publicPage, id, s.now().Unix()).Scan(&body)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}

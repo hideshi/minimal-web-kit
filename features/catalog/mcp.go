@@ -6,9 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/web/form"
 )
+
+// mcpTimeLayout は、読み取りで返す日時の形式です。
+const mcpTimeLayout = "2006-01-02T15:04:05Z07:00"
 
 // MCPLabel は、設定の画面に出す名前です。
 func (f *Feature) MCPLabel() string { return "カタログ" }
@@ -23,13 +28,17 @@ type mcpItem struct {
 	Title     string    `json:"title"`
 	Body      string    `json:"body,omitempty"`
 	Published bool      `json:"published"`
+	PublishAt string    `json:"publish_at,omitempty"` // 予約公開の開始日時。published が true でもこの日時までは公開ページに出ない
 	Category  *mcpName  `json:"category,omitempty"`
 	Tags      []mcpName `json:"tags,omitempty"`
 	UpdatedAt string    `json:"updated_at"`
 }
 
 func toMCPItem(item Item, body bool) mcpItem {
-	v := mcpItem{ID: item.ID, Title: item.Title, Published: item.Published, UpdatedAt: item.UpdatedAt.Format("2006-01-02T15:04:05Z07:00")}
+	v := mcpItem{ID: item.ID, Title: item.Title, Published: item.Published, UpdatedAt: item.UpdatedAt.Format(mcpTimeLayout)}
+	if !item.PublishAt.IsZero() {
+		v.PublishAt = item.PublishAt.Format(mcpTimeLayout)
+	}
 	if item.CategoryID != 0 {
 		v.Category = &mcpName{item.CategoryID, item.Category}
 	}
@@ -49,6 +58,7 @@ type itemArgs struct {
 	Body       string  `json:"body"`
 	CategoryID int64   `json:"category_id"`
 	TagIDs     []int64 `json:"tag_ids"`
+	PublishAt  string  `json:"publish_at,omitempty"`
 }
 
 type itemID struct {
@@ -56,8 +66,12 @@ type itemID struct {
 }
 
 func (a itemArgs) input() Input {
-	return Input{Title: a.Title, Body: a.Body, CategoryID: a.CategoryID, TagIDs: a.TagIDs}
+	at, _ := form.ParseLocalDateTime(a.PublishAt) // checkItem で検査済み
+	return Input{Title: a.Title, Body: a.Body, CategoryID: a.CategoryID, TagIDs: a.TagIDs, PublishAt: at}
 }
+
+// publishAt は、入力の公開日時です。空ならゼロ値です。
+func (a itemArgs) publishAt() time.Time { return a.input().PublishAt }
 
 func mcpInputError(err error) error {
 	var invalid InputError
@@ -81,8 +95,18 @@ func mcpID(args json.RawMessage) (int64, error) {
 	return a.ID, nil
 }
 
-func targetLine(item Item) string {
-	return fmt.Sprintf("対象: #%d（%s）「%s」", item.ID, map[bool]string{true: "公開中", false: "下書き"}[item.Published], item.Title)
+func stateLabel(item Item, now time.Time) string {
+	switch {
+	case item.Scheduled(now):
+		return "公開予約 " + item.PublishAt.Format("2006-01-02 15:04")
+	case item.Published:
+		return "公開中"
+	}
+	return "下書き"
+}
+
+func (f *Feature) targetLine(item Item) string {
+	return fmt.Sprintf("対象: #%d（%s）「%s」", item.ID, stateLabel(item, f.store.now()), item.Title)
 }
 
 func (f *Feature) nameOf(ctx context.Context, kind string, id int64) string {
@@ -104,6 +128,9 @@ func checkItem(args json.RawMessage, existing bool) (itemArgs, json.RawMessage, 
 	}
 	if existing != (a.ID > 0) {
 		return a, nil, features.MCPInputError{Message: "id が正しくありません。"}
+	}
+	if _, ok := form.ParseLocalDateTime(a.PublishAt); !ok {
+		return a, nil, features.MCPInputError{Message: "publish_at の形式が正しくありません（2006-01-02T15:04）。"}
 	}
 	in, err := normalize(a.input())
 	if err != nil {
@@ -131,7 +158,7 @@ func (f *Feature) tagNames(ctx context.Context, ids []int64) string {
 // MCPTools は、カタログのツールを返します。保存は管理画面と同じ検査を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"title":{"type":"string"},"body":{"type":"string"},"category_id":{"type":"integer","minimum":0},"tag_ids":{"type":"array","items":{"type":"integer"}}`
+	fields := `"title":{"type":"string"},"body":{"type":"string"},"category_id":{"type":"integer","minimum":0},"tag_ids":{"type":"array","items":{"type":"integer"}},"publish_at":{"type":"string","description":"公開を始める日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない。公開中の項目を未来の日時にはできない"}`
 	return []features.MCPTool{
 		{
 			Name: "catalog_list", Title: "カタログの一覧", Description: "項目の一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,
@@ -201,7 +228,11 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, err
 				}
-				summary := features.MCPSummary("カタログの項目を下書きで作成します。公開はしません。", "カテゴリ: "+f.nameOf(ctx, "categories", a.CategoryID)+"　タグ: "+f.tagNames(ctx, a.TagIDs),
+				action := "カタログの項目を下書きで作成します。公開はしません。"
+				if at := a.publishAt(); !at.IsZero() {
+					action += "公開の操作をすると、" + at.Format("2006-01-02 15:04") + " から公開されます。"
+				}
+				summary := features.MCPSummary(action, "カテゴリ: "+f.nameOf(ctx, "categories", a.CategoryID)+"　タグ: "+f.tagNames(ctx, a.TagIDs),
 					[]string{"タイトル", "本文"}, "タイトル:\n"+features.MCPQuote(a.Title)+"\n本文:\n"+features.MCPQuote(a.Body))
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
 			},
@@ -218,7 +249,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 			},
 		},
 		{
-			Name: "catalog_update", Title: "カタログの編集", Description: "項目の全ての欄を置き換えます。公開状態は変えません。公開中の項目は直ちに変わります。実行の前に利用者の確認があります。",
+			Name: "catalog_update", Title: "カタログの編集", Description: "項目の全ての欄を置き換えます。publish_at は省くと変えません。公開状態は変えません。公開中の項目は直ちに変わります。実行の前に利用者の確認があります。",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"},` + fields + `},"required":["id","title","body","category_id","tag_ids"],"additionalProperties":false}`),
 			Prepare: func(ctx context.Context, _ features.AgentPrincipal, args json.RawMessage) (features.MCPPlan, error) {
 				a, canonical, err := checkItem(args, true)
@@ -229,12 +260,23 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return features.MCPPlan{}, mcpInputError(err)
 				}
+				now := f.store.now()
 				action := "カタログの項目を編集します。"
-				if item.Published {
+				if item.Live(now) {
 					action += "【公開中の内容が直ちに変わります】"
 				}
 				var changes []string
 				details := ""
+				if at := a.publishAt(); !at.IsZero() && !at.Equal(item.PublishAt) {
+					if item.Live(now) && at.After(now) {
+						return features.MCPPlan{}, features.MCPInputError{Message: "公開中の項目の公開日時を未来にはできません。先に非公開に戻してください。"}
+					}
+					if item.Scheduled(now) && !at.After(now) {
+						action += "【予約中の項目が、保存すると直ちに公開ページに出ます】"
+					}
+					changes = append(changes, "公開日時")
+					details += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
+				}
 				if a.CategoryID != item.CategoryID {
 					changes = append(changes, "カテゴリ")
 					details += "カテゴリ: " + f.nameOf(ctx, "categories", a.CategoryID) + "\n"
@@ -256,7 +298,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 					changes = append(changes, "本文")
 					details += "本文:\n" + features.MCPQuote(a.Body) + "\n"
 				}
-				summary := features.MCPSummary(action, targetLine(item), changes, details)
+				summary := features.MCPSummary(action, f.targetLine(item), changes, details)
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: mcpState(item)}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {
@@ -291,6 +333,7 @@ func (f *Feature) publishTool(name, title, description string, published bool) f
 			if err != nil {
 				return features.MCPPlan{}, mcpInputError(err)
 			}
+			now := f.store.now()
 			if item.Published == published {
 				return features.MCPPlan{}, features.MCPInputError{Message: "すでにその状態です。"}
 			}
@@ -299,10 +342,16 @@ func (f *Feature) publishTool(name, title, description string, published bool) f
 				return features.MCPPlan{}, err
 			}
 			action := "カタログの項目を下書きに戻します。【公開ページから消えます】"
+			if item.Scheduled(now) {
+				action = "カタログの項目の予約を取り消し、下書きに戻します。"
+			}
 			if published {
 				action = "カタログの項目を公開します。【だれでも見られるようになります】"
+				if item.PublishAt.After(now) {
+					action = "カタログの項目を予約公開します。公開日時: " + item.PublishAt.Format("2006-01-02 15:04")
+				}
 			}
-			return features.MCPPlan{Summary: action + "\n" + targetLine(item), Canonical: canonical, State: mcpState(item)}, nil
+			return features.MCPPlan{Summary: action + "\n" + f.targetLine(item), Canonical: canonical, State: mcpState(item)}, nil
 		},
 		Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {
 			var a itemID

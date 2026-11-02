@@ -18,7 +18,7 @@
       <tr>
         <td><a href="/admin/pages/{{.ID}}">{{.Title}}</a></td>
         <td>/{{.Slug}}</td>
-        <td>{{if .Published}}公開中{{else}}下書き{{end}}</td>
+        <td>{{if .Scheduled $.Now}}公開予約（{{template "datetime" .PublishAt}}）{{else if .Published}}公開中{{else}}下書き{{end}}</td>
         <td>{{if .NavOrder}}{{.NavOrder}}{{else}}出さない{{end}}</td>
         <td>{{template "datetime" .UpdatedAt}}</td>
       </tr>

@@ -20,17 +20,19 @@ import (
 
 var adminPageNames = []string{"admin_pages.html", "admin_page_form.html", "admin_page_delete.html"}
 
-var messages = notice.Messages{"created": "作成しました。", "saved": "変更を保存しました。", "published": "公開しました。", "unpublished": "下書きに戻しました。", "deleted": "削除しました。"}
+var messages = notice.Messages{"created": "作成しました。", "saved": "変更を保存しました。", "published": "公開しました。", "released": "変更を保存しました。公開日時を過ぎているため、公開ページに出ています。", "scheduled": "公開を予約しました。公開日時から公開ページに出ます。", "unpublished": "下書きに戻しました。", "deleted": "削除しました。"}
 
 var fieldErrors = form.FieldErrors{
-	"slug":          "URLは、英小文字・数字・ハイフンで2〜40文字にしてください（ハイフンで始めたり終えたりはできません）。",
-	"slug_reserved": "このURLは、サイトの他の機能が使っているため使えません。別のURLにしてください。",
-	"slug_taken":    "このURLは、他のページが使っています。別のURLにしてください。",
-	"title":         "タイトルは1〜200文字で、改行を含めずに入力してください。",
-	"body":          "本文は5万文字以内で入力してください。",
-	"body_limit":    "表か画像が多すぎるか、見出しより列の多い行があります。表は20列・200行まで、行の列は見出しの列以下、画像は100個までにしてください。",
-	"body_image":    "本文の画像が見つかりません。削除された画像の行を直してください。",
-	"nav_order":     "ナビに出す順は、0〜999の数字で入力してください（ナビに出さない場合は空にします）。",
+	"slug":            "URLは、英小文字・数字・ハイフンで2〜40文字にしてください（ハイフンで始めたり終えたりはできません）。",
+	"slug_reserved":   "このURLは、サイトの他の機能が使っているため使えません。別のURLにしてください。",
+	"slug_taken":      "このURLは、他のページが使っています。別のURLにしてください。",
+	"title":           "タイトルは1〜200文字で、改行を含めずに入力してください。",
+	"body":            "本文は5万文字以内で入力してください。",
+	"body_limit":      "表か画像が多すぎるか、見出しより列の多い行があります。表は20列・200行まで、行の列は見出しの列以下、画像は100個までにしてください。",
+	"body_image":      "本文の画像が見つかりません。削除された画像の行を直してください。",
+	"nav_order":       "ナビに出す順は、0〜999の数字で入力してください（ナビに出さない場合は空にします）。",
+	"publish_at":      "公開日時の形式が正しくありません。日付と時刻を選び直してください。",
+	"publish_at_live": "公開中のページの公開日時を未来にはできません。先に「非公開（下書き）に戻す」を押してから、日時を保存してください。",
 }
 
 // SetAdmin は管理者認証を受け取り、管理画面のテンプレートを解析します。
@@ -96,6 +98,7 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 	}
 	data := s.PageData("固定ページの管理", "/admin/pages")
 	data["Pages"] = list
+	data["Now"] = f.now()
 	data["Notice"] = messages.From(r)
 	f.renderAdmin(w, http.StatusOK, "admin_pages.html", data)
 }
@@ -117,11 +120,13 @@ func (v pageForm) Fields() []form.Field {
 			Hint: "5万文字以内。書き方は下の「本文の書き方」を参照。公開する文章なので、個人情報は書かないでください。"},
 		{ID: "page-nav-order", Name: "nav_order", Label: "ナビに出す順", Optional: true, Value: v.NavOrder, MaxLength: 3, Error: v.err("nav_order"),
 			Hint: "0〜999。小さい順にサイトのナビに並びます。空ならナビに出しません。公開中のページだけが出ます。"},
+		{ID: "page-publish-at", Name: "publish_at", Label: "公開日時", Optional: true, Type: "datetime-local", Value: v.PublishAt, Error: v.err("publish_at", "publish_at_live"),
+			Hint: "決めた時刻に公開したいときに使います。未来の日時を入れて保存してから「公開を予約する」を押すと、その日時から公開されます。空欄で保存しても、今の日時は変わりません。予約中に過去の日時を保存すると、すぐ公開されます。日時を消すには「予約を取り消す（下書きに戻す）」を使います。時刻はサーバーのタイムゾーンです。"},
 	}
 }
 
 func readInput(r *http.Request) Input {
-	return Input{Slug: r.PostForm.Get("slug"), Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), NavOrder: r.PostForm.Get("nav_order")}
+	return Input{Slug: r.PostForm.Get("slug"), Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), NavOrder: r.PostForm.Get("nav_order"), PublishAt: r.PostForm.Get("publish_at")}
 }
 
 // formPage は作成・編集の画面を描きます。preview があれば、フォームの上にプレビューを出します。
@@ -133,6 +138,7 @@ func (f *Feature) formPage(w http.ResponseWriter, r *http.Request, s features.Ad
 	data := s.PageData(title, "/admin/pages")
 	data["Page"] = p
 	data["Form"] = v
+	data["Now"] = f.now()
 	data["Preview"] = preview
 	data["Notice"] = messages.From(r)
 	if f.media.Enabled() {
@@ -163,7 +169,7 @@ func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.
 	if f.failed(w, r, err) {
 		return
 	}
-	in := Input{Slug: p.Slug, Title: p.Title, Body: p.Body}
+	in := Input{Slug: p.Slug, Title: p.Title, Body: p.Body, PublishAt: form.FormatLocalDateTime(p.PublishAt)}
 	if p.NavOrder != nil {
 		in.NavOrder = strconv.Itoa(*p.NavOrder)
 	}
@@ -197,6 +203,10 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request, s features.
 	key := "saved"
 	if p.ID == 0 {
 		key = "created"
+	} else if now := f.now(); p.Scheduled(now) {
+		if after, err := f.store.Get(r.Context(), id); err == nil && after.Live(now) {
+			key = "released"
+		}
 	}
 	notice.Redirect(w, r, "/admin/pages/"+strconv.FormatInt(id, 10), key)
 }
@@ -267,6 +277,9 @@ func (f *Feature) handlePublish(published bool) func(http.ResponseWriter, *http.
 		key := "unpublished"
 		if published {
 			key = "published"
+			if p, err := f.store.Get(r.Context(), id); err == nil && p.Scheduled(f.now()) {
+				key = "scheduled"
+			}
 		}
 		f.logger.Info("pages publication changed", slog.Int64("page_id", id))
 		notice.Redirect(w, r, "/admin/pages/"+strconv.FormatInt(id, 10), key)
@@ -325,6 +338,8 @@ func (f *Feature) setPublished(ctx context.Context, id int64, published bool) er
 func (f *Feature) afterChange(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	f.rebuildMu.Lock()
+	defer f.rebuildMu.Unlock()
 	if err := f.refreshNav(ctx); err != nil {
 		f.mu.Lock()
 		f.nav = nil

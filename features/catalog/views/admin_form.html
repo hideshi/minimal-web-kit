@@ -1,7 +1,7 @@
 {{define "script"}}<script src="{{asset "js/combobox.js"}}" defer></script>{{end}}
 {{define "content"}}
 <h1>{{.Title}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
-{{if .Item.ID}}<p>状態: {{if .Item.Published}}公開中（<a href="/catalog/{{.Item.ID}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
+{{if .Item.ID}}<p>状態: {{if .Item.Scheduled .Now}}公開予約（{{template "datetime" .Item.PublishAt}}から公開されます）{{else if .Item.Published}}公開中（<a href="/catalog/{{.Item.ID}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
 <form method="post" action="{{if .Item.ID}}/admin/catalog/{{.Item.ID}}{{else}}/admin/catalog{{end}}" class="card">
 <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
 {{range .Form.Fields}}{{template "field" .}}{{end}}
@@ -14,7 +14,7 @@
 </form>
 {{if .Item.ID}}
 {{$toggle := postButton (printf "/admin/catalog/%v/publish" .Item.ID) .CSRFToken "公開する" primaryButton}}
-{{if .Item.Published}}{{$toggle = postButton (printf "/admin/catalog/%v/unpublish" .Item.ID) .CSRFToken "非公開（下書き）に戻す"}}{{end}}
+{{if .Item.Scheduled .Now}}{{$toggle = postButton (printf "/admin/catalog/%v/unpublish" .Item.ID) .CSRFToken "予約を取り消す（下書きに戻す）"}}{{else if .Item.Published}}{{$toggle = postButton (printf "/admin/catalog/%v/unpublish" .Item.ID) .CSRFToken "非公開（下書き）に戻す"}}{{else if .Item.PublishAt.After .Now}}{{$toggle = postButton (printf "/admin/catalog/%v/publish" .Item.ID) .CSRFToken "公開を予約する" primaryButton}}{{end}}
 {{template "publish-actions" (publishActions $toggle (printf "/admin/catalog/%v/delete" .Item.ID))}}
 {{end}}
 <p><a href="/admin/catalog">カタログの一覧へ戻る</a></p>

@@ -157,7 +157,11 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	if err := items.SetPublished(ctx, itemPublished, true); err != nil {
 		t.Fatal(err)
 	}
-	ui.ids["item_draft"], ui.ids["item_published"] = itoa(itemDraft), itoa(itemPublished)
+	itemScheduled, _ := items.Save(ctx, 0, catalog.Input{Title: "予約の項目", PublishAt: time.Now().Add(48 * time.Hour)})
+	if err := items.SetPublished(ctx, itemScheduled, true); err != nil {
+		t.Fatal(err)
+	}
+	ui.ids["item_draft"], ui.ids["item_published"], ui.ids["item_scheduled"] = itoa(itemDraft), itoa(itemPublished), itoa(itemScheduled)
 	ui.ids["category"], ui.ids["category_unused"] = itoa(category), itoa(unusedCategory)
 	ui.ids["tag"], ui.ids["tag_unused"] = itoa(tag), itoa(unusedTag)
 
@@ -170,7 +174,14 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	if err := pageStore.SetPublished(ctx, publishedPage, true); err != nil {
 		t.Fatal(err)
 	}
-	ui.ids["page_draft"], ui.ids["page_published"] = itoa(draftPage), itoa(publishedPage)
+	scheduledPage, err := pageStore.Save(ctx, 0, pages.Input{Slug: "launch", Title: "予約のページ", Body: "本文", PublishAt: time.Now().Add(48 * time.Hour).Format("2006-01-02T15:04")}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pageStore.SetPublished(ctx, scheduledPage, true); err != nil {
+		t.Fatal(err)
+	}
+	ui.ids["page_draft"], ui.ids["page_published"], ui.ids["page_scheduled"] = itoa(draftPage), itoa(publishedPage), itoa(scheduledPage)
 
 	mediaUsed, mediaUnused := strings.Repeat("a", 32), strings.Repeat("b", 32)
 	for _, id := range []string{mediaUsed, mediaUnused} {
@@ -324,6 +335,7 @@ var adminSamples = []adminSample{
 	{"GET /admin/catalog", "/admin/catalog", "admin", "admin_list.html", kindList},
 	{"GET /admin/catalog/new", "/admin/catalog/new", "site_admin", "admin_form.html", kindForm},
 	{"GET /admin/catalog/{id}", "/admin/catalog/{item_draft}", "admin", "admin_form.html", kindForm},
+	{"GET /admin/catalog/{id}", "/admin/catalog/{item_scheduled}", "admin", "admin_form.html", kindForm},
 	{"GET /admin/catalog/{id}", "/admin/catalog/{item_published}", "admin", "admin_form.html", kindForm},
 	{"GET /admin/catalog/{id}/delete", "/admin/catalog/{item_draft}/delete", "admin", "admin_delete.html", kindConfirm},
 	{"GET /admin/catalog/classifications/categories", "/admin/catalog/classifications/categories", "admin", "admin_classifications.html", kindListAdd},
@@ -345,6 +357,7 @@ var adminSamples = []adminSample{
 	{"GET /admin/pages", "/admin/pages", "site_admin", "admin_pages.html", kindList},
 	{"GET /admin/pages/new", "/admin/pages/new", "admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}", "/admin/pages/{page_draft}", "admin", "admin_page_form.html", kindForm},
+	{"GET /admin/pages/{id}", "/admin/pages/{page_scheduled}", "admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}", "/admin/pages/{page_published}", "site_admin", "admin_page_form.html", kindForm},
 	{"GET /admin/pages/{id}/delete", "/admin/pages/{page_draft}/delete", "admin", "admin_page_delete.html", kindConfirm},
 	{"GET /admin/media", "/admin/media", "site_admin", "admin_media.html", kindListAdd},

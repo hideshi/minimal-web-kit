@@ -1,6 +1,6 @@
 {{define "content"}}
 <h1>{{.Title}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
-{{if .Page.ID}}<p>状態: {{if .Page.Published}}公開中（<a href="/{{.Page.Slug}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
+{{if .Page.ID}}<p>状態: {{if .Page.Scheduled .Now}}公開予約（{{template "datetime" .Page.PublishAt}}から公開されます）{{else if .Page.Published}}公開中（<a href="/{{.Page.Slug}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
 {{if .Preview}}
 <section class="card page-preview" aria-labelledby="preview-title">
   <h2 id="preview-title">プレビュー（保存していません）</h2>
@@ -42,7 +42,7 @@
 </form>
 {{if .Page.ID}}
 {{$toggle := postButton (printf "/admin/pages/%v/publish" .Page.ID) .CSRFToken "公開する" primaryButton}}
-{{if .Page.Published}}{{$toggle = postButton (printf "/admin/pages/%v/unpublish" .Page.ID) .CSRFToken "非公開（下書き）に戻す"}}{{end}}
+{{if .Page.Scheduled .Now}}{{$toggle = postButton (printf "/admin/pages/%v/unpublish" .Page.ID) .CSRFToken "予約を取り消す（下書きに戻す）"}}{{else if .Page.Published}}{{$toggle = postButton (printf "/admin/pages/%v/unpublish" .Page.ID) .CSRFToken "非公開（下書き）に戻す"}}{{else if .Page.PublishAt.After .Now}}{{$toggle = postButton (printf "/admin/pages/%v/publish" .Page.ID) .CSRFToken "公開を予約する" primaryButton}}{{end}}
 {{template "publish-actions" (publishActions $toggle (printf "/admin/pages/%v/delete" .Page.ID))}}
 {{end}}
 <p><a href="/admin/pages">固定ページの一覧へ戻る</a></p>

@@ -39,8 +39,17 @@ type Item struct {
 	Category             string
 	Tags                 []Classification
 	CreatedAt, UpdatedAt time.Time
-	CoverFile            string // 代表画像のファイル名。無ければ空
+	CoverFile            string    // 代表画像のファイル名。無ければ空
+	PublishAt            time.Time // 公開を始める日時。無ければゼロ値
 }
+
+// Scheduled は、公開の状態で、公開日時がまだ来ていないかを返します（予約公開）。
+func (i Item) Scheduled(now time.Time) bool {
+	return i.Published && !i.PublishAt.IsZero() && i.PublishAt.After(now)
+}
+
+// Live は、公開ページに出ているかを返します。
+func (i Item) Live(now time.Time) bool { return i.Published && !i.Scheduled(now) }
 
 func (Item) LogValue() slog.Value { return slog.StringValue("[catalog item]") }
 
@@ -65,6 +74,8 @@ type Input struct {
 	// SetCover が true のときだけ代表画像を変えます（MCPと画像機能の無い構成は値を変えない）。
 	SetCover bool
 	Cover    string
+	// PublishAt は公開を始める日時です。ゼロ値なら今の値を変えません。
+	PublishAt time.Time
 }
 
 func (Input) LogValue() slog.Value { return slog.StringValue("[catalog input]") }
@@ -82,6 +93,9 @@ type Store struct {
 	now   func() time.Time
 	media features.Media
 }
+
+// publicItem は、公開ページに出す項目の条件です。予約公開の日時を過ぎたものだけを出します。引数は今の時刻（Unix秒）です。
+const publicItem = "i.status='published' AND (i.publish_at IS NULL OR i.publish_at<=?)"
 
 func NewStore(db *sql.DB) *Store {
 	return &Store{db: db, now: time.Now, media: features.NoMedia{}}
@@ -110,7 +124,7 @@ func (s *Store) saveCover(ctx context.Context, c *sql.Conn, id int64, cover stri
 // publishedCover は、項目が公開中で、代表画像がその画像かを1回の読み取りで確かめます。
 func (s *Store) publishedCover(ctx context.Context, id int64, file string) (bool, error) {
 	var found int
-	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM catalog_items WHERE id=? AND status='published' AND cover_file=?", id, file).Scan(&found)
+	err := s.db.QueryRowContext(ctx, "SELECT 1 FROM catalog_items i WHERE i.id=? AND "+publicItem+" AND i.cover_file=?", id, s.now().Unix(), file).Scan(&found)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -220,7 +234,41 @@ func mcpState(item Item) string {
 		tags = append(tags, t.ID)
 	}
 	slices.Sort(tags)
-	return features.MCPState("item", item.ID, item.Title, item.Body, item.Published, item.CategoryID, tags, item.CoverFile)
+	return features.MCPState("item", item.ID, item.Title, item.Body, item.Published, item.CategoryID, tags, item.CoverFile, unixOrZero(item.PublishAt))
+}
+
+func unixOrZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}
+
+// publishArg は、公開日時の列に渡す値です。ゼロ値なら NULL です。
+func publishArg(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t.Unix()
+}
+
+// checkPublishAt は、公開ページに出ている項目を未来の日時にする保存を拒みます。保存のトランザクションの中で、今の行と時刻で判定します。
+func (s *Store) checkPublishAt(ctx context.Context, c *sql.Conn, id int64, at time.Time) error {
+	if at.IsZero() || id == 0 || !at.After(s.now()) {
+		return nil
+	}
+	var status string
+	var current sql.NullInt64
+	if err := c.QueryRowContext(ctx, "SELECT status,publish_at FROM catalog_items WHERE id=?", id).Scan(&status, &current); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if status == "published" && (!current.Valid || current.Int64 <= s.now().Unix()) {
+		return InputError{"publish_at_live"}
+	}
+	return nil
 }
 
 // expectState は、トランザクションの中で今の状態を読んで比べます。
@@ -254,16 +302,20 @@ func (s *Store) expectState(ctx context.Context, c *sql.Conn, id int64, state st
 
 // SetPublishedIfUnchanged は、確認の時点の状態のままのときだけ公開状態を変えます。
 func (s *Store) SetPublishedIfUnchanged(ctx context.Context, id int64, published bool, state string) error {
-	status := "draft"
-	if published {
-		status = "published"
-	}
 	return s.write(ctx, func(c *sql.Conn) error {
 		if err := s.expectState(ctx, c, id, state); err != nil {
 			return err
 		}
-		return changed(c.ExecContext(ctx, "UPDATE catalog_items SET status=?,updated_at=? WHERE id=?", status, s.now().Unix(), id))
+		return s.setPublished(ctx, c, id, published)
 	})
+}
+
+// setPublished は公開状態を変えます。非公開に戻すと公開日時も消します（次に公開するときに古い予約を残さない）。
+func (s *Store) setPublished(ctx context.Context, c *sql.Conn, id int64, published bool) error {
+	if published {
+		return changed(c.ExecContext(ctx, "UPDATE catalog_items SET status='published',updated_at=? WHERE id=?", s.now().Unix(), id))
+	}
+	return changed(c.ExecContext(ctx, "UPDATE catalog_items SET status='draft',publish_at=NULL,updated_at=? WHERE id=?", s.now().Unix(), id))
 }
 
 func (s *Store) save(ctx context.Context, id int64, in Input, check func(*sql.Conn) error) (int64, error) {
@@ -273,6 +325,9 @@ func (s *Store) save(ctx context.Context, id int64, in Input, check func(*sql.Co
 	}
 	err = s.write(ctx, func(c *sql.Conn) error {
 		if err := check(c); err != nil {
+			return err
+		}
+		if err := s.checkPublishAt(ctx, c, id, in.PublishAt); err != nil {
 			return err
 		}
 		var category any
@@ -288,7 +343,7 @@ func (s *Store) save(ctx context.Context, id int64, in Input, check func(*sql.Co
 		}
 		now := s.now().Unix()
 		if id == 0 {
-			res, err := c.ExecContext(ctx, "INSERT INTO catalog_items(title,body,status,category_id,created_at,updated_at) VALUES(?,?,'draft',?,?,?)", in.Title, in.Body, category, now, now)
+			res, err := c.ExecContext(ctx, "INSERT INTO catalog_items(title,body,status,category_id,created_at,updated_at,publish_at) VALUES(?,?,'draft',?,?,?,?)", in.Title, in.Body, category, now, now, publishArg(in.PublishAt))
 			if err != nil {
 				return err
 			}
@@ -296,7 +351,7 @@ func (s *Store) save(ctx context.Context, id int64, in Input, check func(*sql.Co
 			if err != nil {
 				return err
 			}
-		} else if err := changed(c.ExecContext(ctx, "UPDATE catalog_items SET title=?,body=?,category_id=?,updated_at=? WHERE id=?", in.Title, in.Body, category, now, id)); err != nil {
+		} else if err := changed(c.ExecContext(ctx, "UPDATE catalog_items SET title=?,body=?,category_id=?,updated_at=?,publish_at=COALESCE(?,publish_at) WHERE id=?", in.Title, in.Body, category, now, publishArg(in.PublishAt), id)); err != nil {
 			return err
 		}
 		ids := slices.Clone(in.TagIDs)
@@ -338,11 +393,7 @@ func (s *Store) save(ctx context.Context, id int64, in Input, check func(*sql.Co
 	return id, nil
 }
 func (s *Store) SetPublished(ctx context.Context, id int64, published bool) error {
-	status := "draft"
-	if published {
-		status = "published"
-	}
-	return changed(s.db.ExecContext(ctx, "UPDATE catalog_items SET status=?,updated_at=? WHERE id=?", status, s.now().Unix(), id))
+	return s.write(ctx, func(c *sql.Conn) error { return s.setPublished(ctx, c, id, published) })
 }
 func (s *Store) Delete(ctx context.Context, id int64) error {
 	return s.write(ctx, func(c *sql.Conn) error {
@@ -353,15 +404,18 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 	})
 }
 
-const itemColumns = "i.id,i.title,i.body,i.status,i.category_id,COALESCE(c.name,''),i.created_at,i.updated_at,COALESCE(i.cover_file,'')"
+const itemColumns = "i.id,i.title,i.body,i.status,i.category_id,COALESCE(c.name,''),i.created_at,i.updated_at,COALESCE(i.cover_file,''),COALESCE(i.publish_at,0)"
 const itemFrom = " FROM catalog_items i LEFT JOIN catalog_categories c ON c.id=i.category_id"
 
 func scanItem(row interface{ Scan(...any) error }) (Item, error) {
 	var item Item
 	var status string
 	var cat sql.NullInt64
-	var created, updated int64
-	err := row.Scan(&item.ID, &item.Title, &item.Body, &status, &cat, &item.Category, &created, &updated, &item.CoverFile)
+	var created, updated, publishAt int64
+	err := row.Scan(&item.ID, &item.Title, &item.Body, &status, &cat, &item.Category, &created, &updated, &item.CoverFile, &publishAt)
+	if publishAt > 0 {
+		item.PublishAt = time.Unix(publishAt, 0).In(time.Local)
+	}
 	item.Published = status == "published"
 	item.CategoryID = cat.Int64
 	item.CreatedAt = time.Unix(created, 0).In(time.Local)
@@ -373,25 +427,27 @@ func scanItem(row interface{ Scan(...any) error }) (Item, error) {
 }
 func (s *Store) Get(ctx context.Context, id int64, public bool) (Item, error) {
 	where := " WHERE i.id=?"
+	args := []any{id}
 	if public {
-		where += " AND i.status='published'"
+		where += " AND " + publicItem
+		args = append(args, s.now().Unix())
 	}
-	item, err := scanItem(s.db.QueryRowContext(ctx, "SELECT "+itemColumns+itemFrom+where, id))
+	item, err := scanItem(s.db.QueryRowContext(ctx, "SELECT "+itemColumns+itemFrom+where, args...))
 	if err != nil {
 		return item, err
 	}
 	q := "SELECT t.id,t.name FROM catalog_tags t JOIN catalog_item_tags it ON it.tag_id=t.id JOIN catalog_items i ON i.id=it.item_id WHERE i.id=?"
 	if public {
-		q += " AND i.status='published'"
+		q += " AND " + publicItem
 	}
 	q += " ORDER BY t.name,t.id"
-	item.Tags, err = s.classifications(ctx, q, id)
+	item.Tags, err = s.classifications(ctx, q, args...)
 	return item, err
 }
 
-func filterSQL(f Filter) (string, []any) {
-	where := " WHERE i.status='published'"
-	args := []any{}
+func filterSQL(f Filter, now time.Time) (string, []any) {
+	where := " WHERE " + publicItem
+	args := []any{now.Unix()}
 	if f.Query != "" {
 		escaped := strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(f.Query)
 		where += ` AND (i.title LIKE ? ESCAPE '\' OR i.body LIKE ? ESCAPE '\')`
@@ -415,7 +471,7 @@ func (s *Store) List(ctx context.Context, public bool, f Filter, limit, offset i
 	where := ""
 	var args []any
 	if public {
-		where, args = filterSQL(f)
+		where, args = filterSQL(f, s.now())
 	}
 	args = append(args, limit, offset)
 	rows, err := s.db.QueryContext(ctx, "SELECT "+itemColumns+itemFrom+where+" ORDER BY i.id DESC LIMIT ? OFFSET ?", args...)
@@ -465,14 +521,16 @@ func (s *Store) Classifications(ctx context.Context, kind string, public bool) (
 		return nil, err
 	}
 	q := "SELECT c.id,c.name FROM " + table + " c"
+	var args []any
 	if public {
 		if kind == "categories" {
-			q += " WHERE EXISTS(SELECT 1 FROM catalog_items i WHERE i.category_id=c.id AND i.status='published')"
+			q += " WHERE EXISTS(SELECT 1 FROM catalog_items i WHERE i.category_id=c.id AND " + publicItem + ")"
 		} else {
-			q += " WHERE EXISTS(SELECT 1 FROM catalog_item_tags it JOIN catalog_items i ON i.id=it.item_id WHERE it.tag_id=c.id AND i.status='published')"
+			q += " WHERE EXISTS(SELECT 1 FROM catalog_item_tags it JOIN catalog_items i ON i.id=it.item_id WHERE it.tag_id=c.id AND " + publicItem + ")"
 		}
+		args = append(args, s.now().Unix())
 	}
-	return s.classifications(ctx, q+" ORDER BY c.name,c.id")
+	return s.classifications(ctx, q+" ORDER BY c.name,c.id", args...)
 }
 
 // ClassificationUsages は管理画面の一覧用に、全分類と使っている項目の数を名前順で返す。

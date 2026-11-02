@@ -295,6 +295,7 @@ AIエージェントのアクセストークン。不透明な乱数のハッシ
 | `created_at` | INTEGER | NO | 作成日時 | 同上 | UNIX秒 |
 | `updated_at` | INTEGER | NO | 更新表示・sitemapのlastmod | 同上 | UNIX秒。分類名・関連変更も反映 |
 | `cover_file` | TEXT | YES | 代表画像のファイル名 | 同上 | 画像機能が無い構成でも保存できるよう、外部キーは付けない。12節 |
+| `publish_at` | INTEGER | YES | 予約公開の開始日時 | 同上 | UNIX秒。NULLなら公開すればすぐ出る。非公開に戻すとNULLに戻す。公開ページには日付として出さない |
 
 ### テーブル: `catalog_categories`
 
@@ -362,6 +363,7 @@ AIエージェントのアクセストークン。不透明な乱数のハッシ
 | `nav_order` | INTEGER | YES | 公開ナビに出す順 | 同上 | 0〜999。NULLならナビに出さない |
 | `created_at` | INTEGER | NO | 作成日時 | 同上 | UNIX秒 |
 | `updated_at` | INTEGER | NO | 更新表示・sitemapのlastmod | 同上 | UNIX秒。プレビューでは変えない |
+| `publish_at` | INTEGER | YES | 予約公開の開始日時 | 同上 | UNIX秒。NULLなら公開すればすぐ出る。非公開に戻すとNULLに戻す。公開ページには日付として出さない |
 
 公開ページはCookieの照合・発行をせず、閲覧の記録を保存しません。削除は稼働DBの物理削除まで。バックアップの複製には、その保持期間のあいだ残ります。
 

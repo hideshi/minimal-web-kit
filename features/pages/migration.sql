@@ -8,5 +8,6 @@ CREATE TABLE IF NOT EXISTS pages (
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
     nav_order INTEGER CHECK (nav_order IS NULL OR nav_order >= 0),
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    publish_at INTEGER -- 予約公開の開始日時（Unix秒）。NULLなら公開すればすぐ出る
 );
