@@ -183,6 +183,26 @@ func TestComponents_PostButton(t *testing.T) {
 	}
 }
 
+func TestComponents_PublishActions(t *testing.T) {
+	out := renderComponent(t, `{{template "publish-actions" .}}`, form.PublishActions{
+		Toggle:     form.NewPostButton("/admin/x/1/publish", "tok", "公開する", form.PrimaryButton()),
+		DeleteHref: "/admin/x/1/delete",
+	})
+	for _, want := range []string{
+		"<h2>公開と削除</h2>",
+		"編集中の内容は、先に保存してください。",
+		`action="/admin/x/1/publish"`, `class="btn btn-primary">公開する</button>`, `name="csrf_token" value="tok"`,
+		`<a href="/admin/x/1/delete" class="btn btn-danger">削除する</a>`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+	if strings.Index(out, "<p>") > strings.Index(out, "action-bar") {
+		t.Errorf("the note must come before the buttons: %s", out)
+	}
+}
+
 func TestComponents_Combobox(t *testing.T) {
 	field := form.Combobox{ID: "tags", Name: "tag", Label: "タグ<b>", Hint: "20個まで", Limit: 20, Options: []form.Option{
 		{Value: "1", Label: "設計"}, {Value: "2 x", Label: "<script>", Selected: true},

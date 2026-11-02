@@ -343,7 +343,10 @@ var componentFuncs = template.FuncMap{
 	"linkAction": func(label, href string) form.ActionLink {
 		return form.ActionLink{Label: label, Href: href}
 	},
-	"postButton":    form.NewPostButton,
+	"postButton": form.NewPostButton,
+	"publishActions": func(toggle form.PostButton, deleteHref string) form.PublishActions {
+		return form.PublishActions{Toggle: toggle, DeleteHref: deleteHref}
+	},
 	"primaryButton": form.PrimaryButton,
 	"rowName":       form.RowName,
 	"hiddenField":   form.HiddenInput,

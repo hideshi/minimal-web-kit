@@ -344,6 +344,28 @@ func TestTemplate_SingleButtonFormsUseComponent(t *testing.T) {
 	}
 }
 
+// TestTemplate_PublishSectionsUseComponent は、編集画面の「公開と削除」の節を直書きせず、部品を使うことを検証します。
+func TestTemplate_PublishSectionsUseComponent(t *testing.T) {
+	files, err := featureViews()
+	if err != nil {
+		t.Fatal(err)
+	}
+	used := 0
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(raw), "公開と削除") {
+			t.Errorf("%s: 「公開と削除」の節は publish-actions を使う", f)
+		}
+		used += strings.Count(string(raw), `{{template "publish-actions"`)
+	}
+	if used < 3 {
+		t.Errorf("publish-actions is used %d times, want 3 or more", used)
+	}
+}
+
 func directInlineForm(source string) bool {
 	return regexp.MustCompile(`<form\b[^>]*\binline-form\b`).MatchString(source)
 }

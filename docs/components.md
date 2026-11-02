@@ -74,6 +74,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `richtext` | `richtext.Doc`（`internal/web/richtext` の `Parse` で読んだもの。固定ページは `ParseWithImages` と `ResolveImages`） | 書き方を絞ったMarkdownの本文（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）。規則の正本は [richtext.md](richtext.md)。利用者の入力はHTMLとして出さず、リンクは小文字の `https://` とサイト内のパスだけ。保存の前に `Parse` を通して、表の上限を欄のエラーにする |
 | `confirm-actions` | `form.Confirm`（テンプレートでは `confirm` 関数） | 削除の確認画面の操作の並び。`btn-danger` の「削除する」（`Submit` で変更可）と、`btn-secondary` の「削除せずに戻る」。`{{template "confirm-actions" (confirm 送信先 戻り先 .CSRFToken)}}` |
 | `post-button` | `form.PostButton`（テンプレートでは `postButton` 関数） | ボタン1つのPOSTフォーム。CSRFの隠し欄を含み、既定は `btn-secondary`。`primaryButton`、表の行の補足の `rowName`、隠し欄の `hiddenField` を足せる。入力欄のあるフォームには使わない。ボタン1つのフォームを直書きするとテストが落ちる |
+| `publish-actions` | `form.PublishActions`（テンプレートでは `publishActions` 関数） | 編集画面の「公開と削除」の節。見出し、保存済みの内容に対して切り替える旨の説明、公開・非公開のボタン（`post-button`。公開は `primaryButton`）、削除の確認画面へのリンク。ボタンの文言は画面が決める（例: お知らせの予約公開）。節を直書きするとテストが落ちる |
 | `combobox` | `form.Combobox` | 入力で候補を絞り込み、複数を選ぶ（WAI-ARIAのcombobox＋listbox）。JSなし用のチェックボックスの一覧も描き、`/static/js/combobox.js` が動いたときだけ入れ替える。送信は `Name` の繰り返しで、チェックボックスと同じ。1画面に複数置くときは `ID` を変える |
 | `analytics` | `web.Analytics` | アクセス解析の同意の案内と `analytics.js`。`AddAnalytics` を呼んだ応答にだけ出る。`public-shell` がスキップリンクの直後で呼ぶので、枠を使うレイアウトでは呼ばなくてよい |
 | `list-header` | `listHeader` の戻り値 | 一覧の画面の先頭（見出し、完了の案内、操作の並び）。`primaryAction`・`linkAction` で操作を渡す。条件で変わる操作や説明の段落を挟む画面は、操作なしで呼んで、後ろに `action-bar` を置く |

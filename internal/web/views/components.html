@@ -200,6 +200,17 @@
 {{define "post-button"}}<form method="post" action="{{.Action}}" class="inline-form"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}<button type="submit" class="btn {{if .Primary}}btn-primary{{else}}btn-secondary{{end}}">{{.Label}}{{if .RowName}}<span class="visually-hidden">（{{.RowName}}）</span>{{end}}</button></form>{{end}}
 
 {{/*
+  編集画面の「公開と削除」の節。公開・非公開のボタン（公開は primaryButton）と、削除の確認画面へのリンク。
+  {{template "publish-actions" (publishActions (postButton (printf "/admin/x/%v/publish" .ID) .CSRFToken "公開する" primaryButton) (printf "/admin/x/%v/delete" .ID))}}
+*/}}
+{{define "publish-actions"}}<h2>公開と削除</h2>
+<p>公開・非公開の切り替えは、保存済みの内容に対して行います。編集中の内容は、先に保存してください。</p>
+<div class="action-bar">
+  {{template "post-button" .Toggle}}
+  <a href="{{.DeleteHref}}" class="btn btn-danger">削除する</a>
+</div>{{end}}
+
+{{/*
   公開ページの枠。レイアウトは {{define "layout"}}{{template "public-shell" .}}{{end}} と書き、違う箇所だけブロックを定義する。
   ブロックを空にしたいときに空白だけの定義を書いても、既定は置き換わらない。
 */}}

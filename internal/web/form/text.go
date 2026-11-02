@@ -176,6 +176,13 @@ func HiddenInput(name string, value any) PostButtonOption {
 	return func(b *PostButton) { b.Hidden = append(b.Hidden, HiddenField{name, fmt.Sprint(value)}) }
 }
 
+// PublishActions は、共通の画面部品 "publish-actions"（編集画面の「公開と削除」の節）の値です。
+// テンプレートでは publishActions 関数で作ります。
+type PublishActions struct {
+	Toggle     PostButton // 公開・非公開を切り替えるボタン
+	DeleteHref string     // 削除の確認画面のURL
+}
+
 // Confirm は、共通の画面部品 "confirm-actions"（削除の確認画面の操作の並び）に渡す値です。
 type Confirm struct {
 	Action    string // 削除を送信する先
