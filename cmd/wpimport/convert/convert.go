@@ -360,7 +360,8 @@ func (c *converter) walk(n *html.Node) {
 		return
 	case a == atom.Figure:
 		c.closeBlock()
-		c.figure = append(c.figure, "")
+		// figure の中の文字（キャプションの候補）は、figure ごとに1回だけ求める（画像ごとに数え直すと、画像の数の2乗の時間になる）
+		c.figure = append(c.figure, strings.TrimSpace(textOf(n)))
 		c.children(n)
 		c.figure = c.figure[:len(c.figure)-1]
 		c.closeBlock()
@@ -431,7 +432,7 @@ func (c *converter) image(n *html.Node) {
 		img.AttachmentID, _ = strconv.ParseInt(m[1], 10, 64)
 	}
 	if len(c.figure) > 0 {
-		img.Caption = figureCaption(n)
+		img.Caption = c.figure[len(c.figure)-1] // いちばん内側の figure の文字
 	}
 	if file, alt, ok := c.res.Image(img); ok {
 		img.File = file
@@ -464,16 +465,6 @@ func (c *converter) image(n *html.Node) {
 	if len(listKinds) > 0 {
 		c.cur = &block{kind: listKinds[len(listKinds)-1]}
 	}
-}
-
-// figureCaption は、画像を含む figure の中の、画像以外の文字です（[caption] の文字、figcaption）。
-func figureCaption(img *html.Node) string {
-	for p := img.Parent; p != nil; p = p.Parent {
-		if p.DataAtom == atom.Figure {
-			return strings.TrimSpace(textOf(p))
-		}
-	}
-	return ""
 }
 
 // altText は、画像を置けない所に代わりに書く文字です。
