@@ -292,6 +292,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make test` | `go test -race -v ./...` で全テストを実行 |
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
 | `make hooks` | プッシュの前に、Goが古ければ警告する（止めない。クローンごとに1回） |
+| `go build -o bin/wpimport ./cmd/wpimport` | WordPressの書き出し（WXR）とアップロードのフォルダから、お知らせ・固定ページ・画像へ移す道具を作る。サーバーとは別の実行ファイルで、外部へ通信しない。稼働DBは読むだけで、別の作業DBに下書きとして取り込み、報告とCloudflareの一括転送のCSVを書く。移るもの・移らないものと手順は [docs/deploy.md](docs/deploy.md) の「WordPressからの移行」 |
 | `make vuln` | Go本体と依存の既知の脆弱性を調べる（`govulncheck`。本体のソースと、`test/browser` のテストの実行ファイルを見る。SQLite本体とhtmxは見えないので、手順は `minimal-web-kit-vuln`） |
 | `make test-ui` | 画面部品をChrome・Chromiumで操作して確かめ、一覧の画面どうしの位置のズレを実測し、主な管理画面を `test/browser/shots/` に撮る（CIでは走らないので手元で実行する。`test/browser/` の別モジュール。chromedpを使い、キット本体の依存には含めない。Chromeが無ければ飛ばす。`CHROME_PATH` で指定可） |
 | `make add-site` / `make remove-site` | Siteの登録を有効化・無効化 |
@@ -486,7 +487,8 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── Makefile               # 起動・ビルド・検査・同梱機能の切り替え・システム管理者の登録URL発行
 ├── cmd/
 │   ├── server/            # 起動処理・Featureの登録・Featureのサブコマンド
-│   └── kit/               # 同梱機能の登録の切り替えCLIとテスト
+│   ├── kit/               # 同梱機能の登録の切り替えCLIとテスト
+│   └── wpimport/          # WordPressからの移行の道具（別の実行ファイル。golang.org/x/net/html はここだけで使う）
 ├── internal/
 │   ├── app/               # 設定・サーバー管理
 │   ├── federation/        # 共通認証の照会の契約と通信の守り
