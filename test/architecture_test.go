@@ -26,6 +26,9 @@ func TestArchitecture_DependencyAllowedList(t *testing.T) {
 		"github.com/go-jose/go-jose/v4": true,
 		"github.com/coreos/go-oidc/v3":  true,
 		"golang.org/x/oauth2":           true,
+		// WordPressからの移行の道具（cmd/wpimport）だけが、本文のHTMLを読むためにimportする（2026-11-03 承認）。
+		// サーバーの実行ファイルには組み込まない（TestArchitecture_LinkedModules・TestArchitecture_HTMLParserOnlyInImporter）。
+		"golang.org/x/net": true,
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -115,6 +118,44 @@ func TestArchitecture_LinkedModules(t *testing.T) {
 		slices.Sort(got)
 		if !slices.Equal(got, linkedModules) {
 			t.Errorf("linux/%s: linked modules changed.\n got: %v\nwant: %v\nReview new modules (purpose, license, maintenance), then update linkedModules and README.", arch, got, linkedModules)
+		}
+	}
+}
+
+// TestArchitecture_HTMLParserOnlyInImporter は、golang.org/x/net を import するのが移行の道具（cmd/wpimport の下）だけであることを検証します。
+// キットの機能・Coreのパッケージが使い始めると、サーバーの実行ファイルに入りうるためです。
+func TestArchitecture_HTMLParserOnlyInImporter(t *testing.T) {
+	importers := map[string]bool{}
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == ".git" || d.Name() == ".worktrees" || d.Name() == "testdata" || path == "../test/browser") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range f.Imports {
+			if strings.HasPrefix(strings.Trim(imp.Path.Value, `"`), "golang.org/x/net") {
+				importers[filepath.ToSlash(filepath.Dir(path))] = true
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(importers) == 0 {
+		t.Fatal("cmd/wpimport must use golang.org/x/net/html; update this test if it no longer does")
+	}
+	for dir := range importers {
+		if !strings.HasPrefix(dir, "../cmd/wpimport") {
+			t.Errorf("%s imports golang.org/x/net; only cmd/wpimport may (the server binary must not link it)", dir)
 		}
 	}
 }

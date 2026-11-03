@@ -369,6 +369,8 @@ CGOが要らないのは、C言語のSQLiteをGoのコードへ自動で変換�
 | `go.opentelemetry.io/otel` 一式・`go.opentelemetry.io/auto/sdk`・`github.com/go-logr/logr`・`github.com/go-logr/stdr` | 同上。計測のAPIだけで、送信先を設定しないので外部へは送らない | 提供機能 | Apache-2.0 |
 | `golang.org/x/text` | 同上 | 提供機能 | BSD系 |
 
+WordPressからの移行の道具（`cmd/wpimport`。サーバーとは別の実行ファイル）だけが、本文のHTMLを読むために `golang.org/x/net`（`html`。BSD系）を直接依存として使います。サーバーと `cmd/kit` の実行ファイルには組み込まれません（`TestArchitecture_LinkedModules`・`TestArchitecture_HTMLParserOnlyInImporter`）。
+
 ライセンスは各モジュールのLICENSEファイルの冒頭で分類したもので、正確な条件は各LICENSEを参照してください。`go.mod` にはこのほか、上記の環境では組み込まれない間接依存（`github.com/mattn/go-isatty`、`github.com/ncruces/go-strftime`）も記載されています。
 
 ブラウザテスト（`make test-ui`）の `test/browser/` は独立したモジュールで、`github.com/chromedp/chromedp`（MIT）と、同じ開発元の `github.com/chromedp/cdproto`（MIT）を使います。開発時のテストだけで使い、キット本体の `go.mod` と実行ファイルには含まれません。
