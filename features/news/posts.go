@@ -29,7 +29,7 @@ var (
 )
 
 // InputError は、どの欄の入力が制約を満たさないかを示します。ErrInvalidInput としても判定できます。
-// Field は "title"・"body"・"published_at"・"cover" のどれかです。
+// Field は "title"・"body"・"published_at"・"cover"・"category"・"name"（カテゴリの名前）・"name_taken" のどれかです。
 type InputError struct{ Field string }
 
 func (e InputError) Error() string { return "news: invalid " + e.Field }
@@ -45,6 +45,8 @@ type Post struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	CoverFile   string // 代表画像のファイル名。無ければ空
+	CategoryID  int64  // カテゴリ。無ければ0
+	Category    string // カテゴリの名前（表示用。無ければ空）
 }
 
 // ScheduledAt は、予約公開で公開日時前の記事かどうかを返します（管理画面の表示用）。
@@ -94,8 +96,34 @@ func (s *PostStore) saveCover(ctx context.Context, c *sql.Conn, id int64, cover 
 	return err
 }
 
-// CreateWithCover は、代表画像つきの下書きを作成します。記事と参照は同じトランザクションで保存します。
-func (s *PostStore) CreateWithCover(ctx context.Context, title, body string, publishedAt time.Time, cover string) (int64, error) {
+// categoryArg はカテゴリをSQLの引数に変換します。0はNULLです。
+func categoryArg(id int64) any {
+	if id == 0 {
+		return nil
+	}
+	return id
+}
+
+// checkCategory は、同じトランザクションの中で、カテゴリがあることを確かめます（NEWS-INV-15）。0（無し）は通します。
+func checkCategory(ctx context.Context, c *sql.Conn, id int64) error {
+	if id == 0 {
+		return nil
+	}
+	if id < 0 {
+		return InputError{"category"}
+	}
+	var n int
+	if err := c.QueryRowContext(ctx, "SELECT COUNT(*) FROM news_categories WHERE id = ?", id).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return InputError{"category"}
+	}
+	return nil
+}
+
+// CreateWithCover は、代表画像とカテゴリつきの下書きを作成します。記事と参照は同じトランザクションで保存します。
+func (s *PostStore) CreateWithCover(ctx context.Context, title, body string, publishedAt time.Time, cover string, categoryID int64) (int64, error) {
 	title, body, err := normalizePost(title, body)
 	if err != nil {
 		return 0, err
@@ -110,9 +138,12 @@ func (s *PostStore) CreateWithCover(ctx context.Context, title, body string, pub
 	now := s.now().Unix()
 	var id int64
 	err = store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		if err := checkCategory(ctx, c, categoryID); err != nil {
+			return err
+		}
 		res, err := c.ExecContext(ctx,
-			"INSERT INTO news_posts (title, body, status, published_at, created_at, updated_at, cover_file) VALUES (?, ?, ?, ?, ?, ?, ?)",
-			title, body, statusDraft, at, now, now, coverArg(cover))
+			"INSERT INTO news_posts (title, body, status, published_at, created_at, updated_at, cover_file, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+			title, body, statusDraft, at, now, now, coverArg(cover), categoryArg(categoryID))
 		if err != nil {
 			return err
 		}
@@ -124,8 +155,8 @@ func (s *PostStore) CreateWithCover(ctx context.Context, title, body string, pub
 	return id, err
 }
 
-// UpdateWithCover は、タイトル・本文・公開日時・代表画像を更新します。記事と参照は同じトランザクションで保存します。
-func (s *PostStore) UpdateWithCover(ctx context.Context, id int64, title, body string, publishedAt time.Time, cover string) error {
+// UpdateWithCover は、タイトル・本文・公開日時・代表画像・カテゴリを更新します。記事と参照は同じトランザクションで保存します。
+func (s *PostStore) UpdateWithCover(ctx context.Context, id int64, title, body string, publishedAt time.Time, cover string, categoryID int64) error {
 	title, body, err := normalizePost(title, body)
 	if err != nil {
 		return err
@@ -138,13 +169,37 @@ func (s *PostStore) UpdateWithCover(ctx context.Context, id int64, title, body s
 		return err
 	}
 	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		if err := checkCategory(ctx, c, categoryID); err != nil {
+			return err
+		}
 		res, err := c.ExecContext(ctx,
-			"UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?, cover_file = ? WHERE id = ?",
-			title, body, at, s.now().Unix(), coverArg(cover), id)
+			"UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?, cover_file = ?, category_id = ? WHERE id = ?",
+			title, body, at, s.now().Unix(), coverArg(cover), categoryArg(categoryID), id)
 		if err := store.AffectedOne(res, err, ErrNotFound); err != nil {
 			return err
 		}
 		return s.saveCover(ctx, c, id, cover)
+	})
+}
+
+// UpdateWithCategory は、代表画像を変えずに、タイトル・本文・公開日時・カテゴリを更新します（画像機能が無い構成の管理画面）。
+func (s *PostStore) UpdateWithCategory(ctx context.Context, id int64, title, body string, publishedAt time.Time, categoryID int64) error {
+	title, body, err := normalizePost(title, body)
+	if err != nil {
+		return err
+	}
+	at, err := s.publishedAtArg(publishedAt)
+	if err != nil {
+		return err
+	}
+	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		if err := checkCategory(ctx, c, categoryID); err != nil {
+			return err
+		}
+		res, err := c.ExecContext(ctx,
+			"UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?, category_id = ? WHERE id = ?",
+			title, body, at, s.now().Unix(), categoryArg(categoryID), id)
+		return store.AffectedOne(res, err, ErrNotFound)
 	})
 }
 
@@ -267,9 +322,9 @@ func (s *PostStore) SetPublishedAt(ctx context.Context, id int64, at time.Time) 
 		arg, s.now().Unix(), id)
 }
 
-// mcpState は、確認に使う保存状態のハッシュです。公開状態と公開日時を含みます。
+// mcpState は、確認に使う保存状態のハッシュです。公開状態・公開日時・代表画像・カテゴリを含みます。
 func mcpState(p Post) string {
-	return features.MCPState("post", p.ID, p.Title, p.Body, p.Published, publishedUnix(p), p.CoverFile)
+	return features.MCPState("post", p.ID, p.Title, p.Body, p.Published, publishedUnix(p), p.CoverFile, p.CategoryID)
 }
 
 func publishedUnix(p Post) any {
@@ -298,8 +353,8 @@ func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body
 	}
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?
-		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ?`,
-		title, body, at, s.now().Unix(), cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile))
+		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ? AND category_id IS ?`,
+		title, body, at, s.now().Unix(), cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile), categoryArg(cur.CategoryID))
 	return store.AffectedOne(res, err, features.ErrMCPConflict)
 }
 
@@ -312,8 +367,8 @@ func (s *PostStore) SetPublishedIfUnchanged(ctx context.Context, cur Post, publi
 	}
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE news_posts SET status = ?, published_at = COALESCE(published_at, ?), updated_at = ?
-		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ?`,
-		status, first, now, cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile))
+		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ? AND category_id IS ?`,
+		status, first, now, cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile), categoryArg(cur.CategoryID))
 	return store.AffectedOne(res, err, features.ErrMCPConflict)
 }
 
@@ -330,19 +385,24 @@ func (s *PostStore) Delete(ctx context.Context, id int64) error {
 
 // Get は公開状態にかかわらず記事を返します（管理画面用）。
 func (s *PostStore) Get(ctx context.Context, id int64) (Post, error) {
-	return s.getOne(ctx, "SELECT "+postColumns+" FROM news_posts WHERE id = ?", id)
+	return s.getOne(ctx, "SELECT "+postColumns+postFrom+" WHERE p.id = ?", id)
 }
 
 // GetPublished は公開中の記事だけを返します（公開ページ・API用）。予約公開で公開日時前の記事は含みません（NEWS-INV-1）。
 func (s *PostStore) GetPublished(ctx context.Context, id int64) (Post, error) {
-	return s.getOne(ctx, "SELECT "+postColumns+" FROM news_posts WHERE id = ? AND status = ? AND published_at <= ?", id, statusPublished, s.now().Unix())
+	return s.getOne(ctx, "SELECT "+postColumns+postFrom+" WHERE p.id = ? AND p.status = ? AND p.published_at <= ?", id, statusPublished, s.now().Unix())
 }
 
 // ListPublished は公開中の記事を新しい順に返します。予約公開で公開日時前の記事は含みません（NEWS-INV-1）。
 func (s *PostStore) ListPublished(ctx context.Context, limit, offset int) ([]Post, error) {
+	return s.ListPublishedIn(ctx, 0, limit, offset)
+}
+
+// ListPublishedIn は、categoryID のカテゴリの公開中の記事を新しい順に返します。0なら全部です（NEWS-INV-1, NEWS-INV-16）。
+func (s *PostStore) ListPublishedIn(ctx context.Context, categoryID int64, limit, offset int) ([]Post, error) {
 	return s.list(ctx,
-		"SELECT "+postColumns+" FROM news_posts WHERE status = ? AND published_at <= ? ORDER BY published_at DESC, id DESC LIMIT ? OFFSET ?",
-		statusPublished, s.now().Unix(), limit, offset)
+		"SELECT "+postColumns+postFrom+" WHERE p.status = ? AND p.published_at <= ? AND (? = 0 OR p.category_id = ?) ORDER BY p.published_at DESC, p.id DESC LIMIT ? OFFSET ?",
+		statusPublished, s.now().Unix(), categoryID, categoryID, limit, offset)
 }
 
 // PostRef は、記事のIDと更新日時だけを持つ参照です（sitemap.xml 用）。
@@ -376,11 +436,14 @@ func (s *PostStore) PublishedRefs(ctx context.Context, limit int) ([]PostRef, er
 // ListAll は全記事を更新の新しい順に返します（管理画面用）。
 func (s *PostStore) ListAll(ctx context.Context, limit, offset int) ([]Post, error) {
 	return s.list(ctx,
-		"SELECT "+postColumns+" FROM news_posts ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+		"SELECT "+postColumns+postFrom+" ORDER BY p.updated_at DESC, p.id DESC LIMIT ? OFFSET ?",
 		limit, offset)
 }
 
-const postColumns = "id, title, body, status, published_at, created_at, updated_at, COALESCE(cover_file, '')"
+const (
+	postColumns = "p.id, p.title, p.body, p.status, p.published_at, p.created_at, p.updated_at, COALESCE(p.cover_file, ''), COALESCE(p.category_id, 0), COALESCE(c.name, '')"
+	postFrom    = " FROM news_posts p LEFT JOIN news_categories c ON c.id = p.category_id"
+)
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -391,7 +454,7 @@ func scanPost(row rowScanner) (Post, error) {
 	var status string
 	var publishedAt sql.NullInt64
 	var createdAt, updatedAt int64
-	if err := row.Scan(&p.ID, &p.Title, &p.Body, &status, &publishedAt, &createdAt, &updatedAt, &p.CoverFile); err != nil {
+	if err := row.Scan(&p.ID, &p.Title, &p.Body, &status, &publishedAt, &createdAt, &updatedAt, &p.CoverFile, &p.CategoryID, &p.Category); err != nil {
 		return Post{}, err
 	}
 	p.Published = status == statusPublished

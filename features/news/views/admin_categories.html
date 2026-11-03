@@ -1,0 +1,31 @@
+{{define "content"}}
+{{template "list-header" (listHeader .Title .Notice)}}
+{{if .Categories}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">カテゴリの一覧（名前順）</caption>
+    <thead>
+      <tr>
+        <th scope="col">名前</th>
+        <th scope="col">使っている記事</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Categories}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{.Posts}}件</td>
+        <td><a href="/admin/news-categories/{{.ID}}">編集<span class="visually-hidden">（{{.Name}}）</span></a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>カテゴリはまだありません。</p>
+{{end}}
+<h2>カテゴリの追加</h2>{{template "error" .Error}}
+<form method="post" action="/admin/news-categories" class="card"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{template "field" .Field}}<button type="submit" class="btn btn-primary">追加する</button></form>
+<p><a href="/admin/news">お知らせの一覧へ戻る</a></p>
+{{end}}

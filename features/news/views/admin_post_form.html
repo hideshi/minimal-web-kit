@@ -14,6 +14,7 @@
 <form method="post" action="{{if .Post.ID}}/admin/news/{{.Post.ID}}{{else}}/admin/news{{end}}" class="card">
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   {{range .Form.Fields}}{{template "field" .}}{{end}}
+  {{with .CategoryField}}{{template "field" .}}{{end}}
   {{with .Cover}}{{template "image-choices" .}}{{end}}
   <button type="submit" class="btn btn-primary">{{if .Post.ID}}変更を保存する{{else}}下書きとして保存する{{end}}</button>
   {{with .Cover}}{{template "image-pager" .}}{{end}}

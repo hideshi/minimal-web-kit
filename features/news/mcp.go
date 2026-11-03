@@ -22,10 +22,12 @@ type mcpPost struct {
 	Published   bool   `json:"published"`
 	PublishedAt string `json:"published_at,omitempty"`
 	UpdatedAt   string `json:"updated_at"`
+	// Category はカテゴリの名前（読むだけ。MCPではカテゴリを変えない）
+	Category string `json:"category,omitempty"`
 }
 
 func toMCPPost(p Post, body bool) mcpPost {
-	v := mcpPost{ID: p.ID, Title: p.Title, Published: p.Published, UpdatedAt: p.UpdatedAt.Format(mcpTimeLayout)}
+	v := mcpPost{ID: p.ID, Title: p.Title, Published: p.Published, UpdatedAt: p.UpdatedAt.Format(mcpTimeLayout), Category: p.Category}
 	if !p.PublishedAt.IsZero() {
 		v.PublishedAt = p.PublishedAt.Format(mcpTimeLayout)
 	}

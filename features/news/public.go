@@ -115,15 +115,44 @@ func (f *Feature) handleNewsList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	posts, err := f.posts.ListPublished(r.Context(), pg.Limit(), pg.Offset())
+	q := r.URL.Query()
+	category, err := parseCategory(q.Get("category"))
+	if err != nil || len(q["category"]) > 1 {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+	categories, err := f.posts.PublicCategories(r.Context())
 	if err != nil {
-		f.logger.Error("news list published posts failed")
+		f.logger.Error("news list public categories failed")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	// 公開の候補に無いカテゴリ（存在しない・公開中の記事が無い）は、記事の無い一覧として扱う（NEWS-INV-16）
+	known := category == 0 || slices.ContainsFunc(categories, func(c Category) bool { return c.ID == category })
+	var posts []Post
+	if known {
+		if posts, err = f.posts.ListPublishedIn(r.Context(), category, pg.Limit(), pg.Offset()); err != nil {
+			f.logger.Error("news list published posts failed")
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	}
 	posts = page.Trim(&pg, posts)
 	pg.Base, pg.Label, pg.PrevText, pg.NextText = "/news", "お知らせのページ送り", "新しいお知らせ", "過去のお知らせ"
+	selected := ""
+	if category != 0 && known {
+		selected = strconv.FormatInt(category, 10)
+		pg.Params = []page.Param{{Name: "category", Value: selected}}
+	}
 	data := map[string]any{"Title": "お知らせ", "Page": pg, "CanonicalPath": "/news", "Description": "公開中のお知らせの一覧です。"}
+	if len(categories) > 0 {
+		field := form.Field{ID: "news-category", Name: "category", Label: "カテゴリ", Options: []form.Option{{Value: "", Label: "すべて", Selected: selected == ""}}}
+		for _, c := range categories {
+			id := strconv.FormatInt(c.ID, 10)
+			field.Options = append(field.Options, form.Option{Value: id, Label: c.Name, Selected: id == selected})
+		}
+		data["CategoryField"] = field
+	}
 	for i := range posts {
 		posts[i] = localTime(posts[i])
 	}

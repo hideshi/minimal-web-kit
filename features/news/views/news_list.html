@@ -1,12 +1,19 @@
 {{define "content"}}
 <h1>お知らせ</h1>
 
+{{with .CategoryField}}
+<form method="get" action="/news" class="card">
+  {{template "field" .}}
+  <div class="action-bar"><button type="submit" class="btn btn-primary">絞り込む</button><a href="/news">すべてのお知らせを見る</a></div>
+</form>
+{{end}}
+
 {{if .Posts}}
 <ul class="card-list" role="list">
   {{range .Posts}}
   <li class="card card-link">
     <h2 class="card-title"><a href="/news/{{.ID}}">{{.Title}}</a></h2>
-    <p class="text-meta">公開日: {{template "date" .PublishedAt}}</p>
+    <p class="text-meta">公開日: {{template "date" .PublishedAt}}{{if .Category}}／カテゴリ: {{.Category}}{{end}}</p>
   </li>
   {{end}}
 </ul>

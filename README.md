@@ -152,11 +152,13 @@ minimal-web-kit federated-account -sub <sub> -role admin
 
 | 経路 | 内容 |
 |---|---|
-| `/news`、`/news/{id}` | 公開中のお知らせ。Cookieを発行・照合しません |
+| `/news`、`/news/{id}` | 公開中のお知らせ。`/news?category=ID` でカテゴリに絞り込めます。Cookieを発行・照合しません |
 | `/api/news`、`/api/news/{id}` | 公開中のお知らせのJSON（`limit`・`offset`）。別ドメインからの読み取り（CORS）は `NEWS_CORS_ORIGINS` で許可した接続元だけで、既定は許可なしです |
 | `/admin/news` | お知らせの作成・編集・公開・予約公開・削除 |
+| `/admin/news-categories` | お知らせのカテゴリの追加・改名・削除 |
 
 - 本文はプレーンテキスト（HTMLは文字として表示）です。行の中に `[文字](URL)` と書くとリンクになります（URLは `https://` か `/` で始まるサイト内のパス。[本文の書き方](docs/richtext.md) 7節）。APIは本文を記法の文字のまま返します。画像機能が有効なら、代表画像を1枚付けられます。
+- 記事にはカテゴリを1つ付けられます（お知らせ専用で、カタログの分類とは共有しません）。公開の一覧の絞り込みに出るのは、公開中の記事を持つカテゴリだけです。APIの項目にカテゴリは含めません。
 - 公開日時に未来の日時を指定して公開すると、その日時まで公開ページとAPIに表示しません（予約公開）。時刻はサーバーのタイムゾーン（`TZ`）で扱います。
 - 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。用語・状態・不変条件・権限の正本は [docs/domain/news.md](docs/domain/news.md)（ドメインモデル）、設計の経緯は [docs/plans/cms-plan.md](docs/plans/cms-plan.md) にあります。
 - `make remove-news` で登録を外しても、DBのデータは残ります。

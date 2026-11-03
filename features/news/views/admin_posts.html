@@ -1,5 +1,5 @@
 {{define "content"}}
-{{template "list-header" (listHeader "お知らせの管理" .Notice (primaryAction "お知らせを作成する" "/admin/news/new"))}}
+{{template "list-header" (listHeader "お知らせの管理" .Notice (primaryAction "お知らせを作成する" "/admin/news/new") (linkAction "カテゴリの管理" "/admin/news-categories"))}}
 
 {{if .Posts}}
 <div class="table-container">
@@ -8,6 +8,7 @@
     <thead>
       <tr>
         <th scope="col">タイトル</th>
+        <th scope="col">カテゴリ</th>
         <th scope="col">状態</th>
         <th scope="col">更新日時</th>
       </tr>
@@ -16,6 +17,7 @@
       {{range .Posts}}
       <tr>
         <td><a href="/admin/news/{{.ID}}">{{.Title}}</a></td>
+        <td>{{if .Category}}{{.Category}}{{else}}なし{{end}}</td>
         <td>{{if .ScheduledAt $.Now}}公開予約（{{template "datetime" .PublishedAt}}）{{else if .Published}}公開中{{else}}下書き{{end}}</td>
         <td>{{template "datetime" .UpdatedAt}}</td>
       </tr>

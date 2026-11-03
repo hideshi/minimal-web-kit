@@ -24,10 +24,16 @@ var adminNotices = notice.Messages{
 	"published":   "お知らせを公開しました。",
 	"unpublished": "お知らせを非公開（下書き）に戻しました。",
 	"deleted":     "お知らせを削除しました。",
+	// カテゴリの管理
+	"category_saved":   "カテゴリを保存しました。",
+	"category_deleted": "カテゴリを削除しました。",
 }
 
 // postIDAttr は記事IDをログに記録します。IDはサーバーが採番した値で、利用者の入力を含みません。
 func postIDAttr(id int64) slog.Attr { return slog.Int64("post_id", id) }
+
+// categoryIDAttr はカテゴリのIDをログに記録します。名前は記録しません。
+func categoryIDAttr(id int64) slog.Attr { return slog.Int64("category_id", id) }
 
 func setNotice(data map[string]any, r *http.Request) {
 	data["Notice"] = adminNotices.From(r)
@@ -76,8 +82,14 @@ func (f *Feature) handleNewPostPage(w http.ResponseWriter, r *http.Request, s fe
 	}
 }
 
-// addCover は、画像機能があれば、代表画像の選択を画面の値に足します。失敗したら応答を書いて false を返します。
+// addCover は、カテゴリの選択と、画像機能があれば代表画像の選択を、画面の値に足します。失敗したら応答を書いて false を返します。
 func (f *Feature) addCover(w http.ResponseWriter, r *http.Request, data map[string]any, pf postForm) bool {
+	categories, err := f.posts.Categories(r.Context())
+	if err != nil {
+		f.writeFailed(w, "news list categories failed", err)
+		return false
+	}
+	data["CategoryField"] = categoryFieldFor(categories, pf.Category, pf.fieldError("category"))
 	if !f.media.Enabled() {
 		return true
 	}
@@ -112,6 +124,7 @@ const datetimeInputLayout = "2006-01-02T15:04"
 type postForm struct {
 	Title, Body, PublishedAt string
 	Cover                    string // 代表画像のファイル名
+	Category                 string // カテゴリのID（無しは空）
 	Invalid                  string // 誤りのある欄（InputError.Field）
 }
 
@@ -121,6 +134,7 @@ var postErrors = form.FieldErrors{
 	"body":         "本文は5万文字以内で、制御文字を含めずに入力してください。",
 	"published_at": "公開日時の形式が正しくありません。日付と時刻を選び直してください。",
 	"cover":        "選んだ画像が見つかりません。選び直してください。",
+	"category":     "選んだカテゴリが見つかりません。選び直してください。",
 }
 
 func (pf postForm) fieldError(name string) string { return postErrors.For(pf.Invalid, name) }
@@ -139,7 +153,7 @@ func (pf postForm) Fields() []form.Field {
 }
 
 func readPostForm(r *http.Request) postForm {
-	return postForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), PublishedAt: r.PostForm.Get("published_at"), Cover: r.PostForm.Get("cover")}
+	return postForm{Title: r.PostForm.Get("title"), Body: r.PostForm.Get("body"), PublishedAt: r.PostForm.Get("published_at"), Cover: r.PostForm.Get("cover"), Category: r.PostForm.Get("category")}
 }
 
 // parsePublishedAt は公開日時の入力を解析します。空ならゼロ値（変更しない）を返します。
@@ -157,9 +171,12 @@ func (f *Feature) handleCreatePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	publishedAt, err := f.parsePublishedAt(pf.PublishedAt)
-	var id int64
+	var category, id int64
 	if err == nil {
-		id, err = f.posts.CreateWithCover(r.Context(), pf.Title, pf.Body, publishedAt, pf.Cover)
+		category, err = parseCategory(pf.Category)
+	}
+	if err == nil {
+		id, err = f.posts.CreateWithCover(r.Context(), pf.Title, pf.Body, publishedAt, pf.Cover, category)
 	}
 	if errors.Is(err, ErrInvalidInput) {
 		f.renderPostFormError(w, r, s, "お知らせの作成", Post{}, pf, err)
@@ -194,6 +211,9 @@ func (f *Feature) renderPostFormError(w http.ResponseWriter, r *http.Request, s 
 // formFromPost は保存済みの記事から、フォームの初期値を作ります。
 func formFromPost(p Post) postForm {
 	pf := postForm{Title: p.Title, Body: p.Body, Cover: p.CoverFile}
+	if p.CategoryID != 0 {
+		pf.Category = strconv.FormatInt(p.CategoryID, 10)
+	}
 	if !p.PublishedAt.IsZero() {
 		pf.PublishedAt = p.PublishedAt.In(time.Local).Format(datetimeInputLayout)
 	}
@@ -240,12 +260,16 @@ func (f *Feature) handleUpdatePost(w http.ResponseWriter, r *http.Request, s fea
 		return
 	}
 	publishedAt, err := f.parsePublishedAt(pf.PublishedAt)
+	var category int64
+	if err == nil {
+		category, err = parseCategory(pf.Category)
+	}
 	if err == nil {
 		if f.media.Enabled() {
-			err = f.posts.UpdateWithCover(r.Context(), id, pf.Title, pf.Body, publishedAt, pf.Cover)
+			err = f.posts.UpdateWithCover(r.Context(), id, pf.Title, pf.Body, publishedAt, pf.Cover, category)
 		} else {
 			// 画像機能が無い構成では、代表画像の値を変えない
-			err = f.posts.UpdateWithDate(r.Context(), id, pf.Title, pf.Body, publishedAt)
+			err = f.posts.UpdateWithCategory(r.Context(), id, pf.Title, pf.Body, publishedAt, category)
 		}
 	}
 	if errors.Is(err, ErrInvalidInput) {
@@ -331,6 +355,7 @@ func (f *Feature) registerPostAdminRoutes(mux *web.IsolatedMux) {
 	}, "news post unpublished", "unpublished")))
 	mux.HandleFunc("GET /admin/news/{id}/delete", f.admin.Page(f.handleDeletePostPage))
 	mux.HandleFunc("POST /admin/news/{id}/delete", f.admin.Form(f.handleDeletePost))
+	f.registerCategoryAdminRoutes(mux)
 }
 
 // writeFailed は、書き込みの失敗の応答を書きます。競合は再試行できるので503にします。

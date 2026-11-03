@@ -116,6 +116,16 @@ func Migrate(db *sql.DB) error {
 			return fmt.Errorf("news migration: %w", err)
 		}
 	}
+	// 既存のDBにカテゴリの列を足す。既定値がNULLの参照の列は、表を作り直さずに足せる
+	var hasCategory int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('news_posts') WHERE name = 'category_id'").Scan(&hasCategory); err != nil {
+		return fmt.Errorf("news migration: %w", err)
+	}
+	if hasCategory == 0 {
+		if _, err := db.Exec("ALTER TABLE news_posts ADD COLUMN category_id INTEGER REFERENCES news_categories(id) ON DELETE SET NULL"); err != nil {
+			return fmt.Errorf("news migration: %w", err)
+		}
+	}
 	return nil
 }
 

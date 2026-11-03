@@ -1,7 +1,7 @@
 {{define "content"}}
 <article>
   <h1>{{.Post.Title}}</h1>
-  <p class="text-meta">公開日: {{template "date" .Post.PublishedAt}}</p>
+  <p class="text-meta">公開日: {{template "date" .Post.PublishedAt}}{{if .Post.Category}}／カテゴリ: <a href="/news?category={{.Post.CategoryID}}">{{.Post.Category}}</a>{{end}}</p>
   {{template "media-image" .Cover}}
   {{template "link-paragraphs" .Paragraphs}}
 </article>

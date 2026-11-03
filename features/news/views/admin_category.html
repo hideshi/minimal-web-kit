@@ -1,0 +1,11 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>{{template "error" .Error}}
+{{if .Deleting}}
+<p>「{{.Category.Name}}」を削除します。{{if .Category.Posts}}現在{{.Category.Posts}}件の記事で使っています。それらの記事はカテゴリなしになります。{{else}}使っている記事はありません。{{end}}記事自体は削除しません。元に戻せません。</p>
+{{template "confirm-actions" (confirm (printf "/admin/news-categories/%d/delete" .Category.ID) (printf "/admin/news-categories/%d" .Category.ID) .CSRFToken)}}
+{{else}}
+<form method="post" action="/admin/news-categories/{{.Category.ID}}" class="card"><input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{template "field" .Field}}<button type="submit" class="btn btn-primary">保存する</button></form>
+<p><a href="/admin/news-categories/{{.Category.ID}}/delete" class="btn btn-danger">削除する</a></p>
+{{end}}
+<p><a href="/admin/news-categories">カテゴリの一覧へ戻る</a></p>
+{{end}}

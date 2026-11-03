@@ -10,7 +10,7 @@ import (
 )
 
 // adminPageNames は、管理画面（管理者認証のレイアウトで描く）のテンプレートです。
-var adminPageNames = []string{"admin_posts.html", "admin_post_form.html", "admin_post_delete.html"}
+var adminPageNames = []string{"admin_posts.html", "admin_post_form.html", "admin_post_delete.html", "admin_categories.html", "admin_category.html"}
 
 // SetAdmin は、管理者認証（features/auth）を受け取り、管理画面のテンプレートをその管理画面のレイアウトで解析します。
 // ログイン・セッション・CSRFの確認は、管理者認証が行います。

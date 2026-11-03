@@ -140,6 +140,18 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 		}
 	}
 	ui.ids["post_draft"], ui.ids["post_published"], ui.ids["post_scheduled"] = itoa(draft), itoa(published), itoa(scheduled)
+	newsCategory, err := posts.SaveCategory(ctx, 0, "イベント")
+	if err != nil {
+		t.Fatal(err)
+	}
+	newsUnused, err := posts.SaveCategory(ctx, 0, "採用")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := posts.UpdateWithCategory(ctx, published, "公開中のお知らせ", "本文", time.Time{}, newsCategory); err != nil {
+		t.Fatal(err)
+	}
+	ui.ids["news_category"], ui.ids["news_category_unused"] = itoa(newsCategory), itoa(newsUnused)
 
 	items := catalog.NewStore(db)
 	category, err := items.SaveClassification(ctx, "categories", 0, "住宅")
@@ -332,6 +344,10 @@ var adminSamples = []adminSample{
 	{"GET /admin/news/{id}", "/admin/news/{post_published}", "site_admin", "admin_post_form.html", kindForm},
 	{"GET /admin/news/{id}", "/admin/news/{post_scheduled}", "admin", "admin_post_form.html", kindForm},
 	{"GET /admin/news/{id}/delete", "/admin/news/{post_draft}/delete", "admin", "admin_post_delete.html", kindConfirm},
+	{"GET /admin/news-categories", "/admin/news-categories", "site_admin", "admin_categories.html", kindListAdd},
+	{"GET /admin/news-categories/{id}", "/admin/news-categories/{news_category}", "admin", "admin_category.html", kindForm},
+	{"GET /admin/news-categories/{id}/delete", "/admin/news-categories/{news_category}/delete", "admin", "admin_category.html", kindConfirm},
+	{"GET /admin/news-categories/{id}/delete", "/admin/news-categories/{news_category_unused}/delete", "admin", "admin_category.html", kindConfirm},
 	{"GET /admin/catalog", "/admin/catalog", "admin", "admin_list.html", kindList},
 	{"GET /admin/catalog/new", "/admin/catalog/new", "site_admin", "admin_form.html", kindForm},
 	{"GET /admin/catalog/{id}", "/admin/catalog/{item_draft}", "admin", "admin_form.html", kindForm},
@@ -422,6 +438,9 @@ var adminFailures = []adminFailure{
 	{"/admin/catalog", url.Values{"title": {""}, "body": {"残す本文"}}, 400, "カタログ項目の作成", "item-title", "残す本文"},
 	{"/admin/catalog/{item_draft}", url.Values{"title": {"残す題名"}, "new_tags": {strings.Repeat("長", 51)}}, 400, "カタログ項目の編集", "item-new-tags", "残す題名"},
 	{"/admin/news", url.Values{"title": {""}, "body": {"残す本文"}}, 400, "お知らせの作成", "post-title", "残す本文"},
+	{"/admin/news", url.Values{"title": {"残す題名"}, "category": {"999999"}}, 400, "お知らせの作成", "post-category", "残す題名"},
+	{"/admin/news-categories", url.Values{"name": {"イベント"}}, 400, "お知らせのカテゴリの管理", "category-name", "イベント"},
+	{"/admin/news-categories/{news_category_unused}", url.Values{"name": {" "}}, 400, "お知らせのカテゴリの編集", "category-name", ""},
 	{"/admin/news/{post_draft}", url.Values{"title": {"残す題名"}, "published_at": {"2025/05/06"}}, 400, "お知らせの編集", "post-published-at", "残す題名"},
 	{"/admin/accounts", url.Values{"name": {""}, "role": {"site_admin"}}, 400, "アカウントの追加", "account-name", ""},
 	{"/admin/accounts/{self}/disable", url.Values{}, 409, "アカウント: ", "", ""},

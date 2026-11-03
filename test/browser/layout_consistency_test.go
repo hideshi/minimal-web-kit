@@ -30,7 +30,7 @@ import (
 var listScreens = []string{
 	"/admin/accounts", "/admin/catalog", "/admin/catalog/classifications/categories", "/admin/catalog/classifications/tags",
 	"/admin/contact", "/admin/contact/all", "/admin/documents", "/admin/documents/approvals", "/admin/documents/mine",
-	"/admin/documents/transfer", "/admin/document-folders", "/admin/mcp", "/admin/media", "/admin/news", "/admin/pages",
+	"/admin/documents/transfer", "/admin/document-folders", "/admin/mcp", "/admin/media", "/admin/news", "/admin/news-categories", "/admin/pages",
 }
 
 type screenMetrics struct {

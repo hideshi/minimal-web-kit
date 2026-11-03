@@ -11,15 +11,17 @@
 | 記事（お知らせ） | `Post` | タイトルと本文を持つ1件。扱う種類はお知らせ1つだけ |
 | 下書き | `draft` | 公開側に出ない状態（`status = draft`） |
 | 公開 | `published` | 公開側に出してよい状態（`status = published`） |
+| カテゴリ | `Category` | 記事の分類。1記事に1つか、無し。お知らせ専用で、カタログの分類とは共有しない |
 | 公開日時 | `PublishedAt` | 公開側に記事の日付として出す日時。公開側に出るのは、この日時を過ぎてから |
 | 予約公開 | — | 公開の状態で、公開日時が未来の記事。公開日時を過ぎるまで公開側に出ない |
 | 公開側 | — | 公開ページ（`/news`・`/news/{id}`）、読み取りAPI（`/api/news`）、`sitemap.xml` |
-| 管理側 | — | 記事の管理画面（`/admin/news`） |
+| 管理側 | — | 記事の管理画面（`/admin/news`）と、カテゴリの管理画面（`/admin/news-categories`） |
 
 ## 2. 概念と関係
 
 ```
 記事（news_posts）── 持ち主なし（サイトに1つの記事の集まり）
+  └─ カテゴリ（news_categories）── 0か1つ。消すと記事はカテゴリなしになる
 管理側の操作 ── 管理者認証のアカウント（AdminSession）。記事にはアカウントを記録しない
 ```
 
@@ -54,11 +56,16 @@ stateDiagram-v2
 | NEWS-INV-6 | 公開側は、Coreの匿名セッションのCookieを照合・発行・消去しない | 独立経路（`RegisterIsolatedRoutes`） |
 | NEWS-INV-7 | APIが返す項目は、公開用の `id`・`title`・`body`・`published_at`・`updated_at` だけ | `apiPost` |
 | NEWS-INV-8 | 別のオリジンからのAPIの読み取りは、`NEWS_CORS_ORIGINS` で許可した接続元だけに許す。既定は許可なし、資格情報は許可しない。`Vary: Origin` を付け、事前要求（OPTIONS）に答える。HTMLのページにはCORSのヘッダーを出さない | `LoadConfig`・APIのハンドラ |
-| NEWS-INV-9 | 管理側の画面と送信は、すべて管理者認証の `Page`・`Form`（ログイン・同一オリジン・CSRF）で守る。管理者認証が無ければ起動を止める | `registerPostAdminRoutes`、`internal/app` の `BuildRoutes` |
+| NEWS-INV-9 | 管理側の画面と送信は、すべて管理者認証の `Page`・`Form`（ログイン・同一オリジン・CSRF）で守る。管理者認証が無ければ起動を止める | `registerPostAdminRoutes`・`registerCategoryAdminRoutes`、`internal/app` の `BuildRoutes` |
 | NEWS-INV-10 | 記事は、Coreのセッションの破棄・GCでも、マイグレーションの再実行でも消えない | `news_posts` を `owners` に紐づけない、`CREATE TABLE IF NOT EXISTS` |
 | NEWS-INV-11 | タイトル・本文・リクエストの値・設定値は、ログにもAPIのエラーにも出さない | `requestID`（ログには要求の番号と記事の番号だけを出す）、固定のエラー文言 |
 | NEWS-INV-12 | 記事を変える操作はGETで行わない。削除は確認画面を経てPOSTで行う | `registerPostAdminRoutes` |
 | NEWS-INV-13 | URLの記事の番号は、正の整数の標準の書き方だけを受け付ける。`01`・`+1`・`abc` 等は、ページでもAPIでも、400ではなく「無い」（404）として扱う | `web.PathID` |
+| NEWS-INV-14 | カテゴリの名前は改行とタブの無い1〜50字で、同じ名前のカテゴリは2つ作れない。改名・削除で記事の更新日時は変えない | `SaveCategory`、`news_categories.name` の UNIQUE |
+| NEWS-INV-15 | 記事に付けられるのは、あるカテゴリだけ（無い番号は保存しない）。カテゴリを消しても記事は消えず、カテゴリなしになる | `checkCategory`・`DeleteCategory`、`ON DELETE SET NULL` |
+| NEWS-INV-16 | 公開側の絞り込みの候補と結果は、記事の公開ページと同じ条件（状態と公開日時）で決める。下書きと公開日時前の記事しか持たないカテゴリは候補に出さず、その番号を指定しても記事を出さない | `PublicCategories`・`ListPublishedIn` |
+
+公開の一覧 `/news` は `?category=ID` で1つのカテゴリに絞り込める（`page` と併用でき、ページ送りは条件を残す）。番号の形が正しくない・2つ以上ある場合は400。`CanonicalPath` は `/news` のまま。カテゴリは公開の詳細に名前と絞り込みへのリンクで出し、APIの項目には足さない（NEWS-INV-7）。MCPはカテゴリを変えず、読み取りで名前を返す。確認のハッシュと条件付きの保存の条件にはカテゴリを含める。
 
 一覧APIは `limit`（既定20、上限50）と `offset`（0〜100,000）を受け取り、不正な値は400にする。応答は `items`・`limit`・`offset`・`next_offset` で、公開日時の新しい順、同時刻ならIDの大きい順に並べる。`sitemap.xml` には同じ順で49,000件まで載せる。
 
@@ -68,6 +75,7 @@ stateDiagram-v2
 |---|---|---|---|
 | 公開側の閲覧（ページ・API） | ○ | ○ | ○ |
 | 記事の作成・編集・公開・非公開・予約公開・削除 | ○ | ○ | × |
+| カテゴリの追加・改名・削除 | ○ | ○ | × |
 
 記事の管理は、管理者認証の両方のロールに許します（`Page`・`Form` を使い、`AdminPage`・`AdminForm` は使わない）。記事ごとの持ち主や、編集・公開の権限の分離はありません。
 
