@@ -356,10 +356,30 @@ SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go r
    sudo -u mwk sh -c 'set -a; . /etc/minimal-web-kit/env; exec /usr/local/bin/wpimport -wxr /tmp/export.xml -uploads /tmp/uploads -db /var/lib/minimal-web-kit/app.db -out /var/lib/minimal-web-kit/app.import.db -report /tmp/report.md -redirects /tmp/redirects.csv -map /var/lib/minimal-web-kit/wpimport-map.csv -new-origin https://example.com'
    ```
 
-   失敗したら作業DBは消え、稼働DBはそのままです。成功したら、8節の「戻す」と同じ手順で、作業DBを稼働DBの位置に置き換えます（`-wal`・`-shm` を消してから置き換える）。置き換える前の稼働DBは、移行前の複製としてそのまま残ります。
+   失敗したら作業DBは消え、稼働DBはそのままです。成功したら、8節の「戻す」と同じ手順で、作業DBを稼働DBの位置に置き換えます。置き換える前の稼働DBは、`before-restore-...` のディレクトリに移行前の複製として残ります。
+
+   ```sh
+   sudo sh -eu -s -- /var/lib/minimal-web-kit/app.import.db <<'EOF'
+   if systemctl is-active --quiet minimal-web-kit; then exit 1; fi
+   /usr/local/bin/minimal-web-kit verify-backup "$1"
+   cd /var/lib/minimal-web-kit
+   saved=before-restore-$(date +%Y%m%d-%H%M%S)
+   mkdir -m 0700 "$saved"
+   cp -p app.db "$saved/"
+   for f in app.db-wal app.db-shm; do
+     if [ -e "$f" ]; then cp -p "$f" "$saved/"; fi
+   done
+   install -m 0600 -o mwk -g mwk "$1" app.db.restore
+   rm -f app.db-wal app.db-shm
+   mv app.db.restore app.db
+   rm "$1"
+   EOF
+   sudo systemctl start minimal-web-kit
+   ```
 5. **確かめる**: サーバーを起動し、管理画面で下書きを開いて、本文・画像・カテゴリを確かめてから公開します。取り込んだ記事は全部下書きです。仮の説明の画像は、報告の一覧から説明を書き直します。本文に個人情報が無いかも、人が確かめます（道具は作者とコメントを移しませんが、本文の中は確かめません）。
-6. **転送（Cloudflare）**: 移行先を公開して確かめた後に、`-redirects` のCSVを Cloudflare の「一括リダイレクト（Bulk Redirects）」の一覧に読み込み、一括リダイレクトのルールで有効にします（[公式の案内](https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/)）。全件下書きのまま有効にすると、古いURLが404へ転送されます。先に1件で試し、日本語のスラッグの記事が転送されるか（パーセント符号化の扱い）を確かめます。CSVは見出しの行の無い7列（旧URL・新URL・301・4つの FALSE）で、旧URLはスキームを除いた「ホスト＋パス」です（http と https の両方に当たる）。転送の対象は、公開・予約公開で保護の無い記事と、取り込んだ画像の旧URL（元の画像と、本文に出た小さい版）です。画像は、使っている記事を公開するまで404です。無料プランは一括転送の合計が10,000件まで、クエリ（`?p=` 等）は旧URLに書けません（2026-11-03に公式の資料で確認）。
+6. **転送（Cloudflare）**: 移行先を公開して確かめた後に、`-redirects` のCSVを Cloudflare の「一括リダイレクト（Bulk Redirects）」の一覧に読み込み、一括リダイレクトのルールで有効にします（[公式の案内](https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/)）。全件下書きのまま有効にすると、古いURLが404へ転送されます。先に1件で試し、日本語のスラッグの記事が転送されるか（パーセント符号化の扱い）を確かめます。CSVは見出しの行の無い7列（旧URL・新URL・301・4つの FALSE）で、旧URLはスキームを除いた「ホスト＋パス」です（http と https の両方に当たる）。転送の対象は、公開・予約公開で保護の無い記事と、取り込んだ画像の旧URL（元の画像と、本文に出た小さい版）です。画像は、使っている記事を公開するまで404です。画像を古いサイトとは別のホスト（CDN等）から配信していた場合、そのホストはCloudflareの外のため、画像の行は出しません。無料プランは一括転送の合計が10,000件まで、クエリ（`?p=` 等）は旧URLに書けません（2026-11-03に公式の資料で確認）。
 7. **後片付け**: 確かめたら、手元とサーバーの WXR・アップロードのフォルダの複製・試しに使ったDBの複製・移行前の稼働DBを消します。WXRには作者のメールアドレスやコメントが入っています。対応表（`-map`）は、二重に取り込まないための印なので、移行を終えるまで残します。題名や個人情報は書いていません。
 
+- **検証した範囲（2026-11-03、手元）**: お知らせ・固定ページ・画像を有効にしたサーバーで、手順2〜5を手元のコマンドに置き換えて通した（WordPressの公式のテーマの試験データ。お知らせ58件・固定ページ21件・画像17枚。取り込みは0.9秒、道具のメモリの最大値は44MB）。稼働DBの中身が変わらないこと、置き換えた後にサーバーがエラーなく起動すること、管理画面から公開した記事・固定ページの表示、転送のCSVの転送先が公開した記事で200になることを確かめた。systemd・sudo・ファイルの所有者、Cloudflareの一括転送、日本語のスラッグの転送、実際のサイトの書き出し、大きな写真（数MB）の多いサイトでのメモリは確かめていない（画像は1枚ずつ加工するため、メモリは最大の1枚で決まる）。
 - 同じ対応表のパスがあると、道具は止まります。誤って2回取り込んだときは、移行前の複製へ戻します。途中からの再開や、後日の差分の追加はできません。
 - 道具の報告・CSV・対応表・標準出力には、取り込んだ記事の題名と、外した画像の旧URL・説明のほかは、本文も個人情報も書きません。取り込まなかった記事は題名も書きません。
