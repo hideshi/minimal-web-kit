@@ -571,8 +571,8 @@ func collapse(s string) string {
 			space = true
 			continue
 		}
-		if space && b.Len() > 0 {
-			b.WriteByte(' ')
+		if space {
+			b.WriteByte(' ') // 頭の空白も1つ残す（リンク・強調の後の「 文字」の空白を落とさない。行頭の空白は行を閉じる時に除く）
 		}
 		space = false
 		b.WriteRune(r)
