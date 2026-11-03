@@ -79,15 +79,23 @@ type normalized struct {
 	publishAt         time.Time // ゼロ値なら変えない
 }
 
+// checkSlug は、スラッグの形と、予約語・登録済みの経路に当たらないかを確かめます（PAGES-INV-3）。重複は確かめません。
+func checkSlug(slug string, taken func(string) bool) error {
+	if !slugPattern.MatchString(slug) {
+		return InputError{"slug"}
+	}
+	if reservedSlugs[slug] || (taken != nil && taken("/"+slug)) {
+		return InputError{"slug_reserved"}
+	}
+	return nil
+}
+
 // normalize は入力を検査します。taken は、登録済みの経路に当たるパスかを返す関数（nil なら確かめない）。
 func normalize(in Input, taken func(string) bool) (normalized, error) {
 	var n normalized
 	n.slug = strings.TrimSpace(in.Slug)
-	if !slugPattern.MatchString(n.slug) {
-		return n, InputError{"slug"}
-	}
-	if reservedSlugs[n.slug] || (taken != nil && taken("/"+n.slug)) {
-		return n, InputError{"slug_reserved"}
+	if err := checkSlug(n.slug, taken); err != nil {
+		return n, err
 	}
 	var err error
 	if n.title, err = form.Line(in.Title, maxTitleRunes, true); err != nil {

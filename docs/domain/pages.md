@@ -68,7 +68,8 @@ stateDiagram-v2
 - 管理者認証（`features/auth`）の `features.Admin` の口だけを使う。`make add-pages` で管理者認証も有効になり、固定ページが有効な間は `make remove-auth` できない。
 - 公開ページは、Coreと他の機能のどの経路にも当たらなかった要求だけを受け皿（`FallbackFeature`）で受ける。スラッグが登録済みの経路と重ならないかは、配線から受け取る関数（`RouteCheckConsumer`）で確かめる。
 - Siteが有効なら、Siteのヘッダー・フッターで描き（`LayoutConsumer`）、無いページにはSiteの404を返す（`NotFoundConsumer`）。公開中でナビに出す順を決めたページはナビに載る（`DynamicNavLinkFeature`）。`sitemap.xml` には、順の有無にかかわらず公開中のページを載せる（`SitemapFeature`）。
-- お知らせ・カタログとはデータを共有しない。本文を読む部品（`internal/web/richtext`）はCoreにあるが、お知らせの本文には使っていない。
+- お知らせ・カタログとはデータを共有しない。本文を読む部品（`internal/web/richtext`）はCoreにあり、お知らせ・カタログの本文はリンクの記法だけを同じ部品で読む（[本文の書き方](../richtext.md) 7節）。
+- HTTPの外の道具（移行の道具 `cmd/wpimport` 等）は、`Import`（管理画面と同じ `save` を通す下書きの作成）、`CheckSlug`・`Slugs`（取り込む前のスラッグの確かめ）を使う。SQLを直接書かない。
 - 画像機能が有効なら、本文に画像の行を書ける（[画像の仕様](media.md)、[本文の書き方](../richtext.md)）。編集の画面のボタンで本文の末尾に足し、プレビューは管理者の経路で描く。画像機能が無い構成では、画像の行は説明の文字として描く。
 
 ## 7. 守らない範囲
