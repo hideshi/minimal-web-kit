@@ -132,7 +132,7 @@ func parse(body string, images bool) (Doc, error) {
 			closeBlock()
 			inl := inlines(trimTokens(lex(line[len(kind)+1:]))) // "## " は3バイト、"### " は4バイト
 			doc.Blocks = append(doc.Blocks, Block{Kind: kind, Inlines: inl})
-			lastHeading = plain(inl)
+			lastHeading = Plain(inl)
 		case strings.HasPrefix(line, "表: ") && len(line) > len("表: ") && i+2 < len(lines) && isTableStart(lines[i+1], lines[i+2]):
 			closeBlock()
 			caption := joinTokens(lex(strings.TrimSpace(strings.TrimPrefix(line, "表: "))))
@@ -266,20 +266,51 @@ type token struct {
 const escapable = "\\*[]()|#-.:"
 const symbols = "|*[]()"
 
+// リンクだけを読む本文（docs/richtext.md 7節）の、逃がせる文字と記号。強調と表の記号を持たない。
+const linkEscapable = "\\[]()"
+const linkSymbols = "[]()"
+
 // lex は、\ を解決しながら、文字と記号の並びにします。
-func lex(s string) []token {
+func lex(s string) []token { return lexWith(s, escapable, symbols) }
+
+func lexWith(s, esc, sym string) []token {
 	rs := []rune(s)
 	out := make([]token, 0, len(rs))
 	for i := 0; i < len(rs); i++ {
 		r := rs[i]
-		if r == '\\' && i+1 < len(rs) && strings.ContainsRune(escapable, rs[i+1]) {
+		if r == '\\' && i+1 < len(rs) && strings.ContainsRune(esc, rs[i+1]) {
 			out = append(out, token{r: rs[i+1], escaped: true})
 			i++
 			continue
 		}
-		out = append(out, token{r: r, sym: strings.ContainsRune(symbols, r)})
+		out = append(out, token{r: r, sym: strings.ContainsRune(sym, r)})
 	}
 	return out
+}
+
+// LinkLine は、1行の中のリンクの記法 `[文字](URL)` だけを読みます（docs/richtext.md 7節）。
+// 強調・見出し・リスト・表・画像は読みません。お知らせ・カタログの本文の行に使います。読む時間は行の長さに比例します。
+func LinkLine(line string) []Inline { return inlines(lexWith(line, linkEscapable, linkSymbols)) }
+
+// LinkParagraphs は、段落と行に分けた本文（form.Paragraphs の結果）の各行を LinkLine で読みます。
+func LinkParagraphs(paragraphs [][]string) [][][]Inline {
+	out := make([][][]Inline, len(paragraphs))
+	for i, p := range paragraphs {
+		out[i] = make([][]Inline, len(p))
+		for j, line := range p {
+			out[i][j] = LinkLine(line)
+		}
+	}
+	return out
+}
+
+// LinkPlain は、本文をリンクの記法を読んだ後の文字にします（リンクは文字だけを残す）。説明文に使います。
+func LinkPlain(body string) string {
+	lines := strings.Split(body, "\n")
+	for i, l := range lines {
+		lines[i] = Plain(LinkLine(l))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func joinTokens(ts []token) string {
@@ -473,8 +504,8 @@ func blank(ts []token) bool {
 	return true
 }
 
-// plain は、強調・リンクの記号を除いた文字です（表の説明に使う直前の見出し）。
-func plain(in []Inline) string {
+// Plain は、強調・リンクの記号を除いた文字です（表の説明に使う直前の見出し、説明文）。
+func Plain(in []Inline) string {
 	var b strings.Builder
 	for _, x := range in {
 		b.WriteString(x.Text)

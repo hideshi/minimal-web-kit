@@ -166,6 +166,12 @@
 {{define "paragraphs"}}<div class="text-body">{{range .}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>{{end}}</div>{{end}}
 
 {{/*
+  リンクだけを読む本文（お知らせ・カタログ）。引数は richtext.LinkParagraphs の結果。規則は docs/richtext.md 7節。
+  匿名の訪問者が書いた本文（お問い合わせ等）には使わない。押せるリンクにしないため "paragraphs" を使う
+*/}}
+{{define "link-paragraphs"}}<div class="text-body">{{range .}}<p>{{range $i, $line := .}}{{if $i}}<br>{{end}}{{template "richtext-inline" $line}}{{end}}</p>{{end}}</div>{{end}}
+
+{{/*
   本文（書き方を絞ったMarkdown）。引数は richtext.Doc（richtext.Parse で読んだもの）。規則は docs/richtext.md。
   利用者の入力は文字として描き、HTMLとしては出さない。リンクは richtext が許可したURLだけ。
   画像は ResolveImages で Src を埋めたものだけを描き、埋まらなければ説明の文字にする

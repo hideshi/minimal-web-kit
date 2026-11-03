@@ -366,6 +366,45 @@ func TestTemplate_PublishSectionsUseComponent(t *testing.T) {
 	}
 }
 
+// TestTemplate_LinkParagraphsOnlyForOwnContent は、リンクを読む本文の部品 link-paragraphs を、運営者が書く本文
+// （お知らせ・カタログ）の画面だけで使うことを検証します。匿名の訪問者が書いたお問い合わせの本文のリンクを、
+// 管理者の画面で押せるようにしないためです（docs/richtext.md 7節）。
+func TestTemplate_LinkParagraphsOnlyForOwnContent(t *testing.T) {
+	allowed := map[string]bool{
+		"../features/news/views/news_show.html": true,
+		"../features/catalog/views/show.html":   true,
+	}
+	files, err := featureViews()
+	if err != nil {
+		t.Fatal(err)
+	}
+	used := map[string]bool{}
+	for _, f := range files {
+		raw, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(raw), `{{template "link-paragraphs"`) {
+			used[f] = true
+			if !allowed[f] {
+				t.Errorf("%s: link-paragraphs は運営者が書く本文だけに使う", f)
+			}
+		}
+	}
+	for f := range allowed {
+		if !used[f] {
+			t.Errorf("%s: link-paragraphs が使われていない", f)
+		}
+	}
+	raw, err := os.ReadFile("../features/contact/views/admin_message.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `{{template "paragraphs"`) {
+		t.Error("お問い合わせの本文は paragraphs で描く")
+	}
+}
+
 func directInlineForm(source string) bool {
 	return regexp.MustCompile(`<form\b[^>]*\binline-form\b`).MatchString(source)
 }

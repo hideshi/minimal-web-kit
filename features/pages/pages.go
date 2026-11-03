@@ -302,9 +302,7 @@ func description(doc richtext.Doc, fallback string) string {
 		}
 		var s strings.Builder
 		for _, line := range b.Lines {
-			for _, x := range line {
-				s.WriteString(x.Text)
-			}
+			s.WriteString(richtext.Plain(line))
 			s.WriteString(" ")
 		}
 		text := []rune(strings.Join(strings.Fields(s.String()), " "))

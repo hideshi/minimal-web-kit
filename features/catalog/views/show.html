@@ -3,7 +3,7 @@
 {{template "media-image" .Cover}}
 {{if .Item.CategoryID}}<p>カテゴリ: <a href="/catalog?category={{.Item.CategoryID}}">{{.Item.Category}}</a></p>{{end}}
 {{if .Item.Tags}}<ul class="tag-list" role="list" aria-label="タグ">{{range .Item.Tags}}<li><a href="/catalog?tag={{.ID}}">{{.Name}}</a></li>{{end}}</ul>{{end}}
-{{template "paragraphs" .Paragraphs}}
+{{template "link-paragraphs" .Paragraphs}}
 <p>更新: {{template "datetime" .Item.UpdatedAt}}</p>
 </article><p><a href="/catalog">カタログの一覧へ戻る</a></p>
 {{end}}

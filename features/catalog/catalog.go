@@ -20,6 +20,7 @@ import (
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/page"
+	"minimal-web-kit/internal/web/richtext"
 )
 
 //go:embed migration.sql views/*.html static/*
@@ -327,7 +328,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 	if !f.result(w, r, err) {
 		return
 	}
-	data := map[string]any{"Title": item.Title, "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": form.Paragraphs(item.Body)}
+	data := map[string]any{"Title": item.Title, "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": richtext.LinkParagraphs(form.Paragraphs(item.Body))}
 	covers, err := f.covers(r.Context(), []Item{item})
 	if !f.result(w, r, err) {
 		return

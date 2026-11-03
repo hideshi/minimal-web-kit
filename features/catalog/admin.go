@@ -47,7 +47,7 @@ func (v itemForm) fieldError(name string) string { return itemErrors.For(v.Inval
 func (v itemForm) Fields() []form.Field {
 	return []form.Field{
 		{ID: "item-title", Name: "title", Label: "タイトル", Value: v.Title, Required: true, MaxLength: 200, Error: v.fieldError("title"), Hint: "1〜200文字、改行なし。"},
-		{ID: "item-body", Name: "body", Label: "本文", Value: v.Body, Rows: 12, Error: v.fieldError("body"), Hint: "5万文字以内のプレーンテキスト。HTMLは文字として表示されます。個人情報は書かないでください。"},
+		{ID: "item-body", Name: "body", Label: "本文", Value: v.Body, Rows: 12, Error: v.fieldError("body"), Hint: "5万文字以内のプレーンテキスト。空行で段落を分けます。リンクは [文字](URL) と書きます（URLは https:// か / で始まるサイト内のパス）。記号の [ を文字として書くときは \\[ と書きます。HTMLは文字として表示されます。個人情報は書かないでください。"},
 		{ID: "item-publish-at", Name: "publish_at", Label: "公開日時", Optional: true, Type: "datetime-local", Value: v.PublishAt, Error: v.fieldError("publish_at") + v.fieldError("publish_at_live"), Hint: publishAtHint},
 	}
 }

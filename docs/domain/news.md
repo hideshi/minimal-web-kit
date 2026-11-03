@@ -50,7 +50,7 @@ stateDiagram-v2
 | NEWS-INV-2 | 公開日時は、初めて公開したときに一度だけ決まり、非公開に戻して再公開しても変わらない（作成・編集で明示的に指定した場合を除く） | `Publish` の `COALESCE(published_at, ?)` |
 | NEWS-INV-3 | 記事のIDは、削除した後も再利用しない（APIの利用側の誤参照を防ぐ） | `news_posts` の AUTOINCREMENT |
 | NEWS-INV-4 | タイトルは改行とタブのない1〜200字、本文は50,000字以内の文章で、満たさない入力は保存しない | `normalizePost` |
-| NEWS-INV-5 | タイトル・本文はプレーンテキストとして扱い、HTMLは文字として表示する | `html/template` の自動エスケープ（`template.HTML` を使わない） |
+| NEWS-INV-5 | タイトル・本文はプレーンテキストとして扱い、HTMLは文字として表示する。本文で読む記法は行の中のリンク `[文字](URL)` だけで、URLは許可したもの（`https://` とサイト内のパス）だけをリンクにする | `html/template` の自動エスケープ（`template.HTML` を使わない）、`LinkLine`（[本文の書き方](../richtext.md) 7節） |
 | NEWS-INV-6 | 公開側は、Coreの匿名セッションのCookieを照合・発行・消去しない | 独立経路（`RegisterIsolatedRoutes`） |
 | NEWS-INV-7 | APIが返す項目は、公開用の `id`・`title`・`body`・`published_at`・`updated_at` だけ | `apiPost` |
 | NEWS-INV-8 | 別のオリジンからのAPIの読み取りは、`NEWS_CORS_ORIGINS` で許可した接続元だけに許す。既定は許可なし、資格情報は許可しない。`Vary: Origin` を付け、事前要求（OPTIONS）に答える。HTMLのページにはCORSのヘッダーを出さない | `LoadConfig`・APIのハンドラ |
@@ -75,10 +75,11 @@ stateDiagram-v2
 
 - 管理者認証（`features/auth`）の `features.Admin` の口だけを使い、`auth_*` の表を読まない。`make add-news` で管理者認証も有効になり、お知らせ機能が有効な間は `make remove-auth` できない。
 - Siteが有効なら、ナビに「お知らせ」のリンクを出し、Siteのヘッダー・フッターで公開ページを描く（`NavLinkFeature`・`LayoutConsumer`）。`sitemap.xml` には公開中の記事を載せる（`SitemapFeature`）。
-- 画像機能が有効なら、記事に代表画像を1枚付けられる（[画像の仕様](media.md)）。公開の詳細の見出しの下に出し、一覧とAPIには出さない。本文はプレーンテキストのまま。
+- 画像機能が有効なら、記事に代表画像を1枚付けられる（[画像の仕様](media.md)）。公開の詳細の見出しの下に出し、一覧とAPIには出さない。
+- 本文はプレーンテキストで、公開の詳細では行の中のリンクの記法 `[文字](URL)` だけを読む（[本文の書き方](../richtext.md) 7節）。強調・見出し・リストは読まない。`\` で `\`・`[`・`]`・`(`・`)` を文字にできる。説明文（検索結果・SNSのカード）はリンクを読んだ後の文字から作る。APIとMCPは本文を記法の文字のまま返す。
 
 ## 7. 守らない範囲
 
-- 記事の種類の追加、本文の中の画像、Markdown・HTMLの本文、書き込みAPI・APIトークン、下書きのAPI。
+- 記事の種類の追加、本文の中の画像、リンク以外のMarkdown・HTMLの本文、書き込みAPI・APIトークン、下書きのAPI。
 - 記事ごとの権限・承認の流れ、変更の履歴・版の管理、誰が書いたかの記録。
 - 公開側の60秒のキャッシュによる反映の遅れ（公開・非公開・予約公開の切り替わりは、最大でその時間だけ遅れて見える）。

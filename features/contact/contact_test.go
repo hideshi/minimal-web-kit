@@ -433,7 +433,7 @@ func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 // 不変条件: CONTACT-INV-13
 func TestAdmin_SubmittedValuesAreNotLinked(t *testing.T) {
 	f, routes, core, _, _ := setup(t)
-	id, err := f.store.Save(context.Background(), Input{Name: "https://name.example/", ReplyTo: "reply@example.com", Body: "https://body.example/"}, Limits{Hourly: 10, Daily: 10, Unread: 10})
+	id, err := f.store.Save(context.Background(), Input{Name: "https://name.example/", ReplyTo: "reply@example.com", Body: "https://body.example/ [こちら](https://link.example/) [内](/inner-link)"}, Limits{Hourly: 10, Daily: 10, Unread: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -443,7 +443,8 @@ func TestAdmin_SubmittedValuesAreNotLinked(t *testing.T) {
 		if !strings.Contains(body, "https://body.example/") {
 			t.Fatalf("%s must show the text", path)
 		}
-		for _, link := range []string{`href="https://body.example`, `href="https://name.example`, `href="mailto:`} {
+		// 本文のリンクの記法も文字のまま（docs/richtext.md 7節。お問い合わせは link-paragraphs を使わない）
+		for _, link := range []string{`href="https://body.example`, `href="https://name.example`, `href="mailto:`, `href="https://link.example`, `href="/inner-link"`} {
 			if strings.Contains(body, link) {
 				t.Errorf("%s must not contain %s", path, link)
 			}

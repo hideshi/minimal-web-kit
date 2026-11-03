@@ -3,7 +3,7 @@
   <h1>{{.Post.Title}}</h1>
   <p class="text-meta">公開日: {{template "date" .Post.PublishedAt}}</p>
   {{template "media-image" .Cover}}
-  {{template "paragraphs" .Paragraphs}}
+  {{template "link-paragraphs" .Paragraphs}}
 </article>
 
 <p><a href="/news">お知らせの一覧へ戻る</a></p>

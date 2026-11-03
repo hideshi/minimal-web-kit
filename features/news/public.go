@@ -16,6 +16,7 @@ import (
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
 	"minimal-web-kit/internal/web/page"
+	"minimal-web-kit/internal/web/richtext"
 )
 
 //go:embed views/*.html
@@ -73,9 +74,10 @@ func (f *Feature) render(w http.ResponseWriter, page string, data map[string]any
 // excerptRunes は、記事の説明文（検索結果・SNSのカード）に使う本文の文字数です。
 const excerptRunes = 120
 
-// excerpt は、本文の冒頭から説明文を作ります。改行や連続する空白は1つの空白にまとめます。本文が空ならタイトルを使います。
+// excerpt は、本文の冒頭から説明文を作ります。リンクの記法は読んだ後の文字にし、改行や連続する空白は1つの空白にまとめます。
+// 本文が空ならタイトルを使います。
 func excerpt(body, fallback string) string {
-	s := strings.Join(strings.Fields(body), " ")
+	s := strings.Join(strings.Fields(richtext.LinkPlain(body)), " ")
 	if s == "" {
 		return fallback
 	}
@@ -163,7 +165,7 @@ func (f *Feature) handleNewsShow(w http.ResponseWriter, r *http.Request) {
 		"PublishedTime": post.PublishedAt.UTC().Format(time.RFC3339),
 		"CanonicalPath": "/news/" + strconv.FormatInt(post.ID, 10),
 		"Post":          localTime(post),
-		"Paragraphs":    form.Paragraphs(post.Body),
+		"Paragraphs":    richtext.LinkParagraphs(form.Paragraphs(post.Body)),
 	})
 }
 

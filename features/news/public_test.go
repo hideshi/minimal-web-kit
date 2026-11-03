@@ -160,6 +160,34 @@ func TestNewsPages_ListShowAndEscape(t *testing.T) {
 	}
 }
 
+// TestNewsPages_BodyLinks は、本文のリンクの記法が詳細でリンクになり、説明文とAPIでは扱いが分かれることを確かめる。
+// 不変条件: NEWS-INV-5, NEWS-INV-7
+func TestNewsPages_BodyLinks(t *testing.T) {
+	fx := newPublicFixture(t, "")
+	raw := "詳しくは[会社案内](/about)と[外部](https://example.com/a)\n[古い](http://example.com) \\[文字\\](/x) **強調**"
+	id := fx.publish(t, "リンクの記事", raw)
+	body := fx.do(t, http.MethodGet, "/news/"+strconv.FormatInt(id, 10), nil).Body.String()
+	for _, want := range []string{
+		`詳しくは<a href="/about">会社案内</a>と<a href="https://example.com/a">外部</a><br>`,
+		`[古い](http://example.com) [文字](/x) **強調**`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("show must contain %q", want)
+		}
+	}
+	if strings.Contains(body, `href="http://example.com"`) || strings.Contains(body, `href="/x"`) || strings.Contains(body, "<strong>") {
+		t.Error("only allowed links may be rendered")
+	}
+	api := fx.do(t, http.MethodGet, "/api/news/"+strconv.FormatInt(id, 10), nil).Body.String()
+	if !strings.Contains(api, `[会社案内](/about)`) {
+		t.Errorf("API must return the raw body: %s", api)
+	}
+	// 説明文（Siteが有効な時の meta・OGP）は、リンクを読んだ後の文字から作る
+	if got, want := excerpt(raw, "題"), "詳しくは会社案内と外部 [古い](http://example.com) [文字](/x) **強調**"; got != want {
+		t.Errorf("excerpt = %q, want %q", got, want)
+	}
+}
+
 // ユースケース: UC-NEWS-1
 func TestNewsPages_Pagination(t *testing.T) {
 	fx := newPublicFixture(t, "")

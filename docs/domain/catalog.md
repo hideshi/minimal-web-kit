@@ -47,7 +47,7 @@ stateDiagram-v2
 | 番号 | 条件 | 守る場所 |
 |---|---|---|
 | CATALOG-INV-1 | 公開ページ・ページ内件数・分類候補・sitemap・画像に出るのは、公開の状態で公開日時を過ぎた項目とその関連だけ（予約中は下書きと同じ）。未公開詳細は404。公開候補にない分類IDは、存在しないIDと同じ200の空一覧・同じ文言にする | `publicItem`・`Store.List`・`Store.Get`・`Store.Classifications`・`SitemapEntries` |
-| CATALOG-INV-2 | タイトル・本文・分類名はプレーンテキストとしてエスケープする | `html/template` の自動エスケープ（`render`・`renderAdmin`） |
+| CATALOG-INV-2 | タイトル・本文・分類名はプレーンテキストとしてエスケープする。詳細の本文で読む記法は行の中のリンク `[文字](URL)` だけで、許可したURLだけをリンクにする | `html/template` の自動エスケープ（`render`・`renderAdmin`）、`LinkLine`（[本文の書き方](../richtext.md) 7節） |
 | CATALOG-INV-3 | 管理操作は管理者認証のPage/Formで保護し、変更はPOSTのみ | `registerAdmin`（`Page`・`Form`） |
 | CATALOG-INV-4 | 項目とタグ関連は同一トランザクションで保存し、失敗時は部分保存しない | `Store.save`・`Store.write` |
 | CATALOG-INV-5 | 分類削除は項目を消さず、項目削除はその関連だけを消す。孤立した関連行を残さない | `DeleteClassification`・`Store.Delete`・`migration.sql` の外部キー |

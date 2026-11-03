@@ -92,7 +92,7 @@ func changedField(name, before, after string) string {
 // MCPTools は、お知らせのツールを返します。保存は管理画面と同じ検査を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"title":{"type":"string"},"body":{"type":"string"},"published_at":{"type":"string","description":"公開日時（2006-01-02T15:04）。空なら変えない"}`
+	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"published_at":{"type":"string","description":"公開日時（2006-01-02T15:04）。空なら変えない"}`
 	return []features.MCPTool{
 		{
 			Name: "news_list", Title: "お知らせの一覧", Description: "お知らせの一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,

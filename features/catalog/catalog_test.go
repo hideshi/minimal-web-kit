@@ -195,6 +195,18 @@ func TestPublicRoutesPrivacyAndRepresentations(t *testing.T) {
 }
 
 // 不変条件: CATALOG-INV-4, CATALOG-INV-5, CATALOG-INV-6, CATALOG-INV-8, CATALOG-INV-11
+// TestDetailBodyLinks は、詳細の本文でリンクの記法だけを読むことを確かめる（docs/richtext.md 7節）。
+// 不変条件: CATALOG-INV-2
+func TestDetailBodyLinks(t *testing.T) {
+	fx := setup(t, false)
+	id := mustSave(t, fx.f.store, Input{Title: "リンクの項目", Body: "[事例](/catalog) と [外部](https://example.com/a) と [古い](http://example.com) と **強調** <b>x</b>"})
+	mustPublish(t, fx.f.store, id)
+	w := fx.send("GET", "/catalog/"+idString(id), nil, nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `<a href="/catalog">事例</a> と <a href="https://example.com/a">外部</a> と [古い](http://example.com) と **強調** &lt;b&gt;x&lt;/b&gt;`) {
+		t.Fatalf("detail links: %d %s", w.Code, w.Body.String())
+	}
+}
+
 func TestStoreTransactionsClassificationDeletionAndRetention(t *testing.T) {
 	fx := setup(t, false)
 	s := fx.f.store

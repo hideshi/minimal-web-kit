@@ -158,7 +158,7 @@ func (f *Feature) tagNames(ctx context.Context, ids []int64) string {
 // MCPTools は、カタログのツールを返します。保存は管理画面と同じ検査を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"title":{"type":"string"},"body":{"type":"string"},"category_id":{"type":"integer","minimum":0},"tag_ids":{"type":"array","items":{"type":"integer"}},"publish_at":{"type":"string","description":"公開を始める日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない。公開中の項目を未来の日時にはできない"}`
+	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"category_id":{"type":"integer","minimum":0},"tag_ids":{"type":"array","items":{"type":"integer"}},"publish_at":{"type":"string","description":"公開を始める日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない。公開中の項目を未来の日時にはできない"}`
 	return []features.MCPTool{
 		{
 			Name: "catalog_list", Title: "カタログの一覧", Description: "項目の一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,
