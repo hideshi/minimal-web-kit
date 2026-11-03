@@ -143,13 +143,13 @@
     <article class="card">
       <span class="card-badge">NEWS</span>
       <h3 class="card-title">お知らせ</h3>
-      <p class="card-content">公開ページと読み取り専用のJSON API、記事の管理画面です。日時を決めた予約公開と、カテゴリでの絞り込みもできます。</p>
+      <p class="card-content">公開ページと読み取り専用のJSON API、記事の管理画面です。日時を決めた予約公開と、カテゴリでの絞り込みもできます。本文にリンクを書けます。</p>
     </article>
 
     <article class="card">
       <span class="card-badge">CATALOG</span>
       <h3 class="card-title">カタログ</h3>
-      <p class="card-content">商品や事例の一覧を、キーワード・カテゴリ・タグで絞り込めます。JavaScriptが無くても使えます。</p>
+      <p class="card-content">商品や事例の一覧を、キーワード・カテゴリ・タグで絞り込めます。JavaScriptが無くても使えます。本文にリンクを書けます。</p>
     </article>
 
     <article class="card">
@@ -218,7 +218,7 @@
     <article class="card">
       <span class="card-badge">WEBSITE</span>
       <h3 class="card-title">企業サイト &amp; サービスLP</h3>
-      <p class="card-content">標準の構成では、公開ページの閲覧でCookieを発行せず、セッションも作りません。お知らせ・固定ページ・お問い合わせ・画像を足せます。</p>
+      <p class="card-content">標準の構成では、公開ページの閲覧でCookieを発行せず、セッションも作りません。お知らせ・固定ページ・お問い合わせ・画像を足せます。WordPressからの内容の移行にも対応します。</p>
     </article>
 
     <article class="card">
@@ -310,6 +310,13 @@
       <summary>画像はどれくらい載せられますか？</summary>
       <div class="faq-answer">
         <p>画像機能を有効にすると、JPEGとPNGを1枚8MBまで受け取り、長辺1,600pxに縮小して保存します。全体の上限は既定で300MBで、設定で変えられます。SVG・GIF・WebP・HEICは使えません。画像はDBに保存するため、写真が大量に増えるサイトには向きません。</p>
+      </div>
+    </details>
+
+    <details class="faq-item">
+      <summary>WordPressから移せますか？</summary>
+      <div class="faq-answer">
+        <p>WordPressの書き出し（WXR）と画像のフォルダから、お知らせ・固定ページ・画像を下書きとして移す道具（<code>cmd/wpimport</code>）があります。移るのは内容だけで、テーマの見た目やプラグインの機能、コメントは移りません。先に試しの実行で、何が移り何が移らないかの報告を作れます。古いURLは、Cloudflareの一括転送の表を書き出して転送できます。</p>
       </div>
     </details>
 
