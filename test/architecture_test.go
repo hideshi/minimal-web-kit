@@ -122,6 +122,23 @@ func TestArchitecture_LinkedModules(t *testing.T) {
 	}
 }
 
+// TestArchitecture_ImporterModules は、移行の道具（cmd/wpimport）に組み込まれる外部モジュールが、サーバーと同じ一覧に
+// golang.org/x/net を足した物だけであることを検証します（計画10.10）。
+func TestArchitecture_ImporterModules(t *testing.T) {
+	want := append(slices.Clone(linkedModules), "golang.org/x/net")
+	slices.Sort(want)
+	var got []string
+	for _, m := range listDeps(t, moduleFormat, "./cmd/wpimport") {
+		if m != "" && m != "minimal-web-kit" && !slices.Contains(got, m) {
+			got = append(got, m)
+		}
+	}
+	slices.Sort(got)
+	if !slices.Equal(got, want) {
+		t.Errorf("cmd/wpimport modules changed.\n got: %v\nwant: %v", got, want)
+	}
+}
+
 // TestArchitecture_HTMLParserOnlyInImporter は、golang.org/x/net を import するのが移行の道具（cmd/wpimport の下）だけであることを検証します。
 // キットの機能・Coreのパッケージが使い始めると、サーバーの実行ファイルに入りうるためです。
 func TestArchitecture_HTMLParserOnlyInImporter(t *testing.T) {

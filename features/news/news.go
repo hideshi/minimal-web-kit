@@ -71,6 +71,10 @@ func (f *Feature) MediaIsPublic(ctx context.Context, key, file string) (bool, er
 	return post.CoverFile == file, nil
 }
 
+// Posts は、記事のストアを返します。HTTPの外の道具（移行の道具 cmd/wpimport 等）が、管理画面と同じ検査・保存
+// （CreateWithCover・UpdateWithCover・SaveCategory）を通すために使います。Init の後に呼びます。
+func (f *Feature) Posts() *PostStore { return f.posts }
+
 // MediaReferences は、代表画像を持つ記事を返します。
 func (f *Feature) MediaReferences(ctx context.Context) (map[string][]string, error) {
 	return f.posts.coverRefs(ctx)

@@ -84,6 +84,7 @@ stateDiagram-v2
 - 管理者認証（`features/auth`）の `features.Admin` の口だけを使い、`auth_*` の表を読まない。`make add-news` で管理者認証も有効になり、お知らせ機能が有効な間は `make remove-auth` できない。
 - Siteが有効なら、ナビに「お知らせ」のリンクを出し、Siteのヘッダー・フッターで公開ページを描く（`NavLinkFeature`・`LayoutConsumer`）。`sitemap.xml` には公開中の記事を載せる（`SitemapFeature`）。
 - 画像機能が有効なら、記事に代表画像を1枚付けられる（[画像の仕様](media.md)）。公開の詳細の見出しの下に出し、一覧とAPIには出さない。
+- HTTPの外の道具（移行の道具 `cmd/wpimport` 等）は、`Posts` で記事のストアを受け取り、管理画面と同じ `CreateWithCover`・`UpdateWithCover`・`SaveCategory` を通す。SQLを直接書かない。
 - 本文はプレーンテキストで、公開の詳細では行の中のリンクの記法 `[文字](URL)` だけを読む（[本文の書き方](../richtext.md) 7節）。強調・見出し・リストは読まない。`\` で `\`・`[`・`]`・`(`・`)` を文字にできる。説明文（検索結果・SNSのカード）はリンクを読んだ後の文字から作る。APIとMCPは本文を記法の文字のまま返す。
 
 ## 7. 守らない範囲
