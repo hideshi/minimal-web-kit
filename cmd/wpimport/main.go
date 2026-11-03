@@ -77,6 +77,8 @@ func (o options) check() error {
 		return errors.New("-wxr, -db, -report are required")
 	case !o.dryRun && (o.out == "" || o.mapFile == ""):
 		return errors.New("-out and -map are required (or use -dry-run)")
+	case o.dryRun && (o.out != "" || o.mapFile != "" || o.redirects != ""):
+		return errors.New("-dry-run writes only the report; do not pass -out, -map or -redirects")
 	case o.redirects != "" && o.newOrigin == "":
 		return errors.New("-redirects needs -new-origin")
 	}
@@ -238,6 +240,7 @@ func importInto(ctx context.Context, work string, exp *wxr.Export, o options) (*
 	p := newPlanner(exp, o.oldOrigins, o.uploadsURLs, en, existing, checkSlug)
 	p.run()
 	p.importImages(ctx, k, o.uploads)
+	p.countUnlisted(o.uploads)
 	categories := map[string]int64{}
 	if k.news != nil {
 		if categories, err = p.importCategories(ctx, k.news.Posts()); err != nil {

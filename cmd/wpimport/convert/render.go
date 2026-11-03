@@ -100,7 +100,7 @@ func renderPage(b block, r *Result) string {
 	return strings.Join(lines, "\n")
 }
 
-// imageAlt は、画像の説明です（計画10.6の順のうち、本文で分かる分。WXRの代替テキストは Resolver が File と一緒に決める）。
+// imageAlt は、画像の説明です。Alt は Resolver が返した説明（WXRの代替テキスト等）か本文の alt、無ければキャプション、仮の文の順。
 func imageAlt(img Image) string {
 	alt := img.Alt
 	if alt == "" {
@@ -145,6 +145,11 @@ func escapeLineStart(line string) string {
 // pageInlines は、文字の並びを richtext の書き方にします。cell なら | も逃がします。
 func pageInlines(in []inline, cell bool) string {
 	var b strings.Builder
+	// 強調のある並びでは、文字の * を全部逃がす（強調の印とつながって *** にならないように）
+	strong := false
+	for _, x := range in {
+		strong = strong || x.kind == "strong"
+	}
 	for _, x := range in {
 		switch x.kind {
 		case "link":
@@ -156,9 +161,9 @@ func pageInlines(in []inline, cell bool) string {
 				continue
 			}
 			lead := x.text[:strings.Index(x.text, t)]
-			b.WriteString(escapePageText(lead, cell, false) + "**" + escapePageText(t, cell, true) + "**" + escapePageText(x.text[len(lead)+len(t):], cell, false))
+			b.WriteString(escapePageText(lead, cell, true) + "**" + escapePageText(t, cell, true) + "**" + escapePageText(x.text[len(lead)+len(t):], cell, true))
 		default:
-			b.WriteString(escapePageText(x.text, cell, false))
+			b.WriteString(escapePageText(x.text, cell, strong))
 		}
 	}
 	return b.String()

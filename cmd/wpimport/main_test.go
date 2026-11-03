@@ -101,6 +101,7 @@ func fileHash(t *testing.T, path string) []byte {
 	return b
 }
 
+// ユースケース: UC-OPS-3
 func TestRun_ImportsSample(t *testing.T) {
 	fx := newFixture(t, true)
 	before := fileHash(t, fx.live)
@@ -174,7 +175,7 @@ func TestRun_ImportsSample(t *testing.T) {
 
 	report := string(fileHash(t, fx.path("report.md")))
 	for _, want := range []string{"2枚中1枚を移した", "パスワード保護の記事", "スラッグを page-<ID> に変えた", "表示の時に中身を作るブロック（latest-posts ×1）",
-		"お知らせの本文の途中にだけ出る画像", "https://old.example.com/wp-content/uploads/2024/05/inside.png（店内）", "type:flamingo_inbound | 1", "status:post/private | 1", "| webp | 1 |"} {
+		"お知らせの本文の途中にだけ出る画像", "https://old.example.com/wp-content/uploads/2024/05/inside.png（店内）", "type:flamingo_inbound | 1", "status:post/private | 1", "| webp | 1 |", "フォルダにあって書き出しに無い画像 | 1枚"} {
 		if !strings.Contains(report, want) {
 			t.Errorf("report must contain %q", want)
 		}
@@ -195,13 +196,16 @@ func TestRun_ImportsSample(t *testing.T) {
 		"old.example.com/news/2024/05/open/":   "https://new.example.com/news/" + open,
 		"www.old.example.com/company/":         "https://new.example.com/page-10",
 		"old.example.com/news/2030/01/future/": "",
+		// 取り込んだ画像の旧URL（添付のURLと、本文に出た小さい版）
+		"old.example.com/wp-content/uploads/2024/05/shop-scaled.jpg":  "https://new.example.com/media/" + cover,
+		"old.example.com/wp-content/uploads/2024/05/shop-300x200.jpg": "https://new.example.com/media/" + cover,
 	} {
 		if target != "" && got[source] != target {
 			t.Errorf("redirect %s = %q, want %q", source, got[source], target)
 		}
 	}
 	for source := range got {
-		if strings.Contains(source, "members") || strings.Contains(source, "?p=") || strings.Contains(source, "private") {
+		if strings.Contains(source, "members") || strings.Contains(source, "?p=") || strings.Contains(source, "private") || strings.Contains(source, "inside") {
 			t.Errorf("protected, draft and private posts must not be redirected: %s", source)
 		}
 	}
@@ -257,6 +261,7 @@ func TestRun_RefusesToOverwriteAndChecksFlags(t *testing.T) {
 		{"-wxr", "testdata/sample.xml", "-db", fx.live, "-out", fx.path("work.db"), "-report", fx.path("r.md"), "-map", fx.path("map.csv")},
 		{"-wxr", "testdata/sample.xml", "-db", fx.live, "-report", fx.path("r.md")},
 		{"-wxr", "testdata/sample.xml", "-db", fx.live, "-report", fx.path("r.md"), "-dry-run", "-redirects", fx.path("x.csv")},
+		{"-wxr", "testdata/sample.xml", "-db", fx.live, "-report", fx.path("r.md"), "-dry-run", "-out", fx.path("work.db")},
 		{"-wxr", "testdata/sample.xml", "-db", fx.live, "-report", fx.path("r.md"), "-dry-run", "-new-origin", "http://new.example.com"},
 	} {
 		var stdout, stderr bytes.Buffer
@@ -297,6 +302,25 @@ func TestRun_FailuresDoNotLeak(t *testing.T) {
 		t.Fatalf("missing db: exit %d", code)
 	}
 	checkCanaries(t, "stderr", stderr.String())
+}
+
+// TestRun_BrokenImage は、画像のファイルが壊れていても止まらず、移せなかった画像と、代表画像を移せなかった記事を報告することを確かめる。
+func TestRun_BrokenImage(t *testing.T) {
+	fx := newFixture(t, true)
+	if err := os.WriteFile(filepath.Join(fx.uploads, "2024", "05", "shop-scaled.jpg"), []byte("CANARY_NOT_AN_IMAGE"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"-wxr", "testdata/sample.xml", "-uploads", fx.uploads, "-db", fx.live, "-report", fx.path("r.md"), "-dry-run"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("exit %d: %s", code, stderr.String())
+	}
+	report := string(fileHash(t, fx.path("r.md")))
+	for _, want := range []string{"2枚中0枚を移した", "中身がJPEG・PNGでない | 1", "代表画像を移せなかった"} {
+		if !strings.Contains(report, want) {
+			t.Errorf("report must contain %q", want)
+		}
+	}
+	checkCanaries(t, "report", report+stdout.String()+stderr.String())
 }
 
 // TestRun_WithoutMedia は、画像機能の無いDBでも記事を取り込み、画像の表を作らないことを確かめる。

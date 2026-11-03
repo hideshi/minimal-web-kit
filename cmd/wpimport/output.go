@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -28,6 +29,7 @@ var noteLabels = map[string]string{
 	"title_empty":              "題名が空（仮の題名にした）",
 	"title_truncated":          "題名を200文字で切った",
 	"body_not_imported":        "本文を取り込めなかった（上限・形式。本文は空）",
+	"cover_not_imported":       "代表画像を移せなかった（代表画像なし。管理画面で選び直す）",
 	"more_tag":                 "続きを読む（<!--more-->）の印",
 	"nextpage_tag":             "ページ分割（<!--nextpage-->）の印",
 	"pattern_missing":          "書き出しに無い同期パターン",
@@ -52,7 +54,7 @@ var failureLabels = map[string]string{
 	"news_body_only":          "お知らせの本文の途中にだけ出る画像（取り込まない）",
 	"media_disabled":          "画像機能が無効",
 	"no_uploads_dir":          "アップロードのフォルダの指定が無い",
-	"file_missing_or_outside": "ファイルが無いか、フォルダの外を指す",
+	"file_missing_or_outside": "ファイルが無いか、フォルダの外を指す（-uploads と -uploads-url の指定を確かめる）",
 	"file_unreadable":         "ファイルを読めない",
 	"too_large":               "8MBを超える",
 	"not_jpeg_png":            "中身がJPEG・PNGでない",
@@ -120,7 +122,8 @@ func (p *planner) writeReport(w io.Writer, dryRun bool, newOrigin string) {
 	for _, n := range p.attSkipped {
 		other += n
 	}
-	pf("| 画像（JPEG・PNGの添付） | %d枚中%d枚を移した |\n| JPEG・PNG以外の添付 | %d件（移していない） |\n\n", total, imported, other)
+	pf("| 画像（JPEG・PNGの添付） | %d枚中%d枚を移した |\n| JPEG・PNG以外の添付 | %d件（移していない） |\n", total, imported, other)
+	pf("| フォルダにあって書き出しに無い画像 | %d枚（移していない。小さい版を除く） |\n\n", p.unlisted)
 
 	if len(p.skipped) > 0 {
 		pf("## 取り込まなかった物（種類と件数だけ）\n\n| 種類・状態 | 件数 |\n|---|---|\n")
@@ -263,6 +266,35 @@ func (p *planner) redirectRows(oldOrigins []string, newOrigin string) [][]string
 			}
 		}
 	}
+	// 取り込んだ画像の旧URL（添付のURLと、本文に出た小さい版のURL）を、移行先の画像へ（計画10.6・13.3）。
+	// お知らせの本文にしか出ない画像は取り込んでいないので、転送しない
+	ids := make([]int64, 0, len(p.attachments))
+	for id, a := range p.attachments {
+		if a.file != "" {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	for _, id := range ids {
+		a := p.attachments[id]
+		target := newBase + "/media/" + a.file
+		for _, raw := range a.urls {
+			u, err := url.Parse(raw)
+			if err != nil || u.Path == "" || (u.Host != "" && !p.oldHosts[hostKey(u.Hostname())]) {
+				continue
+			}
+			for _, host := range hosts {
+				source := host + u.EscapedPath()
+				if u.Host != "" && hostKey(u.Hostname()) != hostKey(host) {
+					continue // 古いサイトのホスト（www の有り無し）ごとに出す。別のサイトのホストの行は出さない
+				}
+				if !seen[source] {
+					seen[source] = true
+					rows = append(rows, []string{source, target, "301", "FALSE", "FALSE", "FALSE", "FALSE"})
+				}
+			}
+		}
+	}
 	return rows
 }
 
@@ -293,7 +325,7 @@ func (p *planner) mapRows() [][]string {
 			ids = append(ids, id)
 		}
 	}
-	sortInt64(ids)
+	slices.Sort(ids)
 	for _, id := range ids {
 		rows = append(rows, []string{"image", strconv.FormatInt(id, 10), strings.TrimSuffix(strings.TrimSuffix(p.attachments[id].file, ".jpg"), ".png"), "/media/" + p.attachments[id].file})
 	}

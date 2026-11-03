@@ -47,7 +47,6 @@ var allowedMeta = map[string]bool{
 
 // Export は、WXRから読んだ内容です。
 type Export struct {
-	BaseSiteURL string
 	BaseBlogURL string
 	Items       []Item
 }
@@ -84,10 +83,6 @@ func Read(r io.Reader) (*Export, error) {
 					return nil, malformed(d)
 				}
 				exp.Items = append(exp.Items, it)
-			case isWP(t.Name) && t.Name.Local == "base_site_url":
-				if exp.BaseSiteURL, err = text(d); err != nil {
-					return nil, malformed(d)
-				}
 			case isWP(t.Name) && t.Name.Local == "base_blog_url":
 				if exp.BaseBlogURL, err = text(d); err != nil {
 					return nil, malformed(d)

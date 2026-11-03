@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -33,7 +35,7 @@ func (p *planner) importImages(ctx context.Context, k kit, uploads string) {
 	for id := range p.attachments {
 		ids = append(ids, id)
 	}
-	sortInt64(ids)
+	slices.Sort(ids)
 	for _, id := range ids {
 		a := p.attachments[id]
 		switch {
@@ -77,6 +79,33 @@ func (p *planner) importImages(ctx context.Context, k kit, uploads string) {
 	}
 }
 
+// countUnlisted は、アップロードのフォルダにあってWXRの添付に無いJPEG・PNGの数を数えます（計画10.6。件数だけ報告する）。
+// WordPressが作る小さい版（-<幅>x<高さ>）は数えません。
+func (p *planner) countUnlisted(uploads string) {
+	if uploads == "" {
+		return
+	}
+	known := map[string]bool{}
+	for _, a := range p.attachments {
+		known[filepath.ToSlash(filepath.Clean(a.rel))] = true
+	}
+	_ = filepath.WalkDir(uploads, func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(uploads, path)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(rel)), ".")
+		if imageExt[ext] && !known[rel] && !reSized.MatchString(rel) {
+			p.unlisted++
+		}
+		return nil
+	})
+}
+
 func readLimited(path string) ([]byte, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -84,14 +113,6 @@ func readLimited(path string) ([]byte, error) {
 	}
 	defer f.Close()
 	return io.ReadAll(io.LimitReader(f, maxReadBytes))
-}
-
-func sortInt64(s []int64) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j] < s[j-1]; j-- {
-			s[j], s[j-1] = s[j-1], s[j]
-		}
-	}
 }
 
 // importCategories は、お知らせのカテゴリを作り、名前からIDを引く表を返します。同じ名前の既存のカテゴリはそれを使います。
@@ -128,6 +149,9 @@ func (p *planner) createNews(ctx context.Context, posts *news.PostStore, categor
 	for _, e := range p.entries {
 		if e.target != convert.News {
 			continue
+		}
+		if e.cover != 0 && p.coverFile(e) == "" {
+			e.notes["cover_not_imported"]++ // 代表画像に決めた画像を移せなかった（理由は「移せなかった画像」）
 		}
 		id, err := posts.CreateWithCover(ctx, e.title, "", e.publishedAt, p.coverFile(e), categories[e.category])
 		if err != nil {
@@ -201,12 +225,15 @@ func (p *planner) saveBodies(ctx context.Context, k kit, categories map[string]i
 // resolver は、2段目の対応です。画像は取り込んだファイルに、古いサイトの中のリンクは移行先に結びます。
 type resolver struct{ p *planner }
 
-func (r resolver) Image(img convert.Image) (string, bool) {
+func (r resolver) Image(img convert.Image) (string, string, bool) {
 	a := r.p.attachments[r.p.attachmentFor(img)]
 	if a == nil || a.file == "" {
-		return "", false
+		return "", "", false
 	}
-	return a.file, true
+	if a.placehold {
+		return a.file, "", true // 仮の説明は返さない（本文の alt・キャプションがあればそれを使う）
+	}
+	return a.file, a.alt, true
 }
 
 func (r resolver) Attachments(id int64) []int64     { return r.p.children[id] }

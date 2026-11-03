@@ -6,6 +6,7 @@ package convert
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -33,8 +34,9 @@ type Image struct {
 
 // Resolver は、移行先の対応を引きます。1段目（全件の移行先を決める前）は、何も結ばない resolver で呼べます。
 type Resolver interface {
-	// Image は、本文の画像をキットの画像のファイル名（<id>.<ext>）に結びます。
-	Image(img Image) (file string, ok bool)
+	// Image は、本文の画像をキットの画像のファイル名（<id>.<ext>）に結びます。alt は画像の説明
+	// （WXRの代替テキスト等から決めた物。仮の説明なら空）で、空でなければ本文の alt より優先します（計画10.6の順）。
+	Image(img Image) (file, alt string, ok bool)
 	// Link は、古いサイトの中へのリンクを新しいURLに書き換えます。古いサイトの外なら、そのまま返します。
 	// internal は古いサイトの中だったか、ok は移行先が見つかったかです。
 	Link(href string) (out string, internal, ok bool)
@@ -78,7 +80,7 @@ func Convert(src string, postID int64, target Target, res Resolver) Result {
 
 var (
 	rePattern   = regexp.MustCompile(`<!-- wp:block \{"ref":(\d+)\}\s*/-->`)
-	reSelfBlock = regexp.MustCompile(`<!-- wp:([a-z0-9/-]+)(?:\s+\{[^>]*?\})?\s*/-->`)
+	reSelfBlock = regexp.MustCompile(`<!-- wp:([a-z0-9/-]+)(?:\s+\{.*?\})?\s*/-->`) // 属性のJSONに > があっても数える
 )
 
 func expandPatterns(src string, res Resolver, r *Result, depth int) string {
@@ -181,7 +183,7 @@ func galleryIDs(attrs map[string]string, postID int64, res Resolver) []int64 {
 		if exclude := idList(attrs["exclude"]); len(exclude) > 0 {
 			kept := ids[:0]
 			for _, id := range ids {
-				if !contains(exclude, id) {
+				if !slices.Contains(exclude, id) {
 					kept = append(kept, id)
 				}
 			}
@@ -194,15 +196,6 @@ func galleryIDs(attrs map[string]string, postID int64, res Resolver) []int64 {
 		}
 	}
 	return ids
-}
-
-func contains(s []int64, v int64) bool {
-	for _, x := range s {
-		if x == v {
-			return true
-		}
-	}
-	return false
 }
 
 // ---- 木を歩いて、ブロックの並びを作る ----
@@ -440,8 +433,11 @@ func (c *converter) image(n *html.Node) {
 	if len(c.figure) > 0 {
 		img.Caption = figureCaption(n)
 	}
-	if file, ok := c.res.Image(img); ok {
+	if file, alt, ok := c.res.Image(img); ok {
 		img.File = file
+		if alt != "" {
+			img.Alt = alt
+		}
 	}
 	c.r.Images = append(c.r.Images, img)
 	if c.target == News {

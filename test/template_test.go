@@ -403,6 +403,20 @@ func TestTemplate_LinkParagraphsOnlyForOwnContent(t *testing.T) {
 	if !strings.Contains(string(raw), `{{template "paragraphs"`) {
 		t.Error("お問い合わせの本文は paragraphs で描く")
 	}
+	// お問い合わせの画面は、リンクを描く部品（richtext・richtext-inline）も直接呼ばない
+	contact, err := filepath.Glob("../features/contact/views/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range contact {
+		b, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), `{{template "richtext`) {
+			t.Errorf("%s: お問い合わせの画面は richtext の部品を使わない", f)
+		}
+	}
 }
 
 func directInlineForm(source string) bool {

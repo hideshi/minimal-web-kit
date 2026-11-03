@@ -67,6 +67,7 @@ type planner struct {
 	byWPID       map[int64]*entry
 	skipped      map[string]int // 取り込まない物の種類と状態（題名は持たない）
 	attSkipped   map[string]int // 取り込めない添付の拡張子
+	unlisted     int            // アップロードのフォルダにあってWXRに無い画像の数
 	enabled      enabled
 	existingSlug map[string]bool
 	checkSlug    func(string) error
@@ -159,6 +160,10 @@ func (p *planner) run() {
 }
 
 func (p *planner) addAttachment(it wxr.Item) {
+	if it.ID <= 0 {
+		p.attSkipped["no_id"]++ // ID の無い添付は、0（結べない）と区別できないため使わない
+		return
+	}
 	rel := strings.TrimSpace(it.Meta["_wp_attached_file"])
 	if rel == "" {
 		rel = p.relFromURL(it.AttachmentURL)
@@ -232,7 +237,10 @@ func (p *planner) attachmentFor(img convert.Image) int64 {
 		return img.AttachmentID
 	}
 	src := stripQuery(img.Src)
-	for _, s := range []string{src, reSized.ReplaceAllString(src, "$1")} {
+	base := reSized.ReplaceAllString(src, "$1")
+	// 大きな画像は添付が -scaled の版のため、小さい版の名前を戻した物に -scaled を足した名前でも引く
+	scaled := strings.TrimSuffix(base, path.Ext(base)) + "-scaled" + path.Ext(base)
+	for _, s := range []string{src, base, scaled} {
 		if id, ok := p.byURL[s]; ok {
 			return id
 		}
@@ -291,7 +299,8 @@ func (p *planner) addEntry(it wxr.Item) {
 	}
 	p.entries = append(p.entries, e)
 	p.byWPID[it.ID] = e
-	if u, err := url.Parse(it.Link); err == nil && redirect && u.RawQuery == "" {
+	// 本文の中のリンクの書き換えには、取り込む記事を全部使う（保護・下書きも。転送の対象かとは別）
+	if u, err := url.Parse(it.Link); err == nil && u.RawQuery == "" && u.Path != "" {
 		p.byLink[pathKey(u.Path)] = e
 	}
 }
@@ -325,6 +334,9 @@ func (p *planner) category(it wxr.Item, notes map[string]int) string {
 		}
 		names = append(names, c)
 	}
+	if it.Tags > 0 {
+		notes["tags_dropped"] += it.Tags
+	}
 	if len(names) == 0 {
 		return ""
 	}
@@ -339,9 +351,6 @@ func (p *planner) category(it wxr.Item, notes map[string]int) string {
 	if len(names) > 1 {
 		notes["categories_dropped"] += len(names) - 1
 	}
-	if it.Tags > 0 {
-		notes["tags_dropped"] += it.Tags
-	}
 	name := strings.Join(strings.Fields(chosen.Name), " ")
 	if utf8.RuneCountInString(name) > 50 {
 		notes["category_too_long"]++
@@ -349,8 +358,6 @@ func (p *planner) category(it wxr.Item, notes map[string]int) string {
 	}
 	return name
 }
-
-var reSlug = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$`)
 
 // decideSlugs は、固定ページのスラッグを決めます。使えない物・重なる物は page-<WordPressのID> にして報告します（計画10.8）。
 func (p *planner) decideSlugs() {
@@ -366,7 +373,7 @@ func (p *planner) decideSlugs() {
 		if dec, err := url.PathUnescape(slug); err == nil {
 			slug = dec
 		}
-		if !reSlug.MatchString(slug) || p.checkSlug(slug) != nil || used[slug] {
+		if p.checkSlug(slug) != nil || used[slug] { // 形・予約語は固定ページの機能の規則で確かめる
 			e.notes["slug_changed"]++
 			slug = "page-" + strconv.FormatInt(e.item.ID, 10)
 			for i := 2; used[slug]; i++ {
@@ -442,7 +449,7 @@ func safePath(uploads, rel string) (string, bool) {
 // collector は、1段目で本文の画像を集めるための resolver です。何も結ばず、[gallery] と同期パターンだけを引きます。
 type collector struct{ p *planner }
 
-func (collector) Image(convert.Image) (string, bool) { return "", false }
-func (collector) Link(h string) (string, bool, bool) { return h, false, false }
-func (c collector) Attachments(id int64) []int64     { return c.p.children[id] }
-func (c collector) Pattern(ref int64) (string, bool) { s, ok := c.p.patterns[ref]; return s, ok }
+func (collector) Image(convert.Image) (string, string, bool) { return "", "", false }
+func (collector) Link(h string) (string, bool, bool)         { return h, false, false }
+func (c collector) Attachments(id int64) []int64             { return c.p.children[id] }
+func (c collector) Pattern(ref int64) (string, bool)         { s, ok := c.p.patterns[ref]; return s, ok }

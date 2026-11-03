@@ -16,14 +16,16 @@ const fileB = "fedcba9876543210fedcba9876543210.png"
 // fake は、添付30・31を画像に、古いサイトの /old/ と ?p=20 を新しいURLに結ぶ見本の対応です。
 type fake struct{}
 
-func (fake) Image(img Image) (string, bool) {
+func (fake) Image(img Image) (string, string, bool) {
 	switch {
 	case img.AttachmentID == 30 || strings.Contains(img.Src, "/shop"):
-		return fileA, true
+		return fileA, "", true
 	case img.AttachmentID == 31:
-		return fileB, true
+		return fileB, "", true
+	case img.AttachmentID == 32:
+		return fileA, "添付の説明", true // WXRの代替テキストのある添付
 	}
-	return "", false
+	return "", "", false
 }
 
 func (fake) Link(href string) (string, bool, bool) {
@@ -72,6 +74,8 @@ func TestConvert_Page(t *testing.T) {
 		{"image in text", `<p>前<img class="wp-image-30" alt="絵">後</p>`, "前\n\n![絵](/media/" + fileA + ")\n\n後"},
 		{"linked image", `<p><a href="/full.jpg"><img class="wp-image-30" alt="絵"></a></p>`, "![絵](/media/" + fileA + ")"},
 		{"caption shortcode", `[caption id="attachment_30" width="300"]<img src="x" alt="" class="wp-image-30"> 店の外観[/caption]`, "![店の外観](/media/" + fileA + ")\n\n店の外観"},
+		{"attachment alt first", `<p><img class="wp-image-32" alt="本文の説明"></p><p><img class="wp-image-32" alt=""></p>`, "![添付の説明](/media/" + fileA + ")\n\n![添付の説明](/media/" + fileA + ")"},
+		{"star before strong", `<p>*<strong>a</strong>*</p>`, `\***a**\*`},
 		{"unresolved image", `<p><img src="https://elsewhere.example/a.gif" alt="他所の絵"></p>`, "他所の絵"},
 		{"gallery default", `[gallery columns="2"]`, "![" + PlaceholderAlt + "](/media/" + fileB + ")\n\n![" + PlaceholderAlt + "](/media/" + fileA + ")"},
 		{"gallery ids", `[gallery ids="30,31"]`, "![" + PlaceholderAlt + "](/media/" + fileA + ")\n\n![" + PlaceholderAlt + "](/media/" + fileB + ")"},
@@ -119,7 +123,7 @@ func TestConvert_News(t *testing.T) {
 }
 
 func TestConvert_Notes(t *testing.T) {
-	src := `<!-- wp:latest-posts /--><!-- wp:search {"label":"検索"} /--><p>a<!--more-->b</p><script>x</script>[audio src="a.mp3"]` +
+	src := `<!-- wp:latest-posts /--><!-- wp:search {"label":"a > b"} /--><p>a<!--more-->b</p><script>x</script>[audio src="a.mp3"]` +
 		`<p><a href="https://old.example.com/missing/">消えた</a></p><img src="https://elsewhere.example/x.gif" alt="">` +
 		`<!-- wp:block {"ref":99} /-->`
 	r := Convert(src, 0, Page, fake{})
