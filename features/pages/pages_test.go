@@ -214,7 +214,7 @@ func TestSlugRules(t *testing.T) {
 	fx.create("about", "会社概要", "", "", false)
 	for slug, field := range map[string]string{
 		"A": "slug", "a": "slug", "-ab": "slug", "ab-": "slug", "a_b": "slug", "a/b": "slug", strings.Repeat("a", 41): "slug",
-		"admin": "slug_reserved", "news": "slug_reserved", "privacy": "slug_reserved", "contact": "slug_reserved", "static": "slug_reserved",
+		"admin": "slug_reserved", "news": "slug_reserved", "privacy": "slug_reserved", "contact": "slug_reserved", "static": "slug_reserved", "mcp": "slug_reserved",
 		"about": "slug_taken",
 	} {
 		w := fx.post("/admin/pages", url.Values{"slug": {slug}, "title": {"題"}}, fx.admin)

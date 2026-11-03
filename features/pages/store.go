@@ -41,6 +41,9 @@ var slugPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$`)
 var reservedSlugs = map[string]bool{
 	"admin": true, "api": true, "static": true, "account": true, "news": true, "catalog": true, "contact": true,
 	"privacy": true, "pages": true, "feed": true, "search": true, "media": true,
+	// 同梱のMCP（/mcp）・エージェントの認可（/agent/...）・共通認証（/oidc/...）の経路。機能を有効にしていない
+	// サイトでも、後で有効にしたときと、経路を読めない移行の道具（cmd/wpimport）のために予約する
+	"mcp": true, "agent": true, "oidc": true,
 }
 
 // Page は固定ページ1件です。
