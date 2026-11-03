@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 移行の道具のテスト用の自作の見本。CANARY_ で始まる値は、どの出力にも出てはならない個人情報の目印。 -->
+<rss version="2.0" xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wp="http://wordpress.org/export/1.2/">
+<channel>
+	<title>見本の会社</title>
+	<link>https://old.example.com</link>
+	<description>CANARY_SITE_DESCRIPTION</description>
+	<wp:wxr_version>1.2</wp:wxr_version>
+	<wp:base_site_url>https://old.example.com</wp:base_site_url>
+	<wp:base_blog_url>https://old.example.com</wp:base_blog_url>
+	<wp:author>
+		<wp:author_id>1</wp:author_id>
+		<wp:author_login><![CDATA[CANARY_AUTHOR_LOGIN]]></wp:author_login>
+		<wp:author_email><![CDATA[canary-author@example.invalid]]></wp:author_email>
+		<wp:author_display_name><![CDATA[CANARY_AUTHOR_NAME]]></wp:author_display_name>
+	</wp:author>
+	<wp:category>
+		<wp:term_id>1</wp:term_id>
+		<wp:category_nicename><![CDATA[uncategorized]]></wp:category_nicename>
+		<wp:cat_name><![CDATA[未分類]]></wp:cat_name>
+	</wp:category>
+
+	<item>
+		<title>会社概要</title>
+		<link>https://old.example.com/company/</link>
+		<dc:creator><![CDATA[CANARY_AUTHOR_LOGIN]]></dc:creator>
+		<content:encoded><![CDATA[<!-- wp:heading -->
+<h2 class="wp-block-heading">私たちについて</h2>
+<!-- /wp:heading -->
+
+<!-- wp:paragraph -->
+<p>詳しくは<a href="https://old.example.com/news/2024/05/open/">開店のお知らせ</a>と<a href="https://example.org/">外部</a>をご覧ください。</p>
+<!-- /wp:paragraph -->
+
+<!-- wp:image {"id":30} -->
+<figure class="wp-block-image"><img src="https://old.example.com/wp-content/uploads/2024/05/shop-300x200.jpg" alt="店の外観" class="wp-image-30"/></figure>
+<!-- /wp:image -->
+
+<!-- wp:latest-posts /-->]]></content:encoded>
+		<excerpt:encoded><![CDATA[CANARY_EXCERPT]]></excerpt:encoded>
+		<wp:post_id>10</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-05-01 01:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[company]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_parent>0</wp:post_parent>
+		<wp:menu_order>2</wp:menu_order>
+		<wp:post_type><![CDATA[page]]></wp:post_type>
+		<wp:post_password><![CDATA[]]></wp:post_password>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_edit_last]]></wp:meta_key>
+			<wp:meta_value><![CDATA[CANARY_POSTMETA]]></wp:meta_value>
+		</wp:postmeta>
+	</item>
+
+	<item>
+		<title>開店のお知らせ</title>
+		<link>https://old.example.com/news/2024/05/open/</link>
+		<content:encoded><![CDATA[5月に<strong>新しい店</strong>を開きました。
+
+営業時間は次のとおりです。
+平日は10時から。
+
+<img src="https://old.example.com/wp-content/uploads/2024/05/inside.png" alt="店内" class="wp-image-31" />]]></content:encoded>
+		<wp:post_id>20</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-05-10 03:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[open]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<wp:post_password><![CDATA[]]></wp:post_password>
+		<category domain="category" nicename="uncategorized"><![CDATA[未分類]]></category>
+		<category domain="category" nicename="event"><![CDATA[イベント]]></category>
+		<category domain="category" nicename="shop"><![CDATA[店舗]]></category>
+		<category domain="post_tag" nicename="canary-tag"><![CDATA[CANARY_TAG]]></category>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_thumbnail_id]]></wp:meta_key>
+			<wp:meta_value><![CDATA[30]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_yoast_wpseo_primary_category]]></wp:meta_key>
+			<wp:meta_value><![CDATA[shop]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:comment>
+			<wp:comment_id>5</wp:comment_id>
+			<wp:comment_author><![CDATA[CANARY_COMMENT_AUTHOR]]></wp:comment_author>
+			<wp:comment_author_email><![CDATA[canary-comment@example.invalid]]></wp:comment_author_email>
+			<wp:comment_author_IP><![CDATA[203.0.113.77]]></wp:comment_author_IP>
+			<wp:comment_content><![CDATA[CANARY_COMMENT_BODY]]></wp:comment_content>
+		</wp:comment>
+	</item>
+
+	<item>
+		<title>書きかけの記事</title>
+		<link>https://old.example.com/?p=21</link>
+		<content:encoded><![CDATA[まだ書いている途中です。]]></content:encoded>
+		<wp:post_id>21</wp:post_id>
+		<wp:post_date_gmt><![CDATA[0000-00-00 00:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[]]></wp:post_name>
+		<wp:status><![CDATA[draft]]></wp:status>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<wp:post_password><![CDATA[]]></wp:post_password>
+		<category domain="category" nicename="uncategorized"><![CDATA[未分類]]></category>
+	</item>
+
+	<item>
+		<title>会員向けの記事</title>
+		<link>https://old.example.com/news/members/</link>
+		<content:encoded><![CDATA[会員だけに見せていた内容です。]]></content:encoded>
+		<wp:post_id>22</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2024-04-01 00:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[members]]></wp:post_name>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<wp:post_password><![CDATA[CANARY_PASSWORD]]></wp:post_password>
+	</item>
+
+	<item>
+		<title>予約の記事</title>
+		<link>https://old.example.com/news/2030/01/future/</link>
+		<content:encoded><![CDATA[来年の予定です。]]></content:encoded>
+		<wp:post_id>23</wp:post_id>
+		<wp:post_date_gmt><![CDATA[2030-01-01 00:00:00]]></wp:post_date_gmt>
+		<wp:post_name><![CDATA[future]]></wp:post_name>
+		<wp:status><![CDATA[future]]></wp:status>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+		<wp:post_password><![CDATA[]]></wp:post_password>
+	</item>
+
+	<item>
+		<title>CANARY_PRIVATE_TITLE</title>
+		<link>https://old.example.com/news/private/</link>
+		<content:encoded><![CDATA[CANARY_PRIVATE_BODY]]></content:encoded>
+		<wp:post_id>24</wp:post_id>
+		<wp:status><![CDATA[private]]></wp:status>
+		<wp:post_type><![CDATA[post]]></wp:post_type>
+	</item>
+
+	<item>
+		<title>CANARY_PLUGIN_TITLE</title>
+		<content:encoded><![CDATA[CANARY_PLUGIN_BODY]]></content:encoded>
+		<wp:post_id>25</wp:post_id>
+		<wp:status><![CDATA[publish]]></wp:status>
+		<wp:post_type><![CDATA[flamingo_inbound]]></wp:post_type>
+	</item>
+
+	<item>
+		<title>shop</title>
+		<link>https://old.example.com/shop/</link>
+		<wp:post_id>30</wp:post_id>
+		<wp:post_parent>10</wp:post_parent>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://old.example.com/wp-content/uploads/2024/05/shop-scaled.jpg]]></wp:attachment_url>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_wp_attached_file]]></wp:meta_key>
+			<wp:meta_value><![CDATA[2024/05/shop-scaled.jpg]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_wp_attachment_image_alt]]></wp:meta_key>
+			<wp:meta_value><![CDATA[店の外観]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_wp_attachment_metadata]]></wp:meta_key>
+			<wp:meta_value><![CDATA[a:1:{s:4:"file";s:23:"CANARY_ATTACHMENT_META";}]]></wp:meta_value>
+		</wp:postmeta>
+	</item>
+
+	<item>
+		<title>inside</title>
+		<wp:post_id>31</wp:post_id>
+		<wp:post_parent>20</wp:post_parent>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://old.example.com/wp-content/uploads/2024/05/inside.png]]></wp:attachment_url>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_wp_attached_file]]></wp:meta_key>
+			<wp:meta_value><![CDATA[2024/05/inside.png]]></wp:meta_value>
+		</wp:postmeta>
+	</item>
+
+	<item>
+		<title>logo</title>
+		<wp:post_id>32</wp:post_id>
+		<wp:status><![CDATA[inherit]]></wp:status>
+		<wp:post_type><![CDATA[attachment]]></wp:post_type>
+		<wp:attachment_url><![CDATA[https://old.example.com/wp-content/uploads/2024/05/logo.webp]]></wp:attachment_url>
+		<wp:postmeta>
+			<wp:meta_key><![CDATA[_wp_attached_file]]></wp:meta_key>
+			<wp:meta_value><![CDATA[../../etc/passwd]]></wp:meta_value>
+		</wp:postmeta>
+	</item>
+</channel>
+</rss>
