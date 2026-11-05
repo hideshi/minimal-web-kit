@@ -85,12 +85,21 @@ func TestRecordsCheck_FollowsRenamesAndChains(t *testing.T) {
 	mustMigrate(t, db, []RecordDef{kindDef(t, "k", add("a", Text))})
 	insertRow(t, db, "records_k", map[string]any{"a": "1"})
 	two := insertRow(t, db, "records_k", map[string]any{"a": "2"})
+	word := insertRow(t, db, "records_k", map[string]any{"a": "x"})
 	// a を b に改名し、整数にし、はい・いいえにする。1 はできて、2 ははい・いいえにできない
 	out := check(t, path, []RecordDef{kindDef(t, "k", add("a", Text), rename("a", "b"), change("b", Text, Integer), change("b", Integer, Bool))})
 	if !strings.Contains(out, "records_k.b") || !strings.Contains(out, "(id "+itoaID(two)) {
 		t.Errorf("chain:\n%s", out)
 	}
-	if strings.Count(out, "CANNOT CONVERT") != 2-1 {
+	// 各行は、失敗する段で1回だけ出す。x は整数への変換で、2 ははい・いいえへの変換で失敗する
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	var failing []string
+	for _, l := range lines {
+		if strings.HasPrefix(l, "CANNOT CONVERT") {
+			failing = append(failing, l)
+		}
+	}
+	if len(failing) != 2 || !strings.Contains(failing[0], "(id "+itoaID(word)+")") || !strings.Contains(failing[1], "(id "+itoaID(two)+")") {
 		t.Errorf("each row must be reported once, at the step that fails:\n%s", out)
 	}
 }
