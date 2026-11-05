@@ -1,0 +1,5 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+<p>{{.Def.Title}}のうち、削除済みのアカウント（ID {{.Owner}}）が作った記録 {{.Count}}件を、まとめて削除します。元に戻せません。</p>
+{{template "confirm-actions" .Confirm}}
+{{end}}

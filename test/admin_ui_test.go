@@ -33,6 +33,8 @@ import (
 	"minimal-web-kit/features/media"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
+	"minimal-web-kit/features/records"
+	"minimal-web-kit/features/records/defs"
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
@@ -63,6 +65,7 @@ func newAdminUIRegistry(logger *slog.Logger) *features.Registry {
 	reg.Register(pages.NewFeature(logger))
 	reg.Register(media.NewFeature(logger))
 	reg.Register(documents.NewFeature(logger))
+	reg.Register(records.NewFeature(logger, defs.Defs, defs.Retired))
 	reg.Register(mcp.NewFeature(logger))
 	return reg
 }
@@ -241,6 +244,22 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	ui.ids["doc_draft"], ui.ids["doc_published"], ui.ids["doc_pending"] = itoa(draftDoc), itoa(publishedDoc), itoa(pendingDoc)
 	ui.ids["doc_pending_version"], ui.ids["doc_folder"] = itoa(pv.ID), itoa(folders[0].ID)
 
+	// 業務記録: 自分の日報、全員の備品、削除済みのアカウント（使われたことの無いID）の日報
+	now := time.Now().Unix()
+	for key, q := range map[string][]any{
+		"rec_daily":    {`INSERT INTO records_daily_report (owner_account, revision, created_at, updated_at, f_work_date, f_body, f_next_plan) VALUES (?, 1, ?, ?, '2026-11-06', '今日の作業\n2行目', NULL)`, adminID, now, now},
+		"rec_equip":    {`INSERT INTO records_equipment (owner_account, revision, created_at, updated_at, f_item_name, f_asset_number, f_status, f_user_name, f_memo) VALUES (?, 1, ?, ?, 'ノートPC', 'A-001', '貸出中', '山田', NULL)`, otherID, now, now},
+		"rec_orphaned": {`INSERT INTO records_daily_report (owner_account, revision, created_at, updated_at, f_work_date, f_body) VALUES (987654, 1, ?, ?, '2026-01-05', '辞めた人の日報')`, now, now},
+	} {
+		res, err := db.Exec(q[0].(string), q[1:]...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		ui.ids[key] = itoa(id)
+	}
+	ui.ids["deleted_owner"] = "987654"
+
 	inbox := contact.NewStore(db)
 	limits := contact.Limits{Hourly: 100, Daily: 100, Unread: 100}
 	for key, in := range map[string]contact.Input{
@@ -398,6 +417,18 @@ var adminSamples = []adminSample{
 	{"GET /admin/document-folders/{id}", "/admin/document-folders/{doc_folder}", "admin", "document_folder.html", kindForm},
 	{"GET /admin/document-folders/{id}/delete", "/admin/document-folders/{doc_folder}/delete", "admin", "document_folder_delete.html", kindConfirm},
 	{"GET /admin/documents/transfer", "/admin/documents/transfer", "admin", "document_transfer.html", kindListAdd},
+	{"GET /admin/records", "/admin/records", "admin", "records_kinds.html", kindList},
+	{"GET /admin/records/{kind}", "/admin/records/daily_report", "admin", "records_list.html", kindList},
+	{"GET /admin/records/{kind}", "/admin/records/equipment", "admin", "records_list.html", kindList},
+	{"GET /admin/records/{kind}/new", "/admin/records/daily_report/new", "admin", "record_form.html", kindForm},
+	{"GET /admin/records/{kind}/new", "/admin/records/equipment/new", "admin", "record_form.html", kindForm},
+	{"GET /admin/records/{kind}/{id}", "/admin/records/daily_report/{rec_daily}", "admin", "record.html", kindDetail},
+	{"GET /admin/records/{kind}/{id}", "/admin/records/equipment/{rec_equip}", "admin", "record.html", kindDetail},
+	{"GET /admin/records/{kind}/{id}/edit", "/admin/records/daily_report/{rec_daily}/edit", "admin", "record_form.html", kindForm},
+	{"GET /admin/records/{kind}/{id}/edit", "/admin/records/equipment/{rec_equip}/edit", "admin", "record_form.html", kindForm},
+	{"GET /admin/records/{kind}/{id}/delete", "/admin/records/daily_report/{rec_daily}/delete", "admin", "record_delete.html", kindConfirm},
+	{"GET /admin/records/deleted-owners", "/admin/records/deleted-owners", "admin", "records_deleted_owners.html", kindList},
+	{"GET /admin/records/deleted-owners/{kind}/{owner}/delete", "/admin/records/deleted-owners/daily_report/{deleted_owner}/delete", "admin", "records_deleted_owner_delete.html", kindConfirm},
 	{"GET /admin/mcp", "/admin/mcp", "admin", "admin_mcp.html", kindListAdd},
 	{"GET /admin/mcp/features/{feature}/enable", "/admin/mcp/features/documents/enable", "admin", "admin_mcp_enable.html", kindOther},
 	{"GET /admin/mcp/clients/{id}", "/admin/mcp/clients/{agent_client}", "admin", "admin_mcp_client.html", kindDetail},
@@ -696,6 +727,9 @@ var accountRoutes = []string{
 	"GET /admin/documents/{id}/approval", "POST /admin/documents/{id}/approval", "GET /admin/documents/{id}/reads", "GET /admin/documents/{id}/versions",
 	"GET /admin/documents/{id}/versions/{version}", "POST /admin/documents/{id}/versions/{version}/approve", "POST /admin/documents/{id}/versions/{version}/reject",
 	"GET /admin/documents/{id}/delete", "POST /admin/documents/{id}/delete",
+	"GET /admin/records", "GET /admin/records/{kind}", "GET /admin/records/{kind}/new", "POST /admin/records/{kind}",
+	"GET /admin/records/{kind}/{id}", "GET /admin/records/{kind}/{id}/edit", "POST /admin/records/{kind}/{id}/edit",
+	"GET /admin/records/{kind}/{id}/delete", "POST /admin/records/{kind}/{id}/delete",
 }
 
 // TestRoleUser_ReachesOnlyAccountRoutes は、登録された全ての管理画面の経路を一般ユーザーで開き、

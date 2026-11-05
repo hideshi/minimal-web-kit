@@ -1,0 +1,37 @@
+{{define "content"}}
+{{template "list-header" (listHeader .Def.Title .Notice)}}
+<div class="action-bar"><a href="{{.Path}}/new" class="btn btn-primary">{{.Def.Title}}を作成する</a><a href="/admin/records">記録の種類へ戻る</a></div>
+<form method="get" action="{{.Path}}" class="card">
+  {{range .Search}}{{template "field" .}}{{end}}
+  <button type="submit" class="btn btn-secondary">探す</button>
+</form>
+{{if .Rows}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">{{.Def.Title}}の一覧</caption>
+    <thead>
+      <tr>
+        <th scope="col">番号</th>
+        {{range .Heads}}<th scope="col">{{.}}</th>{{end}}
+        <th scope="col">作った人</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{$path := .Path}}
+      {{range .Rows}}
+      <tr>
+        <td><a href="{{$path}}/{{.ID}}">#{{.ID}}</a></td>
+        {{range .Cells}}<td>{{.}}</td>{{end}}
+        <td>{{.Owner}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "pagination" .Page}}
+{{else if .Filtered}}
+<p>条件に合う記録はありません。</p>
+{{else}}
+<p>読める記録はまだありません。</p>
+{{end}}
+{{end}}

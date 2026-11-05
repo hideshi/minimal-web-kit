@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"time"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
@@ -17,16 +19,20 @@ import (
 
 // Feature は同梱機能の業務記録（records）です。定義（features/records/defs）から、種類ごとの表・画面・MCPのツールを組み立てます。
 type Feature struct {
-	logger  *slog.Logger
-	defs    []RecordDef
-	retired []RetiredDef
-	stmts   map[string]*kindStatements
-	db      *sql.DB
+	logger    *slog.Logger
+	defs      []RecordDef
+	retired   []RetiredDef
+	stmts     map[string]*kindStatements
+	db        *sql.DB
+	admin     features.Admin
+	directory features.AccountDirectory
+	pages     map[string]*template.Template
+	now       func() time.Time
 }
 
 // NewFeature は、定義の一覧とやめた種類を受け取ります。定義の検査は Init とコマンドで行います。
 func NewFeature(logger *slog.Logger, defs []RecordDef, retired []RetiredDef) *Feature {
-	return &Feature{logger: logger, defs: defs, retired: retired}
+	return &Feature{logger: logger, defs: defs, retired: retired, now: time.Now}
 }
 
 func (f *Feature) Name() string { return "records" }

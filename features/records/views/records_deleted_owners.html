@@ -1,0 +1,32 @@
+{{define "content"}}
+{{template "list-header" (listHeader "削除済みのアカウントの記録" .Notice)}}
+<p>アカウントを削除した人が作った記録の件数です。保持の方針に沿って、種類と人ごとにまとめて削除できます。本文は表示しません。停止中のアカウントは含みません。全員で読み書きする種類は、作った人が辞めても使うので含みません。</p>
+{{if .Rows}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">種類と削除済みのアカウントごとの件数</caption>
+    <thead>
+      <tr>
+        <th scope="col">種類</th>
+        <th scope="col">作った人</th>
+        <th scope="col">件数</th>
+        <th scope="col">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td>{{.Kind.Title}}</td>
+        <td>削除済みのアカウント（ID {{.Owner}}）</td>
+        <td>{{.Count}}件</td>
+        <td><a href="/admin/records/deleted-owners/{{.Kind.Name}}/{{.Owner}}/delete">削除の確認へ</a></td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>削除済みのアカウントの記録はまだありません。</p>
+{{end}}
+<p><a href="/admin/records">記録の種類へ戻る</a></p>
+{{end}}

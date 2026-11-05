@@ -22,6 +22,8 @@ import (
 	"minimal-web-kit/features/media"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
+	"minimal-web-kit/features/records"
+	"minimal-web-kit/features/records/defs"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
 )
@@ -31,6 +33,12 @@ var listScreens = []string{
 	"/admin/accounts", "/admin/catalog", "/admin/catalog/classifications/categories", "/admin/catalog/classifications/tags",
 	"/admin/contact", "/admin/contact/all", "/admin/documents", "/admin/documents/approvals", "/admin/documents/mine",
 	"/admin/documents/transfer", "/admin/document-folders", "/admin/mcp", "/admin/media", "/admin/news", "/admin/news-categories", "/admin/pages",
+	"/admin/records", "/admin/records/deleted-owners",
+}
+
+// listScreenPatterns は、経路に名前の入る一覧の型の画面と、開くURLです（業務記録の種類ごとの一覧）。
+var listScreenPatterns = map[string]string{
+	"/admin/records/{kind}": "/admin/records/equipment",
 }
 
 type screenMetrics struct {
@@ -89,6 +97,7 @@ func TestLayout_ListScreensMatch(t *testing.T) {
 	reg.Register(contact.NewFeature(logger))
 	reg.Register(pages.NewFeature(logger))
 	reg.Register(documents.NewFeature(logger))
+	reg.Register(records.NewFeature(logger, defs.Defs, defs.Retired))
 	reg.Register(media.NewFeature(logger))
 	reg.Register(mcp.NewFeature(logger))
 	for _, f := range reg.All() {
@@ -109,7 +118,11 @@ func TestLayout_ListScreensMatch(t *testing.T) {
 		b.do(t, chromedp.EmulateViewport(width, 900))
 		var base *screenMetrics
 		firsts := map[string]*float64{}
-		for _, path := range listScreens {
+		paths := append([]string{}, listScreens...)
+		for _, u := range listScreenPatterns {
+			paths = append(paths, u)
+		}
+		for _, path := range paths {
 			b.do(t, chromedp.Navigate(srv.URL+path))
 			b.waitFor(t, `document.readyState === "complete"`)
 			var m screenMetrics

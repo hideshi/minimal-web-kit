@@ -1,0 +1,23 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>{{template "notice" .Notice}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">記録の内容</caption>
+    <tbody>
+      {{range .Cells}}
+      <tr><th scope="row">{{.Label}}</th><td>{{if .Lines}}{{template "paragraphs" .Lines}}{{else}}{{.Text}}{{end}}</td></tr>
+      {{end}}
+      <tr><th scope="row">作った人</th><td>{{.Owner}}</td></tr>
+      <tr><th scope="row">作成日時</th><td>{{template "datetime" .Record.CreatedAt}}</td></tr>
+      <tr><th scope="row">更新日時</th><td>{{template "datetime" .Record.UpdatedAt}}</td></tr>
+    </tbody>
+  </table>
+</div>
+{{if or .CanEdit .CanDelete}}
+<div class="action-bar">
+  {{if .CanEdit}}<a href="{{.Path}}/{{.Record.ID}}/edit" class="btn btn-primary">編集する</a>{{end}}
+  {{if .CanDelete}}<a href="{{.Path}}/{{.Record.ID}}/delete" class="btn btn-danger">削除する</a>{{end}}
+</div>
+{{end}}
+<p><a href="{{.Path}}">{{.Def.Title}}の一覧へ戻る</a></p>
+{{end}}

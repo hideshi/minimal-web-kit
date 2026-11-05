@@ -1,0 +1,10 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>{{template "error" .Error}}
+<form method="post" action="{{if .ID}}{{.Path}}/{{.ID}}/edit{{else}}{{.Path}}{{end}}" class="card">
+  <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
+  {{if .ID}}<input type="hidden" name="revision" value="{{.Revision}}">{{end}}
+  {{range .Fields}}{{template "field" .}}{{end}}
+  <button type="submit" class="btn btn-primary">{{if .ID}}変更を保存する{{else}}作成する{{end}}</button>
+</form>
+<p><a href="{{if .ID}}{{.Path}}/{{.ID}}{{else}}{{.Path}}{{end}}">保存せずに戻る</a></p>
+{{end}}

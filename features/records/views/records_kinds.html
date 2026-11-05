@@ -1,0 +1,27 @@
+{{define "content"}}
+{{template "list-header" (listHeader "業務記録" nil)}}
+{{if .IsAdmin}}<div class="action-bar"><a href="/admin/records/deleted-owners">削除済みのアカウントの記録</a></div>{{end}}
+{{if .Kinds}}
+<div class="table-container">
+  <table>
+    <caption class="admin-caption">記録の種類</caption>
+    <thead>
+      <tr>
+        <th scope="col">種類</th>
+        <th scope="col">目的</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Kinds}}
+      <tr>
+        <td><a href="/admin/records/{{.Name}}">{{.Title}}</a></td>
+        <td>{{.Purpose}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<p>記録の種類はまだありません。</p>
+{{end}}
+{{end}}
