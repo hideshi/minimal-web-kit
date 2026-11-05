@@ -390,14 +390,15 @@ func TestMigrate_DivergedDefinitionsStop(t *testing.T) {
 func TestMigrate_DriftStops(t *testing.T) {
 	d := kindDef(t, "k", add("a", Text), add("b", Integer))
 	cases := map[string]string{
-		"記録に無い列":    `ALTER TABLE "records_k" ADD COLUMN "f_z" TEXT`,
-		"あるはずの列が無い": `ALTER TABLE "records_k" DROP COLUMN "f_b"`,
-		"記録の無い表":    `CREATE TABLE "records_other" (id INTEGER)`,
-		"番号の飛び":     `INSERT INTO records_steps (table_name, version, step) VALUES ('records_k', 4, 'add:z:text')`,
-		"表の無い記録":    `DROP TABLE "records_k"`,
-		"共通の列が無い":   `ALTER TABLE "records_k" DROP COLUMN "revision"`,
-		"読めない手順":    `INSERT INTO records_steps (table_name, version, step) VALUES ('records_k', 3, 'split:a')`,
-		"知らない種類の記録": `INSERT INTO records_tables (table_name, state) VALUES ('records_ghost', 'active')`,
+		"記録に無い列":      `ALTER TABLE "records_k" ADD COLUMN "f_z" TEXT`,
+		"あるはずの列が無い":   `ALTER TABLE "records_k" DROP COLUMN "f_b"`,
+		"記録の無い表":      `CREATE TABLE "records_other" (id INTEGER)`,
+		"番号の飛び":       `INSERT INTO records_steps (table_name, version, step) VALUES ('records_k', 4, 'add:z:text')`,
+		"番号の飛び（列もある）": `INSERT INTO records_steps (table_name, version, step) VALUES ('records_k', 4, 'add:z:text'); ALTER TABLE "records_k" ADD COLUMN "f_z" TEXT`,
+		"表の無い記録":      `DROP TABLE "records_k"`,
+		"共通の列が無い":     `ALTER TABLE "records_k" DROP COLUMN "revision"`,
+		"読めない手順":      `INSERT INTO records_steps (table_name, version, step) VALUES ('records_k', 3, 'split:a')`,
+		"知らない種類の記録":   `INSERT INTO records_tables (table_name, state) VALUES ('records_ghost', 'active')`,
 	}
 	for name, sqlText := range cases {
 		db, _ := testDB(t)
