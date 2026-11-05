@@ -253,10 +253,21 @@ func UpdateInventory(lockPath, inventoryPath string, defs []RecordDef, retired [
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(lockPath, encodeLock(buildLock(defs, retired, prev)), 0o644); err != nil {
+	// 両方を一時のファイルに書き終えてから置き換え、片方だけが新しくなることを避ける
+	lockTmp, invTmp := lockPath+".tmp", inventoryPath+".tmp"
+	if err := os.WriteFile(lockTmp, encodeLock(buildLock(defs, retired, prev)), 0o644); err != nil {
 		return err
 	}
-	return os.WriteFile(inventoryPath, []byte(updated), 0o644)
+	if err := os.WriteFile(invTmp, []byte(updated), 0o644); err != nil {
+		os.Remove(lockTmp)
+		return err
+	}
+	if err := os.Rename(lockTmp, lockPath); err != nil {
+		os.Remove(lockTmp)
+		os.Remove(invTmp)
+		return err
+	}
+	return os.Rename(invTmp, inventoryPath)
 }
 
 // CheckInventory は、定義の記録と台帳の節が、今の定義から作ったものと同じかを確かめます（テストから使う）。

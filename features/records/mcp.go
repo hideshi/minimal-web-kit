@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"minimal-web-kit/features"
@@ -266,6 +267,36 @@ func checkValues(d RecordDef, k *kindStatements, in map[string]json.RawMessage) 
 	return out, names, nil
 }
 
+// rawStored は、保存してある値を、入力の検査（validateFieldValue）に通す文字にします。
+func rawStored(t FieldType, v any) string {
+	switch x := v.(type) {
+	case nil:
+		return ""
+	case int64:
+		if t == Bool {
+			if x == 1 {
+				return "1"
+			}
+			return ""
+		}
+		return strconv.FormatInt(x, 10)
+	case string:
+		return x
+	}
+	return fmt.Sprint(v)
+}
+
+// checkWhole は、送られなかった項目も含めて、保存する全部の値を今の定義で検査します。画面の保存と同じく、
+// 定義が変わって合わなくなった既存の値（必須なのに空、上限を超える、選択肢に無い）は、直すまで保存させません（RECORDS-INV-6）。
+func checkWhole(d RecordDef, k *kindStatements, values map[string]any) error {
+	for _, c := range visibleRecordFields(d, k) {
+		if _, msg := validateFieldValue(fieldDef(d, c.name), c.typ, rawStored(c.typ, values[c.name])); msg != "" {
+			return features.MCPInputError{Message: "values の " + c.name + ": " + msg + "（変えない項目も、今の定義に合わなければ直してください）"}
+		}
+	}
+	return nil
+}
+
 // recordsSummary は、確認の文を組み立てます。最初の3行に操作・対象・変わる項目の名前を置き、値は全文を引用します。
 // 上限を超える長さは、MCP の側が省略せずに断ります（MCP-INV-9）。
 // 不変条件: RECORDS-INV-11
@@ -282,6 +313,21 @@ func recordsSummary(action, target string, d RecordDef, k *kindStatements, names
 		details = append(details, label+":\n"+features.MCPQuote(displayText(types[n], values[n])))
 	}
 	return features.MCPSummary(action, target, labels, strings.Join(details, "\n")+"\n\n"+notInstruction)
+}
+
+// fillMissing は、送られなかった項目を空の入力として検査し、保存する値に入れます。
+func fillMissing(d RecordDef, k *kindStatements, values map[string]any) error {
+	for _, c := range visibleRecordFields(d, k) {
+		if _, ok := values[c.name]; ok {
+			continue
+		}
+		v, msg := validateFieldValue(fieldDef(d, c.name), c.typ, "")
+		if msg != "" {
+			return features.MCPInputError{Message: "values の " + c.name + ": " + msg}
+		}
+		values[c.name] = v
+	}
+	return nil
 }
 
 func (f *Feature) createTool(d RecordDef, k *kindStatements) features.MCPTool {
@@ -301,13 +347,9 @@ func (f *Feature) createTool(d RecordDef, k *kindStatements) features.MCPTool {
 			if err != nil {
 				return features.MCPPlan{}, err
 			}
-			// 必須の項目は、送られていなければ空として検査する
-			for _, c := range visibleRecordFields(d, k) {
-				if _, ok := values[c.name]; !ok {
-					if _, msg := validateFieldValue(fieldDef(d, c.name), c.typ, ""); msg != "" {
-						return features.MCPPlan{}, features.MCPInputError{Message: "values の " + c.name + ": " + msg}
-					}
-				}
+			// 送られなかった項目は、画面の作成と同じく空として扱う（はい・いいえは「いいえ」）
+			if err := fillMissing(d, k, values); err != nil {
+				return features.MCPPlan{}, err
 			}
 			canonical, err := json.Marshal(a)
 			if err != nil {
@@ -323,6 +365,9 @@ func (f *Feature) createTool(d RecordDef, k *kindStatements) features.MCPTool {
 			}
 			values, _, err := checkValues(d, k, a.Values)
 			if err != nil {
+				return nil, err
+			}
+			if err := fillMissing(d, k, values); err != nil {
 				return nil, err
 			}
 			id, err := insertRecord(ctx, f.db, k, p.AccountID, values, f.now())
@@ -361,6 +406,16 @@ func (f *Feature) updateTool(d RecordDef, k *kindStatements) features.MCPTool {
 			}
 			if len(names) == 0 {
 				return features.MCPPlan{}, features.MCPInputError{Message: "values に変える項目を入れてください。"}
+			}
+			whole := map[string]any{}
+			for name, val := range r.Values {
+				whole[name] = val
+			}
+			for name, val := range values {
+				whole[name] = val
+			}
+			if err := checkWhole(d, k, whole); err != nil {
+				return features.MCPPlan{}, err
 			}
 			who, err := f.people(ctx)
 			if err != nil {
@@ -401,6 +456,9 @@ func (f *Feature) updateTool(d RecordDef, k *kindStatements) features.MCPTool {
 			}
 			for name, val := range values {
 				merged[name] = val
+			}
+			if err := checkWhole(d, k, merged); err != nil {
+				return nil, err
 			}
 			if err := updateRecordRevision(ctx, f.db, k, a.ID, a.Revision, merged, f.now()); err != nil {
 				if errors.Is(err, ErrConflict) || errors.Is(err, ErrNotFound) {

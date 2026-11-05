@@ -44,6 +44,9 @@ func kindDef(t *testing.T, name string, steps ...RecordStep) RecordDef {
 		}
 		d.Fields = append(d.Fields, f)
 	}
+	if len(sc.columns) > 0 {
+		d.ListFields = []string{sc.columns[0].name}
+	}
 	return d
 }
 
@@ -499,5 +502,33 @@ func TestBuildRecordStatements_QuotesEveryIdentifier(t *testing.T) {
 	}
 	if n < 20 {
 		t.Fatalf("checked only %d identifiers", n)
+	}
+}
+
+// TestMigrate_RetiredTablesAreReconciled は、やめた種類の残っている表も、手順の記録と列を突き合わせ、
+// 種類の記録が無ければ消した印があっても止まり、型の変換の作業用の列が残っていれば止まることを確かめます。
+// 不変条件: RECORDS-INV-16
+func TestMigrate_RetiredTablesAreReconciled(t *testing.T) {
+	k := kindDef(t, "k", add("a", Text))
+	old := kindDef(t, "old", add("x", Text), add("y", Text))
+	cases := map[string]struct {
+		sql     string
+		retired RetiredDef
+	}{
+		"残っている表の列を手で消した":   {`ALTER TABLE "records_old" DROP COLUMN "f_y"`, RetiredDef{Name: "old"}},
+		"残っている表に手で列を足した":   {`ALTER TABLE "records_old" ADD COLUMN "f_z" TEXT`, RetiredDef{Name: "old"}},
+		"種類の記録が無い（消した印あり）": {`DELETE FROM records_tables WHERE table_name = 'records_old'`, RetiredDef{Name: "old", Dropped: true}},
+		"作業用の列が残っている":      {`ALTER TABLE "records_k" ADD COLUMN "tmp_a" INTEGER`, RetiredDef{Name: "old"}},
+	}
+	for name, c := range cases {
+		db, _ := testDB(t)
+		mustMigrate(t, db, []RecordDef{k, old})
+		mustMigrate(t, db, []RecordDef{k}, RetiredDef{Name: "old"})
+		if _, err := db.Exec(c.sql); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if _, err := migrate(t, db, []RecordDef{k}, c.retired); err == nil {
+			t.Errorf("%s: started", name)
+		}
 	}
 }

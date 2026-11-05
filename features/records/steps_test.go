@@ -186,6 +186,8 @@ func TestValidateRecordDefs_RejectsBrokenDefs(t *testing.T) {
 		"文字に選択肢":        func(d *RecordDef) { d.Fields[1].Options = []string{"a"} },
 		"一覧の項目が無い":      func(d *RecordDef) { d.ListFields = []string{"nothing"} },
 		"並びの項目が無い":      func(d *RecordDef) { d.SortBy = "nothing" },
+		"一覧の項目が空":       func(d *RecordDef) { d.ListFields = nil },
+		"一覧の項目が重複":      func(d *RecordDef) { d.ListFields = []string{"customer", "customer"} },
 	}
 	for name, mutate := range cases {
 		d := validDef()

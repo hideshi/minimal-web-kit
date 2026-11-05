@@ -86,3 +86,30 @@ func TestPrivacyNotices_MentionsKeptRetiredKinds(t *testing.T) {
 		t.Fatalf("%+v", n)
 	}
 }
+
+// TestMCPCreate_OmittedBoolIsNo は、MCPの作成で省いた「はい・いいえ」の項目が、画面の作成と同じく「いいえ」（0）で保存されることを確かめます。
+// 不変条件: RECORDS-INV-6
+func TestMCPCreate_OmittedBoolIsNo(t *testing.T) {
+	db, _ := testDB(t)
+	d := kindDef(t, "k", add("note", Text), add("done", Bool))
+	d.MCP = true
+	f := NewFeature(slog.New(slog.NewTextHandler(io.Discard, nil)), []RecordDef{d}, nil)
+	if err := f.Init(db); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	p := features.AgentPrincipal{AccountID: 1, Role: features.RoleUser}
+	args, _ := json.Marshal(map[string]any{"values": map[string]any{"note": "x"}})
+	tool := toolOf(f, "records_k_create")
+	plan, err := tool.Prepare(ctx, p, args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tool.Apply(ctx, p, plan.Canonical, plan.State); err != nil {
+		t.Fatal(err)
+	}
+	r, err := getRecord(ctx, f.db, f.stmts["k"], 1)
+	if err != nil || r.Values["done"] != int64(0) {
+		t.Fatalf("done = %#v %v", r.Values["done"], err)
+	}
+}

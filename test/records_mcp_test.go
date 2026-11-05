@@ -142,3 +142,21 @@ func TestRecordsMCP_EnableNoticeNamesKinds(t *testing.T) {
 		t.Fatalf("%d %s", req.Code, req.Body.String())
 	}
 }
+
+// TestRecordsMCP_PartialEditChecksWholeRecord は、MCPの部分の編集でも、変えない項目が今の定義に合わなければ（必須なのに空、
+// 選択肢に無い）保存させず、直せば保存できること、作成で省いた「はい・いいえ」が画面と同じく「いいえ」になることを確かめます。
+// 不変条件: RECORDS-INV-6, RECORDS-INV-11
+func TestRecordsMCP_PartialEditChecksWholeRecord(t *testing.T) {
+	e := newMCPEnv(t)
+	enableRecordsMCP(t, e)
+	id := resultID(t, e.run("records_shared_create", map[string]any{"values": map[string]any{"note": "元"}}))
+	// 定義が変わって合わなくなった既存の値（必須のメモが空、選択肢に無い状態）
+	if _, err := e.core.DB().Exec(`UPDATE records_shared SET f_note = NULL, f_state = '廃止した選択肢' WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	r := e.call("tools/call", "records_shared_update", map[string]any{"name": "records_shared_update", "_meta": mcpCaps, "arguments": map[string]any{"id": id, "values": map[string]any{"qty": 1}}})
+	if r["isError"] != true || !strings.Contains(resultText(t, r), "note") {
+		t.Fatalf("saved over values that no longer fit: %+v", r)
+	}
+	resultID(t, e.run("records_shared_update", map[string]any{"id": id, "values": map[string]any{"qty": 1, "note": "直した", "state": "済"}}))
+}

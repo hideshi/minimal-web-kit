@@ -174,12 +174,20 @@ func planRecordsMigration(ctx context.Context, q querier, defs []RecordDef, reti
 		known[t] = true
 		state, hasState := st.states[t]
 		switch {
-		case st.tables[t] && r.Dropped:
-			p.warnings = append(p.warnings, fmt.Sprintf("%s: the table of a dropped kind is back (a backup from before records-drop?); run records-drop %s again", t, r.Name))
 		case st.tables[t] && !hasState:
 			p.stops = append(p.stops, fmt.Sprintf("%s: the table has no entry in records_tables", t))
 		case !st.tables[t] && hasState && state == "active":
 			p.stops = append(p.stops, fmt.Sprintf("%s: records_tables says active but the table is missing", t))
+		case st.tables[t]:
+			// 残っている表も、手順の記録と列を突き合わせる（RECORDS-INV-16）
+			if state == "active" {
+				if err := reconcileRecordsSchema(t, st.steps[t], st); err != nil {
+					p.stops = append(p.stops, err.Error())
+				}
+			}
+			if r.Dropped {
+				p.warnings = append(p.warnings, fmt.Sprintf("%s: the table of a dropped kind is back (a backup from before records-drop?); run records-drop %s again", t, r.Name))
+			}
 		}
 	}
 	// 定義にもやめた種類にも無い表と記録（新しい版が足した種類）は、警告して残す。記録の無い表は止める。
@@ -272,7 +280,7 @@ func reconcileRecordsSchema(table string, applied []string, st *dbState) error {
 	got := map[string]string{}
 	for n, typ := range st.columns[table] {
 		if strings.HasPrefix(n, "tmp_") {
-			continue
+			return fmt.Errorf("%s: a work column %s from an interrupted conversion is left; restore the database from a backup", table, n)
 		}
 		got[n] = typ
 	}
@@ -390,7 +398,7 @@ func (f convertFailure) Error() string {
 	for _, id := range f.IDs {
 		ids = append(ids, strconv.FormatInt(id, 10))
 	}
-	return fmt.Sprintf("records: %s.%s: %d row(s) cannot be converted (id %s); fix them with the current version first (records-check lists them)", f.Table, f.Field, len(f.IDs), strings.Join(ids, ", "))
+	return fmt.Sprintf("records: %s.%s: %d row(s) cannot be converted (id %s); fix them with the current version first", f.Table, f.Field, len(f.IDs), strings.Join(ids, ", "))
 }
 
 // convertRecordColumn は、型の変換の手順を1つ当てます。全部の行が新しい型の形に合う時だけ写し、1行でも合わなければエラーを返します

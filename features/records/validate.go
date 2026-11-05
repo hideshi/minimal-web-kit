@@ -88,7 +88,15 @@ func validateRecordDef(d RecordDef) error {
 			fail("column %q has no entry in Fields", c.name)
 		}
 	}
+	if len(d.ListFields) == 0 {
+		fail("ListFields needs at least one field (the first one links to the record)")
+	}
+	listed := map[string]bool{}
 	for _, name := range d.ListFields {
+		if listed[name] {
+			fail("ListFields lists %q twice", name)
+		}
+		listed[name] = true
 		if _, ok := types[name]; !ok {
 			fail("ListFields refers to unknown field %q", name)
 		}
