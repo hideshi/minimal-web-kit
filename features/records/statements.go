@@ -193,13 +193,17 @@ func buildCRUD(k *kindStatements, d RecordDef, st func(parts ...string) recordsS
 	if d.SortBy != "" {
 		listed[d.SortBy] = true
 	}
-	// 既定の並び（番号0）: SortBy の新しい順。無ければ更新日時の新しい順
-	k.sorts = append(k.sorts, sortOption{Field: d.SortBy, Desc: true})
+	// 既定の並び（番号0）: SortBy の項目で、日付・整数は新しい順・大きい順、文字は順。無ければ更新日時の新しい順
 	if d.SortBy != "" {
-		k.sorts = append(k.sorts, sortOption{Field: d.SortBy})
-		k.sorts = append(k.sorts, sortOption{Desc: true})
+		desc := false
+		for _, c := range sc.columns {
+			if c.name == d.SortBy && (c.typ == Date || c.typ == Integer || c.typ == Bool) {
+				desc = true
+			}
+		}
+		k.sorts = append(k.sorts, sortOption{Field: d.SortBy, Desc: desc}, sortOption{Field: d.SortBy, Desc: !desc})
 	}
-	k.sorts = append(k.sorts, sortOption{})
+	k.sorts = append(k.sorts, sortOption{Desc: true}, sortOption{})
 	for _, c := range sc.columns {
 		if listed[c.name] && c.name != d.SortBy {
 			k.sorts = append(k.sorts, sortOption{Field: c.name, Desc: true}, sortOption{Field: c.name})

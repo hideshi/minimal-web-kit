@@ -5,7 +5,7 @@
     <caption class="admin-caption">記録の内容</caption>
     <tbody>
       {{range .Cells}}
-      <tr><th scope="row">{{.Label}}</th><td>{{if .Lines}}{{template "paragraphs" .Lines}}{{else}}{{.Text}}{{end}}</td></tr>
+      <tr><th scope="row">{{.Label}}</th><td>{{if .Lines}}{{template "paragraphs" .Lines}}{{else if not .Date.IsZero}}{{template "date" .Date}}{{else}}{{.Text}}{{end}}</td></tr>
       {{end}}
       <tr><th scope="row">作った人</th><td>{{.Owner}}</td></tr>
       <tr><th scope="row">作成日時</th><td>{{template "datetime" .Record.CreatedAt}}</td></tr>

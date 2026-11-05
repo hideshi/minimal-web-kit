@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"minimal-web-kit/features"
@@ -208,6 +209,23 @@ type cell struct {
 	Label string
 	Text  string     // 1行で見せる値
 	Lines [][]string // 複数行の文字（詳細の画面）
+	Date  time.Time  // 日付の項目の値（ゼロなら Text を使う）
+}
+
+// cellOf は、1つの値を画面に出す形にします。日付は共通の部品 "date" で出します。
+func cellOf(label string, t FieldType, v any, short int) cell {
+	c := cell{Label: label, Text: displayText(t, v)}
+	if s, ok := v.(string); ok && t == Date {
+		if d, err := time.Parse("2006-01-02", s); err == nil {
+			c.Date = d
+		}
+	}
+	if short > 0 {
+		c.Text = shorten(c.Text, short)
+	} else if t == LongText && v != nil {
+		c.Lines = form.Paragraphs(c.Text)
+	}
+	return c
 }
 
 func fieldDef(d RecordDef, name string) RecordField {
@@ -323,14 +341,14 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 	}
 	type row struct {
 		ID    int64
-		Cells []string
+		Cells []cell
 		Owner string
 	}
 	var rows []row
 	for _, it := range items {
-		var cells []string
+		var cells []cell
 		for _, n := range d.ListFields {
-			cells = append(cells, shorten(displayText(types[n], it.Values[n]), 40))
+			cells = append(cells, cellOf("", types[n], it.Values[n], 40))
 		}
 		rows = append(rows, row{ID: it.ID, Cells: cells, Owner: who.Name(it.Owner)})
 	}
@@ -418,16 +436,29 @@ func (f *Feature) searchFields(d RecordDef, k *kindStatements, filter listFilter
 			form.Field{ID: "records-from", Name: "from", Label: label + "（から）", Optional: true, Type: "date", Value: filter.From},
 			form.Field{ID: "records-to", Name: "to", Label: label + "（まで）", Optional: true, Type: "date", Value: filter.To})
 	}
+	types := map[string]FieldType{}
+	for _, c := range k.columns {
+		types[c.name] = c.typ
+	}
 	var sorts []form.Option
 	for i, o := range k.sorts {
-		label := "更新日時"
+		label, typ := "更新日時", Date
 		if o.Field != "" {
-			label = fieldDef(d, o.Field).Label
+			label, typ = fieldDef(d, o.Field).Label, types[o.Field]
 		}
-		if o.Desc {
-			label += "の新しい順・大きい順"
-		} else {
-			label += "の古い順・小さい順"
+		switch {
+		case typ == Date && o.Desc:
+			label += "の新しい順"
+		case typ == Date:
+			label += "の古い順"
+		case (typ == Integer || typ == Bool) && o.Desc:
+			label += "の大きい順"
+		case typ == Integer || typ == Bool:
+			label += "の小さい順"
+		case o.Desc:
+			label += "の逆順"
+		default:
+			label += "の順"
 		}
 		sorts = append(sorts, form.Option{Value: strconv.Itoa(i), Label: label, Selected: i == filter.Sort})
 	}
@@ -477,12 +508,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request, s features.
 	}
 	var cells []cell
 	for _, c := range visibleRecordFields(d, k) {
-		fd := fieldDef(d, c.name)
-		cl := cell{Label: fd.Label, Text: displayText(c.typ, rec.Values[c.name])}
-		if c.typ == LongText && rec.Values[c.name] != nil {
-			cl.Lines = form.Paragraphs(cl.Text)
-		}
-		cells = append(cells, cl)
+		cells = append(cells, cellOf(fieldDef(d, c.name).Label, c.typ, rec.Values[c.name], 0))
 	}
 	v := viewerOf(s)
 	data := s.PageData(d.Title+" #"+strconv.FormatInt(rec.ID, 10), root)

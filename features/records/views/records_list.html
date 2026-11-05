@@ -1,3 +1,4 @@
+{{define "record-cell"}}{{if not .Date.IsZero}}{{template "date" .Date}}{{else}}{{.Text}}{{end}}{{end}}
 {{define "content"}}
 {{template "list-header" (listHeader .Def.Title .Notice)}}
 <div class="action-bar"><a href="{{.Path}}/new" class="btn btn-primary">{{.Def.Title}}を作成する</a><a href="/admin/records">記録の種類へ戻る</a></div>
@@ -11,7 +12,6 @@
     <caption class="admin-caption">{{.Def.Title}}の一覧</caption>
     <thead>
       <tr>
-        <th scope="col">番号</th>
         {{range .Heads}}<th scope="col">{{.}}</th>{{end}}
         <th scope="col">作った人</th>
       </tr>
@@ -20,8 +20,8 @@
       {{$path := .Path}}
       {{range .Rows}}
       <tr>
-        <td><a href="{{$path}}/{{.ID}}">#{{.ID}}</a></td>
-        {{range .Cells}}<td>{{.}}</td>{{end}}
+        {{$id := .ID}}
+        {{range $i, $c := .Cells}}<td>{{if eq $i 0}}<a href="{{$path}}/{{$id}}">{{template "record-cell" $c}}</a>{{else}}{{template "record-cell" $c}}{{end}}</td>{{end}}
         <td>{{.Owner}}</td>
       </tr>
       {{end}}
