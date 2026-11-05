@@ -299,16 +299,23 @@ func TestRecords_DeletedOwnerPurge(t *testing.T) {
 // 不変条件: RECORDS-INV-13
 func TestRecords_ValuesStayOutOfLogs(t *testing.T) {
 	e := newRecordsEnv(t)
-	const canary = "CANARY-RECORDS-7f3a"
+	const canary = "CNRY-7f3a" // 項目の上限（20字）に収め、入力の検査で止まらずに各経路まで届くようにする
 	id := e.create("owner", "shared", canary)
 	path := "/admin/records/shared/" + strconv.FormatInt(id, 10)
-	e.post("owner", path+"/edit", url.Values{"revision": {"9"}, "f_note": {canary + "-stale"}})
-	e.post("owner", "/admin/records/shared", url.Values{"f_note": {canary + strings.Repeat("x", 30)}})
-	e.get("owner", "/admin/records/shared?q="+url.QueryEscape(canary)+"&from=bad&sort=99")
-	if got := e.get("owner", path); !strings.Contains(got.Body.String(), canary) {
-		t.Fatal("the canary did not reach the page (the test would pass for the wrong reason)")
+	// 衝突の経路（古い版の数）、入力の誤りの経路（長すぎる）、一覧の絞り込み（語・不正な期間・範囲の外の並び）
+	if w := e.post("owner", path+"/edit", url.Values{"revision": {"9"}, "f_note": {canary + "-old"}}); w.Code != http.StatusConflict {
+		t.Fatalf("the conflict path was not reached: %d", w.Code)
 	}
-	if strings.Contains(e.logs.String(), "CANARY") {
+	if w := e.post("owner", "/admin/records/shared", url.Values{"f_note": {canary + strings.Repeat("x", 30)}}); w.Code != http.StatusBadRequest {
+		t.Fatalf("the invalid-input path was not reached: %d", w.Code)
+	}
+	if w := e.get("owner", "/admin/records/shared?q="+url.QueryEscape(canary)+"&from=bad&sort=99"); !strings.Contains(w.Body.String(), canary) {
+		t.Fatal("the search did not reach the record")
+	}
+	if got := e.get("owner", path); !strings.Contains(got.Body.String(), canary) {
+		t.Fatal("the canary did not reach the page")
+	}
+	if strings.Contains(e.logs.String(), "CNRY") {
 		t.Errorf("logs contain a record value:\n%s", e.logs.String())
 	}
 }
