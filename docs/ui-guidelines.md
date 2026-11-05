@@ -81,3 +81,15 @@
 公開一覧のGET検索・ページ送りだけに、固定版htmxとcatalog.jsを使う。script-srcはこの画面だけself。設定はheadのmetaに置き、allowEval/allowScriptTags/includeIndicatorStylesはfalse、selfRequestsOnlyはtrue、historyCacheSizeは0。historyRestoreAsHxRequestはfalse、refreshOnHistoryMissはtrueとして、履歴復元はページ全体の取得に戻す。管理画面・詳細では読み込まない。
 検索後はフォームにフォーカスを残し、ページ送り後は結果見出しへ移す。固定したrole=status領域を更新する。失敗時は元の結果を残し、通常GETでの再試行を提供する。新しい検索で古い要求を取り消す。管理操作は通常のフォームのcsrf_tokenを使う（Admin.Formは現状ヘッダーのトークンを検証しない）。
 管理画面の項目の作成・編集画面では、タグ選択にCoreのコンボボックス部品を使う。Alpine.jsはタグ選択の比較試作（`experiment/catalog-tags` ブランチ）でだけ評価し、採用しなかった。比較の内容と結果は [catalog-ui-comparison-plan.md](plans/catalog-ui-comparison-plan.md) にある。
+
+## 7. テーマ（配色と書体の差し替え）
+
+お客様ごとのブランドの色と書体は、サイトが `internal/web/static/css/theme.css` を置いて差し替える。共通部品 `static-head` が、`style.css` の後に読み込む（公開ページも管理画面も）。部品の形・余白・レイアウト・テンプレートは差し替えない。経緯は [theme-plan.md](plans/theme-plan.md)。
+
+- **キットには置かない**: キットに `theme.css` が無いので、サイトがこのファイルを変えても、キットの取り込みでぶつからない。既定の値はすべて `style.css` の `:root` にあり、キットが足した変数は、サイトが何もしなくても受け継がれる。
+- **書けるもの**: `:root { … }` の1つの規則と、コメントだけ。上書きできるのは `style.css` の `:root` にある `--color-*` と `--font-base` だけ。色は `#rgb` か `#rrggbb`、書体は名前のカンマ区切りの並び（引用符の中は文字・数字・空白・`-` だけ）。`url()`・`var()`・`@`・`\`・`!important`・入れ子は書けない。
+- **色は全部か無し**: 色を1つでも変えるなら、`--color-*` を全部書く。キットが色の変数を足すと、取り込んだ後のテストが、足りない名前を挙げて落ちる。その色を決めて書き足す。見本は `test/testdata/themes/green.css`。
+- **コントラスト**: `test/theme_test.go` が、既定の値に `theme.css` を重ねた色で、実際に重ねて描く色の組を確かめる。文字は4.5:1、入力欄の枠・フォーカスの枠は3:1。主ボタンの補足の文字は、不透明度0.95で重ねた色で測る。区切りの線（`--color-border`）と注意書きの飾りの帯（`--color-warning-border`）は、部品の見分けに使わないので対象外。この組を満たしても、WCAG 2.1 AA 全体の保証ではない。画面ごとに実際の表示で確かめる。
+- **書体**: 端末に入っている書体から選ばれ、無ければ次の候補に移る。最後に総称（`sans-serif`・`serif` 等）を置く。見出し（`.hero-title`）は太さ800を使うので、その太さが無い書体では合成の太字になる。Webフォントの同梱と外部のフォントの読み込みは、このテーマでは扱わない（外部は承認境界3）。
+- **キャッシュ**: `theme.css` も版付きのURLで読み込むので、変えるとすぐ新しい版が読まれる。`export-static` は `theme.css` があれば書き出し、外した再書き出しでは消す。静的ホストやCDNが `?v=` を無視してキャッシュする場合は、変えた・外した後に表示を確かめる。
+- **守らない範囲**: `style.css` の規則が変数を通らない色を使えば、テストが落ちる（`TestCSS_ColorsOnlyInRoot`）。ただし、変数の意味（どの部品のどの色か）が変わったかは、機械では確かめられない。キットの取り込みの後は、画面を見て確かめる。
