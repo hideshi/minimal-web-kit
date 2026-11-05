@@ -22,10 +22,10 @@ import (
 	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/catalog"
 	"minimal-web-kit/features/documents"
-	"minimal-web-kit/features/records"
 	"minimal-web-kit/features/mcp"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
+	"minimal-web-kit/features/records"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
 )

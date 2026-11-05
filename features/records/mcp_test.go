@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"minimal-web-kit/features"
@@ -73,5 +74,15 @@ func TestMCPApply_RechecksRevisionAndAccess(t *testing.T) {
 	r, _ := getRecord(ctx, f.db, f.stmts["k"], id)
 	if r.Values["note"] != "画面" {
 		t.Errorf("note = %v", r.Values["note"])
+	}
+}
+
+// TestPrivacyNotices_MentionsKeptRetiredKinds は、やめたが表を消していない種類の記録が残っていることを、説明に出すことを確かめます。
+func TestPrivacyNotices_MentionsKeptRetiredKinds(t *testing.T) {
+	d := kindDef(t, "k", add("note", Text))
+	f := NewFeature(nil, []RecordDef{d}, []RetiredDef{{Name: "old_kind"}, {Name: "gone_kind", Dropped: true}})
+	n := f.PrivacyNotices()
+	if len(n) != 1 || !n[0].Internal || !strings.Contains(n[0].Lead, "old_kind") || strings.Contains(n[0].Lead, "gone_kind") {
+		t.Fatalf("%+v", n)
 	}
 }

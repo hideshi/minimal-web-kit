@@ -437,3 +437,25 @@ func TestRecords_NeedsLoginAndAccountDirectory(t *testing.T) {
 		t.Errorf("records must not start without account names: %v", err)
 	}
 }
+
+// TestRecords_DataNoticeMatchesDefinitions は、ログイン後の「保存する情報」に、種類ごとの項目・目的・保持・読める人が、
+// 定義（データ台帳の14節の元）と同じ文で載り、公開の /privacy には載らないことを確かめます。
+func TestRecords_DataNoticeMatchesDefinitions(t *testing.T) {
+	e := newRecordsEnv(t)
+	body := e.get("owner", "/admin/data-notice").Body.String()
+	for _, d := range recordsTestDefs() {
+		for _, want := range []string{d.Title, d.Purpose, d.Retention, "メモ、日付、状態、数"} {
+			if !strings.Contains(body, want) {
+				t.Errorf("data notice lacks %q", want)
+			}
+		}
+	}
+	for _, want := range []string{"作った本人だけが読む", "作った本人とシステム管理者が読む", "ログインした全員が読む", "ログインした全員が読み書きする", "バックアップ"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("data notice lacks %q", want)
+		}
+	}
+	if w := e.get("", "/privacy"); strings.Contains(w.Body.String(), "業務記録") {
+		t.Error("/privacy shows the internal records notice")
+	}
+}

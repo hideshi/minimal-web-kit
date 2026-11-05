@@ -72,22 +72,28 @@ func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
 		for _, fl := range d.Fields {
 			labels = append(labels, fl.Label)
 		}
+		_, read, _ := accessText(d.Access)
 		rows = append(rows, web.PrivacyRow{
 			Kind:      d.Title,
-			Items:     strings.Join(labels, "、") + "、作った人のアカウントID、作成・更新の日時",
+			Items:     strings.Join(labels, "、") + "、作った人のアカウントID、作成・更新の日時（" + read + "）",
 			Purpose:   d.Purpose,
 			Retention: d.Retention,
 		})
 	}
-	if len(rows) == 0 {
+	var kept []string
+	for _, r := range f.retired {
+		if !r.Dropped {
+			kept = append(kept, r.Name)
+		}
+	}
+	if len(rows) == 0 && len(kept) == 0 {
 		return nil
 	}
-	return []web.PrivacyNotice{{
-		Title:    "業務記録で保存する情報",
-		Internal: true,
-		Lead:     "ログインして業務記録を使う人について、種類ごとに次の情報を保存します。AIエージェントの接続で業務記録を有効にしたサイトでは、接続を許可された人が読み取った記録の内容が、その人の使うAIのサービスへ送られます。",
-		Rows:     rows,
-	}}
+	lead := "ログインして業務記録を使う人について、種類ごとに次の情報を保存します。括弧の中は、記録を読める人です。消した記録も、バックアップには保持の期間だけ残ります。AIエージェントの接続で業務記録を有効にしたサイトでは、接続を許可された人が読み取った記録の内容が、その人の使うAIのサービスへ送られます。"
+	if len(kept) > 0 {
+		lead += "使うのをやめた種類（" + strings.Join(kept, "、") + "）の記録は、画面には出ませんが、システム管理者が消すまで残っています。"
+	}
+	return []web.PrivacyNotice{{Title: "業務記録で保存する情報", Internal: true, Lead: lead, Rows: rows}}
 }
 
 // RegisterIsolatedRoutes は経路を登録します。経路は文字列のリテラルで書きます。全ての経路にログインが要り、変更はPOSTだけで行います。
