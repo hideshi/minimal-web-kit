@@ -291,3 +291,19 @@ Fable は「高は無く、実装に進んでよい」、Sol は高2件で保留
 - アカウントの一覧が無い構成: 最初の試験は管理者認証も無い構成で、別の理由（管理画面が無い）で止まっていた。管理画面はあるが一覧の無い構成（federatedauth）にし、止まる理由の文も確かめるようにした。
 - 日付の形の再確認（`Format` との比較）: `time.Parse` が同じ入力を先に拒むので、外しても動きは変わらない（二重の守り）。
 - 並びの番号の範囲の確認（入口）: `listRecords` も範囲の外を既定の並びにするので、外しても動きは変わらない（二重の守り）。
+
+### 段階3: 守りをわざと外す確認（2026-11-06）
+
+| 不変条件 | 外した箇所・外し方 | 落ちたテスト（失敗の文） |
+|---|---|---|
+| INV-3 | MCPの1件で、読めない記録を返す | `TestRecordsMCP_PermissionsAndInput`（unreadable must look like missing） |
+| INV-4 | 確認（Prepare）で編集の権限を見ない | `TestRecordsMCP_PermissionsAndInput`（admin edited another person's allread record） |
+| INV-4 | 実行（Apply）で編集の権限を見ない | `TestMCPApply_RechecksRevisionAndAccess`（apply without edit rights） |
+| INV-5 | 実行で、確認の時ではなく今の版の数を使う | `TestMCPApply_RechecksRevisionAndAccess`（stale apply） |
+| INV-6 | 知らない項目を許す、整数に文字を許す、作成で必須を見ない（3か所） | `TestRecordsMCP_PermissionsAndInput` |
+| INV-11 | 確認の文に値を出さない | `TestRecordsMCP_CreateUpdateAndSummary` |
+| INV-11 | 編集で、変えない項目を空にする | `TestRecordsMCP_CreateUpdateAndSummary`（note=""） |
+
+落ちなかったものと対処:
+
+- 実行（Apply）での版の数と権限の読み直し: MCPのサーバーが、実行の前に Prepare をもう一度呼び、引数（版の数を含む）を照合するので、入口からの試験では外側の層が止めていた。Apply を直接呼ぶ試験を足し、内側の守りだけで止まることを確かめた。
