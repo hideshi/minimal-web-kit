@@ -229,3 +229,39 @@ Fable は「高は無く、実装に進んでよい」、Sol は高2件で保留
 |---|---|---|
 | 中 | 表を消した種類にも列の照合が当たり、正しく消した後の起動が止まる | `dropped` で表の無い種類は列を照合しない（RECORDS-INV-16） |
 | 中 | 新しい版が足した種類に改名等の手順があると、止めるのか警告で残すのかが競合する | 起動の時はまず種類を分け、定義にもやめた種類にも無い種類は手順の中身を問わず警告で残す。止める判定は定義の一覧にある種類だけに当てる（RECORDS-INV-15） |
+
+## 実装の記録
+
+### 段階1: 守りをわざと外す確認（2026-11-06）
+
+監査のスキルの「守りをわざと外す確認」の手順で行った。テストは `go test -count=1 -run '<狙ったテスト>' ./features/records`。外す前は全部通ることを確かめた。
+
+| 不変条件 | 外した箇所・外し方 | 落ちたテスト（失敗の文） |
+|---|---|---|
+| INV-2 | 名前の規則を `.*` にする | `TestParseStep_RejectsUnknownForms`（`add:a";drop:text` accepted） |
+| INV-2 | 使い回しの検査・変換の前の型の照合・許されない変換・操作の数・番号の飛び（5か所、1つずつ） | `TestReplaySteps_RejectsBrokenSteps`（各場合が accepted） |
+| INV-2 | 予約名、見せ方の不足・重複（3か所） | `TestValidateRecordDefs_RejectsBrokenDefs` |
+| INV-2 | やめた種類との重複 | `TestValidateRecordDefs_RejectsNameClashes` |
+| INV-15 | 手順の文字列の区切りを変える | `TestStepString_FixedForm` |
+| INV-17 | 変換の区分を変える | `TestConversionOf_MatchesTheTable` |
+| INV-15 | 分岐の照合を外す | `TestMigrate_DivergedDefinitionsStop`（err = nil） |
+| INV-15 | 知らない壊す手順を通す | `TestMigrate_OlderBinaryStopsAfterBreakingSteps` |
+| INV-15 | `dropped` で止めない | `TestMigrate_RetiredAndUnknownKinds`（止まる文が `dropped` でない） |
+| INV-16 | 記録に無い列・あるはずの列の不足・宣言の型の違い・番号の飛び・記録の無い表・表の無い `active`（6か所） | `TestMigrate_DriftStops` |
+| INV-8 | 壊す手順でも複製を取らない／新しい表にも複製を取る | `TestMigrate_BreakingStepsKeepValuesAndTakeOneBackup`／`TestMigrate_NewDatabaseReplaysSteps` |
+| INV-8 | 手順の記録を書かない | `TestMigrate_NewDatabaseReplaysSteps` ほか |
+| INV-17 | 変換できない行を無視、整数の形を緩める、作業用の列を前の型にする（3か所） | `TestMigrate_ConversionFailureChangesNothing`、`TestConvertValue_Shapes`、`TestMigrate_NewDatabaseReplaysSteps` |
+| INV-7 | 引用符を外す | `TestBuildRecordStatements_QuotesEveryIdentifier` |
+| 8節 | 消した印の警告を外す | `TestMigrate_RetiredAndUnknownKinds` |
+| INV-9 | 手順の書き換え・末尾の削除・種類の消失・やめた種類の削除・台帳の比較・定義の記録の比較・印の数・やめた種類の手順の引き継ぎ（8か所） | `TestInventory_HistoryCheck`、`TestInventory_CheckDetectsDrift` |
+| INV-14 | 変換できない行を出さない・改名をたどらない・失敗した段だけで数えない・止める理由を出さない・壊す手順の戻し方（5か所） | `TestRecordsCheck_*` |
+| 8節 | やめた種類以外も消せる・消す前に複製を取らない | `TestRecordsDrop_DropsOnlyRetiredKinds` |
+
+落ちなかったものと対処:
+
+- 番号の飛び: 最初の試験は、飛んだ番号の手順が列のずれとして別の層（INV-16 の列の照合）で止まっていた。列も合わせた場合を足し、番号の検査だけで止まることを確かめた。
+- 末尾の手順の削除: 外すとパニックになった（外し方が守り以外も壊した）。「黙って切り詰める」に外し方を変えて、落ちることを確かめた。
+- 定義の記録の比較: 定義を変えた場合は、台帳の節の比較（別の層）が先に止めていた。定義の記録だけが古い場合を足した。
+- 失敗した段だけで数える: 試験の行が最後の段だけで失敗していたので、最初の段で失敗する行を足した。
+- 定義の記録の知らない欄を許す: 定義の記録の比較（別の層）が止める。守りは残す。
+- 確認のコマンドを読むだけの接続で開かない: 確認のコマンドは読む処理しか呼ばないので、外しても動きは変わらない（二重の守り）。DBのファイルが変わらないことは `TestRecordsCheck_*` で確かめている。
