@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -280,27 +281,10 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	v := viewerOf(s)
-	qv := r.URL.Query()
-	filter := listFilter{ReadAll: readableCondition(d.Access, v), Viewer: v.ID, Query: strings.TrimSpace(qv.Get("q")), Selects: map[string]string{}}
-	if utf8.RuneCountInString(filter.Query) > maxQueryRunes || !utf8.ValidString(filter.Query) {
+	filter, ok := parseListFilter(d, k, viewerOf(s), r.URL.Query())
+	if !ok {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
-	}
-	filter.MineOnly = filter.ReadAll && qv.Get("mine") == "1"
-	for _, n := range k.selectCols {
-		val := qv.Get("s_" + n)
-		if val != "" && !contains(fieldDef(d, n).Options, val) {
-			val = "" // 選択肢に無い値は、絞り込まない
-		}
-		filter.Selects[n] = val
-	}
-	if k.dateColumn != "" {
-		filter.From, filter.To = dateParam(qv.Get("from")), dateParam(qv.Get("to"))
-	}
-	filter.Sort, _ = strconv.Atoi(qv.Get("sort"))
-	if filter.Sort < 0 || filter.Sort >= len(k.sorts) {
-		filter.Sort = 0
 	}
 	items, err := listRecords(r.Context(), f.db, k, filter, p.Limit(), p.Offset())
 	if f.failed(w, r, err) {
@@ -360,6 +344,32 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 	data["Search"] = f.searchFields(d, k, filter)
 	data["Filtered"] = filter.Query != "" || filter.MineOnly || filter.From != "" || filter.To != "" || anySet(filter.Selects)
 	f.render(w, http.StatusOK, "records_list.html", data)
+}
+
+// parseListFilter は、一覧の要求の値から絞り込みを作ります。値は文の文字列に入らず、並びは番号に変え、
+// 選択肢に無い値・形の違う日付・範囲の外の並びは、絞り込まない・既定の並びにします。語が長すぎれば false です。
+// 不変条件: RECORDS-INV-7
+func parseListFilter(d RecordDef, k *kindStatements, v viewer, qv url.Values) (listFilter, bool) {
+	filter := listFilter{ReadAll: readableCondition(d.Access, v), Viewer: v.ID, Query: strings.TrimSpace(qv.Get("q")), Selects: map[string]string{}}
+	if utf8.RuneCountInString(filter.Query) > maxQueryRunes || !utf8.ValidString(filter.Query) {
+		return filter, false
+	}
+	filter.MineOnly = filter.ReadAll && qv.Get("mine") == "1"
+	for _, n := range k.selectCols {
+		val := qv.Get("s_" + n)
+		if val != "" && !contains(fieldDef(d, n).Options, val) {
+			val = "" // 選択肢に無い値は、絞り込まない
+		}
+		filter.Selects[n] = val
+	}
+	if k.dateColumn != "" {
+		filter.From, filter.To = dateParam(qv.Get("from")), dateParam(qv.Get("to"))
+	}
+	filter.Sort, _ = strconv.Atoi(qv.Get("sort"))
+	if filter.Sort < 0 || filter.Sort >= len(k.sorts) {
+		filter.Sort = 0
+	}
+	return filter, true
 }
 
 func contains(list []string, v string) bool {
