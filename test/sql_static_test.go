@@ -31,6 +31,9 @@ var sqlExceptions = map[string]int{
 	"internal/store/rebuild.go": 2,
 	// バックアップのファイルから読んだ表の名前を、quoteIdentifier で引用して数える
 	"internal/store/backup.go": 1,
+	// 業務記録の表名と列名は、検査済みの定義（実行ファイルに組み込んだ Go のコード）から buildRecordStatements だけが組み立て、
+	// 引用符で囲む。要求の値は文に入らず、プレースホルダで渡す。実行はこのファイルの3つの関数だけ（RECORDS-INV-7）
+	"features/records/sqlexec.go": 3,
 }
 
 // sqlChecker は、1つのパッケージのSQLの呼び出しを調べます。
