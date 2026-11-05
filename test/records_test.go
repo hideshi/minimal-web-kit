@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"minimal-web-kit/features"
 	"minimal-web-kit/features/auth"
 	"minimal-web-kit/features/auth/authtest"
+	"minimal-web-kit/features/federatedauth"
 	"minimal-web-kit/features/records"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
@@ -408,6 +410,15 @@ func TestRecords_NeedsLoginAndAccountDirectory(t *testing.T) {
 			t.Errorf("%s: anonymous got 200", p)
 		}
 	}
+	// 呼び名を持たない共通認証（federatedauth）は、管理画面を提供するがアカウントの一覧を持たない
+	t.Setenv("AUTH_ORIGIN", "https://app.example")
+	t.Setenv("OIDC_ISSUER", "https://id.example")
+	t.Setenv("OIDC_CLIENT_ID", "client")
+	secret := filepath.Join(t.TempDir(), "client_secret")
+	if err := os.WriteFile(secret, []byte(strings.Repeat("s", 40)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OIDC_CLIENT_SECRET_FILE", secret)
 	core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -415,13 +426,14 @@ func TestRecords_NeedsLoginAndAccountDirectory(t *testing.T) {
 	defer core.Close()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	reg := features.NewRegistry()
+	reg.Register(federatedauth.NewFeature(logger))
 	reg.Register(records.NewFeature(logger, recordsTestDefs(), nil))
 	for _, f := range reg.All() {
 		if err := f.Init(core.DB()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := app.BuildRoutes(core, reg, false, logger); err == nil {
-		t.Error("started without an account directory")
+	if _, err := app.BuildRoutes(core, reg, false, logger); err == nil || !strings.Contains(err.Error(), "account names") {
+		t.Errorf("records must not start without account names: %v", err)
 	}
 }
