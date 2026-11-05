@@ -552,7 +552,8 @@ type MCPUnit struct {
 }
 
 // MCPUnitsFeature は、MCPの有効・無効を単位ごとに決める機能が実装します。
-// 実装すると、機能全体の設定は使わず、MCPTools と MCPEnableNotice の代わりに、単位ごとのツールと注意を使います。
+// 実装すると、機能全体の設定は使わず、単位ごとのツールと注意を使います。MCPTools の戻りは使いません。
+// MCPEnableNotice を一緒に実装すると、起動を止めます。
 type MCPUnitsFeature interface {
 	MCPFeature
 	MCPUnits() []MCPUnit

@@ -650,8 +650,10 @@ func TestUnits_EnabledSeparately(t *testing.T) {
 		t.Fatalf("a disabled unit ran: %+v", r)
 	}
 	state := e.ask(t, "good", "split_a_write", nil)
-	if err := e.f.store.set(ctx, "split.b", false); err != nil {
-		t.Fatal(err)
+	for _, on := range []bool{true, false} { // 有効にしてから無効にした単位
+		if err := e.f.store.set(ctx, "split.b", on); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if r := e.rpc(t, "good", "tools/call", "split_b_read", call("split_b_read", nil, nil)); r.Error == nil {
 		t.Fatalf("a unit set to disabled ran: %+v", r)
@@ -694,7 +696,15 @@ func TestUnits_DeclarationsAreChecked(t *testing.T) {
 			t.Errorf("%s accepted", name)
 		}
 	}
+	if err := e.f.SetMCPFeatures([]features.MCPFeature{&noticeSplitFeature{splitFeature{demo: e.demo}}}); err == nil {
+		t.Error("a split feature with a whole-feature notice accepted")
+	}
 	if err := e.f.SetMCPFeatures([]features.MCPFeature{&splitFeature{demo: e.demo}}); err != nil {
 		t.Fatal(err)
 	}
 }
+
+// noticeSplitFeature は、単位に分けたうえで機能全体の注意も持つ、曖昧な宣言です。
+type noticeSplitFeature struct{ splitFeature }
+
+func (d *noticeSplitFeature) MCPEnableNotice() string { return "全体の注意" }

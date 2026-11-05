@@ -194,6 +194,23 @@ func TestRecordsMCP_KindsAreEnabledSeparately(t *testing.T) {
 		t.Fatalf("a disabled kind ran: %+v", r)
 	}
 	resultID(t, e.run("records_shared_create", map[string]any{"values": map[string]any{"note": "共有"}}))
+	// 一般ユーザーにも、有効にした種類のツールだけが見えて動く
+	user := e.as(e.account("user"))
+	var userTools []string
+	for _, name := range user.toolNames() {
+		if strings.HasPrefix(name, "records_") {
+			userTools = append(userTools, name)
+		}
+	}
+	if strings.Join(userTools, " ") != "records_shared_create records_shared_get records_shared_list records_shared_update" {
+		t.Fatalf("a general user sees %v", userTools)
+	}
+	if _, body := user.raw("tools/call", "records_only_list", map[string]any{"name": "records_only_list", "arguments": map[string]any{}}); !strings.Contains(body, "Unknown tool") {
+		t.Errorf("a general user ran a disabled kind: %s", body)
+	}
+	if _, body := user.raw("tools/call", "records_shared_list", map[string]any{"name": "records_shared_list", "arguments": map[string]any{}}); strings.Contains(body, "Unknown tool") || !strings.Contains(body, "共有") {
+		t.Errorf("a general user cannot read an enabled kind: %s", body)
+	}
 	page := e.adminGet("/admin/mcp").Body.String()
 	for _, label := range []string{"業務記録: shared", "業務記録: only"} {
 		if !strings.Contains(page, label) {

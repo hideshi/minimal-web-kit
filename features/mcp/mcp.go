@@ -2,7 +2,7 @@
 
 // Package mcp は、AIエージェントがMCPで機能を操作するためのサーバーです。
 // 読み取りは確認なしで実行し、書き込みはクライアントの利用者の確認を経てから実行します。
-// 機能ごとの有効・無効はシステム管理者が決めます。ツールは features.MCPFeature を実装した機能が提供します。
+// 機能ごと（単位に分ける機能は単位ごと）の有効・無効はシステム管理者が決めます。ツールは features.MCPFeature を実装した機能が提供します。
 package mcp
 
 import (
@@ -155,6 +155,10 @@ func unitsOf(m features.MCPFeature) ([]unit, error) {
 	split, ok := m.(features.MCPUnitsFeature)
 	if !ok {
 		return []unit{{name: m.Name(), label: m.MCPLabel(), notice: enableNotice(m), tools: m.MCPTools()}}, nil
+	}
+	// 機能全体の注意は使わないので、両方を持つ宣言は曖昧として止める。注意は単位ごとに書く
+	if _, both := m.(features.MCPEnableNoticeFeature); both {
+		return nil, fmt.Errorf("mcp %s: a feature split into units must not have MCPEnableNotice", m.Name())
 	}
 	var out []unit
 	for _, u := range split.MCPUnits() {
