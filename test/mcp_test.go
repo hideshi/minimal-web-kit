@@ -59,7 +59,7 @@ func newMCPEnv(t *testing.T) *mcpEnv {
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(pages.NewFeature(logger))
 	reg.Register(documents.NewFeature(logger))
-	reg.Register(records.NewFeature(logger, recordsTestDefs(), nil))
+	reg.Register(records.NewFeature(logger, append(recordsTestDefs(), recordsNoMCPDef()), nil))
 	reg.Register(mcp.NewFeature(logger))
 	for _, f := range reg.All() {
 		if err := f.Init(core.DB()); err != nil {

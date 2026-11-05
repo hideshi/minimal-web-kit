@@ -181,7 +181,7 @@ func renderRecordsInventory(defs []RecordDef, retired []RetiredDef) string {
 		w("\n### テーブル: `%s`\n\n", tableName(d.Name))
 		w("%s（`%s`）。目的: %s保持: %s読む人: %s（`%s`）。削除: %s。", d.Title, d.Name, ensurePeriod(d.Purpose), ensurePeriod(d.Retention), read, name, del)
 		if d.MCP {
-			w("MCPに出す（MCPを有効にすると、接続を許可された人が読んだ記録の内容が、その人の使うAIのサービスへ送られる）。")
+			w("MCPに出せる（`/admin/mcp` でこの種類を有効にすると、接続を許可された人が読んだ記録の内容が、その人の使うAIのサービスへ送られる）。")
 		} else {
 			w("MCPには出さない。")
 		}

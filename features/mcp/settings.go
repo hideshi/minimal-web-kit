@@ -86,9 +86,9 @@ func (f *Feature) handleSettings(w http.ResponseWriter, r *http.Request, s featu
 
 func (f *Feature) settingRows(settings map[string]setting) []settingRow {
 	var rows []settingRow
-	for _, m := range f.sources {
-		row := settingRow{Name: m.Name(), Label: m.MCPLabel(), Enabled: settings[m.Name()].Enabled, Notice: enableNotice(m) != ""}
-		for _, t := range m.MCPTools() {
+	for _, u := range f.units {
+		row := settingRow{Name: u.name, Label: u.label, Enabled: settings[u.name].Enabled, Notice: u.notice != ""}
+		for _, t := range u.tools {
 			if t.Effect == features.MCPRead {
 				row.Reads++
 			} else {
@@ -121,48 +121,40 @@ func enableNotice(m features.MCPFeature) string {
 	return ""
 }
 
-func (f *Feature) noticeFor(name string) string {
-	for _, m := range f.sources {
-		if m.Name() == name {
-			return enableNotice(m)
+// unitFor は、名前の単位を返します。無ければ false です。
+func (f *Feature) unitFor(name string) (unit, bool) {
+	for _, u := range f.units {
+		if u.name == name {
+			return u, true
 		}
 	}
-	return ""
+	return unit{}, false
 }
 
 // handleEnablePage は、有効化の前の確認の画面です。何も変えません。注意を持たない機能には出しません。
 func (f *Feature) handleEnablePage(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 	name := r.PathValue("feature")
-	message := f.noticeFor(name)
-	if message == "" {
+	u, ok := f.unitFor(name)
+	if !ok || u.notice == "" {
 		http.NotFound(w, r)
 		return
 	}
-	label := name
-	for _, m := range f.sources {
-		if m.Name() == name {
-			label = m.MCPLabel()
-		}
-	}
 	data := s.PageData("MCPの有効化の確認", "/admin/mcp")
-	data["Name"], data["Label"], data["Message"] = name, label, message
+	data["Name"], data["Label"], data["Message"] = name, u.label, u.notice
 	f.render(w, http.StatusOK, "admin_mcp_enable.html", data)
 }
 
 func (f *Feature) handleChange(enabled bool) func(http.ResponseWriter, *http.Request, features.AdminSession) {
 	return func(w http.ResponseWriter, r *http.Request, s features.AdminSession) {
 		name := r.PathValue("feature")
-		known := false
-		for _, m := range f.sources {
-			known = known || m.Name() == name
-		}
+		u, known := f.unitFor(name)
 		if !known {
 			http.NotFound(w, r)
 			return
 		}
 		// 注意を持つ機能は、確認の画面を経る。誤操作を防ぐ確認で、権限の境界ではない
 		// 不変条件: MCP-INV-12
-		if enabled && r.PostForm.Get("confirmed") != "1" && f.noticeFor(name) != "" {
+		if enabled && r.PostForm.Get("confirmed") != "1" && u.notice != "" {
 			http.Redirect(w, r, "/admin/mcp/features/"+name+"/enable", http.StatusSeeOther)
 			return
 		}

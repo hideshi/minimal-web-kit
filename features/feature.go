@@ -541,6 +541,23 @@ type MCPEnableNoticeFeature interface {
 	MCPEnableNotice() string
 }
 
+// MCPUnit は、MCPの有効・無効を決める、機能より細かい単位です（例: 業務記録の種類）。
+type MCPUnit struct {
+	// Key は機能の中で一意な名前です（英小文字で始まり、英小文字・数字・_ で40文字まで）。設定には「機能の名前.Key」で残ります。
+	Key   string
+	Label string
+	// Notice は、有効にする前にシステム管理者へ見せる注意です。空なら確認の画面を出しません。
+	Notice string
+	Tools  []MCPTool
+}
+
+// MCPUnitsFeature は、MCPの有効・無効を単位ごとに決める機能が実装します。
+// 実装すると、機能全体の設定は使わず、MCPTools と MCPEnableNotice の代わりに、単位ごとのツールと注意を使います。
+type MCPUnitsFeature interface {
+	MCPFeature
+	MCPUnits() []MCPUnit
+}
+
 // MCPConsumer は、MCPのサーバーを持つ機能（features/mcp）が実装します。起動時に、ツールを提供する機能を受け取ります。
 type MCPConsumer interface {
 	Feature

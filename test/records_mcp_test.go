@@ -6,14 +6,38 @@ import (
 	"testing"
 
 	"minimal-web-kit/features/auth/authtest"
+	"minimal-web-kit/features/records"
 )
 
-// enableRecordsMCP は、MCP の設定で業務記録を有効にします。
-func enableRecordsMCP(t *testing.T, e *mcpEnv) {
+// enableRecordsMCP は、MCP の設定で業務記録の種類を有効にします。省けば試験の4つの種類の全部です。
+func enableRecordsMCP(t *testing.T, e *mcpEnv, kinds ...string) {
 	t.Helper()
-	if w := e.adminPost("/admin/mcp/records/enable", "confirmed=1"); w.Code != http.StatusSeeOther {
-		t.Fatalf("enable records: %d %s", w.Code, w.Body.String())
+	if len(kinds) == 0 {
+		kinds = []string{"only", "adminread", "allread", "shared"}
 	}
+	for _, kind := range kinds {
+		if w := e.adminPost("/admin/mcp/records."+kind+"/enable", "confirmed=1"); w.Code != http.StatusSeeOther {
+			t.Fatalf("enable records.%s: %d %s", kind, w.Code, w.Body.String())
+		}
+	}
+}
+
+// recordsNoMCPDef は、定義で MCP を有効にしていない種類です。
+func recordsNoMCPDef() records.RecordDef {
+	d := recordsTestDefs()[0]
+	d.Name, d.Title, d.MCP = "nomcp", "nomcp", false
+	return d
+}
+
+// recordsToolNames は、今の一覧に出る業務記録のツールの名前です。
+func recordsToolNames(e *mcpEnv) string {
+	var out []string
+	for _, tool := range e.call("tools/list", "", map[string]any{})["tools"].([]any) {
+		if name := tool.(map[string]any)["name"].(string); strings.HasPrefix(name, "records_") {
+			out = append(out, name)
+		}
+	}
+	return strings.Join(out, " ")
 }
 
 // TestRecordsMCP_CreateUpdateAndSummary は、作成と編集が、確認の文の最初の3行に操作・対象・変わる項目を置き、
@@ -133,13 +157,57 @@ func TestRecordsMCP_PermissionsAndInput(t *testing.T) {
 	}
 }
 
-// TestRecordsMCP_EnableNoticeNamesKinds は、有効にする確認の画面に、使えるようになる種類の名前と、AIのサービスへ送られることが出ることを確かめます。
-// 不変条件: RECORDS-INV-11
+// TestRecordsMCP_EnableNoticeNamesKinds は、有効にする確認の画面に、その種類の名前と、AIのサービスへ送られることが出ることを確かめます。
+// 不変条件: RECORDS-INV-11, RECORDS-INV-19
 func TestRecordsMCP_EnableNoticeNamesKinds(t *testing.T) {
 	e := newMCPEnv(t)
-	req := e.adminGet("/admin/mcp/features/records/enable")
-	if req.Code != http.StatusOK || !strings.Contains(req.Body.String(), "「shared」") || !strings.Contains(req.Body.String(), "AIのサービスへ送られます") {
-		t.Fatalf("%d %s", req.Code, req.Body.String())
+	req := e.adminGet("/admin/mcp/features/records.shared/enable")
+	body := req.Body.String()
+	if req.Code != http.StatusOK || !strings.Contains(body, "「shared」") || strings.Contains(body, "「only」") || !strings.Contains(body, "AIのサービスへ送られます") {
+		t.Fatalf("%d %s", req.Code, body)
+	}
+	if w := e.adminPost("/admin/mcp/records.shared/enable", ""); w.Code != http.StatusSeeOther || w.Header().Get("Location") != "/admin/mcp/features/records.shared/enable" {
+		t.Fatalf("enabled without the notice: %d %s", w.Code, w.Header().Get("Location"))
+	}
+}
+
+// TestRecordsMCP_KindsAreEnabledSeparately は、MCPの有効・無効が種類ごとで、有効にした種類のツールだけが見えて動くこと、
+// 機能全体の設定（records）は使わないこと、定義で MCP を有効にしていない種類は設定に出ないことを確かめます。
+// 不変条件: RECORDS-INV-19
+// ユースケース: UC-RECORDS-6
+func TestRecordsMCP_KindsAreEnabledSeparately(t *testing.T) {
+	e := newMCPEnv(t)
+	if w := e.adminPost("/admin/mcp/records/enable", "confirmed=1"); w.Code != http.StatusNotFound {
+		t.Fatalf("the whole feature can still be enabled: %d", w.Code)
+	}
+	if _, err := e.core.DB().Exec(`INSERT INTO mcp_feature_settings (feature, enabled, updated_at) VALUES ('records', 1, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if got := recordsToolNames(e); got != "" {
+		t.Fatalf("the old whole-feature row opened tools: %s", got)
+	}
+	enableRecordsMCP(t, e, "shared")
+	if got := recordsToolNames(e); got != "records_shared_list records_shared_get records_shared_create records_shared_update" {
+		t.Fatalf("tools = %s", got)
+	}
+	if r := e.call("tools/call", "records_only_list", map[string]any{"name": "records_only_list", "arguments": map[string]any{}}); r != nil {
+		t.Fatalf("a disabled kind ran: %+v", r)
+	}
+	resultID(t, e.run("records_shared_create", map[string]any{"values": map[string]any{"note": "共有"}}))
+	page := e.adminGet("/admin/mcp").Body.String()
+	for _, label := range []string{"業務記録: shared", "業務記録: only"} {
+		if !strings.Contains(page, label) {
+			t.Errorf("settings page lacks %s", label)
+		}
+	}
+	if strings.Contains(page, "業務記録: nomcp") || e.adminGet("/admin/mcp/features/records.nomcp/enable").Code != http.StatusNotFound {
+		t.Error("a kind without MCP in its definition is listed")
+	}
+	if w := e.adminPost("/admin/mcp/records.shared/disable", ""); w.Code != http.StatusSeeOther {
+		t.Fatalf("disable: %d", w.Code)
+	}
+	if got := recordsToolNames(e); got != "" {
+		t.Fatalf("tools after disabling = %s", got)
 	}
 }
 

@@ -35,10 +35,17 @@ const (
 	endpoint   = "/mcp"
 )
 
-// entry は、登録したツールと、提供する機能の組です。
+// entry は、登録したツールと、有効・無効を決める単位の名前の組です。
 type entry struct {
 	tool    features.MCPTool
 	feature string
+}
+
+// unit は、有効・無効を決める単位です。ふつうは機能1つで、features.MCPUnitsFeature の機能は単位ごとに分かれます。
+// 設定の名前は、機能の名前か「機能の名前.単位の名前」です。
+type unit struct {
+	name, label, notice string
+	tools               []features.MCPTool
 }
 
 // Feature は同梱機能のMCPサーバーです。
@@ -51,7 +58,7 @@ type Feature struct {
 	limits  *limiter
 	tools   map[string]entry
 	order   []string
-	sources []features.MCPFeature
+	units   []unit
 	pages   map[string]*template.Template
 	slots   chan struct{}
 	now     func() time.Time
@@ -110,22 +117,53 @@ var toolName = regexp.MustCompile(`^[a-z][a-z0-9_]{0,63}$`)
 
 // SetMCPFeatures は、ツールを検査して登録します。宣言の不備は起動を止めます。
 func (f *Feature) SetMCPFeatures(list []features.MCPFeature) error {
-	f.sources = list
+	f.units = nil
 	f.tools = map[string]entry{}
 	f.order = nil
+	names := map[string]bool{}
 	for _, m := range list {
-		for _, t := range m.MCPTools() {
-			if err := validTool(m.Name(), t); err != nil {
-				return err
+		units, err := unitsOf(m)
+		if err != nil {
+			return err
+		}
+		for _, u := range units {
+			if names[u.name] {
+				return fmt.Errorf("mcp unit %s declared twice", u.name)
 			}
-			if _, dup := f.tools[t.Name]; dup {
-				return fmt.Errorf("mcp tool %s declared twice", t.Name)
+			names[u.name] = true
+			for _, t := range u.tools {
+				if err := validTool(m.Name(), t); err != nil {
+					return err
+				}
+				if _, dup := f.tools[t.Name]; dup {
+					return fmt.Errorf("mcp tool %s declared twice", t.Name)
+				}
+				f.tools[t.Name] = entry{tool: t, feature: u.name}
+				f.order = append(f.order, t.Name)
 			}
-			f.tools[t.Name] = entry{tool: t, feature: m.Name()}
-			f.order = append(f.order, t.Name)
+			f.units = append(f.units, u)
 		}
 	}
 	return nil
+}
+
+var unitKey = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
+
+// unitsOf は、機能の有効・無効を決める単位です。MCPUnitsFeature でない機能は、機能全体で1つです。
+// 単位に分ける機能は、機能全体の設定を使いません（MCP-INV-13）。
+func unitsOf(m features.MCPFeature) ([]unit, error) {
+	split, ok := m.(features.MCPUnitsFeature)
+	if !ok {
+		return []unit{{name: m.Name(), label: m.MCPLabel(), notice: enableNotice(m), tools: m.MCPTools()}}, nil
+	}
+	var out []unit
+	for _, u := range split.MCPUnits() {
+		if !unitKey.MatchString(u.Key) || u.Label == "" {
+			return nil, fmt.Errorf("mcp unit %q of %s: invalid declaration", u.Key, m.Name())
+		}
+		out = append(out, unit{name: m.Name() + "." + u.Key, label: u.Label, notice: u.Notice, tools: u.Tools})
+	}
+	return out, nil
 }
 
 // validTool は、読み取りは Read だけ、書き込みは Prepare と Apply だけを持つことを確かめます（MCP-INV-1）。

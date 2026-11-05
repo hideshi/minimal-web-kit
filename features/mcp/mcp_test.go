@@ -111,7 +111,7 @@ type env struct {
 	logs *bytes.Buffer
 }
 
-func newEnv(t *testing.T) *env {
+func newEnv(t *testing.T, extra ...features.MCPFeature) *env {
 	t.Helper()
 	s, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "mcp.db"))
 	if err != nil {
@@ -134,7 +134,7 @@ func newEnv(t *testing.T) *env {
 	}
 	demo := &demoFeature{}
 	demo.state.Store("s1")
-	if err := f.SetMCPFeatures([]features.MCPFeature{demo}); err != nil {
+	if err := f.SetMCPFeatures(append([]features.MCPFeature{demo}, extra...)); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.store.set(context.Background(), "demo", true); err != nil {
@@ -587,5 +587,114 @@ func TestLimiter_PerClient(t *testing.T) {
 	}
 	if r := e.rpc(t, "other", "ping", "", nil); r.Status != 200 {
 		t.Fatal("limit shared between accounts")
+	}
+}
+
+// splitFeature は、有効・無効を単位ごとに決める機能の見本です。単位 a・b に、demo と同じ動きのツールを持ちます。
+type splitFeature struct {
+	demo  *demoFeature
+	units []features.MCPUnit
+}
+
+func (d *splitFeature) Name() string                                              { return "split" }
+func (d *splitFeature) Init(*sql.DB) error                                        { return nil }
+func (d *splitFeature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {}
+func (d *splitFeature) MCPLabel() string                                          { return "分ける見本" }
+func (d *splitFeature) MCPTools() []features.MCPTool                              { return nil }
+func (d *splitFeature) MCPUnits() []features.MCPUnit {
+	if d.units != nil {
+		return d.units
+	}
+	var out []features.MCPUnit
+	for _, key := range []string{"a", "b"} {
+		var tools []features.MCPTool
+		for _, tl := range d.demo.MCPTools() {
+			tl.Name = "split_" + key + strings.TrimPrefix(tl.Name, "demo")
+			tools = append(tools, tl)
+		}
+		out = append(out, features.MCPUnit{Key: key, Label: "見本 " + key, Tools: tools})
+	}
+	return out
+}
+
+// TestUnits_EnabledSeparately は、単位に分ける機能では、単位ごとの設定だけでツールが見え、機能全体の設定は効かないこと、
+// 別の単位の設定を変えても確認は使え、同じ単位を変えると古い確認が使えなくなることを確かめます。
+// 不変条件: MCP-INV-13, MCP-INV-5
+func TestUnits_EnabledSeparately(t *testing.T) {
+	e := newEnv(t)
+	split := &splitFeature{demo: e.demo}
+	if err := e.f.SetMCPFeatures([]features.MCPFeature{split}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	names := func() string {
+		var out []string
+		for _, tl := range e.rpc(t, "good", "tools/list", "", nil).Result["tools"].([]any) {
+			out = append(out, tl.(map[string]any)["name"].(string))
+		}
+		return strings.Join(out, " ")
+	}
+	if err := e.f.store.set(ctx, "split", true); err != nil {
+		t.Fatal(err)
+	}
+	if got := names(); got != "" {
+		t.Fatalf("the whole-feature setting opened tools: %s", got)
+	}
+	if err := e.f.store.set(ctx, "split.a", true); err != nil {
+		t.Fatal(err)
+	}
+	if got := names(); got != "split_a_read split_a_write split_a_other" {
+		t.Fatalf("tools = %s", got)
+	}
+	if r := e.rpc(t, "good", "tools/call", "split_b_read", call("split_b_read", nil, nil)); r.Error == nil {
+		t.Fatalf("a disabled unit ran: %+v", r)
+	}
+	state := e.ask(t, "good", "split_a_write", nil)
+	if err := e.f.store.set(ctx, "split.b", false); err != nil {
+		t.Fatal(err)
+	}
+	if r := e.rpc(t, "good", "tools/call", "split_b_read", call("split_b_read", nil, nil)); r.Error == nil {
+		t.Fatalf("a unit set to disabled ran: %+v", r)
+	}
+	e.rpc(t, "good", "tools/call", "split_a_write", call("split_a_write", nil, answer(state, "accept")))
+	if e.demo.applied.Load() != 1 {
+		t.Fatal("changing another unit broke the confirmation")
+	}
+	state = e.ask(t, "good", "split_a_write", nil)
+	for _, on := range []bool{false, true} {
+		if err := e.f.store.set(ctx, "split.a", on); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e.rpc(t, "good", "tools/call", "split_a_write", call("split_a_write", nil, answer(state, "accept")))
+	if e.demo.applied.Load() != 1 {
+		t.Fatal("old confirmation survived re-enabling the unit")
+	}
+}
+
+// TestUnits_DeclarationsAreChecked は、単位の名前・表示名の不備、重複、別の機能の名前のツールが起動を止めることを確かめます。
+// 不変条件: MCP-INV-13
+func TestUnits_DeclarationsAreChecked(t *testing.T) {
+	e := newEnv(t)
+	good := (&splitFeature{demo: e.demo}).MCPUnits()
+	again := good[1]
+	again.Key = "a" // ツールの名前は b のまま、単位の名前だけが重なる
+	other := good[0]
+	other.Key = "c"
+	other.Tools = []features.MCPTool{good[0].Tools[0]}
+	other.Tools[0].Name = "demo_c_read"
+	for name, units := range map[string][]features.MCPUnit{
+		"bad key":      {{Key: "A", Label: "x", Tools: good[0].Tools}},
+		"dotted key":   {{Key: "a.b", Label: "x", Tools: good[0].Tools}},
+		"empty label":  {{Key: "a", Tools: good[0].Tools}},
+		"twice":        {good[0], again},
+		"other prefix": {other},
+	} {
+		if err := e.f.SetMCPFeatures([]features.MCPFeature{&splitFeature{demo: e.demo, units: units}}); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	if err := e.f.SetMCPFeatures([]features.MCPFeature{&splitFeature{demo: e.demo}}); err != nil {
+		t.Fatal(err)
 	}
 }
