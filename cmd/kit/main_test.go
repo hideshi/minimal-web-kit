@@ -446,3 +446,39 @@ func TestAdminProviderSwap(t *testing.T) {
 		t.Fatal("federated login stayed registered")
 	}
 }
+
+func TestRecordsToggleDependencies(t *testing.T) {
+	fixture(t, baseRegistration)
+	if err := os.MkdirAll("features/records/app", 0755); err != nil {
+		t.Fatal(err)
+	}
+	write(t, "features/records/app/records.go", bundledRecordsMarker+"\npackage records\n")
+	original := read(t, "cmd/server/features.go")
+	if err := addRecords(); err != nil {
+		t.Fatal(err)
+	}
+	enabled := read(t, "cmd/server/features.go")
+	if !strings.Contains(enabled, `"minimal-web-kit/features/records/app"`) || !strings.Contains(enabled, "r.Register(records.NewFeature(logger))") || !strings.Contains(enabled, "r.Register(auth.NewFeature(logger))") {
+		t.Fatalf("missing registration:\n%s", enabled)
+	}
+	if err := removeAuth(); err == nil || !strings.Contains(err.Error(), "remove-records") {
+		t.Fatal("Auth removal was not refused")
+	}
+	if err := removeRecords(); err != nil {
+		t.Fatal(err)
+	}
+	if err := removeAuth(); err != nil {
+		t.Fatal(err)
+	}
+	if read(t, "cmd/server/features.go") != original {
+		t.Fatal("registration not restored")
+	}
+	// 呼び名を持たない federatedauth とは組み合わせられない
+	if err := addFederatedAuth(); err != nil {
+		t.Fatal(err)
+	}
+	before := read(t, "cmd/server/features.go")
+	if err := addRecords(); err == nil || read(t, "cmd/server/features.go") != before {
+		t.Fatal("records with federatedauth was accepted")
+	}
+}

@@ -155,6 +155,18 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("Documents registration disabled; stored documents are kept.")
+	case "add-records":
+		if err := addRecords(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error enabling records feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully enabled records with admin authentication. Edit features/records/defs, then run make records-inventory.")
+	case "remove-records":
+		if err := removeRecords(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error disabling records feature: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Records registration disabled; stored records are kept.")
 	case "add-news":
 		if err := addNews(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error enabling news feature: %v\n", err)
@@ -199,6 +211,8 @@ func printUsage() {
 	fmt.Println("  remove-analytics Disable the analytics registration")
 	fmt.Println("  add-documents Enable internal documents, together with admin authentication")
 	fmt.Println("  remove-documents Disable the documents registration (stored documents are kept)")
+	fmt.Println("  add-records   Enable records (definitions in features/records/defs), together with admin authentication")
+	fmt.Println("  remove-records Disable the records registration (stored records are kept)")
 	fmt.Println("  add-mcp      Enable the MCP server for AI agents, together with admin authentication")
 	fmt.Println("  remove-mcp   Disable the MCP registration (stored settings are kept)")
 	fmt.Println("  add-news     Enable the news feature, together with admin authentication")
@@ -243,6 +257,7 @@ const (
 	bundledMCPMarker       = "// minimal-web-kit: bundled-feature mcp"
 	bundledDocumentsMarker = "// minimal-web-kit: bundled-feature documents"
 	bundledAnalyticsMarker = "// minimal-web-kit: bundled-feature analytics"
+	bundledRecordsMarker   = "// minimal-web-kit: bundled-feature records"
 )
 
 var (
@@ -258,9 +273,11 @@ var (
 	mcpBundle       = bundle{name: "mcp", label: "MCP", marker: bundledMCPMarker, needsAdmin: true}
 	documentsBundle = bundle{name: "documents", label: "Documents", marker: bundledDocumentsMarker, needsAdmin: true}
 	analyticsBundle = bundle{name: "analytics", label: "Analytics", marker: bundledAnalyticsMarker}
+	// 業務記録は、アプリの定義を渡す入口（features/records/app）を登録する
+	recordsBundle = bundle{name: "records", label: "Records", marker: bundledRecordsMarker, dir: "records/app", needsAdmin: true}
 
 	// bundles は全ての同梱機能です。機能を足したら、ここに加えます。
-	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, mediaBundle, documentsBundle, analyticsBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
+	bundles = []bundle{siteBundle, newsBundle, catalogBundle, contactBundle, pagesBundle, mediaBundle, documentsBundle, recordsBundle, analyticsBundle, mcpBundle, authBundle, oidcBundle, federatedBundle}
 )
 
 func addSite() error               { return toggleSite(true) }
@@ -351,6 +368,25 @@ func addDocuments() error {
 	return toggleBundle(documentsBundle, true)
 }
 func removeDocuments() error { return toggleBundle(documentsBundle, false) }
+
+// addRecords は、業務記録と管理者認証の登録を有効にします。記録を作った人の呼び名を出すので、federatedauth とは組み合わせられません。
+func addRecords() error {
+	if err := verifyBundle(recordsBundle); err != nil {
+		return err
+	}
+	federated, err := enabled(federatedBundle)
+	if err != nil {
+		return err
+	}
+	if federated {
+		return errors.New("records needs account names, which federatedauth does not have; use add-auth instead")
+	}
+	if err := ensureAdminProvider(); err != nil {
+		return err
+	}
+	return toggleBundle(recordsBundle, true)
+}
+func removeRecords() error { return toggleBundle(recordsBundle, false) }
 
 func addMCP() error {
 	if err := verifyBundle(mcpBundle); err != nil {
