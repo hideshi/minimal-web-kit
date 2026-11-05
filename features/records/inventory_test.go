@@ -96,8 +96,13 @@ func TestInventory_CheckDetectsDrift(t *testing.T) {
 	if err := CheckInventory(lock, inv, []RecordDef{d}, nil); err == nil {
 		t.Error("two sets of markers: accepted")
 	}
-	// 定義の記録を手で直す
+	// 定義の記録だけが古い（台帳の節は合っている）
 	os.WriteFile(inv, doc, 0o644)
+	os.WriteFile(lock, []byte(`{"kinds":[],"retired":[]}`+"\n"), 0o644)
+	if err := CheckInventory(lock, inv, []RecordDef{d}, nil); err == nil {
+		t.Error("stale lock: accepted")
+	}
+	// 定義の記録を手で直す
 	os.WriteFile(lock, []byte(`{"kinds":[{"name":"k","steps":["add:a:text"]}],"retired":[],"extra":1}`), 0o644)
 	if err := CheckInventory(lock, inv, []RecordDef{d}, nil); err == nil {
 		t.Error("unknown field in the lock: accepted")
