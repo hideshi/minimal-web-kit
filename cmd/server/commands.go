@@ -77,6 +77,28 @@ func runVerifyBackup(args []string, out, errOut io.Writer) int {
 	return 0
 }
 
+// runReadOnlyCommand は、有効な機能が提供する、DBを読むだけのサブコマンド（例: records-check）を実行します。
+// Store の初期化の前に呼ぶので、DBを変えません。該当するコマンドが無ければ ok=false を返します。
+func runReadOnlyCommand(args []string, registry *features.Registry, dbPath string, out, errOut io.Writer) (code int, ok bool) {
+	for _, f := range registry.All() {
+		rf, isRO := f.(features.ReadOnlyCommandFeature)
+		if !isRO {
+			continue
+		}
+		for _, c := range rf.ReadOnlyCommands() {
+			if c.Name != args[0] {
+				continue
+			}
+			if err := c.Run(context.Background(), dbPath, args[1:], out); err != nil {
+				fmt.Fprintf(errOut, "Error: %v\n", err)
+				return 1, true
+			}
+			return 0, true
+		}
+	}
+	return 0, false
+}
+
 // runCommand は、有効な機能が提供するサブコマンド（例: auth-setup）を実行し、終了コードを返します。
 // 本番サーバーにGoを入れずに、サーバーと同じ実行ファイル・同じ DB_PATH で運用操作を行うためのものです。
 func runCommand(args []string, registry *features.Registry, db *sql.DB, in io.Reader, out, errOut io.Writer) int {

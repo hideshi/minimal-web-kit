@@ -483,6 +483,9 @@ func TestBuildRecordStatements_QuotesEveryIdentifier(t *testing.T) {
 			all = append(all, s.apply...)
 			all = append(all, s.addTmp, s.selectOld, s.updateTmp, s.dropOld, s.renameTmp)
 		}
+		for _, sel := range k.selectColumn {
+			all = append(all, sel)
+		}
 	}
 	ident := regexp.MustCompile(`"?\b(records_[a-z0-9_]+|f_[a-z0-9_]+|tmp_[a-z0-9_]+|id|owner_account|revision|created_at|updated_at)\b"?`)
 	n := 0

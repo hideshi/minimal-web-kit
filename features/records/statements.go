@@ -36,6 +36,8 @@ type kindStatements struct {
 	create recordsStatement
 	drop   recordsStatement
 	steps  []stepStatements // 番号の順。steps[i] は番号 i+1
+	// selectColumn は、一度でも使った項目名ごとの、値を読む文です（確認のコマンドが型の変換を試すのに使う）
+	selectColumn map[string]recordsStatement
 }
 
 // buildRecordStatements は、検査済みの定義とやめた種類から、業務記録の文を全部組み立てます。
@@ -64,6 +66,12 @@ func buildRecordStatements(defs []RecordDef, retired []RetiredDef) map[string]*k
 	for _, d := range defs {
 		k := kind(d.Name)
 		t := q(k.table)
+		k.selectColumn = map[string]recordsStatement{}
+		if sc, err := replaySteps(d.Steps); err == nil {
+			for name := range sc.used {
+				k.selectColumn[name] = st("SELECT ", q("id"), ", ", q(fieldColumn(name)), " FROM ", t, " ORDER BY ", q("id"))
+			}
+		}
 		for _, s := range d.Steps {
 			ss := stepStatements{step: s}
 			switch {

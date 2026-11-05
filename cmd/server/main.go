@@ -35,6 +35,13 @@ func main() {
 		os.Exit(runBackup(os.Args[2:], cfg.DBPath, os.Stdout, os.Stderr))
 	}
 
+	// DBを読むだけのコマンド（例: records-check）は、Store の初期化（ファイルの作成、WAL の設定、Core の表の作成）の前に行う
+	if len(os.Args) > 1 {
+		if code, ok := runReadOnlyCommand(os.Args[1:], setupFeatures(nil, logger), cfg.DBPath, os.Stdout, os.Stderr); ok {
+			os.Exit(code)
+		}
+	}
+
 	s, err := store.NewSQLiteStore(cfg.DBPath)
 	if err != nil {
 		logger.Error("failed to initialize sqlite store")

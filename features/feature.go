@@ -68,6 +68,21 @@ type CommandFeature interface {
 	Commands() []Command
 }
 
+// ReadOnlyCommand は、DBを読むだけのサブコマンドです（例: minimal-web-kit records-check）。
+// Store の初期化（DBのファイルの作成、WAL の設定、Core の表の作成）の前に動くので、DBを1つも変えません。
+// DBは自分で読むだけの接続で開きます。DBのファイルが無いこともあります。
+type ReadOnlyCommand struct {
+	Name    string
+	Summary string
+	Run     func(ctx context.Context, dbPath string, args []string, out io.Writer) error
+}
+
+// ReadOnlyCommandFeature は、DBを読むだけのサブコマンドを追加する機能が実装します。
+type ReadOnlyCommandFeature interface {
+	Feature
+	ReadOnlyCommands() []ReadOnlyCommand
+}
+
 // NavLinkFeature は、共通のナビゲーションにリンクを足す機能が実装します（例: お知らせ機能の「お知らせ」）。
 // 機能を無効にすればリンクも消えるため、他の機能が「この機能があるか」を判定する必要はありません。
 type NavLinkFeature interface {
