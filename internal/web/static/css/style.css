@@ -507,6 +507,8 @@ legend {
 
 input[type="text"],
 input[type="search"],
+input[type="number"],
+input[type="date"],
 input[type="datetime-local"],
 textarea,
 select {
@@ -520,6 +522,8 @@ select {
   color: var(--color-text);
 }
 
+input[type="number"],
+input[type="date"],
 input[type="datetime-local"] {
   width: auto;
   max-width: 100%;
