@@ -22,6 +22,7 @@ import (
 	"minimal-web-kit/features/auth/authtest"
 	"minimal-web-kit/features/catalog"
 	"minimal-web-kit/features/documents"
+	"minimal-web-kit/features/records"
 	"minimal-web-kit/features/mcp"
 	"minimal-web-kit/features/news"
 	"minimal-web-kit/features/pages"
@@ -58,6 +59,7 @@ func newMCPEnv(t *testing.T) *mcpEnv {
 	reg.Register(catalog.NewFeature(logger))
 	reg.Register(pages.NewFeature(logger))
 	reg.Register(documents.NewFeature(logger))
+	reg.Register(records.NewFeature(logger, recordsTestDefs(), nil))
 	reg.Register(mcp.NewFeature(logger))
 	for _, f := range reg.All() {
 		if err := f.Init(core.DB()); err != nil {
