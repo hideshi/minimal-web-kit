@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"database/sql"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -60,9 +61,15 @@ func recordsTestDefs() []records.RecordDef {
 
 func newRecordsEnv(t *testing.T) *recordsEnv {
 	t.Helper()
+	return newRecordsEnvWith(t, filepath.Join(t.TempDir(), "app.db"), recordsTestDefs())
+}
+
+// newRecordsEnvWith は、DBのファイルと定義を指定して構成を作ります（版の行き来の試験に使う）。
+func newRecordsEnvWith(t *testing.T, dbPath string, defs []records.RecordDef) *recordsEnv {
+	t.Helper()
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")
-	core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
+	core, err := store.NewSQLiteStore(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +78,7 @@ func newRecordsEnv(t *testing.T) *recordsEnv {
 	logger := slog.New(slog.NewTextHandler(logs, nil))
 	reg := features.NewRegistry()
 	reg.Register(auth.NewFeature(logger))
-	reg.Register(records.NewFeature(logger, recordsTestDefs(), nil))
+	reg.Register(records.NewFeature(logger, defs, nil))
 	for _, f := range reg.All() {
 		if err := f.Init(core.DB()); err != nil {
 			t.Fatal(err)
@@ -348,5 +355,73 @@ func TestRecords_SearchTreatsWildcardsAsText(t *testing.T) {
 	}
 	if w := e.get("owner", `/admin/records/shared";DROP`); w.Code != http.StatusNotFound {
 		t.Errorf("bad kind: %d", w.Code)
+	}
+}
+
+// TestRecords_OlderVersionKeepsNewerColumns は、項目を足した版から前の版へ実行ファイルだけ戻した時に、
+// 前の版の画面には新しい列の値が出ず、前の版で保存・作成しても新しい列の値が残り、新しい版に戻すと見えることを確かめます。
+// 不変条件: RECORDS-INV-12, RECORDS-INV-18
+// ユースケース: UC-RECORDS-9
+func TestRecords_OlderVersionKeepsNewerColumns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.db")
+	older := recordsTestDefs()[3:] // shared
+	newer := recordsTestDefs()[3:]
+	newer[0].Steps = append(append([]records.RecordStep{}, newer[0].Steps...), records.RecordStep{Version: 5, Add: &records.Add{Field: "extra", Type: records.Text}})
+	newer[0].Fields = append(append([]records.RecordField{}, newer[0].Fields...), records.RecordField{Name: "extra", Label: "追加の項目"})
+
+	e := newRecordsEnvWith(t, path, newer)
+	if w := e.post("owner", "/admin/records/shared", url.Values{"f_note": {"新しい版"}, "f_extra": {"NEWER-VALUE"}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("create on newer: %d", w.Code)
+	}
+	var id int64
+	e.db.QueryRow(`SELECT id FROM records_shared`).Scan(&id)
+
+	old := newRecordsEnvWith(t, path, older) // 実行ファイルだけ前の版へ戻した
+	p := "/admin/records/shared/" + strconv.FormatInt(id, 10)
+	if strings.Contains(old.get("owner", p).Body.String(), "NEWER-VALUE") || strings.Contains(old.get("owner", "/admin/records/shared").Body.String(), "NEWER-VALUE") {
+		t.Error("the older version shows a column it does not know")
+	}
+	if w := old.post("owner", p+"/edit", url.Values{"revision": {old.revision("shared", id)}, "f_note": {"前の版で直した"}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("edit on older: %d", w.Code)
+	}
+	old.create("owner", "shared", "前の版で作った")
+
+	back := newRecordsEnvWith(t, path, newer)
+	var extra string
+	var note string
+	back.db.QueryRow(`SELECT f_note, f_extra FROM records_shared WHERE id = ?`, id).Scan(&note, &extra)
+	if note != "前の版で直した" || extra != "NEWER-VALUE" {
+		t.Errorf("note=%q extra=%q", note, extra)
+	}
+	if !strings.Contains(back.get("owner", p).Body.String(), "NEWER-VALUE") {
+		t.Error("the newer version does not show its column again")
+	}
+}
+
+// TestRecords_NeedsLoginAndAccountDirectory は、ログインしていない要求が画面に入れないことと、
+// アカウントの一覧を出す機能が無い構成では起動を止めることを確かめます。
+// 不変条件: RECORDS-INV-1
+func TestRecords_NeedsLoginAndAccountDirectory(t *testing.T) {
+	e := newRecordsEnv(t)
+	for _, p := range []string{"/admin/records", "/admin/records/shared", "/admin/records/shared/new", "/admin/records/deleted-owners"} {
+		if w := e.get("", p); w.Code == http.StatusOK {
+			t.Errorf("%s: anonymous got 200", p)
+		}
+	}
+	core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer core.Close()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	reg := features.NewRegistry()
+	reg.Register(records.NewFeature(logger, recordsTestDefs(), nil))
+	for _, f := range reg.All() {
+		if err := f.Init(core.DB()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := app.BuildRoutes(core, reg, false, logger); err == nil {
+		t.Error("started without an account directory")
 	}
 }

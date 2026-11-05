@@ -20,6 +20,7 @@ func inventoryFiles(t *testing.T) (lock, inv string) {
 
 // TestInventory_HistoryCheck は、前の定義の記録と比べて、適用済みの手順の変更・削除、種類の消失、やめた種類の削除を止めることを確かめます。
 // 不変条件: RECORDS-INV-9
+// ユースケース: UC-RECORDS-7
 func TestInventory_HistoryCheck(t *testing.T) {
 	v1 := kindDef(t, "k", add("a", Text), add("b", Text))
 	lock, inv := inventoryFiles(t)

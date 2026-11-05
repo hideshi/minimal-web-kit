@@ -31,6 +31,7 @@ func check(t *testing.T, dbPath string, defs []RecordDef, retired ...RetiredDef)
 // TestRecordsCheck_ReportsPlanWithoutChangingTheDatabase は、確認のコマンドが、当てる手順・変換できない行・戻し方を出し、
 // 書き込む接続が無い状態で、DBの本体のファイルを1バイトも変えないことを確かめます。値は出しません。
 // 不変条件: RECORDS-INV-14, RECORDS-INV-13
+// ユースケース: UC-RECORDS-8
 func TestRecordsCheck_ReportsPlanWithoutChangingTheDatabase(t *testing.T) {
 	db, dir := testDB(t)
 	path := filepath.Join(dir, "app.db")
@@ -147,6 +148,7 @@ func TestRecordsCheck_WhileAnotherConnectionWrites(t *testing.T) {
 
 // TestRecordsDrop_DropsOnlyRetiredKinds は、表を消すコマンドが、やめた種類だけを、複製を作ってから消し、2回目は何もしないことを確かめます。
 // 不変条件: RECORDS-INV-8
+// ユースケース: UC-RECORDS-10
 func TestRecordsDrop_DropsOnlyRetiredKinds(t *testing.T) {
 	db, dir := testDB(t)
 	k, old := kindDef(t, "k", add("a", Text)), kindDef(t, "old", add("x", Text))
