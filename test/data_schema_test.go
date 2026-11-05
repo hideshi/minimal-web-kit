@@ -1,12 +1,16 @@
 package test
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+
+	"minimal-web-kit/features/records"
+	"minimal-web-kit/features/records/defs"
 
 	_ "modernc.org/sqlite"
 )
@@ -49,6 +53,11 @@ func TestDataSchema_MatchesDataLedger(t *testing.T) {
 		if _, err := db.Exec(string(migBytes)); err != nil {
 			t.Fatalf("failed to execute feature migration %s: %v", migFile, err)
 		}
+	}
+
+	// 業務記録の種類ごとの表は、定義の手順から作る。本番と同じ移行の関数を、見本の定義で呼ぶ
+	if err := records.Migrate(context.Background(), db, defs.Defs, defs.Retired, nil); err != nil {
+		t.Fatalf("failed to migrate records: %v", err)
 	}
 
 	// 3. 実DB内の全テーブルを取得（逆方向検証）

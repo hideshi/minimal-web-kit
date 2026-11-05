@@ -1,0 +1,23 @@
+{
+  "kinds": [
+    {
+      "name": "daily_report",
+      "steps": [
+        "add:work_date:date",
+        "add:body:long_text",
+        "add:next_plan:long_text"
+      ]
+    },
+    {
+      "name": "equipment",
+      "steps": [
+        "add:item_name:text",
+        "add:asset_number:text",
+        "add:status:select",
+        "add:user_name:text",
+        "add:memo:long_text"
+      ]
+    }
+  ],
+  "retired": []
+}

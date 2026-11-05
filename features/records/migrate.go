@@ -538,3 +538,9 @@ func migrateRecords(ctx context.Context, db *sql.DB, defs []RecordDef, retired [
 	}
 	return p, nil
 }
+
+// Migrate は、定義のとおりに業務記録の表を作り・移します。機能の Init と、台帳の照合のテスト（test/data_schema_test.go）が使います。
+func Migrate(ctx context.Context, db *sql.DB, defs []RecordDef, retired []RetiredDef, logger *slog.Logger) error {
+	_, err := migrateRecords(ctx, db, defs, retired, logger)
+	return err
+}

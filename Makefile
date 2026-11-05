@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-media remove-media add-documents remove-documents add-mcp remove-mcp add-oidcop remove-oidcop add-federatedauth remove-federatedauth add-analytics remove-analytics
+.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-media remove-media add-documents remove-documents add-mcp remove-mcp add-oidcop remove-oidcop add-federatedauth remove-federatedauth add-analytics remove-analytics records-inventory
 
 BIN_NAME := minimal-web-kit
 
@@ -121,6 +121,9 @@ add-analytics:
 
 remove-analytics:
 	go run ./cmd/kit remove-analytics
+
+records-inventory:
+	go run ./cmd/recordsinventory $(if $(RESET),-reset)
 
 add-documents:
 	go run ./cmd/kit add-documents
