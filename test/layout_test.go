@@ -233,6 +233,14 @@ func TestLayout_StaticHeadOnEveryLayout(t *testing.T) {
 		}
 		links = append(links, `href="`+u+`"`)
 	}
+	// サイトがテーマを置いていれば、style.css の後にもう1本
+	stylesheets := 1
+	style, _ := web.AssetURL("css/style.css")
+	theme, themeErr := web.AssetURL("css/theme.css")
+	if themeErr == nil {
+		stylesheets = 2
+		links = append(links, `href="`+theme+`"`)
+	}
 	check := func(label string, routes http.Handler, paths ...string) {
 		t.Helper()
 		for _, path := range paths {
@@ -248,8 +256,11 @@ func TestLayout_StaticHeadOnEveryLayout(t *testing.T) {
 					t.Errorf("%s %s: %s must appear once", label, path, link)
 				}
 			}
-			if strings.Count(body, `rel="stylesheet"`) != 1 || strings.Contains(body, `"/static/css/style.css"`) {
+			if strings.Count(body, `rel="stylesheet"`) != stylesheets || strings.Contains(body, `"/static/css/style.css"`) {
 				t.Errorf("%s %s: must load only the versioned stylesheet", label, path)
+			}
+			if themeErr == nil && strings.Index(body, `href="`+theme+`"`) < strings.Index(body, `href="`+style+`"`) {
+				t.Errorf("%s %s: the theme must come after style.css", label, path)
 			}
 		}
 	}

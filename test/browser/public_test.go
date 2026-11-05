@@ -205,10 +205,12 @@ func TestNav_States(t *testing.T) {
 	}
 	size := `(() => { const r = ` + other + `.getBoundingClientRect(); return r.width + "x" + r.height })()`
 	before := evaluate[string](t, b, size)
+	bgBefore := evaluate[string](t, b, `getComputedStyle(`+other+`).backgroundColor`)
 	moveMouse(t, b, other)
 	b.waitFor(t, other+`.matches(":hover")`)
-	if got := evaluate[string](t, b, `getComputedStyle(`+other+`).backgroundColor`); got != "rgb(242, 242, 242)" {
-		t.Errorf("マウスを乗せたときの背景: %s", got)
+	// 色の値はテーマで変わるため、背景が付いて変わることだけを見る
+	if got := evaluate[string](t, b, `getComputedStyle(`+other+`).backgroundColor`); got == bgBefore || got == "rgba(0, 0, 0, 0)" {
+		t.Errorf("マウスを乗せたときの背景: %s（前は %s）", got, bgBefore)
 	}
 	if got := evaluate[string](t, b, `getComputedStyle(`+other+`).textDecorationLine`); got != "underline" {
 		t.Errorf("マウスを乗せたときの下線: %s", got)

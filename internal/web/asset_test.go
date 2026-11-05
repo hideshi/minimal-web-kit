@@ -77,8 +77,12 @@ func TestComponents_StaticHead(t *testing.T) {
 			t.Errorf("static-head must contain %s once:\n%s", want, got)
 		}
 	}
-	if strings.Count(got, "<link") != 4 {
-		t.Fatalf("static-head must contain exactly 4 links:\n%s", got)
+	want := 4
+	if themeStylesheet() != "" { // サイトがテーマを置いたとき
+		want = 5
+	}
+	if strings.Count(got, "<link") != want {
+		t.Fatalf("static-head must contain exactly %d links:\n%s", want, got)
 	}
 }
 
@@ -105,8 +109,9 @@ func withTheme(t *testing.T, css string) {
 
 // テーマが無ければ読み込まず、あれば style.css の後に版付きで読み込み、style.css と同じキャッシュで配ること。
 func TestAsset_ThemeStylesheet(t *testing.T) {
-	if themeStylesheet() != "" {
-		t.Fatal("the kit must not ship css/theme.css")
+	// キットにはテーマが無い。サイトが置いたときは、無い場合の確かめを飛ばす
+	if _, err := fs.Stat(embeddedFS, "static/"+themeAsset); err != nil && themeStylesheet() != "" {
+		t.Fatal("without css/theme.css, static-head must not load a theme")
 	}
 	const css = ":root {\n  --color-primary: #7a1f3d;\n}\n"
 	withTheme(t, css)

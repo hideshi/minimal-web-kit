@@ -1,0 +1,25 @@
+/* 見本のテーマ（緑）。サイトでは internal/web/static/css/theme.css に置く。
+   色は全部を書く（一部だけは不可）。書体は端末に入っているものから選ばれる。 */
+:root {
+  --font-base: "BIZ UDPMincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+
+  --color-text: #1b1f1d;
+  --color-text-sub: #2f3a34;
+  --color-text-muted: #4a5a52;
+  --color-bg: #fffdf8;
+  --color-surface: #f3f5ef;
+  --color-border: #b3bcb5;
+  --color-border-input: #6f7a73;
+  --color-primary: #1f6b3a;
+  --color-primary-hover: #154a28;
+  --color-on-primary: #ffffff;
+  --color-hover-surface: #e9efe6;
+  --color-secondary-hover-surface: #e3e9e2;
+  --color-danger: #c62828;
+  --color-danger-hover: #9f1b1b;
+  --color-on-danger: #ffffff;
+  --color-warning-border: #c77700;
+  --color-warning-surface: #fff4dc;
+  --color-focus-inner: #000000;
+  --color-focus-outer: #ffbf00;
+}
