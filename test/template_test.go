@@ -152,6 +152,54 @@ func TestCSS_SingleFileAndNoImportant(t *testing.T) {
 	}
 }
 
+var (
+	cssCommentPattern = regexp.MustCompile(`(?s)/\*.*?\*/`)
+	cssRootPattern    = regexp.MustCompile(`(?s)^\s*:root\s*\{([^{}]*)\}`)
+	cssVarDefPattern  = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+)\s*:`)
+	cssVarUsePattern  = regexp.MustCompile(`var\(\s*(--[a-z0-9-]+)\s*\)`)
+	cssDeclPattern    = regexp.MustCompile(`([a-z-]+)\s*:\s*([^;{}]+)`)
+	// 色の直書き。16進、色の関数、よく使う色の名前（transparent・currentColor は状態や継承の指定なので許す）
+	cssColorLiteralPattern = regexp.MustCompile(`(?i)#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|\b(white|black|red|green|blue|gray|grey|yellow|orange|silver|navy)\b`)
+)
+
+// TestCSS_ColorsOnlyInRoot は、style.css の色がすべて先頭の :root の変数を通っていることを検証します。
+// 規則の中に色を直書きすると、theme.css で色を差し替えても、その箇所だけ元の色のまま残るためです（docs/plans/theme-plan.md 7.3）。
+func TestCSS_ColorsOnlyInRoot(t *testing.T) {
+	b, err := os.ReadFile("../internal/web/static/css/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	css := cssCommentPattern.ReplaceAllString(string(b), "")
+	m := cssRootPattern.FindStringSubmatchIndex(css)
+	if m == nil {
+		t.Fatal("style.css must start with a single :root { ... } block of variables")
+	}
+	defined := map[string]bool{}
+	for _, d := range cssVarDefPattern.FindAllStringSubmatch(css[m[2]:m[3]], -1) {
+		defined[d[1]] = true
+	}
+	rest := css[m[1]:]
+	if strings.Contains(rest, ":root") {
+		t.Error("style.css must define variables only in the first :root block")
+	}
+	for _, d := range cssDeclPattern.FindAllStringSubmatch(rest, -1) {
+		if strings.HasPrefix(d[1], "-") {
+			continue
+		}
+		if lit := cssColorLiteralPattern.FindString(d[2]); lit != "" {
+			t.Errorf("style.css: %s: %s uses a color literal %q; add a variable to :root instead", d[1], strings.TrimSpace(d[2]), lit)
+		}
+	}
+	for _, u := range cssVarUsePattern.FindAllStringSubmatch(css, -1) {
+		if !defined[u[1]] {
+			t.Errorf("style.css uses var(%s), which is not defined in :root", u[1])
+		}
+	}
+	if n := len(cssVarUsePattern.FindAllString(css, -1)); n != strings.Count(css, "var(") {
+		t.Errorf("style.css: every var() must name one variable without a fallback (%d of %d)", n, strings.Count(css, "var("))
+	}
+}
+
 // formControlExceptions は、入力欄を部品（field・choices・combobox）を使わずに直接書いてよいテンプレートと理由です。
 var formControlExceptions = map[string]string{}
 

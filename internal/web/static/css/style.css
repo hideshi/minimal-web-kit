@@ -6,17 +6,27 @@
   --line-height: 1.7;
 
   --color-text: #1a1a1a;
+  --color-text-sub: #333333; /* 導入文・カードの本文など、本文より一段薄い文字 */
+  --color-text-muted: #4a5568; /* 補足・日付・入力欄の説明 */
+  --color-text-quiet: #555555; /* 節の導入文・フッター */
   --color-bg: #ffffff;
   --color-surface: #f8f9fa;
   --color-border: #b0b7bd;
   --color-border-input: #767676; /* 白背景に対して4.5:1以上の高コントラスト境界 */
   --color-primary: #004098;
   --color-primary-hover: #002b66;
+  --color-on-primary: #ffffff; /* 主色の上の文字（主ボタン・バッジ・選択中の候補） */
   --color-hover-surface: #f2f2f2; /* ナビの反応の背景。リンクの色との対比は8.5:1以上 */
+  --color-secondary-hover-surface: #e9ecef; /* 副ボタンの反応の背景 */
   --color-danger: #d32727;
   --color-danger-hover: #a11414;
+  --color-on-danger: #ffffff; /* 削除ボタンの文字 */
+  --color-warning-border: #e08e00;
+  --color-warning-surface: #fff9e6;
   --color-focus-inner: #000000;
   --color-focus-outer: #ffd700;
+
+  --shadow-menu: 0 0.25rem 0.5rem rgb(0 0 0 / 12%); /* 狭い画面のメニューの影 */
 
   --space-xs: 0.25rem;
   --space-sm: 0.5rem;
@@ -113,7 +123,7 @@ header {
 
 .site-subtitle {
   font-size: 0.95rem;
-  color: #4a5568;
+  color: var(--color-text-muted);
 }
 
 nav {
@@ -196,7 +206,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 
 .hero-lead {
   font-size: 1.1rem;
-  color: #333333;
+  color: var(--color-text-sub);
   text-align: left;
   margin: 0 0 var(--space-lg);
   line-height: 1.8;
@@ -251,7 +261,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 
 .section-lead {
   font-size: 0.95rem;
-  color: #555555;
+  color: var(--color-text-quiet);
 }
 
 /* 3カラムグリッド（極小画面リフロー対応） */
@@ -301,7 +311,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   align-self: flex-start;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--color-on-primary);
   background-color: var(--color-primary);
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius);
@@ -317,7 +327,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 
 .card-content {
   font-size: 0.95rem;
-  color: #333333;
+  color: var(--color-text-sub);
   line-height: 1.6;
 }
 
@@ -355,7 +365,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 
 .step-content {
   font-size: 0.95rem;
-  color: #333333;
+  color: var(--color-text-sub);
 }
 
 /* FAQ（アコーディオン） */
@@ -397,7 +407,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 
 .faq-answer {
   font-size: 0.95rem;
-  color: #333333;
+  color: var(--color-text-sub);
   padding: var(--space-xs) 0;
 }
 
@@ -419,7 +429,7 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
 }
 
 .cta-banner p {
-  color: #4a5568;
+  color: var(--color-text-muted);
   margin-bottom: var(--space-md);
 }
 
@@ -485,7 +495,7 @@ legend {
 
 .field-hint {
   font-size: 0.85rem;
-  color: #4a5568;
+  color: var(--color-text-muted);
   margin-bottom: var(--space-xs);
 }
 
@@ -539,12 +549,12 @@ a.btn:hover {
 
 .btn-primary {
   background-color: var(--color-primary);
-  color: #ffffff;
+  color: var(--color-on-primary);
 }
 
 .btn-primary:hover {
   background-color: var(--color-primary-hover);
-  color: #ffffff;
+  color: var(--color-on-primary);
 }
 
 .btn-secondary {
@@ -554,18 +564,18 @@ a.btn:hover {
 }
 
 .btn-secondary:hover {
-  background-color: #e9ecef;
+  background-color: var(--color-secondary-hover-surface);
   color: var(--color-text);
 }
 
 .btn-danger {
   background-color: var(--color-danger);
-  color: #ffffff;
+  color: var(--color-on-danger);
 }
 
 .btn-danger:hover {
   background-color: var(--color-danger-hover);
-  color: #ffffff;
+  color: var(--color-on-danger);
 }
 
 /* アラート */
@@ -582,8 +592,8 @@ a.btn:hover {
 }
 
 .alert-warning {
-  border-left: 6px solid #e08e00;
-  background-color: #fff9e6;
+  border-left: 6px solid var(--color-warning-border);
+  background-color: var(--color-warning-surface);
 }
 
 /* テーブル（横スクロールコンテナ対応） */
@@ -629,7 +639,7 @@ footer {
   padding-top: var(--space-md);
   border-top: 1px solid var(--color-border);
   font-size: 0.85rem;
-  color: #555555;
+  color: var(--color-text-quiet);
 }
 
 .footer-inner {
@@ -744,7 +754,7 @@ footer {
 
 .card-link:hover::after {
   background-color: var(--color-primary);
-  color: var(--color-bg);
+  color: var(--color-on-primary);
 }
 
 /* フォーカスの枠はカード全体に出す。:has が無いブラウザでは、リンクの枠のままにする */
@@ -763,7 +773,7 @@ footer {
 
 /* 日付・分類などの補足の文字 */
 .text-meta {
-  color: #4a5568;
+  color: var(--color-text-muted);
   font-size: 0.9rem;
   margin-bottom: var(--space-md);
 }
@@ -875,7 +885,7 @@ select[aria-invalid="true"] {
 .combobox-option { display: flex; justify-content: space-between; gap: var(--space-sm); padding: var(--space-xs) var(--space-sm); cursor: pointer; }
 .combobox-option:hover { background-color: var(--color-surface); }
 /* 今いる候補。フォーカスは入力欄に残るため、色に加えて枠線で示す。 */
-.combobox-option.is-active { background-color: var(--color-primary); color: var(--color-bg); outline: 3px solid var(--color-focus-outer); outline-offset: -3px; }
+.combobox-option.is-active { background-color: var(--color-primary); color: var(--color-on-primary); outline: 3px solid var(--color-focus-outer); outline-offset: -3px; }
 .combobox-option[aria-disabled="true"] { cursor: not-allowed; text-decoration: line-through; }
 .combobox-empty { margin-top: var(--space-xs); }
 
@@ -1021,7 +1031,7 @@ select[aria-invalid="true"] {
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
-  box-shadow: 0 0.25rem 0.5rem rgb(0 0 0 / 12%);
+  box-shadow: var(--shadow-menu);
   overflow-wrap: anywhere;
 }
 .public-menu-links a {
