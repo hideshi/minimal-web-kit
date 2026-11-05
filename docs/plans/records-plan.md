@@ -265,3 +265,29 @@ Fable は「高は無く、実装に進んでよい」、Sol は高2件で保留
 - 失敗した段だけで数える: 試験の行が最後の段だけで失敗していたので、最初の段で失敗する行を足した。
 - 定義の記録の知らない欄を許す: 定義の記録の比較（別の層）が止める。守りは残す。
 - 確認のコマンドを読むだけの接続で開かない: 確認のコマンドは読む処理しか呼ばないので、外しても動きは変わらない（二重の守り）。DBのファイルが変わらないことは `TestRecordsCheck_*` で確かめている。
+
+### 段階2: 守りをわざと外す確認（2026-11-06）
+
+テストは `go test -count=1 -run '<狙ったテスト>' ./test/`（入口の試験は `./features/records`）。
+
+| 不変条件 | 外した箇所・外し方 | 落ちたテスト（失敗の文） |
+|---|---|---|
+| INV-3 | `OwnerOnly` で全部を読めるようにする | `TestRecords_AccessMatrix`（only/other list: shows=true） |
+| INV-3 | 読めない記録を403にする | `TestRecords_AccessMatrix`（unreadable (403) must look like missing (404)） |
+| INV-4 | `OwnerWriteAllRead` で他人も編集できるようにする | `TestRecords_AccessMatrix`（allread/other edit: 303） |
+| INV-5 | 保存の文から版の数の照合を外す | `TestRecords_RevisionConflict`（stale save: 303） |
+| INV-6 | 整数の形・上限・選択肢の検査を外す（3か所） | `TestRecords_InputValidation`（先頭の0・上限ちょうど+1・選択肢に無い: 303） |
+| INV-7 | `%`・`_` を逃がさない | `TestRecords_SearchTreatsWildcardsAsText`（q="50%": "500円引き" shown） |
+| INV-7 | 一覧の文に要求の語をつなぐ | `TestListEntry_OnlyPrebuiltStatements`（ran a statement that was not built on start）、`TestStatements_OnlyBuiltFromDefinitions` |
+| INV-10 | 有効なアカウントの記録も消せるようにする／共有の台帳も対象にする（2か所） | `TestRecords_DeletedOwnerPurge` |
+| INV-10 | 削除済みの記録の画面を全員に開く | `TestRecords_DeletedOwnerPurge`（site admin reached: 200）、`TestRoleUser_ReachesOnlyAccountRoutes` |
+| INV-13 | 衝突の経路で入力の値をログに出す | `TestRecords_ValuesStayOutOfLogs`（logs contain a record value） |
+| INV-18 | 保存で新しい版の列を空にする | `TestRecords_OlderVersionKeepsNewerColumns`（extra=""） |
+| INV-1 | アカウントの一覧を受け取らない | `TestRecords_NeedsLoginAndAccountDirectory`（started without account names） |
+
+落ちなかったものと対処:
+
+- ログのカナリア: 最初の試験は、カナリアの文字列が項目の上限を超えていて、衝突の経路に届く前に入力の検査で止まっていた。上限に収まる長さにし、各経路に届いたこと（409・400・一覧に出る）も確かめるようにした。
+- アカウントの一覧が無い構成: 最初の試験は管理者認証も無い構成で、別の理由（管理画面が無い）で止まっていた。管理画面はあるが一覧の無い構成（federatedauth）にし、止まる理由の文も確かめるようにした。
+- 日付の形の再確認（`Format` との比較）: `time.Parse` が同じ入力を先に拒むので、外しても動きは変わらない（二重の守り）。
+- 並びの番号の範囲の確認（入口）: `listRecords` も範囲の外を既定の並びにするので、外しても動きは変わらない（二重の守り）。
