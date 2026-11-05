@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -468,13 +469,31 @@ func TestMigrate_RetiredAndUnknownKinds(t *testing.T) {
 	mustMigrate(t, db2, []RecordDef{k, other})
 }
 
-// TestMigrate_KeywordNamesAreQuoted は、SQLの予約語と同じ名前の種類・項目でも、引用符で囲んで正しく動くことを確かめます。
-// 名前の規則を通った名前も、文に入れる時は必ず引用符で囲む（二重の守り）。
+// TestBuildRecordStatements_QuotesEveryIdentifier は、組み立てた文の中の表名・列名が、全部引用符で囲まれていることを確かめます。
+// 名前は規則で縛ってあるが、文に入れる時も必ず引用符で囲む（二重の守り）。
 // 不変条件: RECORDS-INV-7
-func TestMigrate_KeywordNamesAreQuoted(t *testing.T) {
-	db, _ := testDB(t)
-	d := kindDef(t, "order", add("select", Text), add("from", Text), rename("from", "where"), change("select", Text, LongText))
-	mustMigrate(t, db, []RecordDef{d})
-	insertRow(t, db, "records_order", map[string]any{"select": "a", "where": "b"})
-	mustMigrate(t, db, []RecordDef{kindDef(t, "order", add("select", Text), add("from", Text), rename("from", "where"), change("select", Text, LongText), remove("where"))})
+func TestBuildRecordStatements_QuotesEveryIdentifier(t *testing.T) {
+	d := kindDef(t, "k", add("a", Text), rename("a", "b"), change("b", Text, Integer), remove("b"))
+	ks := buildRecordStatements([]RecordDef{d}, []RetiredDef{{Name: "old"}})
+	var all []recordsStatement
+	for _, k := range ks {
+		all = append(all, k.create, k.drop)
+		for _, s := range k.steps {
+			all = append(all, s.apply...)
+			all = append(all, s.addTmp, s.selectOld, s.updateTmp, s.dropOld, s.renameTmp)
+		}
+	}
+	ident := regexp.MustCompile(`"?\b(records_[a-z0-9_]+|f_[a-z0-9_]+|tmp_[a-z0-9_]+|id|owner_account|revision|created_at|updated_at)\b"?`)
+	n := 0
+	for _, st := range all {
+		for _, m := range ident.FindAllString(st.sql, -1) {
+			n++
+			if !strings.HasPrefix(m, `"`) || !strings.HasSuffix(m, `"`) {
+				t.Errorf("unquoted identifier %s in %s", m, st.sql)
+			}
+		}
+	}
+	if n < 20 {
+		t.Fatalf("checked only %d identifiers", n)
+	}
 }
