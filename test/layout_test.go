@@ -259,6 +259,10 @@ func TestLayout_StaticHeadOnEveryLayout(t *testing.T) {
 			if strings.Count(body, `rel="stylesheet"`) != stylesheets || strings.Contains(body, `"/static/css/style.css"`) {
 				t.Errorf("%s %s: must load only the versioned stylesheet", label, path)
 			}
+			// 管理画面は公開ページと別の色にする（style.css の :root.admin-area）。公開ページには目印を付けない
+			if admin := strings.HasPrefix(path, "/admin"); admin != strings.Contains(body, `<html lang="ja" class="admin-area">`) || (!admin && strings.Contains(body, "admin-area")) {
+				t.Errorf("%s %s: only the admin pages must have <html class=\"admin-area\">", label, path)
+			}
 			if themeErr == nil && strings.Index(body, `href="`+theme+`"`) < strings.Index(body, `href="`+style+`"`) {
 				t.Errorf("%s %s: the theme must come after style.css", label, path)
 			}

@@ -164,6 +164,8 @@ func TestCSS_SingleFileAndNoImportant(t *testing.T) {
 var (
 	cssCommentPattern = regexp.MustCompile(`(?s)/\*.*?\*/`)
 	cssRootPattern    = regexp.MustCompile(`(?s)^\s*:root\s*\{([^{}]*)\}`)
+	// cssAdminRootPattern は、管理画面の枠（admin-shell の <html class="admin-area">）だけの色の上書きです。
+	cssAdminRootPattern = regexp.MustCompile(`(?s)^\s*:root\.admin-area\s*\{([^{}]*)\}`)
 	cssVarDefPattern  = regexp.MustCompile(`(?m)^\s*(--[a-z0-9-]+)\s*:`)
 	cssVarUsePattern  = regexp.MustCompile(`var\(\s*(--[a-z0-9-]+)\s*\)`)
 	cssDeclPattern    = regexp.MustCompile(`([a-z-]+)\s*:\s*([^;{}]+)`)
@@ -188,10 +190,25 @@ func TestCSS_ColorsOnlyInRoot(t *testing.T) {
 		defined[d[1]] = true
 	}
 	rest := css[m[1]:]
+	// 直後に、管理画面の色の上書き（:root.admin-area）を1つだけ置ける。:root にある --color-* だけを上書きする
+	if a := cssAdminRootPattern.FindStringSubmatchIndex(rest); a != nil {
+		block := rest[a[2]:a[3]]
+		for _, d := range cssDeclPattern.FindAllStringSubmatch(block, -1) {
+			if !strings.HasPrefix(d[1], "--color-") || !defined[d[1]] {
+				t.Errorf("style.css :root.admin-area may override only --color-* variables of :root: %s", d[1])
+			}
+		}
+		rest = rest[a[1]:]
+	}
 	if strings.Contains(rest, ":root") {
-		t.Error("style.css must define variables only in the first :root block")
+		t.Error("style.css must define variables only in the first :root block and the :root.admin-area block after it")
 	}
 	for _, d := range cssDeclPattern.FindAllStringSubmatch(rest, -1) {
+		if strings.HasPrefix(d[1], "--") {
+			// 変数を規則の中で定義し直すと、テーマで差し替えた値がその箇所だけ効かない
+			t.Errorf("style.css: %s must be defined only in :root or :root.admin-area", d[1])
+			continue
+		}
 		if strings.HasPrefix(d[1], "-") {
 			continue
 		}

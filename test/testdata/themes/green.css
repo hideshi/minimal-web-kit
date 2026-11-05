@@ -23,3 +23,9 @@
   --color-focus-inner: #000000;
   --color-focus-outer: #ffbf00;
 }
+
+/* 管理画面だけの色。公開ページと見分けられるよう、主色を変える。書かなければキットの既定（紫）になる */
+:root.admin-area {
+  --color-primary: #3d4f6b;
+  --color-primary-hover: #283548;
+}

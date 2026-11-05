@@ -832,6 +832,10 @@ func TestAdminUI_AllPagesFollowStandard(t *testing.T) {
 		if !strings.Contains(w.Body.String(), `name="robots" content="noindex`) {
 			t.Errorf("%s: 管理画面は noindex のままにする", label)
 		}
+		// 管理画面の枠を通り、公開ページと別の色（style.css の :root.admin-area）になる
+		if !strings.Contains(w.Body.String(), `<html lang="ja" class="admin-area">`) {
+			t.Errorf("%s: 管理画面は admin-shell の <html class=\"admin-area\"> で描く", label)
+		}
 		for _, p := range checkAdminPage(parseHTML(t, w.Body.String()), kind) {
 			t.Errorf("%s: %s", label, p)
 		}

@@ -43,6 +43,13 @@
   --table-input-min: 10rem; /* 表の中の入力欄の列の下限 */
 }
 
+/* 管理画面（admin-shell の <html class="admin-area">）の色。公開ページと見分けられるよう、主色を変える。
+   :root より詳細度が高いため、テーマの :root で主色を変えても管理画面はこの色のまま。変えるときはテーマにも同じ規則を書く */
+:root.admin-area {
+  --color-primary: #5a3d8a;
+  --color-primary-hover: #3f2a63;
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;

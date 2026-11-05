@@ -31,23 +31,40 @@ const themeFontVar = "--font-base"
 // styleRootVars は、style.css の先頭の :root の変数と値です。
 func styleRootVars(t *testing.T) map[string]string {
 	t.Helper()
+	root, _ := styleVars(t)
+	return root
+}
+
+// styleVars は、style.css の :root と、その直後の管理画面の :root.admin-area の変数と値です。
+func styleVars(t *testing.T) (root, admin map[string]string) {
+	t.Helper()
 	b, err := os.ReadFile("../internal/web/static/css/style.css")
 	if err != nil {
 		t.Fatal(err)
 	}
 	css := cssCommentPattern.ReplaceAllString(string(b), "")
-	m := cssRootPattern.FindStringSubmatch(css)
+	m := cssRootPattern.FindStringSubmatchIndex(css)
 	if m == nil {
 		t.Fatal("style.css must start with a :root block")
 	}
+	root = declMap(t, css[m[2]:m[3]])
+	admin = map[string]string{}
+	if a := cssAdminRootPattern.FindStringSubmatch(css[m[1]:]); a != nil {
+		admin = declMap(t, a[1])
+	}
+	return root, admin
+}
+
+func declMap(t *testing.T, block string) map[string]string {
+	t.Helper()
 	vars := map[string]string{}
-	for _, d := range strings.Split(m[1], ";") {
+	for _, d := range strings.Split(block, ";") {
 		if d = strings.TrimSpace(d); d == "" {
 			continue
 		}
 		name, value, ok := strings.Cut(d, ":")
 		if !ok {
-			t.Fatalf("style.css :root: bad declaration %q", d)
+			t.Fatalf("style.css: bad declaration %q", d)
 		}
 		vars[strings.TrimSpace(name)] = strings.TrimSpace(value)
 	}
@@ -89,60 +106,90 @@ func stripThemeComments(src string) (string, error) {
 	return out.String(), nil
 }
 
+// themeRules は、テーマの2つの規則です。root は公開ページと管理画面の両方、admin は管理画面（:root.admin-area）だけに効きます。
+type themeRules struct{ root, admin map[string]string }
+
+const themeAdminSelector = ":root.admin-area"
+
 // parseTheme は、テーマを読み、上書きする変数と値を返します。allowed は style.css の :root の変数です。
-func parseTheme(src string, allowed map[string]string) (map[string]string, error) {
+// 規則は `:root { … }` と `:root.admin-area { … }` の2つまでで、この順に、それぞれ1回まで書けます。
+func parseTheme(src string, allowed map[string]string) (themeRules, error) {
+	rules := themeRules{root: map[string]string{}, admin: map[string]string{}}
 	if strings.HasPrefix(src, "\xef\xbb\xbf") {
-		return nil, errors.New("BOM is not allowed")
+		return rules, errors.New("BOM is not allowed")
 	}
 	src = strings.ReplaceAll(src, "\r\n", "\n")
 	for _, c := range []string{"\r", "\\", "@", "&", "!", "<"} {
 		if strings.Contains(src, c) {
-			return nil, fmt.Errorf("%q is not allowed", c)
+			return rules, fmt.Errorf("%q is not allowed", c)
 		}
 	}
 	css, err := stripThemeComments(src)
 	if err != nil {
-		return nil, err
+		return rules, err
 	}
 	css = strings.TrimSpace(css)
-	body, ok := strings.CutPrefix(css, ":root")
-	if !ok {
-		return nil, errors.New("the theme must be a single :root { ... } rule")
+	seenRoot, seenAdmin := false, false
+	for css != "" {
+		var vars map[string]string
+		switch {
+		case strings.HasPrefix(css, themeAdminSelector) && !seenAdmin:
+			css, vars, seenAdmin = css[len(themeAdminSelector):], rules.admin, true
+		case strings.HasPrefix(css, ":root") && !seenRoot && !seenAdmin && !strings.HasPrefix(css, themeAdminSelector):
+			css, vars, seenRoot = css[len(":root"):], rules.root, true
+		default:
+			return rules, errors.New("the theme may have only a :root { ... } rule and then a :root.admin-area { ... } rule")
+		}
+		css = strings.TrimSpace(css)
+		if !strings.HasPrefix(css, "{") {
+			return rules, errors.New("the theme may have only a :root { ... } rule and then a :root.admin-area { ... } rule")
+		}
+		end := strings.IndexByte(css, '}')
+		if end < 0 {
+			return rules, errors.New("unclosed rule")
+		}
+		body := strings.TrimSpace(css[1:end])
+		css = strings.TrimSpace(css[end+1:])
+		if err := parseThemeBody(body, allowed, vars); err != nil {
+			return rules, err
+		}
 	}
-	body = strings.TrimSpace(body)
-	if !strings.HasPrefix(body, "{") || !strings.HasSuffix(body, "}") {
-		return nil, errors.New("the theme must be a single :root { ... } rule")
+	if len(rules.root)+len(rules.admin) == 0 {
+		return rules, errors.New("the theme overrides nothing")
 	}
-	body = strings.TrimSpace(body[1 : len(body)-1])
+	return rules, nil
+}
+
+// parseThemeBody は、1つの規則の中の宣言を読み、vars に入れます。
+func parseThemeBody(body string, allowed, vars map[string]string) error {
 	if strings.ContainsAny(body, "{}") {
-		return nil, errors.New("nested blocks and other rules are not allowed")
+		return errors.New("nested blocks and other rules are not allowed")
 	}
-	if body != "" && !strings.HasSuffix(body, ";") {
-		return nil, errors.New("every declaration must end with ';'")
+	if body == "" {
+		return errors.New("an empty rule is not allowed")
 	}
-	vars := map[string]string{}
+	if !strings.HasSuffix(body, ";") {
+		return errors.New("every declaration must end with ';'")
+	}
 	for _, d := range strings.Split(strings.TrimSuffix(body, ";"), ";") {
 		d = strings.TrimSpace(d)
 		m := themeDeclPattern.FindStringSubmatch(d)
 		if m == nil {
-			return nil, fmt.Errorf("only custom properties are allowed: %q", d)
+			return fmt.Errorf("only custom properties are allowed: %q", d)
 		}
 		name, value := m[1], strings.TrimSpace(m[2])
 		if _, ok := allowed[name]; !ok || !(strings.HasPrefix(name, "--color-") || name == themeFontVar) {
-			return nil, fmt.Errorf("%s cannot be overridden; only the --color-* and %s variables in style.css", name, themeFontVar)
+			return fmt.Errorf("%s cannot be overridden; only the --color-* and %s variables in style.css", name, themeFontVar)
 		}
 		if _, dup := vars[name]; dup {
-			return nil, fmt.Errorf("%s is declared twice", name)
+			return fmt.Errorf("%s is declared twice", name)
 		}
 		if err := checkThemeValue(name, value); err != nil {
-			return nil, err
+			return err
 		}
 		vars[name] = value
 	}
-	if len(vars) == 0 {
-		return nil, errors.New("the theme overrides nothing")
-	}
-	return vars, nil
+	return nil
 }
 
 func checkThemeValue(name, value string) error {
@@ -276,17 +323,45 @@ func checkContrast(style, theme map[string]string) []error {
 	return errs
 }
 
-func checkThemeSource(t *testing.T, name, src string, style map[string]string) {
+// layer は、後ろの変数ほど優先して重ねた値です（CSSで後の規則・詳細度の高い規則が勝つ順）。
+func layer(maps ...map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, m := range maps {
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// checkAreas は、公開ページと管理画面の色を、それぞれ実際に効く順に重ねて確かめます。
+// 管理画面では :root.admin-area の詳細度が :root より高いため、style.css の管理画面の色が、テーマの :root より勝ちます。
+func checkAreas(style, styleAdmin map[string]string, theme themeRules) []error {
+	var errs []error
+	for _, err := range checkContrast(style, theme.root) {
+		errs = append(errs, fmt.Errorf("public pages: %w", err))
+	}
+	for _, err := range checkContrast(layer(style, theme.root, styleAdmin), theme.admin) {
+		errs = append(errs, fmt.Errorf("admin pages: %w", err))
+	}
+	return errs
+}
+
+func checkThemeSource(t *testing.T, name, src string, style, styleAdmin map[string]string) {
 	t.Helper()
 	theme, err := parseTheme(src, style)
 	if err != nil {
 		t.Errorf("%s: %v", name, err)
 		return
 	}
-	if err := checkThemeColors(theme, style); err != nil {
+	if err := checkThemeColors(theme.root, style); err != nil {
 		t.Errorf("%s: %v", name, err)
 	}
-	for _, err := range checkContrast(style, theme) {
+	// 管理画面の規則は、style.css の管理画面の色を1つでも変えるなら全部を書く
+	if err := checkThemeColors(theme.admin, styleAdmin); err != nil {
+		t.Errorf("%s: :root.admin-area: %v", name, err)
+	}
+	for _, err := range checkAreas(style, styleAdmin, theme) {
 		t.Errorf("%s: %v", name, err)
 	}
 }
@@ -294,13 +369,16 @@ func checkThemeSource(t *testing.T, name, src string, style map[string]string) {
 // TestTheme_Contrast は、既定の配色と、見本のテーマと、サイトが置いたテーマが、色の組の基準を満たすことを検証します。
 // 基準は文字が4.5:1、文字でない部品の見分けが3:1（WCAG 2.1 の 1.4.3・1.4.11）。この組を満たしても、AA全体の保証ではありません。
 func TestTheme_Contrast(t *testing.T) {
-	style := styleRootVars(t)
-	for name, v := range style {
+	style, styleAdmin := styleVars(t)
+	for name, v := range layer(style, styleAdmin) {
 		if strings.HasPrefix(name, "--color-") && !themeColorPattern.MatchString(v) {
 			t.Errorf("style.css: %s must be #rgb or #rrggbb so that the contrast can be checked: %q", name, v)
 		}
 	}
-	for _, err := range checkContrast(style, nil) {
+	if len(styleAdmin) == 0 {
+		t.Error("style.css must give the admin pages their own colors (:root.admin-area)")
+	}
+	for _, err := range checkAreas(style, styleAdmin, themeRules{}) {
 		t.Errorf("style.css: %v", err)
 	}
 	samples, _ := filepath.Glob("testdata/themes/*.css")
@@ -308,7 +386,7 @@ func TestTheme_Contrast(t *testing.T) {
 		t.Fatal("testdata/themes must have a sample theme")
 	}
 	if b, err := os.ReadFile(themePath); err == nil {
-		checkThemeSource(t, "theme.css", string(b), style)
+		checkThemeSource(t, "theme.css", string(b), style, styleAdmin)
 	} else if !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
@@ -317,7 +395,7 @@ func TestTheme_Contrast(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		checkThemeSource(t, f, string(b), style)
+		checkThemeSource(t, f, string(b), style, styleAdmin)
 	}
 }
 
@@ -330,6 +408,13 @@ func TestTheme_RejectsUnsafeForms(t *testing.T) {
 	}
 	if _, err := parseTheme(strings.ReplaceAll(ok, "\n", "\r\n"), style); err != nil {
 		t.Fatalf("CRLF must pass: %v", err)
+	}
+	both := ok + ":root.admin-area {\n  --color-primary: #2d4a22;\n  --color-primary-hover: #1d3016;\n}\n"
+	if r, err := parseTheme(both, style); err != nil || r.admin["--color-primary"] != "#2d4a22" || r.root["--color-primary"] != "#7a1f3d" {
+		t.Fatalf("a theme with the admin rule must pass: %+v %v", r, err)
+	}
+	if r, err := parseTheme(":root.admin-area { --color-primary: #2d4a22; }", style); err != nil || len(r.root) != 0 {
+		t.Fatalf("an admin-only theme must pass: %+v %v", r, err)
 	}
 	for name, src := range map[string]string{
 		"BOM":                      "\xef\xbb\xbf" + ok,
@@ -366,6 +451,14 @@ func TestTheme_RejectsUnsafeForms(t *testing.T) {
 		"text after the rule":      ":root { --color-primary: #7a1f3d; } x",
 		"bare declarations":        "--color-primary: #7a1f3d;",
 		"colors without the block": ":root --color-primary: #7a1f3d;",
+		"admin rule first":         ":root.admin-area { --color-primary: #2d4a22; }\n:root { --color-primary: #7a1f3d; }",
+		"two root rules":           ":root { --color-primary: #7a1f3d; }\n:root { --color-text: #000; }",
+		"two admin rules":          ":root.admin-area { --color-primary: #2d4a22; }\n:root.admin-area { --color-text: #000; }",
+		"other class":              ":root.public { --color-primary: #7a1f3d; }",
+		"admin with space":         ":root .admin-area { --color-primary: #7a1f3d; }",
+		"admin compound":           ":root.admin-area.x { --color-primary: #7a1f3d; }",
+		"empty admin rule":         ":root { --color-primary: #7a1f3d; }\n:root.admin-area { }",
+		"admin spacing variable":   ":root.admin-area { --space-md: 2rem; }",
 	} {
 		if _, err := parseTheme(src, style); err == nil {
 			t.Errorf("%s: must be rejected: %q", name, src)
@@ -398,5 +491,35 @@ func TestTheme_ColorsAllOrNothing(t *testing.T) {
 	// 主色の上で4.5:1をわずかに超える文字は、0.95の不透明度で重ねた補足の文字で下回る
 	if r := contrast(blend(rgb{255, 255, 255}, rgb{0x2b, 0x6c, 0xb0}, 0.95), rgb{0x2b, 0x6c, 0xb0}); r >= contrast(rgb{255, 255, 255}, rgb{0x2b, 0x6c, 0xb0}) {
 		t.Fatalf("blending must lower the contrast: %.2f", r)
+	}
+}
+
+// TestTheme_AdminArea は、管理画面の色の規則も、全部か無しかとコントラストで確かめ、公開ページの色と別に測ることを検証します。
+func TestTheme_AdminArea(t *testing.T) {
+	style, styleAdmin := styleVars(t)
+	if err := checkThemeColors(map[string]string{"--color-primary": "#2d4a22"}, styleAdmin); err == nil {
+		t.Fatal("an admin rule that changes only some of the admin colors must fail")
+	}
+	ok := themeRules{admin: map[string]string{"--color-primary": "#2d4a22", "--color-primary-hover": "#1d3016"}}
+	if errs := checkAreas(style, styleAdmin, ok); len(errs) != 0 {
+		t.Fatal(errs)
+	}
+	// 管理画面だけ薄い主色にすると、管理画面だけが落ちる
+	light := themeRules{admin: map[string]string{"--color-primary": "#a58fd0", "--color-primary-hover": "#3f2a63"}}
+	errs := checkAreas(style, styleAdmin, light)
+	if len(errs) == 0 {
+		t.Fatal("a light admin primary color must fail")
+	}
+	for _, err := range errs {
+		if !strings.HasPrefix(err.Error(), "admin pages: ") {
+			t.Errorf("only the admin pages must fail: %v", err)
+		}
+	}
+	// テーマの :root の主色は、管理画面では style.css の管理画面の色に負ける（詳細度）。管理画面の測り方もそれに合わせる
+	pale := themeRules{root: map[string]string{"--color-primary": "#a58fd0"}}
+	for _, err := range checkAreas(style, styleAdmin, pale) {
+		if strings.HasPrefix(err.Error(), "admin pages: --color-primary on") {
+			t.Errorf("the admin pages keep their own primary color: %v", err)
+		}
 	}
 }
