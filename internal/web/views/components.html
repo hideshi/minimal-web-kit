@@ -5,12 +5,14 @@
 
 {{/*
   CSS とアイコンの読み込み。レイアウトの <head> で {{template "static-head"}} と書く。
-  URL には中身の版（?v=）が付き、CSS を変えるとすぐ新しい版が読まれる。予約名なので、利用側で定義し直さない
+  URL には中身の版（?v=）が付き、CSS を変えるとすぐ新しい版が読まれる。予約名なので、利用側で定義し直さない。
+  サイトがテーマ（static/css/theme.css）を置いたときだけ、style.css の後に読み込む
 */}}
 {{define "static-head"}}<link rel="icon" href="{{asset "img/favicon.svg"}}" type="image/svg+xml">
   <link rel="icon" href="{{asset "img/favicon-32.png"}}" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="{{asset "img/apple-touch-icon.png"}}">
-  <link rel="stylesheet" href="{{asset "css/style.css"}}">{{end}}
+  <link rel="stylesheet" href="{{asset "css/style.css"}}">{{with themeStylesheet}}
+  <link rel="stylesheet" href="{{.}}">{{end}}{{end}}
 
 {{/*
   アクセス解析の同意の案内と、analytics.js の読み込み。引数は web.Analytics（無ければ何も出さない）。

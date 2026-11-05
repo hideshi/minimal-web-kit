@@ -30,6 +30,8 @@ var staticPages = []staticPage{
 	{"/", "index.html", false},
 	{"/privacy", "privacy.html", false},
 	{"/static/css/style.css", "static/css/style.css", false},
+	// サイトが置いたときだけあるテーマ。一覧に常にあるため、テーマを外した再書き出しでは前回のファイルを消す
+	{"/static/css/theme.css", "static/css/theme.css", true},
 	{"/static/img/ogp.png", "static/img/ogp.png", true},
 	{"/static/img/favicon.svg", "static/img/favicon.svg", true},
 	{"/static/img/favicon-32.png", "static/img/favicon-32.png", true},

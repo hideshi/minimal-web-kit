@@ -131,24 +131,33 @@ func TestTemplate_NoInlineStylesOrScripts(t *testing.T) {
 	}
 }
 
-// TestCSS_SingleFileAndNoImportant はCSSファイルが1本のみであり、!importantが使われていないことを検証します。
+// TestCSS_SingleFileAndNoImportant は、CSSが style.css 1本と、サイトが任意で置くテーマ theme.css だけであり、
+// !important が使われていないことを検証します。機能の配るファイル（features/*/static/）にCSSを置くことも認めません。
 func TestCSS_SingleFileAndNoImportant(t *testing.T) {
-	files, err := filepath.Glob("../internal/web/static/css/*.css")
-	if err != nil {
-		t.Fatalf("failed to find css files: %v", err)
+	var files []string
+	for _, pattern := range []string{"../internal/web/static/*/*.css", "../internal/web/static/*.css", "../features/*/static/*.css", "../features/*/static/*/*.css"} {
+		m, err := filepath.Glob(pattern)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, m...)
 	}
-
-	if len(files) != 1 {
-		t.Errorf("Expected exactly 1 CSS file, but found %d: %v", len(files), files)
+	allowed := map[string]bool{"../internal/web/static/css/style.css": true, "../internal/web/static/css/theme.css": true}
+	if !slices.Contains(files, "../internal/web/static/css/style.css") {
+		t.Error("internal/web/static/css/style.css must exist")
 	}
-
-	content, err := os.ReadFile(files[0])
-	if err != nil {
-		t.Fatalf("failed to read css file: %v", err)
-	}
-
-	if strings.Contains(string(content), "!important") {
-		t.Errorf("!important found in %s. Avoid !important to keep CSS maintainable.", files[0])
+	for _, f := range files {
+		if !allowed[f] {
+			t.Errorf("CSS must be style.css or the optional theme.css (AGENTS.md の承認境界4): %s", f)
+			continue
+		}
+		content, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(content), "!important") {
+			t.Errorf("!important found in %s. Avoid !important to keep CSS maintainable.", f)
+		}
 	}
 }
 

@@ -104,6 +104,25 @@ func TestExportStatic_Site(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "sitemap.xml")); !os.IsNotExist(err) {
 		t.Fatal("a stale sitemap.xml must be removed")
 	}
+
+	// キットにテーマは無いので、書き出さない。テーマを外した後の再書き出しでは、前回の theme.css を消す
+	if _, err := os.Stat("../internal/web/static/css/theme.css"); err == nil {
+		t.Log("this site has a theme; the removal case is checked in the kit")
+		return
+	}
+	if strings.Contains(index, "theme.css") {
+		t.Fatal("index.html must not load a theme that does not exist")
+	}
+	stale := filepath.Join(dir, "static", "css", "theme.css")
+	if err := os.WriteFile(stale, []byte(":root {\n  --color-primary: #7a1f3d;\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := app.ExportStatic(siteRegistry(), dir, discardLogger()); err != nil {
+		t.Fatalf("re-export: %v", err)
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatal("a stale theme.css must be removed")
+	}
 }
 
 func TestExportStatic_RefusesUnsafeTargetsAndFeatures(t *testing.T) {

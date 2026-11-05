@@ -14,7 +14,11 @@ import (
 )
 
 //go:embed views/*.html static/*
-var contentFS embed.FS
+var embeddedFS embed.FS
+
+// contentFS は、テンプレートと /static/ のファイルです。テストでは、キットに無いテーマ（static/css/theme.css）の
+// ある場合を確かめるために差し替えます。
+var contentFS fs.FS = embeddedFS
 
 type Handler struct {
 	store     store.SessionStore
@@ -347,11 +351,12 @@ var componentFuncs = template.FuncMap{
 	"publishActions": func(toggle form.PostButton, deleteHref string) form.PublishActions {
 		return form.PublishActions{Toggle: toggle, DeleteHref: deleteHref}
 	},
-	"primaryButton": form.PrimaryButton,
-	"rowName":       form.RowName,
-	"hiddenField":   form.HiddenInput,
-	"asset":         AssetURL,
-	"navCurrent":    NavCurrent,
+	"primaryButton":   form.PrimaryButton,
+	"rowName":         form.RowName,
+	"hiddenField":     form.HiddenInput,
+	"asset":           AssetURL,
+	"themeStylesheet": themeStylesheet,
+	"navCurrent":      NavCurrent,
 }
 
 // ParseWithComponents は、共通の画面部品（views/components.html の notice・error・pagination・field・choices・

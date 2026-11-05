@@ -1,6 +1,7 @@
 package web
 
 import (
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -253,7 +254,7 @@ func TestAllowScripts(t *testing.T) {
 
 // TestComboboxScript_NoUnsafeAPIs は、部品のJSがHTMLの文字列化・eval・通信・保存・インラインstyleを使わないことを検査します。
 func TestComboboxScript_NoUnsafeAPIs(t *testing.T) {
-	body, err := contentFS.ReadFile("static/js/combobox.js")
+	body, err := fs.ReadFile(contentFS, "static/js/combobox.js")
 	if err != nil {
 		t.Fatal(err)
 	}

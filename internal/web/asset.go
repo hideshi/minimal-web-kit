@@ -19,13 +19,15 @@ const staticHeadName = "static-head"
 
 // assetVersions は、/static/ の各ファイル（static/ からの相対パス）と、その中身の SHA-256 の先頭12桁です。
 // ファイルはバイナリに埋め込まれているため、起動時に1回だけ計算します。ファイルごとの版なので、CSS を変えてもアイコンの URL は変わりません。
-var assetVersions = func() map[string]string {
+var assetVersions = mustAssetVersions(contentFS)
+
+func mustAssetVersions(fsys fs.FS) map[string]string {
 	versions := map[string]string{}
-	err := fs.WalkDir(contentFS, "static", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, "static", func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		b, err := fs.ReadFile(contentFS, path)
+		b, err := fs.ReadFile(fsys, path)
 		if err != nil {
 			return err
 		}
@@ -36,7 +38,21 @@ var assetVersions = func() map[string]string {
 		panic(err)
 	}
 	return versions
-}()
+}
+
+// themeAsset は、サイトが任意で置くテーマの CSS です。色と書体の変数だけを上書きします（docs/ui-guidelines.md の「テーマ」）。
+// キットには置きません。キットが持たなければ、サイトがこのファイルを変えても取り込みでぶつからないためです。
+const themeAsset = "css/theme.css"
+
+// themeStylesheet は、テーマの CSS があれば版付きの URL を、無ければ空の文字を返します。static-head が style.css の後に読み込みます。
+// asset は実行しない分岐の中でも実在を確かめるため、任意のファイルには使えません。
+func themeStylesheet() string {
+	u, err := AssetURL(themeAsset)
+	if err != nil {
+		return ""
+	}
+	return u
+}
 
 // staticHeadSource は、共通部品の static-head の中身です。利用側のテンプレートが同じ名前で差し替えていないかの照合に使います。
 var staticHeadSource = func() string {

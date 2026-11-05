@@ -82,6 +82,68 @@ func TestComponents_StaticHead(t *testing.T) {
 	}
 }
 
+// withTheme は、埋め込みのファイルに static/css/theme.css を足した状態に差し替えます（キットにはテーマを置かないため）。
+func withTheme(t *testing.T, css string) {
+	t.Helper()
+	fsys := fstest.MapFS{}
+	err := fs.WalkDir(embeddedFS, ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := fs.ReadFile(embeddedFS, path)
+		fsys[path] = &fstest.MapFile{Data: b}
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fsys["static/"+themeAsset] = &fstest.MapFile{Data: []byte(css)}
+	prevFS, prevVersions := contentFS, assetVersions
+	contentFS, assetVersions = fsys, mustAssetVersions(fsys)
+	t.Cleanup(func() { contentFS, assetVersions = prevFS, prevVersions })
+}
+
+// テーマが無ければ読み込まず、あれば style.css の後に版付きで読み込み、style.css と同じキャッシュで配ること。
+func TestAsset_ThemeStylesheet(t *testing.T) {
+	if themeStylesheet() != "" {
+		t.Fatal("the kit must not ship css/theme.css")
+	}
+	const css = ":root {\n  --color-primary: #7a1f3d;\n}\n"
+	withTheme(t, css)
+	theme, err := AssetURL(themeAsset)
+	if err != nil || theme != "/static/css/theme.css?v="+ContentVersion([]byte(css)) {
+		t.Fatalf("AssetURL(theme) = %q, %v", theme, err)
+	}
+	style, _ := AssetURL("css/style.css")
+	got := renderComponent(t, `{{template "static-head"}}`, nil)
+	i, j := strings.Index(got, `<link rel="stylesheet" href="`+style+`">`), strings.Index(got, `<link rel="stylesheet" href="`+theme+`">`)
+	if i < 0 || j < i || strings.Count(got, `rel="stylesheet"`) != 2 || strings.Count(got, "<link") != 5 {
+		t.Fatalf("static-head must load style.css and then theme.css:\n%s", got)
+	}
+
+	s := store.NewMemoryStore()
+	h, err := NewHandler(s, NewSessionManager(s, false), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	routes := h.Routes(nil, nil)
+	for path, want := range map[string]string{
+		theme:                   "public, max-age=31536000, immutable",
+		"/static/css/theme.css": "public, max-age=600",
+	} {
+		rec := httptest.NewRecorder()
+		routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusOK || rec.Body.String() != css || rec.Header().Get("Cache-Control") != want {
+			t.Errorf("%s: %d %q Cache-Control = %q, want %q", path, rec.Code, rec.Body.String(), rec.Header().Get("Cache-Control"), want)
+		}
+	}
+	rec := httptest.NewRecorder()
+	routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/privacy", nil))
+	if !strings.Contains(rec.Body.String(), `<link rel="stylesheet" href="`+theme+`">`) {
+		t.Errorf("pages must load the theme: %d", rec.Code)
+	}
+}
+
 // asset の引数の誤りと static-head の定義し直しは、実行しない分岐の中でも解析の時点でエラーになること。
 // ParsePage で後から足す本文の定義も対象にすること。
 func TestAsset_ParseRejectsBadReferences(t *testing.T) {
