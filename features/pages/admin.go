@@ -250,7 +250,10 @@ func (f *Feature) handlePreview(w http.ResponseWriter, r *http.Request, s featur
 		f.formPage(w, r, s, p, pageForm{Input: in, Invalid: invalid.Field}, http.StatusBadRequest, nil)
 		return
 	}
-	doc, _ := richtext.ParseWithImages(n.body)
+	doc, _ := richtext.ParseForPages(n.body)
+	if doc.Hero != nil {
+		doc.Hero.Title = in.Title
+	}
 	if f.failed(w, r, f.resolveImages(r.Context(), &doc, true)) {
 		return
 	}

@@ -407,3 +407,62 @@ func TestAdmin_BusyInvitesRetry(t *testing.T) {
 		t.Fatalf("other failure: %d", w.Code)
 	}
 }
+
+// TestPublic_LPParts は、ヒーローのあるページが題名をヒーローの見出しとして1つだけ描き、説明文をヒーローの導入から作り、
+// ボタンとカードを描くこと、プレビューにも同じ部品が出ることを確かめる。
+// 不変条件: PAGES-INV-12
+// ユースケース: UC-PAGES-8
+func TestPublic_LPParts(t *testing.T) {
+	fx := setup(t)
+	body := "ヒーロー: 必要な機能だけで作る\nボタン: [相談する](/contact)\n\n## 利点\nカード: 少ない | 預かる情報が少ない"
+	fx.create("lp", "乗り換えのご案内", body, "", true)
+	page := fx.get("/lp", nil).Body.String()
+	if n := strings.Count(page, "<h1"); n != 1 {
+		t.Errorf("h1 count = %d", n)
+	}
+	for _, want := range []string{
+		`<h1 class="hero-title">乗り換えのご案内</h1>`,
+		`<p class="hero-lead">必要な機能だけで作る</p>`,
+		`<a class="btn btn-primary" href="/contact">相談する</a>`,
+		`<h3 class="card-title">少ない</h3>`,
+		`<meta name="description" content="必要な機能だけで作る">`,
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+	preview := fx.post("/admin/pages/preview", url.Values{"slug": {"lp"}, "title": {"乗り換えのご案内"}, "body": {body}}, fx.admin).Body.String()
+	if !strings.Contains(preview, `<h1 class="hero-title">乗り換えのご案内</h1>`) || !strings.Contains(preview, `<h3 class="card-title">少ない</h3>`) {
+		t.Errorf("preview lacks the LP parts: %s", preview)
+	}
+	// ヒーローの無いページは、今と同じ見出しと説明文
+	fx.create("plain", "会社概要", "最初の段落", "", true)
+	if plain := fx.get("/plain", nil).Body.String(); !strings.Contains(plain, "<h1>会社概要</h1>") || !strings.Contains(plain, `<meta name="description" content="最初の段落">`) {
+		t.Errorf("plain page changed: %s", plain)
+	}
+}
+
+// TestInit_WarnsAboutOldLPLines は、部品の読み方を足す前に保存した本文に部品の前置きで始まる行があれば、
+// 起動の時にページのIDだけを警告し、本文を出さず、後から保存したページは警告しないことを確かめる。
+// 不変条件: PAGES-INV-13
+func TestInit_WarnsAboutOldLPLines(t *testing.T) {
+	fx := setup(t)
+	old := fx.create("old", "古い", "前置き\nカード: 本文カナリア | 説明", "", false)
+	fresh := fx.create("new", "新しい", "カード: a | b", "", false)
+	for id, at := range map[int64]int64{old: lpSyntaxSince.Unix() - 1, fresh: lpSyntaxSince.Unix()} {
+		if _, err := fx.core.DB().Exec("UPDATE pages SET updated_at = ? WHERE id = ?", at, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fx.logs.Reset()
+	if err := fx.f.Init(fx.core.DB()); err != nil {
+		t.Fatal(err)
+	}
+	logs := fx.logs.String()
+	if !strings.Contains(logs, "page_ids=["+strconv.FormatInt(old, 10)+"]\n") {
+		t.Errorf("warning lacks the old page: %s", logs)
+	}
+	if strings.Contains(logs, "本文カナリア") {
+		t.Errorf("warning leaked the body: %s", logs)
+	}
+}

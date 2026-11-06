@@ -126,6 +126,9 @@ func (f *Feature) Init(db *sql.DB) error {
 	}
 	f.store = NewStore(db)
 	f.store.now = func() time.Time { return f.now() }
+	if err := f.warnLPLines(context.Background()); err != nil {
+		return fmt.Errorf("pages lp check: %w", err)
+	}
 	f.rebuildMu.Lock()
 	defer f.rebuildMu.Unlock()
 	return f.refreshNav(context.Background())
@@ -259,12 +262,15 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	doc, err := richtext.ParseWithImages(p.Body)
+	doc, err := richtext.ParseForPages(p.Body)
 	if err != nil {
 		// 保存のときに検査しているため、ここには来ない想定
 		f.logger.Error("pages body over limit", slog.Int64("page_id", p.ID))
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
+	}
+	if doc.Hero != nil {
+		doc.Hero.Title = p.Title
 	}
 	if err := f.resolveImages(r.Context(), &doc, false); err != nil {
 		f.logger.Error("pages images failed", web.RequestIDAttr(w))
@@ -294,8 +300,11 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 	_, _ = buf.WriteTo(w)
 }
 
-// description は、検索結果等に出す説明文を、本文の最初の段落から作ります（120文字まで）。
+// description は、検索結果等に出す説明文を、ヒーローの導入か、無ければ本文の最初の段落から作ります（120文字まで）。
 func description(doc richtext.Doc, fallback string) string {
+	if doc.Hero != nil {
+		return clip(richtext.Plain(doc.Hero.Inlines))
+	}
 	for _, b := range doc.Blocks {
 		if b.Kind != "p" {
 			continue
@@ -305,11 +314,27 @@ func description(doc richtext.Doc, fallback string) string {
 			s.WriteString(richtext.Plain(line))
 			s.WriteString(" ")
 		}
-		text := []rune(strings.Join(strings.Fields(s.String()), " "))
-		if len(text) > 120 {
-			return string(text[:120]) + "…"
-		}
-		return string(text)
+		return clip(s.String())
 	}
 	return fallback
+}
+
+// clip は、空白を1つにそろえ、120文字までにします。
+func clip(s string) string {
+	text := []rune(strings.Join(strings.Fields(s), " "))
+	if len(text) > 120 {
+		return string(text[:120]) + "…"
+	}
+	return string(text)
+}
+
+// warnLPLines は、LPの部品の前置きで始まる行を持つページのIDを、警告のログに出します（本文は出さない）。
+// 部品の読み方を足す前に書いた本文の見え方が変わり得るため。何も変えない。
+func (f *Feature) warnLPLines(ctx context.Context) error {
+	ids, err := f.store.LPLinePages(ctx)
+	if err != nil || len(ids) == 0 {
+		return err
+	}
+	f.logger.Warn("pages have lines that may render as LP parts; escape the colon (ボタン\\:) to keep them as text", slog.Any("page_ids", ids))
+	return nil
 }

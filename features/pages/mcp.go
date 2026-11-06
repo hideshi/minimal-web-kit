@@ -120,7 +120,7 @@ func navText(n *int) string {
 // MCPTools は、固定ページのツールを返します。保存は管理画面と同じ検査とナビの更新を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"slug":{"type":"string"},"title":{"type":"string"},"body":{"type":"string"},"nav_order":{"type":["integer","null"]},"publish_at":{"type":"string","description":"公開を始める日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない。公開中のページを未来の日時にはできない"}`
+	fields := `"slug":{"type":"string"},"title":{"type":"string"},"body":{"type":"string","description":"本文。書き方を絞ったMarkdown（## 見出し、- 箇条書き、1. 番号付き、表、[文字](URL)、**強調**）。1行目の「ヒーロー: 導入の文」で最初の画面、「ボタン: [文字](URL)」の行でボタン、「カード: 題名 | 説明」の行でカードの並び。HTMLは書けない"},"nav_order":{"type":["integer","null"]},"publish_at":{"type":"string","description":"公開を始める日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない。公開中のページを未来の日時にはできない"}`
 	return []features.MCPTool{
 		{
 			Name: "pages_list", Title: "固定ページの一覧", Description: "固定ページの一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,

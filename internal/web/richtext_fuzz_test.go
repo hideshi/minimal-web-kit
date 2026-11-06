@@ -73,3 +73,74 @@ func FuzzRichtext(f *testing.F) {
 		}
 	})
 }
+
+func renderPageRichtext(t *testing.T, body string) (string, bool) {
+	t.Helper()
+	doc, err := richtext.ParseForPages(body)
+	if err != nil {
+		return "", false
+	}
+	if doc.Hero != nil {
+		doc.Hero.Title = "題名<b>"
+	}
+	return renderComponent(t, `{{template "richtext" .}}`, doc), true
+}
+
+// TestComponents_RichtextLPParts は、ヒーロー・ボタン・カードの描き方を確かめる（docs/richtext.md 2.2節）。
+func TestComponents_RichtextLPParts(t *testing.T) {
+	got, _ := renderPageRichtext(t, "ヒーロー: 導入<i>\nボタン: [相談](/contact)\nボタン: [外部](https://example.com)\n\n## 利点\nカード: 少ない | **説明**\nカード: b | c\nカード: d | e\n\nボタン: [もう一度](/contact)")
+	for _, want := range []string{
+		`<section class="hero"><h1 class="hero-title">題名&lt;b&gt;</h1><p class="hero-lead">導入&lt;i&gt;</p><div class="hero-cta"><a class="btn btn-primary" href="/contact">相談</a><a class="btn btn-secondary" href="https://example.com">外部</a></div></section>`,
+		`<div class="grid-3"><article class="card"><h3 class="card-title">少ない</h3><p class="card-content"><strong>説明</strong></p></article>`,
+		`<div class="action-bar"><a class="btn btn-primary" href="/contact">もう一度</a></div>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	if strings.Contains(got, "target=") || strings.Contains(got, "rel=") {
+		t.Errorf("buttons must open in the same tab: %s", got)
+	}
+	if got, _ := renderPageRichtext(t, "カード: a | b"); !strings.Contains(got, `<div class="grid-2"><article class="card"><h2 class="card-title">a</h2>`) {
+		t.Errorf("cards without a heading before them use h2: %s", got)
+	}
+}
+
+var knownPageTag = regexp.MustCompile(`</?(div|section|article|h1|h2|h3|p|br|ul|ol|li|table|caption|thead|tbody|tr|th|td|strong|a)( (class|scope|href)="[^"<>]*")*>`)
+
+// FuzzRichtextPages は、固定ページの読み方（ParseForPages）でも、止まらず、出力が入力に比例し、リンクとボタンが許可したURLだけで、
+// 既知のタグ以外の < が出ないことを確かめる。
+func FuzzRichtextPages(f *testing.F) {
+	for _, seed := range []string{
+		"ヒーロー: 導入\nボタン: [a](/a)\nボタン: [b](https://example.com)\n\n## 利点\nカード: a | b\nカード: [c](/c) | **d**",
+		"ボタン: [危険](javascript:alert(1))\nボタン: [x](//evil)\nカード: <script> | <img src=x>",
+		"ボタン: " + strings.Repeat("[", 3000), "カード: " + strings.Repeat("|", 3000), strings.Repeat("ボタン: [a](/a)\n", 500), strings.Repeat("カード: a | b\n", 500),
+		"ヒーロー: \"><img src=x onerror=alert(1)>\nボタン: [x](/\"onmouseover=alert(1))",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, body string) {
+		if !utf8.ValidString(body) || len(body) > 20000 {
+			return
+		}
+		out, ok := renderPageRichtext(t, body)
+		if !ok {
+			return
+		}
+		if len(out) > 60*len(body)+400 {
+			t.Fatalf("output too large: %d for %d", len(out), len(body))
+		}
+		for _, m := range hrefAttr.FindAllStringSubmatch(out, -1) {
+			if !strings.HasPrefix(m[1], "https://") && !strings.HasPrefix(m[1], "/") || strings.HasPrefix(m[1], "//") {
+				t.Fatalf("unexpected href %q", m[1])
+			}
+		}
+		if rest := knownPageTag.ReplaceAllString(out, ""); strings.Contains(rest, "<") || strings.Contains(rest, ">") {
+			t.Fatalf("unexpected markup in %q", rest)
+		}
+		// ヒーローは1つだけ描く（題名の h1 が2つにならない）
+		if doc, _ := richtext.ParseForPages(body); doc.Hero != nil && strings.Count(out, `class="hero"`) != 1 {
+			t.Fatalf("hero rendered %d times", strings.Count(out, `class="hero"`))
+		}
+	})
+}

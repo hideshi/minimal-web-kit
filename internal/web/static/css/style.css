@@ -937,6 +937,17 @@ select[aria-invalid="true"] {
   margin-bottom: var(--space-sm);
 }
 
+/* 本文のカードの題名とボタンの並び（LPの部品。docs/richtext.md 2.2節）。カードの中では見出しの上の余白を付けず、
+   段落の下の余白も詰める */
+.richtext .card-title {
+  margin-top: 0;
+  margin-bottom: var(--space-xs);
+}
+
+.richtext .card-content {
+  margin-bottom: 0;
+}
+
 .richtext p,
 .richtext .table-container {
   margin-bottom: var(--space-md);

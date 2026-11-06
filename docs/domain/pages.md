@@ -54,6 +54,8 @@ stateDiagram-v2
 | PAGES-INV-8 | タイトル・本文・スラッグをログに出さない | `Page.LogValue`・`Input.LogValue` |
 | PAGES-INV-9 | プレビューは保存も公開状態の変更もしない（`updated_at` も変えない）。入力に誤りがあれば描かず400にする | `handlePreview` |
 | PAGES-INV-10 | 404は、ページが無いときだけ返す。取得の失敗は500にして記録し、障害の間に公開中のページを「無い」と扱わない | `HandleFallback` |
+| PAGES-INV-12 | 本文の最初の空でない行がヒーローの行なら、ページの題名をヒーローの見出しとして描き、題名の `h1` は1つだけにする。説明文（`description`）はヒーローの導入から作る。ボタンは本文のリンクと同じURLの許可を通り、同じタブで開く。社内文書の本文では、LPの部品の行は段落のまま（[richtext.md](../richtext.md) の2.2節） | `ParseForPages`・`page.html`・`description` |
+| PAGES-INV-13 | LPの部品の読み方を足す前に保存した本文に、部品の前置きで始まる行があれば、起動の時にページのIDだけを警告のログに出す（本文は出さず、何も変えない） | `warnLPLines`・`LPLinePages` |
 | PAGES-INV-11 | 空欄の保存は公開日時を変えない。公開ページに出ているページを未来の日時にする保存は、保存のトランザクションの中の今の行と時刻で判定して拒否する。非公開に戻すと公開日時を消す。予約中に過去の日時を保存すると、その保存で公開になり、そのことを利用者に伝える。MCPの照合は公開日時も含める | `checkPublishAt`・`SetPublishedIfUnchanged` |
 
 ## 5. 権限

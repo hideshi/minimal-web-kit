@@ -140,6 +140,10 @@ func TestAdminScreenshots(t *testing.T) {
 	page, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "about", Title: "会社概要", NavOrder: "1", Body: "## 概要\n小さなチームで、個人情報を集めないWebサイトを作っています。\n詳しくは[お知らせ](/news)をご覧ください。\n\n表: 会社の情報\n| 項目 | 内容 |\n|---|---|\n| 社名 | 例の会社 |\n| 所在地 | 東京都 |\n| 有効にするコマンド | make add-catalog |\n| 資料 | https://github.com/hideshi/minimal-web-kit/blob/main/docs/data-inventory.md |\n\n表: 機能と設定\n| 機能 | 有効にするコマンド | 設定 | 説明 |\n|---|---|---|---|\n| カタログ | make add-catalog | なし | 項目の一覧と詳細 |\n| お問い合わせ | make add-contact | CONTACT_RETENTION_DAYS | 受信箱。internationalization のような長い単語も入れる |\n\n### 大切にしていること\n- 取得するデータを減らす\n- **依存**を減らす\n1. 計画\n2. 実装"}, nil)
 	_ = pageStore.SetPublished(ctx, page, true)
 	shoot("15-page-public", "/about")
+	// 切り口ごとのLP（ヒーロー・ボタン・カード）
+	lp, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "lp-switch", Title: "WordPress から、手間とリスクの少ないホームページへ", Body: "ヒーロー: 会社案内やお知らせが中心のホームページを、必要な機能だけで作り、運用する仕組みです。更新や管理の手間と、情報漏えいのリスクを減らします。\nボタン: [ご相談・お問い合わせ](/contact)\nボタン: [機能の一覧を見る](/about)\n\n## 乗り換えると変わること\nカード: 預かる情報が少ない | 氏名や連絡先を初期設定では集めません。漏れて困る情報が最初から少なくなります。\nカード: 更新する部品が少ない | アプリの更新は、実行ファイル1つを置き換えるだけです。\nカード: 足しても崩れにくい | 機能を足して決まりと食い違うと、公開前の自動の検査で止まります。\n\n## 記事は引き継げます\nカード: 移るもの | お知らせ・固定ページ・画像を下書きとして移します。\nカード: 移らないもの | テーマとプラグインの見た目と機能は作り直します。\n\nボタン: [ご相談・お問い合わせ](/contact)"}, nil)
+	_ = pageStore.SetPublished(ctx, lp, true)
+	shoot("15b-page-lp", "/lp-switch")
 	// 公開一覧の絞り込み（タグ20個。狭い画面での折り返しを見る）
 	for i, name := range []string{"新築", "リフォーム", "木造", "鉄骨", "省エネ", "断熱", "耐震", "バリアフリー", "店舗", "オフィス", "住宅", "倉庫", "外構", "内装", "水回り", "屋根", "外壁", "太陽光", "蓄電池", "地域材"} {
 		tagID, _ := items.SaveClassification(ctx, "tags", 0, name)

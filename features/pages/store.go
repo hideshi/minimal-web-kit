@@ -107,7 +107,7 @@ func normalize(in Input, taken func(string) bool) (normalized, error) {
 	if n.body, err = form.Text(in.Body, maxBodyRunes, false); err != nil {
 		return n, InputError{"body"}
 	}
-	doc, err := richtext.ParseWithImages(n.body)
+	doc, err := richtext.ParseForPages(n.body)
 	if err != nil {
 		return n, InputError{"body_limit"}
 	}
@@ -360,6 +360,35 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 	})
 }
 
+// lpSyntaxSince は、LPの部品の行（docs/richtext.md 2.2節）を読み始めた日時です。これより前に保存した本文は、
+// 部品の書き方を知らずに書かれたものとして扱います。
+var lpSyntaxSince = time.Date(2026, 11, 7, 0, 0, 0, 0, time.FixedZone("JST", 9*60*60))
+
+// LPLinePages は、LPの部品の読み方を足す前に保存した本文のうち、部品の前置き（ヒーロー・ボタン・カード）で始まる行が
+// あるページのIDです。見え方が変わり得るので、起動の時に知らせるために使います。本文は返しません。
+func (s *Store) LPLinePages(ctx context.Context) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, body FROM pages WHERE updated_at < ? ORDER BY id", lpSyntaxSince.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int64
+	for rows.Next() {
+		var id int64
+		var body string
+		if err := rows.Scan(&id, &body); err != nil {
+			return nil, err
+		}
+		for _, line := range strings.Split(body, "\n") {
+			if richtext.LPLine(line) {
+				out = append(out, id)
+				break
+			}
+		}
+	}
+	return out, rows.Err()
+}
+
 // imageRefs は、全てのページが使う画像を返します。
 func (s *Store) imageRefs(ctx context.Context) (map[string][]string, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT id, body FROM pages")
@@ -375,7 +404,7 @@ func (s *Store) imageRefs(ctx context.Context) (map[string][]string, error) {
 			return nil, err
 		}
 		// 上限を超えた本文は公開できないため、参照も無いものとして扱う
-		if doc, err := richtext.ParseWithImages(body); err == nil {
+		if doc, err := richtext.ParseForPages(body); err == nil {
 			refs[strconv.FormatInt(id, 10)] = doc.Images()
 		}
 	}
@@ -392,7 +421,7 @@ func (s *Store) publishedUses(ctx context.Context, id int64, file string) (bool,
 	if err != nil {
 		return false, err
 	}
-	doc, err := richtext.ParseWithImages(body)
+	doc, err := richtext.ParseForPages(body)
 	if err != nil {
 		return false, nil // 上限を超えた本文は公開できない
 	}

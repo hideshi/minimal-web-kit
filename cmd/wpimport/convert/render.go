@@ -139,6 +139,12 @@ func escapeLineStart(line string) string {
 	case strings.HasPrefix(line, "表: "):
 		return "表\\:" + line[len("表:"):]
 	}
+	// 固定ページのLPの部品の行（docs/richtext.md 2.2節）の前置きも、コロンを逃がして段落の行にする
+	for _, prefix := range []string{"ヒーロー", "ボタン", "カード"} {
+		if strings.HasPrefix(line, prefix+": ") {
+			return prefix + "\\:" + line[len(prefix+":"):]
+		}
+	}
 	return line
 }
 

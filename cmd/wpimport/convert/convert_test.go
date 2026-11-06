@@ -69,6 +69,7 @@ func TestConvert_Page(t *testing.T) {
 		{"uppercase scheme", `<p><a href="HTTPS://Example.COM/a">a</a></p>`, "[a](https://example.com/a)"},
 		{"escape", `<p>[注] C:\temp と **星** と a*b</p>`, `\[注] C:\\temp と \*\*星\*\* と a*b`},
 		{"line start", "<p># 番号</p><p>- 項目</p><p>1. 一</p><p>| 縦</p><p>表: 説明</p>", "\\# 番号\n\n\\- 項目\n\n1\\. 一\n\n\\| 縦\n\n表\\: 説明"},
+		{"lp line start", `<p>ヒーロー: 導入</p><p>ボタン: <a href="/a">押す</a></p><p>カード: 題 | 説明</p>`, "ヒーロー\\: 導入\n\nボタン\\: [押す](/a)\n\nカード\\: 題 | 説明"},
 		{"image", `<p>前</p><figure><img src="x" alt="店の外観" class="wp-image-30"></figure><p>後</p>`, "前\n\n![店の外観](/media/" + fileA + ")\n\n後"},
 		{"image in li", `<ul><li>a</li><li><img class="wp-image-31" alt="図"></li><li>b</li></ul>`, "- a\n\n![図](/media/" + fileB + ")\n\n- b"},
 		{"image in text", `<p>前<img class="wp-image-30" alt="絵">後</p>`, "前\n\n![絵](/media/" + fileA + ")\n\n後"},
@@ -96,8 +97,18 @@ func TestConvert_Page(t *testing.T) {
 			if r.Body != c.want {
 				t.Errorf("Convert(%q)\n got: %q\nwant: %q", c.in, r.Body, c.want)
 			}
-			if _, err := richtext.ParseWithImages(r.Body); err != nil {
+			doc, err := richtext.ParseForPages(r.Body)
+			if err != nil {
 				t.Errorf("output must parse: %v", err)
+			}
+			// 移行した本文は、LPの部品にならない（元の段落のまま読む）
+			if doc.Hero != nil {
+				t.Errorf("output became a hero: %q", r.Body)
+			}
+			for _, b := range doc.Blocks {
+				if b.Kind == "buttons" || b.Kind == "cards" {
+					t.Errorf("output became %s: %q", b.Kind, r.Body)
+				}
 			}
 		})
 	}

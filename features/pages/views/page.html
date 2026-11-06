@@ -1,6 +1,6 @@
 {{define "content"}}
 <article>
-  <h1>{{.Page.Title}}</h1>
+  {{if not .Doc.Hero}}<h1>{{.Page.Title}}</h1>{{end}}
   {{template "richtext" .Doc}}
 </article>
 {{end}}

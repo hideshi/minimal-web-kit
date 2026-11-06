@@ -19,8 +19,11 @@ const (
 	MaxImages = 100
 	// MaxAltRunes は、画像の説明の文字数の上限です。
 	MaxAltRunes = 200
-	maxURL      = 2048
-	maxDigits   = 9
+	// MaxButtons と MaxCards は、1つの並びのボタン・カードの数です（ParseForPages）。超えた行は新しい並びを始めます。
+	MaxButtons = 3
+	MaxCards   = 12
+	maxURL     = 2048
+	maxDigits  = 9
 	// imagePath は、画像の記法に書けるURLの接頭辞です。
 	imagePath = "/media/"
 )
@@ -48,7 +51,8 @@ type Inline struct {
 	Href string // Kind が "link" のときだけ。docs/richtext.md 5節の許可を通ったもの
 }
 
-// Block はブロック1つです。Kind は "h2"・"h3"・"p"・"ul"・"ol"・"table"・"image" のどれかです。
+// Block はブロック1つです。Kind は "h2"・"h3"・"p"・"ul"・"ol"・"table"・"image"・"buttons"・"cards" のどれかです。
+// ヒーロー（"hero"）は Blocks に入れず、Doc.Hero に置きます。
 type Block struct {
 	Kind    string
 	Inlines []Inline   // 見出し
@@ -62,11 +66,23 @@ type Block struct {
 	Src     string // 描くURL。空なら説明の文字として描く（ResolveImages）
 	Width   int
 	Height  int
+	Buttons []Inline // ボタンの並びとヒーローのボタン（どれもリンク）
+	Cards   []Card   // カードの並び
+	Heading string   // カードの題名の見出し（"h2" か "h3"）
+	Grid    string   // カードの並びのクラス（"grid-2" か "grid-3"）
+	Title   string   // ヒーローの見出しに描くページの題名。読む処理は入れず、描く側が入れる
+}
+
+// Card はカード1枚です。
+type Card struct {
+	Title []Inline
+	Body  []Inline
 }
 
 // Doc は読んだ本文です。
 type Doc struct {
 	Blocks []Block
+	Hero   *Block // ヒーロー（ParseForPages で、本文の最初の空でない行が当たった時だけ）。導入は Inlines、ボタンは Buttons
 }
 
 // Images は、本文の画像のファイル名を、重ねずに出てくる順で返します。
@@ -96,12 +112,16 @@ func (d Doc) ResolveImages(resolve func(file string) (src string, width, height 
 }
 
 // Parse は本文を構造に読みます。画像の行は読みません。エラーは上限を超えたときだけです。
-func Parse(body string) (Doc, error) { return parse(body, false) }
+func Parse(body string) (Doc, error) { return parse(body, false, false) }
 
-// ParseWithImages は Parse に加えて、画像の行を読みます（docs/richtext.md 2節の順6）。
-func ParseWithImages(body string) (Doc, error) { return parse(body, true) }
+// ParseWithImages は Parse に加えて、画像の行を読みます（docs/richtext.md 2節の順5.5）。
+func ParseWithImages(body string) (Doc, error) { return parse(body, true, false) }
 
-func parse(body string, images bool) (Doc, error) {
+// ParseForPages は ParseWithImages に加えて、LPの部品の行（ヒーロー・ボタン・カード）を読みます（docs/richtext.md 2.2節）。
+// 固定ページの保存の検査・公開の表示・プレビューが使います。
+func ParseForPages(body string) (Doc, error) { return parse(body, true, true) }
+
+func parse(body string, images, lp bool) (Doc, error) {
 	raw := strings.Split(body, "\n")
 	lines := make([]string, len(raw))
 	for i, l := range raw {
@@ -110,20 +130,50 @@ func parse(body string, images bool) (Doc, error) {
 	var doc Doc
 	var cur *Block
 	closeBlock := func() {
-		if cur != nil {
-			doc.Blocks = append(doc.Blocks, *cur)
-			cur = nil
+		if cur == nil {
+			return
 		}
+		switch cur.Kind {
+		case "hero":
+			hero := *cur
+			doc.Hero = &hero
+		case "cards":
+			cur.Grid = "grid-2"
+			if n := len(cur.Cards); n == 3 || n == 6 {
+				cur.Grid = "grid-3"
+			}
+			doc.Blocks = append(doc.Blocks, *cur)
+		default:
+			doc.Blocks = append(doc.Blocks, *cur)
+		}
+		cur = nil
 	}
 	lastHeading := ""
 	tables, imageCount := 0, 0
+	first := true  // まだ空でない行を読んでいない（ヒーローは最初の空でない行だけ）
+	sawH2 := false // 本文の ## の見出しが既にある（カードの題名の見出しの階層）
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
+		isFirst := first && line != ""
+		if line != "" {
+			first = false
+		}
 		kind := headingLevel(line)
 		ul, ol := listItem(line, "ul"), listItem(line, "ol")
 		alt, file, isImage := "", "", false
 		if images {
 			alt, file, isImage = imageLine(line)
+		}
+		var heroLead []Inline
+		var button Inline
+		var card Card
+		isHero, isButton, isCard := false, false, false
+		if lp {
+			if isFirst {
+				heroLead, isHero = heroLine(line)
+			}
+			button, isButton = buttonLine(line)
+			card, isCard = cardLine(line)
 		}
 		switch {
 		case line == "":
@@ -133,6 +183,7 @@ func parse(body string, images bool) (Doc, error) {
 			inl := inlines(trimTokens(lex(line[len(kind)+1:]))) // "## " は3バイト、"### " は4バイト
 			doc.Blocks = append(doc.Blocks, Block{Kind: kind, Inlines: inl})
 			lastHeading = Plain(inl)
+			sawH2 = sawH2 || kind == "h2"
 		case strings.HasPrefix(line, "表: ") && len(line) > len("表: ") && i+2 < len(lines) && isTableStart(lines[i+1], lines[i+2]):
 			closeBlock()
 			caption := joinTokens(lex(strings.TrimSpace(strings.TrimPrefix(line, "表: "))))
@@ -158,6 +209,25 @@ func parse(body string, images bool) (Doc, error) {
 				return Doc{}, LimitError{fmt.Sprintf("more than %d images", MaxImages)}
 			}
 			doc.Blocks = append(doc.Blocks, Block{Kind: "image", Alt: alt, File: file})
+		case isHero:
+			closeBlock()
+			cur = &Block{Kind: "hero", Inlines: heroLead}
+		case isButton:
+			// ヒーローの直後か、ボタンの並びの途中なら続ける。上限を超えたら新しい並びを始める（入力を捨てない）
+			if cur == nil || (cur.Kind != "hero" && cur.Kind != "buttons") || len(cur.Buttons) >= MaxButtons {
+				closeBlock()
+				cur = &Block{Kind: "buttons"}
+			}
+			cur.Buttons = append(cur.Buttons, button)
+		case isCard:
+			if cur == nil || cur.Kind != "cards" || len(cur.Cards) >= MaxCards {
+				closeBlock()
+				cur = &Block{Kind: "cards", Heading: "h2"}
+				if sawH2 {
+					cur.Heading = "h3"
+				}
+			}
+			cur.Cards = append(cur.Cards, card)
 		case ul != "":
 			if cur == nil || cur.Kind != "ul" {
 				closeBlock()
@@ -226,6 +296,69 @@ func imageLine(line string) (alt, file string, ok bool) {
 // ImageLine は、説明とファイル名から画像の行を作ります。読みを変える `\` と `]` だけを逃がします。
 func ImageLine(alt, file string) string {
 	return "![" + strings.NewReplacer(`\`, `\\`, `]`, `\]`).Replace(alt) + "](" + imagePath + file + ")"
+}
+
+// ---- LPの部品の行（docs/richtext.md 2.2節。ParseForPages だけ） ----
+
+const (
+	heroPrefix   = "ヒーロー: "
+	buttonPrefix = "ボタン: "
+	cardPrefix   = "カード: "
+)
+
+// LPLine は、行が LPの部品の前置き（ヒーロー・ボタン・カード）で始まるかを返します。形の検査はしません。
+func LPLine(line string) bool {
+	return strings.HasPrefix(line, heroPrefix) || strings.HasPrefix(line, buttonPrefix) || strings.HasPrefix(line, cardPrefix)
+}
+
+// heroLine は、ヒーローの行の形なら導入を返します。最初の空でない行かどうかは呼ぶ側が見ます。
+func heroLine(line string) ([]Inline, bool) {
+	if !strings.HasPrefix(line, heroPrefix) {
+		return nil, false
+	}
+	ts := trimTokens(lex(line[len(heroPrefix):]))
+	if len(ts) == 0 {
+		return nil, false
+	}
+	return inlines(ts), true
+}
+
+// buttonLine は、前置きの後ろが、前後の空白を除いてリンクちょうど1つなら、そのリンクを返します。
+func buttonLine(line string) (Inline, bool) {
+	if !strings.HasPrefix(line, buttonPrefix) {
+		return Inline{}, false
+	}
+	inl := inlines(trimTokens(lex(line[len(buttonPrefix):])))
+	if len(inl) != 1 || inl[0].Kind != "link" {
+		return Inline{}, false
+	}
+	return inl[0], true
+}
+
+// cardLine は、前置きの後ろに記号の | がちょうど1つあり、題名と説明がどちらも空でなければ、カードを返します。
+// 区切りは走査の記号の | で数え、強調・リンクを読む前に分けます（リンクの文字やURLの中の | も数える）。
+func cardLine(line string) (Card, bool) {
+	if !strings.HasPrefix(line, cardPrefix) {
+		return Card{}, false
+	}
+	ts := lex(line[len(cardPrefix):])
+	at := -1
+	for i, t := range ts {
+		if t.sym && t.r == '|' {
+			if at >= 0 {
+				return Card{}, false
+			}
+			at = i
+		}
+	}
+	if at < 0 {
+		return Card{}, false
+	}
+	title, body := trimTokens(ts[:at]), trimTokens(ts[at+1:])
+	if len(title) == 0 || len(body) == 0 {
+		return Card{}, false
+	}
+	return Card{Title: inlines(title), Body: inlines(body)}, true
 }
 
 // headingLevel は、見出しの行なら "h2"・"h3" を返します（docs/richtext.md 2節の順2）。
