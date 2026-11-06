@@ -122,8 +122,31 @@ func checkCategory(ctx context.Context, c *sql.Conn, id int64) error {
 	return nil
 }
 
+// checkCategoryName は、カテゴリが確認の時に見せた名前のままかを確かめます。改名・削除されていれば競合です（MCP-INV-4）。
+// name が空なら確かめません（管理画面の保存）。
+func checkCategoryName(ctx context.Context, c *sql.Conn, id int64, name string) error {
+	if id == 0 || name == "" {
+		return nil
+	}
+	var now string
+	err := c.QueryRowContext(ctx, "SELECT name FROM news_categories WHERE id = ?", id).Scan(&now)
+	if errors.Is(err, sql.ErrNoRows) || err == nil && now != name {
+		return features.ErrMCPConflict
+	}
+	return err
+}
+
 // CreateWithCover は、代表画像とカテゴリつきの下書きを作成します。記事と参照は同じトランザクションで保存します。
 func (s *PostStore) CreateWithCover(ctx context.Context, title, body string, publishedAt time.Time, cover string, categoryID int64) (int64, error) {
+	return s.create(ctx, title, body, publishedAt, cover, categoryID, "")
+}
+
+// CreateIfCategoryNamed は、MCPの作成です。カテゴリが確認の時に見せた名前（categoryName）から変わっていれば、作らずに競合を返します。
+func (s *PostStore) CreateIfCategoryNamed(ctx context.Context, title, body string, publishedAt time.Time, categoryID int64, categoryName string) (int64, error) {
+	return s.create(ctx, title, body, publishedAt, "", categoryID, categoryName)
+}
+
+func (s *PostStore) create(ctx context.Context, title, body string, publishedAt time.Time, cover string, categoryID int64, categoryName string) (int64, error) {
 	title, body, err := normalizePost(title, body)
 	if err != nil {
 		return 0, err
@@ -139,6 +162,9 @@ func (s *PostStore) CreateWithCover(ctx context.Context, title, body string, pub
 	var id int64
 	err = store.Atomic(ctx, s.db, func(c *sql.Conn) error {
 		if err := checkCategory(ctx, c, categoryID); err != nil {
+			return err
+		}
+		if err := checkCategoryName(ctx, c, categoryID, categoryName); err != nil {
 			return err
 		}
 		res, err := c.ExecContext(ctx,
@@ -345,6 +371,12 @@ func postStatus(p Post) string {
 // category が nil ならカテゴリを変えず（NEWS-INV-17）、0ならカテゴリを外します。付けるカテゴリがあることは、
 // 同じトランザクションで確かめます（NEWS-INV-15）。
 func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body string, publishedAt time.Time, category *int64) error {
+	return s.UpdateIfUnchangedNamed(ctx, cur, title, body, publishedAt, category, "")
+}
+
+// UpdateIfUnchangedNamed は UpdateIfUnchanged に加えて、指定したカテゴリが確認の時に見せた名前（categoryName）から
+// 変わっていないことを、同じトランザクションで確かめます。変わっていれば競合です。
+func (s *PostStore) UpdateIfUnchangedNamed(ctx context.Context, cur Post, title, body string, publishedAt time.Time, category *int64, categoryName string) error {
 	title, body, err := normalizePost(title, body)
 	if err != nil {
 		return err
@@ -361,6 +393,9 @@ func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body
 		// 省いたときは今のカテゴリのままなので検査しない。消されていれば、下の条件で競合になる
 		if category != nil {
 			if err := checkCategory(ctx, c, next); err != nil {
+				return err
+			}
+			if err := checkCategoryName(ctx, c, next, categoryName); err != nil {
 				return err
 			}
 		}

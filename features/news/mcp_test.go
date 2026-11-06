@@ -297,3 +297,68 @@ func TestMCP_CategoryChangedAfterConfirmation(t *testing.T) {
 		t.Errorf("update after the category was deleted must conflict: %v", err)
 	}
 }
+
+// 確認の後に、付けようとしたカテゴリが改名・削除されたら、作成も編集も保存しない（確認で見せた名前と違うカテゴリを付けない）。
+// 作成でカテゴリを付けるときは、確認の文の3行目にもカテゴリを出す。
+// 不変条件: MCP-INV-4, MCP-INV-9, NEWS-INV-18
+func TestMCP_TargetCategoryRenamedAfterConfirmation(t *testing.T) {
+	fx := newMCPFixture(t)
+	ctx := context.Background()
+	event, recruit := fx.category("イベント"), fx.category("採用")
+	_, out := fx.run("news_create", map[string]any{"title": "元", "body": "", "category_id": recruit})
+	id := createdPostID(t, out)
+
+	create, err := fx.prepare("news_create", map[string]any{"title": "新しい記事", "body": "", "category_id": event})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lines := strings.Split(create.Summary, "\n"); lines[2] != "変更: タイトル、本文、カテゴリ" {
+		t.Errorf("create summary line 3: %q", create.Summary)
+	}
+	update, err := fx.prepare("news_update", map[string]any{"id": id, "title": "元", "body": "", "category_id": event})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 管理画面で、付けようとしたカテゴリを改名した
+	if _, err := fx.posts.SaveCategory(ctx, event, "別の名前"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.apply("news_create", create); !errors.Is(err, features.ErrMCPConflict) {
+		t.Errorf("create after rename must conflict: %v", err)
+	}
+	if _, err := fx.apply("news_update", update); !errors.Is(err, features.ErrMCPConflict) {
+		t.Errorf("update after rename must conflict: %v", err)
+	}
+	if p := fx.get(id); p.CategoryID != recruit {
+		t.Fatalf("the post must keep its category: %+v", p)
+	}
+	if got := fx.read("news_list", map[string]any{}); strings.Contains(got, "新しい記事") {
+		t.Fatalf("nothing must be created: %s", got)
+	}
+	// 新しい名前で確かめ直せば、保存できる
+	if _, out := fx.run("news_create", map[string]any{"title": "新しい記事", "body": "", "category_id": event}); fx.get(createdPostID(t, out)).CategoryID != event {
+		t.Fatal("a fresh confirmation must work")
+	}
+	// 付けようとしたカテゴリが消された場合も、作成は保存しない（無い番号として断られるか、競合）
+	create, err = fx.prepare("news_create", map[string]any{"title": "消える", "body": "", "category_id": event})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fx.posts.DeleteCategory(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.apply("news_create", create); err == nil {
+		t.Error("create after the category was deleted must fail")
+	}
+	// カテゴリを付けない作成は、カテゴリの改名に左右されない
+	plain, err := fx.prepare("news_create", map[string]any{"title": "無し", "body": ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.posts.SaveCategory(ctx, recruit, "採用2"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fx.apply("news_create", plain); err != nil {
+		t.Errorf("create without a category must not conflict: %v", err)
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"minimal-web-kit/features"
@@ -113,6 +114,21 @@ func (f *Feature) categoryName(ctx context.Context, id int64) (string, error) {
 	return c.Name, err
 }
 
+// categoryState は、確認の状態に、確認で見せたカテゴリの名前を足します。カテゴリを付けない・変えない時は base のままです。
+// 状態は確認に署名付きで結び付くので、名前を書き換えて実行することはできません。
+func categoryState(base string, id int64, name string) string {
+	if id == 0 || name == "" {
+		return base
+	}
+	return base + "\x00category:" + name
+}
+
+// splitCategoryState は、categoryState の逆です。名前が無ければ空を返します。
+func splitCategoryState(state string) (base, name string) {
+	base, name, _ = strings.Cut(state, "\x00category:")
+	return base, name
+}
+
 func changedField(name, before, after string) string {
 	if before == after {
 		return ""
@@ -201,17 +217,25 @@ func (f *Feature) MCPTools() []features.MCPTool {
 					target = "公開日時: " + at.Format("2006-01-02 15:04")
 				}
 				target += "　カテゴリ: " + category
-				summary := features.MCPSummary("お知らせを下書きで作成します。公開はしません。", target, []string{"タイトル", "本文"},
+				fields := []string{"タイトル", "本文"}
+				if a.category() != 0 {
+					fields = append(fields, "カテゴリ")
+				}
+				summary := features.MCPSummary("お知らせを下書きで作成します。公開はしません。", target, fields,
 					"タイトル:\n"+features.MCPQuote(a.Title)+"\n本文:\n"+features.MCPQuote(a.Body))
-				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
+				// 確認で見せたカテゴリの名前を状態に結び付け、実行の時に改名・削除を競合として止める（MCP-INV-4）
+				return features.MCPPlan{Summary: summary, Canonical: canonical, State: categoryState("new", a.category(), category)}, nil
 			},
-			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, _ string) (any, error) {
+			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {
 				a, at, _, err := f.checkPost(canonical, false)
 				if err != nil {
 					return nil, err
 				}
-				id, err := f.posts.CreateWithCover(ctx, a.Title, a.Body, at, "", a.category())
-				if err != nil {
+				_, name := splitCategoryState(state)
+				id, err := f.posts.CreateIfCategoryNamed(ctx, a.Title, a.Body, at, a.category(), name)
+				if errors.Is(err, features.ErrMCPConflict) {
+					return nil, err
+				} else if err != nil {
 					return nil, mcpInputError(err)
 				}
 				return map[string]any{"id": id, "published": false}, nil
@@ -241,12 +265,13 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				}
 				var changes []string
 				details := ""
+				after := ""
 				if !at.IsZero() {
 					changes = append(changes, "公開日時")
 					details += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
 				}
 				if a.CategoryID != nil && *a.CategoryID != p.CategoryID {
-					after, err := f.categoryName(ctx, *a.CategoryID)
+					after, err = f.categoryName(ctx, *a.CategoryID)
 					if err != nil {
 						return features.MCPPlan{}, err
 					}
@@ -264,18 +289,23 @@ func (f *Feature) MCPTools() []features.MCPTool {
 					}
 				}
 				summary := features.MCPSummary(action, f.targetLine(p), changes, details)
-				return features.MCPPlan{Summary: summary, Canonical: canonical, State: mcpState(p)}, nil
+				var target int64
+				if a.CategoryID != nil && after != "" {
+					target = *a.CategoryID
+				}
+				return features.MCPPlan{Summary: summary, Canonical: canonical, State: categoryState(mcpState(p), target, after)}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {
 				a, at, _, err := f.checkPost(canonical, true)
 				if err != nil {
 					return nil, err
 				}
-				p, err := f.currentPost(ctx, a.ID, state)
+				postState, name := splitCategoryState(state)
+				p, err := f.currentPost(ctx, a.ID, postState)
 				if err != nil {
 					return nil, err
 				}
-				if err := f.posts.UpdateIfUnchanged(ctx, p, a.Title, a.Body, at, a.CategoryID); err != nil {
+				if err := f.posts.UpdateIfUnchangedNamed(ctx, p, a.Title, a.Body, at, a.CategoryID, name); err != nil {
 					if errors.Is(err, features.ErrMCPConflict) {
 						return nil, err
 					}
