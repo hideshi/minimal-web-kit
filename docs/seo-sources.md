@@ -14,7 +14,7 @@ Google の文書の引用は、Google が作成・共有した文書の一部で
 |---|---|
 | AI による概要（AI Overviews）とAIモードに出るのに、特別な対策は要らない。検索の基本がそのまま効く | [AI features and your website](https://developers.google.com/search/docs/appearance/ai-features): "There are no additional requirements to appear in AI Overviews or AI Mode, nor other special optimizations necessary." |
 | 出る条件は、検索に載り、説明文（スニペット）つきで表示できること | 同上: "indexed and eligible to be shown in Google Search with a snippet." |
-| Search Console で、サイトを「Search の生成AIの機能」に含めていることも条件 | [Optimizing your website for generative AI features on Google Search](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide): "a site must be included in Search generative AI features in Search Console to be eligible" |
+| Search Console で、サイトを「Search の生成AIの機能」に含めていることも条件。画面は「設定」→「検索の生成 AI」で、既定は「含める」。ドメインのプロパティの設定は、サブドメインの子のプロパティも受け継ぐ（2026-11-06 に画面で確かめた） | [Optimizing your website for generative AI features on Google Search](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide): "a site must be included in Search generative AI features in Search Console to be eligible" |
 | AI向けの最適化は、検索の最適化（SEO）と同じもの | 同上: "optimizing for generative AI search is optimizing for the search experience, and thus still SEO." |
 | 一番効くのは、独自で役に立つ中身 | 同上: "Creating content that people find unique, compelling, and useful will likely influence your website's presence in generative AI search in the long run more than any of the other suggestions in this guide." |
 | 誰でも書ける一般論（コモディティ）より、自分たちの経験や一次情報を書く | 同上: "Don't just recycle what others on the internet have already said, or could easily be produced by a generative AI model." |
