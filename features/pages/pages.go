@@ -337,14 +337,15 @@ func clip(s string) string {
 	return string(text)
 }
 
-// warnLPLines は、LPの部品の前置きで始まる行を持つページのIDを、警告のログに出します（本文は出さない）。
-// 部品の読み方を足す前に書いた本文の見え方が変わり得るため。何も変えない。
+// warnLPLines は、本文がLPの部品（ヒーロー・ボタン・カード）として描かれるページのIDを、起動の時に警告のログに出します
+// （本文は出さない。何も変えない）。部品の読み方を足す前の版から上げたサイトで、見え方が変わったページに気づくため。
+// 意図して部品を使うページも毎回出る。保存した時点を残すと承認境界2に当たるので、区別しない。
 func (f *Feature) warnLPLines(ctx context.Context) error {
-	ids, err := f.store.LPLinePages(ctx)
+	ids, err := f.store.LPPartPages(ctx)
 	if err != nil || len(ids) == 0 {
 		return err
 	}
-	f.logger.Warn("pages have lines that may render as LP parts; escape the colon (ボタン\\:) to keep them as text", slog.Any("page_ids", ids))
+	f.logger.Warn("pages render LP parts (hero, buttons, cards); if a page was written before LP parts existed, check it and escape the colon (ボタン\\:) to keep a line as text", slog.Any("page_ids", ids))
 	return nil
 }
 

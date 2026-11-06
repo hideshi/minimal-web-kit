@@ -3,6 +3,8 @@ package pages
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -445,25 +447,21 @@ func TestPublic_LPParts(t *testing.T) {
 	}
 }
 
-// TestInit_WarnsAboutOldLPLines は、部品の読み方を足す前に保存した本文に部品の前置きで始まる行があれば、
-// 起動の時にページのIDだけを警告し、本文を出さず、後から保存したページは警告しないことを確かめる。
+// TestInit_WarnsAboutOldLPLines は、本文がLPの部品として描かれるページのIDだけを起動の時に警告し、本文を出さず、
+// 部品にならない行（形の合わない行、逃がした行）だけのページは警告しないことを確かめる。
 // 不変条件: PAGES-INV-13
 func TestInit_WarnsAboutOldLPLines(t *testing.T) {
 	fx := setup(t)
-	old := fx.create("old", "古い", "前置き\nカード: 本文カナリア | 説明", "", false)
-	fresh := fx.create("new", "新しい", "カード: a | b", "", false)
-	for id, at := range map[int64]int64{old: lpSyntaxSince.Unix() - 1, fresh: lpSyntaxSince.Unix()} {
-		if _, err := fx.core.DB().Exec("UPDATE pages SET updated_at = ? WHERE id = ?", at, id); err != nil {
-			t.Fatal(err)
-		}
-	}
+	card := fx.create("old", "古い", "前置き\nカード: 本文カナリア | 説明", "", false)
+	hero := fx.create("hero", "ヒーロー", "ヒーロー: 導入", "", false)
+	fx.create("plain", "部品にならない", "カード: 区切りの無い行\nボタン\\: [a](/a)\n本文\nヒーロー: 2行目", "", false)
 	fx.logs.Reset()
 	if err := fx.f.Init(fx.core.DB()); err != nil {
 		t.Fatal(err)
 	}
 	logs := fx.logs.String()
-	if !strings.Contains(logs, "page_ids=["+strconv.FormatInt(old, 10)+"]\n") {
-		t.Errorf("warning lacks the old page: %s", logs)
+	if want := fmt.Sprintf("page_ids=\"[%d %d]\"", card, hero); !strings.Contains(logs, want) {
+		t.Errorf("warning lacks %s: %s", want, logs)
 	}
 	if strings.Contains(logs, "本文カナリア") {
 		t.Errorf("warning leaked the body: %s", logs)
@@ -509,22 +507,47 @@ func TestOGImage_Route(t *testing.T) {
 		!strings.Contains(page, `<meta property="og:image:width" content="1200">`) || !strings.Contains(page, `<meta property="og:image:alt" content="乗り換えのご案内">`) {
 		t.Fatalf("og:image %s", path)
 	}
-	// 成功: PNG、長いキャッシュ、Cookie を付けてもセッションを作らない
-	var sessions int
-	fx.core.DB().QueryRow("SELECT COUNT(*) FROM sessions").Scan(&sessions)
-	req := httptest.NewRequest(http.MethodGet, path, nil)
-	req.AddCookie(&http.Cookie{Name: "session_id", Value: "not-a-session"})
-	req.AddCookie(fx.admin)
-	w := httptest.NewRecorder()
-	fx.routes.ServeHTTP(w, req)
-	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/png" || !strings.HasPrefix(w.Body.String(), "\x89PNG") ||
-		w.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" || w.Header().Get("Set-Cookie") != "" {
-		t.Fatalf("image: %d %v", w.Code, w.Header())
+	// 成功: PNG、長いキャッシュ。Core の匿名セッション（有効・不正）と管理者のセッションの Cookie を付けても、
+	// 照合も更新もせず、Cookie を出さない
+	token := "ogp-valid-session-token"
+	sum := sha256.Sum256([]byte(token))
+	if _, err := fx.core.DB().Exec("INSERT INTO owners (id, created_at) VALUES ('ogp-owner', 1)"); err != nil {
+		t.Fatal(err)
 	}
-	var after int
-	fx.core.DB().QueryRow("SELECT COUNT(*) FROM sessions").Scan(&after)
-	if after != sessions {
-		t.Errorf("sessions %d -> %d", sessions, after)
+	if _, err := fx.core.DB().Exec("INSERT INTO sessions (token_hash, owner_id, created_at, last_seen_at) VALUES (?, 'ogp-owner', 1, 1)", hex.EncodeToString(sum[:])); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := func() string {
+		var out strings.Builder
+		for _, q := range []string{"SELECT token_hash || ':' || last_seen_at FROM sessions ORDER BY token_hash", "SELECT token_hash || ':' || last_seen_at || ':' || expires_at FROM auth_sessions ORDER BY token_hash"} {
+			rows, err := fx.core.DB().Query(q)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for rows.Next() {
+				var v string
+				rows.Scan(&v)
+				out.WriteString(v + "\n")
+			}
+			rows.Close()
+		}
+		return out.String()
+	}
+	before := snapshot()
+	for _, cookies := range [][]*http.Cookie{{{Name: "session", Value: token}}, {{Name: "session", Value: "not-a-session"}}, {fx.admin}} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		for _, c := range cookies {
+			req.AddCookie(c)
+		}
+		w := httptest.NewRecorder()
+		fx.routes.ServeHTTP(w, req)
+		if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/png" || !strings.HasPrefix(w.Body.String(), "\x89PNG") ||
+			w.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" || w.Header().Get("Set-Cookie") != "" {
+			t.Fatalf("image with %v: %d %v", cookies[0].Name, w.Code, w.Header())
+		}
+	}
+	if after := snapshot(); after != before {
+		t.Errorf("sessions changed:\n%s\n->\n%s", before, after)
 	}
 	// HEAD は本文なし
 	head := httptest.NewRecorder()
@@ -535,7 +558,7 @@ func TestOGImage_Route(t *testing.T) {
 	notFound := func(name, p string) {
 		t.Helper()
 		w := fx.get(p, nil)
-		if w.Code != http.StatusNotFound || strings.Contains(w.Header().Get("Cache-Control"), "immutable") || strings.HasPrefix(w.Body.String(), "\x89PNG") {
+		if w.Code != http.StatusNotFound || !strings.Contains(w.Header().Get("Cache-Control"), "no-store") || strings.HasPrefix(w.Body.String(), "\x89PNG") {
 			t.Errorf("%s: %d %s", name, w.Code, w.Header().Get("Cache-Control"))
 		}
 	}
@@ -579,7 +602,7 @@ func TestOGImage_FailuresAndFallback(t *testing.T) {
 	for range ogMaxSlots {
 		fx.f.ogSlots <- struct{}{}
 	}
-	if w := fx.get(path, nil); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Header().Get("Cache-Control"), "immutable") {
+	if w := fx.get(path, nil); w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Header().Get("Cache-Control"), "no-store") {
 		t.Errorf("full slots: %d %s", w.Code, w.Header().Get("Cache-Control"))
 	}
 	for range ogMaxSlots {
@@ -613,7 +636,7 @@ func TestOGImage_FailuresAndFallback(t *testing.T) {
 	if _, err := fx.core.DB().Exec("ALTER TABLE pages RENAME TO pages_gone"); err != nil {
 		t.Fatal(err)
 	}
-	if w := fx.get(path, nil); w.Code != http.StatusInternalServerError || strings.Contains(w.Header().Get("Cache-Control"), "immutable") {
+	if w := fx.get(path, nil); w.Code != http.StatusInternalServerError || !strings.Contains(w.Header().Get("Cache-Control"), "no-store") {
 		t.Errorf("load failure: %d", w.Code)
 	}
 }

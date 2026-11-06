@@ -360,14 +360,10 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 	})
 }
 
-// lpSyntaxSince は、LPの部品の行（docs/richtext.md 2.2節）を読み始めた日時です。これより前に保存した本文は、
-// 部品の書き方を知らずに書かれたものとして扱います。
-var lpSyntaxSince = time.Date(2026, 11, 7, 0, 0, 0, 0, time.FixedZone("JST", 9*60*60))
-
-// LPLinePages は、LPの部品の読み方を足す前に保存した本文のうち、部品の前置き（ヒーロー・ボタン・カード）で始まる行が
-// あるページのIDです。見え方が変わり得るので、起動の時に知らせるために使います。本文は返しません。
-func (s *Store) LPLinePages(ctx context.Context) ([]int64, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, body FROM pages WHERE updated_at < ? ORDER BY id", lpSyntaxSince.Unix())
+// LPPartPages は、本文がLPの部品（ヒーロー・ボタン・カード）として描かれるページのIDです。部品の読み方を足す前に
+// 書いた本文の見え方が変わり得るので、起動の時に知らせるために使います。本文は返しません。
+func (s *Store) LPPartPages(ctx context.Context) ([]int64, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, body FROM pages ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -379,14 +375,28 @@ func (s *Store) LPLinePages(ctx context.Context) ([]int64, error) {
 		if err := rows.Scan(&id, &body); err != nil {
 			return nil, err
 		}
-		for _, line := range strings.Split(body, "\n") {
-			if richtext.LPLine(line) {
-				out = append(out, id)
-				break
-			}
+		if hasLPParts(body) {
+			out = append(out, id)
 		}
 	}
 	return out, rows.Err()
+}
+
+// hasLPParts は、本文がヒーロー・ボタン・カードのどれかとして描かれるかを返します。
+func hasLPParts(body string) bool {
+	doc, err := richtext.ParseForPages(body)
+	if err != nil {
+		return false
+	}
+	if doc.Hero != nil {
+		return true
+	}
+	for _, b := range doc.Blocks {
+		if b.Kind == "buttons" || b.Kind == "cards" {
+			return true
+		}
+	}
+	return false
 }
 
 // imageRefs は、全てのページが使う画像を返します。

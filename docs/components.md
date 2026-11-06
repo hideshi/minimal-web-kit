@@ -114,6 +114,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | カード | `card`、`card-title`、`card-content`、`card-badge` | 囲みの枠。角丸は `--radius-card`（ボタン・入力欄は `--radius`）。`<form class="card">` のようにフォームにも使える。直下の `btn` は、幅40rem未満では全幅、それ以上では文字の幅で左寄せになる |
 | タグの並び | `tag-list` | 印の無い横並びの `<ul>`。`role="list"` を付ける |
 | 並べる | `grid-2`、`grid-3` | 狭い画面では1列になる |
+| 本文（固定ページ）のLPの部品 | `hero`（`hero-title`・`hero-lead`・`hero-cta`）、`action-bar` の `btn`、`grid-2`・`grid-3` の `card` | 本文の `ヒーロー: `・`ボタン: `・`カード: ` の行から部品 `richtext` が描く。正本は [richtext.md](richtext.md) の2.2節。本文のカードの題名と説明の余白は `.richtext .card-title`・`.richtext .card-content` で詰める |
 | ボタンの並び | `action-bar`（中央寄せは `action-bar-center`） | 送信と取り消しのボタン等。フォームを並べるときは `inline-form`。幅40rem未満ではボタンが全幅になる |
 | 表 | `table-container` で `<table>` を囲む | 狭い画面では表だけが横に動く。`<th scope="col">` と `<caption>` を付ける。下の「表の横スクロール」を参照 |
 | 入力 | `form-group`、`field-hint`、`field-error` | 直接書くより、部品の `field` を使う |

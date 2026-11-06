@@ -25,7 +25,7 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
-//go:embed font/NotoSansJP-Bold-JIS.otf
+//go:embed font/NotoSansJP-Bold-subset.otf
 var fontData []byte
 
 // License は、組み込んだフォントのライセンス（SIL Open Font License 1.1）の全文です。
@@ -146,7 +146,7 @@ func Render(title, host string) ([]byte, error) {
 
 // ---- 折り返し（docs/plans/lp-plan.md 4.3節） ----
 
-// 行頭に来てはいけない文字と、行末に来てはいけない文字。
+// 行頭に来てはいけない文字と、行末に来てはいけない文字。行頭禁則は、守れる位置まで前の行の末尾の文字を送る。
 const (
 	headNG = "、。，．,.）)」』】〕］]｝}〉》！!？?：:；;ー・ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々〜～…‥"
 	tailNG = "（(「『【〔［[｛{〈《"
@@ -212,9 +212,9 @@ func Lines(face font.Face, title string) []string {
 		}
 		lines := make([]string, 0, maxLines)
 		for i := 0; i < maxLines-1; i++ {
-			lines = append(lines, strings.TrimRight(string(rs[starts[i]:ends[i]]), " "))
+			lines = append(lines, strings.Trim(string(rs[starts[i]:ends[i]]), " "))
 		}
-		return append(lines, strings.TrimRight(string(rs[s:e]), " ")+"…")
+		return append(lines, strings.Trim(string(rs[s:e]), " ")+"…")
 	}
 	// 均し: 最後の行が2文字以下なら、前の行の末尾から送って3文字以上にする（幅・まとまり・禁則を破るなら均さない）
 	if n := len(starts); n >= 2 && ends[n-1]-starts[n-1] <= 2 {
@@ -230,7 +230,7 @@ func Lines(face font.Face, title string) []string {
 	}
 	lines := make([]string, len(starts))
 	for i := range starts {
-		lines[i] = strings.TrimRight(string(rs[starts[i]:ends[i]]), " ")
+		lines[i] = strings.Trim(string(rs[starts[i]:ends[i]]), " ") // 均しで送った行が空白で始まることがある
 	}
 	return lines
 }

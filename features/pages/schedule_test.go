@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/web/ogimage"
 	"minimal-web-kit/internal/web/richtext"
 )
 
@@ -268,5 +269,43 @@ func TestSchedule_MCPChecksTheDate(t *testing.T) {
 	}
 	if !strings.Contains(plan.Summary, "直ちに公開ページに出ます") {
 		t.Errorf("summary must warn: %s", plan.Summary)
+	}
+}
+
+// TestSchedule_OGImageBoundary は、予約公開のページの自動のOGPの画像が、公開の時刻の前は404で、時刻からは返ることを確かめる。
+// 不変条件: PAGES-INV-14
+func TestSchedule_OGImageBoundary(t *testing.T) {
+	fx := setup(t)
+	id := fx.create("launch", "募集開始", "本文", "", false)
+	fx.schedule(id, "2026-10-30T11:00")
+	path := "/ogp/pages/launch-" + ogimage.Version(ogKind, "募集開始", "example.com") + ".png"
+	at := time.Date(2026, 10, 30, 11, 0, 0, 0, time.Local)
+	for _, c := range []struct {
+		at   time.Time
+		want int
+	}{{at.Add(-time.Second), http.StatusNotFound}, {at, http.StatusOK}} {
+		*fx.clock = c.at
+		if got := fx.get(path, nil).Code; got != c.want {
+			t.Errorf("at %s: %d, want %d", c.at.Format("15:04:05"), got, c.want)
+		}
+	}
+}
+
+// TestOGImage_NoSiteURL は、サイトのURL（Site のレイアウト）が無い構成では、自動の画像を作らず、経路も404にすることを確かめる。
+// 不変条件: PAGES-INV-14
+func TestOGImage_NoSiteURL(t *testing.T) {
+	fx := setup(t)
+	fx.create("lp", "題名", "本文", "", true)
+	path := ogPath(t, fx.get("/lp", nil).Body.String())
+	saved := fx.f.layout
+	fx.f.layout = nil
+	defer func() { fx.f.layout = saved }()
+	if w := fx.get(path, nil); w.Code != http.StatusNotFound {
+		t.Errorf("without a site URL: %d", w.Code)
+	}
+	data := map[string]any{}
+	fx.f.addOGImage(data, Page{Slug: "lp", Title: "題名"}, richtext.Doc{})
+	if len(data) != 0 {
+		t.Errorf("without a site URL: %v", data)
 	}
 }

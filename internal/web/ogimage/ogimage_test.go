@@ -42,6 +42,7 @@ func TestLines_Rules(t *testing.T) {
 		{"均しで最後の行を3文字以上にする", long + "い", []string{strings.Repeat("あ", 14), "ああい"}},
 		{"英数字のまとまりは切らない", strings.Repeat("あ", 13) + " minimal", []string{strings.Repeat("あ", 13), "minimal"}},
 		{"行より長い英数字は幅で切る", strings.Repeat("x", 60), nil},
+		{"均しで送った行は空白で始めない", strings.Repeat("あ", 15) + " xy", []string{strings.Repeat("あ", 15), "xy"}},
 		{"4行以上は3行目を…で切る", strings.Repeat("あ", 70), []string{long, long, strings.Repeat("あ", 15) + "…"}},
 		{"ちょうど3行", strings.Repeat("あ", 48), []string{long, long, long}},
 	}
@@ -77,7 +78,9 @@ func TestDrawable(t *testing.T) {
 		"右\u202e左": false, // 書式文字
 		"タブ\tあり":   false,
 		"   ":      false,
-		"髙橋":       false, // 第2水準に無い異体字
+		"髙橋と①の㈱":   true,  // CP932 の文字（Windows の日本語入力が出す）
+		"〜乗り換え～－":  true,  // 波ダッシュ・全角チルダ・全角ハイフンマイナス
+		"約≒":       false, // 上流のフォントに無い
 		"高橋 & Co.": true,
 	} {
 		if got := Drawable(in, "example.com"); got != want {
@@ -109,9 +112,12 @@ func TestVersion(t *testing.T) {
 // goldenPNG は、決まった入力の PNG の SHA-256 です。描き方が変わったら RenderVersion を上げてから、ここを直す。
 var goldenPNG = map[int]map[string]string{
 	1: {
-		"WordPress から、手間とリスクの少ないホームページへ": "29c2f060463d9aaf3669c31866ffa4f5dcb73763e1f50724ffddda00876e0783",
-		"社内の情報から、サイトの更新が続く":              "92a590fb9f68cdcdd67014e606ad80444875357b080f90e2d6e755a15a97994d",
-		strings.Repeat("長い題名の例です。", 12):  "0f4994333fb6dcfee6354a355bd53649c31f3fa6a15a1319a7d106573b0136df",
+		"WordPress から、手間とリスクの少ないホームページへ":  "29c2f060463d9aaf3669c31866ffa4f5dcb73763e1f50724ffddda00876e0783",
+		"社内の情報から、サイトの更新が続く":               "92a590fb9f68cdcdd67014e606ad80444875357b080f90e2d6e755a15a97994d",
+		strings.Repeat("長い題名の例です。", 12):   "0f4994333fb6dcfee6354a355bd53649c31f3fa6a15a1319a7d106573b0136df",
+		strings.Repeat("あ", 16) + "。続き":   "a10bd549f9e67ff7cb70d93193c0e006dc4b2dd1223961c81e7e902948e34e86",
+		strings.Repeat("あ", 15) + "「かっこ」": "3227b68b91961745fca6aead6480578b2d8ac8ad0e7308385172a8de250a1486",
+		strings.Repeat("あ", 16) + "い":     "f5a4e892b057fe2755bdd790646d08f6fdb43fa03458afc21b4adaa0fef4d43a",
 	},
 }
 
