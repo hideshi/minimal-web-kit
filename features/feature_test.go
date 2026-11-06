@@ -4,9 +4,21 @@ import (
 	"database/sql"
 	"net/http"
 	"testing"
+	"time"
 
 	"minimal-web-kit/internal/web"
 )
+
+// MCPの読み取りは、時刻をどの地域で読み出してもUTCで返す。機能ごとに +09:00 と Z が混ざらない。
+func TestMCPTime_IsUTC(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+	at := time.Date(2026, 11, 6, 13, 14, 40, 0, jst)
+	for _, in := range []time.Time{at, at.UTC()} {
+		if got := MCPTime(in); got != "2026-11-06T04:14:40Z" {
+			t.Fatalf("MCPTime(%v) = %q", in, got)
+		}
+	}
+}
 
 type linkFeature struct {
 	name  string

@@ -112,10 +112,8 @@ type mcpRecord struct {
 	Values    map[string]any `json:"values"`
 }
 
-const mcpTimeLayout = "2006-01-02T15:04:05Z07:00"
-
 func toMCPRecord(d RecordDef, k *kindStatements, r record, who people, me int64) mcpRecord {
-	out := mcpRecord{ID: r.ID, Owner: who.Name(r.Owner), Mine: r.Owner == me, CreatedAt: r.CreatedAt.Format(mcpTimeLayout), UpdatedAt: r.UpdatedAt.Format(mcpTimeLayout), Values: map[string]any{}}
+	out := mcpRecord{ID: r.ID, Owner: who.Name(r.Owner), Mine: r.Owner == me, CreatedAt: features.MCPTime(r.CreatedAt), UpdatedAt: features.MCPTime(r.UpdatedAt), Values: map[string]any{}}
 	for _, c := range visibleRecordFields(d, k) {
 		v := r.Values[c.name]
 		if x, ok := v.(int64); ok && c.typ == Bool {

@@ -14,8 +14,6 @@ import (
 // MCPLabel は、設定の画面に出す名前です。
 func (f *Feature) MCPLabel() string { return "お知らせ" }
 
-const mcpTimeLayout = "2006-01-02T15:04:05Z07:00"
-
 type mcpPost struct {
 	ID          int64  `json:"id"`
 	Title       string `json:"title"`
@@ -35,9 +33,9 @@ type mcpCategory struct {
 }
 
 func toMCPPost(p Post, body bool) mcpPost {
-	v := mcpPost{ID: p.ID, Title: p.Title, Published: p.Published, UpdatedAt: p.UpdatedAt.Format(mcpTimeLayout), CategoryID: p.CategoryID, Category: p.Category}
+	v := mcpPost{ID: p.ID, Title: p.Title, Published: p.Published, UpdatedAt: features.MCPTime(p.UpdatedAt), CategoryID: p.CategoryID, Category: p.Category}
 	if !p.PublishedAt.IsZero() {
-		v.PublishedAt = p.PublishedAt.Format(mcpTimeLayout)
+		v.PublishedAt = features.MCPTime(p.PublishedAt)
 	}
 	if body {
 		v.Body = p.Body
@@ -139,7 +137,7 @@ func changedField(name, before, after string) string {
 // MCPTools は、お知らせのツールを返します。保存は管理画面と同じ検査を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"published_at":{"type":"string","description":"公開日時（2006-01-02T15:04）。空なら変えない"}`
+	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"published_at":{"type":"string","description":"公開日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない"}`
 	createCategory := `"category_id":{"type":"integer","minimum":0,"description":"カテゴリの番号（news_categories）。省くか0ならカテゴリなし"}`
 	updateCategory := `"category_id":{"type":"integer","minimum":0,"description":"カテゴリの番号（news_categories）。0でカテゴリを外す。省くと今のカテゴリを変えない"}`
 	return []features.MCPTool{
@@ -379,7 +377,7 @@ func (f *Feature) publishTool(name, title, description string, published bool) f
 			if published {
 				action = "お知らせを公開します。【だれでも見られるようになります】"
 				if p.PublishedAt.After(f.now()) {
-					action = "お知らせを予約公開します。公開日時: " + p.PublishedAt.Format("2006-01-02 15:04")
+					action = "お知らせを予約公開します。公開日時: " + p.PublishedAt.In(time.Local).Format("2006-01-02 15:04")
 				}
 			}
 			return features.MCPPlan{Summary: action + "\n" + f.targetLine(p), Canonical: canonical, State: mcpState(p)}, nil

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"minimal-web-kit/internal/federation"
 	"minimal-web-kit/internal/web"
@@ -598,6 +599,12 @@ func MCPSummary(action, target string, changes []string, details string) string 
 		summary += "\n\n" + strings.TrimRight(details, "\n")
 	}
 	return summary
+}
+
+// MCPTime は、読み取りで返す日時の形です。機能ごとに保存の読み出し方が違ってもそろうよう、UTCのRFC 3339にします。
+// 公開ページのJSONやサイトマップと同じ形です。
+func MCPTime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339)
 }
 
 // MCPState は、状態を構成する値から、確認の照合に使うハッシュを作ります。区切りが混ざらないようJSONにします。

@@ -12,9 +12,6 @@ import (
 	"minimal-web-kit/internal/web/form"
 )
 
-// mcpTimeLayout は、読み取りで返す日時の形式です。
-const mcpTimeLayout = "2006-01-02T15:04:05Z07:00"
-
 // MCPLabel は、設定の画面に出す名前です。
 func (f *Feature) MCPLabel() string { return "カタログ" }
 
@@ -35,9 +32,9 @@ type mcpItem struct {
 }
 
 func toMCPItem(item Item, body bool) mcpItem {
-	v := mcpItem{ID: item.ID, Title: item.Title, Published: item.Published, UpdatedAt: item.UpdatedAt.Format(mcpTimeLayout)}
+	v := mcpItem{ID: item.ID, Title: item.Title, Published: item.Published, UpdatedAt: features.MCPTime(item.UpdatedAt)}
 	if !item.PublishAt.IsZero() {
-		v.PublishAt = item.PublishAt.Format(mcpTimeLayout)
+		v.PublishAt = features.MCPTime(item.PublishAt)
 	}
 	if item.CategoryID != 0 {
 		v.Category = &mcpName{item.CategoryID, item.Category}
