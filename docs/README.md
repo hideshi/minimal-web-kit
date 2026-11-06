@@ -9,6 +9,7 @@
 | [ui-guidelines.md](ui-guidelines.md) | 動きのあるUIの作り方 |
 | [richtext.md](richtext.md) | 本文の記法の仕様 |
 | [deploy.md](deploy.md) | 本番デプロイの手順例 |
+| [seo-sources.md](seo-sources.md) | 検索とAIの読み取りの決まりの出典（公式の文書のURL・要点・確かめた日）と、AIの巡回の名前 |
 | [ui/use-cases.md](ui/use-cases.md) | 誰が何を達成するために使うか（`test/usecase_test.go` が照合する） |
 | [domain/](domain/) | 機能ごとの用語・状態・不変条件・権限（`test/domain_test.go` が照合する） |
 | [roadmap.md](roadmap.md) | 今後に取り組む候補（約束ではない） |

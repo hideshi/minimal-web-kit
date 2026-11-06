@@ -417,7 +417,7 @@ Claude Code、Codex、Cursor、Antigravityのいずれかでリポジトリの�
 | `minimal-web-kit-vuln` | Go本体・依存・同梱ファイルの既知の脆弱性の点検と版上げ |
 | `minimal-web-kit-privacy` | 有効な機能・保存データ・インフラ・外部サービスからのプライバシーポリシーの作成と見直し（法的な判断は運営者が行う） |
 | `minimal-web-kit-lp` | 相手と切り口ごとの紹介のページ（LP）を固定ページで作り、公開の後に確かめる（検索とSNSの共有は `minimal-web-kit-seo` を併用） |
-| `minimal-web-kit-seo` | お知らせ・カタログ・固定ページ・LPの全体で、題名・書き出し・ページのつながりを検索とSNSの共有に向けて整え、Search Console 等で確かめる（順位や問い合わせの増加は約束しない） |
+| `minimal-web-kit-seo` | お知らせ・カタログ・固定ページ・LPの全体で、中身・題名・書き出し・ページのつながりを検索・AIの答え・SNSの共有に向けて整え、Search Console 等で確かめる。根拠は公式の文書に限り、出典を [docs/seo-sources.md](docs/seo-sources.md) に置く（順位・AIでの引用・問い合わせの増加は約束しない） |
 
 一般的な要件定義・機能別実装・テストのスキルと併用し、このキット固有の判断と規約を補完します。正本は `skills/<name>/SKILL.md` で、探索先からは相対シンボリックリンクで参照します。Windows等でリンクが通常ファイルになった場合は、利用するツールの探索先に正本のフォルダをコピーし、更新時も同期してください。
 
