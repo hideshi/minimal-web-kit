@@ -164,13 +164,13 @@ func TestCategories_MCPConflict(t *testing.T) {
 	if mcpState(now) == before {
 		t.Error("state hash must include the category")
 	}
-	if err := posts.UpdateIfUnchanged(ctx, read, "変えた", "", time.Time{}); !errors.Is(err, features.ErrMCPConflict) {
+	if err := posts.UpdateIfUnchanged(ctx, read, "変えた", "", time.Time{}, nil); !errors.Is(err, features.ErrMCPConflict) {
 		t.Errorf("update must conflict: %v", err)
 	}
 	if err := posts.SetPublishedIfUnchanged(ctx, read, true); !errors.Is(err, features.ErrMCPConflict) {
 		t.Errorf("publish must conflict: %v", err)
 	}
-	if err := posts.UpdateIfUnchanged(ctx, now, "変えた", "", time.Time{}); err != nil {
+	if err := posts.UpdateIfUnchanged(ctx, now, "変えた", "", time.Time{}, nil); err != nil {
 		t.Fatalf("fresh read must succeed: %v", err)
 	}
 	if p, _ := posts.Get(ctx, id); p.CategoryID != cat {

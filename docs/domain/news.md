@@ -62,10 +62,13 @@ stateDiagram-v2
 | NEWS-INV-12 | 記事を変える操作はGETで行わない。削除は確認画面を経てPOSTで行う | `registerPostAdminRoutes` |
 | NEWS-INV-13 | URLの記事の番号は、正の整数の標準の書き方だけを受け付ける。`01`・`+1`・`abc` 等は、ページでもAPIでも、400ではなく「無い」（404）として扱う | `web.PathID` |
 | NEWS-INV-14 | カテゴリの名前は改行とタブの無い1〜50字で、同じ名前のカテゴリは2つ作れない。改名・削除で記事の更新日時は変えない | `SaveCategory`、`news_categories.name` の UNIQUE |
-| NEWS-INV-15 | 記事に付けられるのは、あるカテゴリだけ（無い番号は保存しない）。カテゴリを消しても記事は消えず、カテゴリなしになる | `checkCategory`・`DeleteCategory`、`ON DELETE SET NULL` |
+| NEWS-INV-15 | 記事に付けられるのは、あるカテゴリだけ（無い番号は保存しない）。管理画面とMCPの両方で、保存と同じトランザクションで確かめる。カテゴリを消しても記事は消えず、カテゴリなしになる | `checkCategory`（`CreateWithCover`・`UpdateWithCover`・`UpdateWithCategory`・`UpdateIfUnchanged`）・`DeleteCategory`、`ON DELETE SET NULL` |
 | NEWS-INV-16 | 公開側の絞り込みの候補と結果は、記事の公開ページと同じ条件（状態と公開日時）で決める。下書きと公開日時前の記事しか持たないカテゴリは候補に出さず、その番号を指定しても記事を出さない | `PublicCategories`・`ListPublishedIn` |
+| NEWS-INV-17 | MCPの編集（`news_update`）で `category_id` を省いたら、記事のカテゴリを変えない。0ならカテゴリを外す。カテゴリを知らない前の版のクライアントが本文だけを直しても、付いているカテゴリは消えない | `postArgs.CategoryID`（省略は `nil`）、`UpdateIfUnchanged` |
 
-公開の一覧 `/news` は `?category=ID` で1つのカテゴリに絞り込める（`page` と併用でき、ページ送りは条件を残す）。番号の形が正しくない・2つ以上ある場合は400。`CanonicalPath` は `/news` のまま。カテゴリは公開の詳細に名前と絞り込みへのリンクで出し、APIの項目には足さない（NEWS-INV-7）。MCPはカテゴリを変えず、読み取りで名前を返す。確認のハッシュと条件付きの保存の条件にはカテゴリを含める。
+公開の一覧 `/news` は `?category=ID` で1つのカテゴリに絞り込める（`page` と併用でき、ページ送りは条件を残す）。番号の形が正しくない・2つ以上ある場合は400。`CanonicalPath` は `/news` のまま。カテゴリは公開の詳細に名前と絞り込みへのリンクで出し、APIの項目には足さない（NEWS-INV-7）。
+
+MCPでは、`news_categories` で付けられるカテゴリの番号と名前を読み、`news_create`・`news_update` の `category_id` で付け外しする。`news_create` で省くか0ならカテゴリなし。`news_update` は省くと変えない（NEWS-INV-17。カタログの `catalog_update` は必須の欄で、わざと形を変えている）。無い番号は確認の前に断り、確認の後に消された場合も保存しない（NEWS-INV-15）。確認の文は、作成ではカテゴリの名前を対象の行に出し、編集ではカテゴリが変わるときだけ「カテゴリ: 前 → 後」を出す。`news_get`・`news_list` はカテゴリの番号（`category_id`）と名前（`category`）を返し、カテゴリが無ければ省く。カテゴリの追加・改名・削除はMCPではできず、管理画面だけで行う。確認のハッシュと条件付きの保存の条件にはカテゴリを含めるので、確認の後に記事のカテゴリが変わったら保存しない（MCP-INV-4）。
 
 一覧APIは `limit`（既定20、上限50）と `offset`（0〜100,000）を受け取り、不正な値は400にする。応答は `items`・`limit`・`offset`・`next_offset` で、公開日時の新しい順、同時刻ならIDの大きい順に並べる。`sitemap.xml` には同じ順で49,000件まで載せる。
 
@@ -77,7 +80,7 @@ stateDiagram-v2
 | 記事の作成・編集・公開・非公開・予約公開・削除 | ○ | ○ | × |
 | カテゴリの追加・改名・削除 | ○ | ○ | × |
 
-記事の管理は、管理者認証の両方のロールに許します（`Page`・`Form` を使い、`AdminPage`・`AdminForm` は使わない）。記事ごとの持ち主や、編集・公開の権限の分離はありません。
+記事の管理は、管理者認証の両方のロールに許します（`Page`・`Form` を使い、`AdminPage`・`AdminForm` は使わない）。記事ごとの持ち主や、編集・公開の権限の分離はありません。MCPのお知らせのツール（カテゴリの一覧と付け外しを含む）も同じ2つのロールの接続だけが使え、一般ユーザーの接続には出ません（[MCPの仕様](mcp.md) の MCP-INV-11）。
 
 ## 6. 他の機能との関係
 

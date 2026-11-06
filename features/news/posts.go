@@ -342,7 +342,9 @@ func postStatus(p Post) string {
 }
 
 // UpdateIfUnchanged は、読み取った内容のままのときだけ更新します。判定と更新は1つの文です（MCP-INV-4）。
-func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body string, publishedAt time.Time) error {
+// category が nil ならカテゴリを変えず（NEWS-INV-17）、0ならカテゴリを外します。付けるカテゴリがあることは、
+// 同じトランザクションで確かめます（NEWS-INV-15）。
+func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body string, publishedAt time.Time, category *int64) error {
 	title, body, err := normalizePost(title, body)
 	if err != nil {
 		return err
@@ -351,11 +353,23 @@ func (s *PostStore) UpdateIfUnchanged(ctx context.Context, cur Post, title, body
 	if err != nil {
 		return err
 	}
-	res, err := s.db.ExecContext(ctx,
-		`UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?
-		 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ? AND category_id IS ?`,
-		title, body, at, s.now().Unix(), cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile), categoryArg(cur.CategoryID))
-	return store.AffectedOne(res, err, features.ErrMCPConflict)
+	next := cur.CategoryID
+	if category != nil {
+		next = *category
+	}
+	return store.Atomic(ctx, s.db, func(c *sql.Conn) error {
+		// 省いたときは今のカテゴリのままなので検査しない。消されていれば、下の条件で競合になる
+		if category != nil {
+			if err := checkCategory(ctx, c, next); err != nil {
+				return err
+			}
+		}
+		res, err := c.ExecContext(ctx,
+			`UPDATE news_posts SET title = ?, body = ?, published_at = COALESCE(?, published_at), updated_at = ?, category_id = ?
+			 WHERE id = ? AND title = ? AND body = ? AND status = ? AND published_at IS ? AND cover_file IS ? AND category_id IS ?`,
+			title, body, at, s.now().Unix(), categoryArg(next), cur.ID, cur.Title, cur.Body, postStatus(cur), publishedUnix(cur), coverArg(cur.CoverFile), categoryArg(cur.CategoryID))
+		return store.AffectedOne(res, err, features.ErrMCPConflict)
+	})
 }
 
 // SetPublishedIfUnchanged は、読み取った内容のままのときだけ公開状態を変えます。公開日時の扱いは Publish・Unpublish と同じです。

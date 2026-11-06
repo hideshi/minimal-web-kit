@@ -129,7 +129,7 @@ func TestDocumentsMCP_UserRoleSeesOnlyDocuments(t *testing.T) {
 			t.Errorf("a general user sees %s", name)
 		}
 	}
-	for _, tool := range []string{"pages_list", "news_list", "catalog_list", "no_such_tool"} {
+	for _, tool := range []string{"pages_list", "news_list", "news_categories", "catalog_list", "no_such_tool"} {
 		_, body := user.raw("tools/call", tool, map[string]any{"name": tool, "arguments": map[string]any{}})
 		if !strings.Contains(body, "Unknown tool") {
 			t.Errorf("%s: %s", tool, body)

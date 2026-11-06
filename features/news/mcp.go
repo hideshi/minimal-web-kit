@@ -22,12 +22,19 @@ type mcpPost struct {
 	Published   bool   `json:"published"`
 	PublishedAt string `json:"published_at,omitempty"`
 	UpdatedAt   string `json:"updated_at"`
-	// Category はカテゴリの名前（読むだけ。MCPではカテゴリを変えない）
-	Category string `json:"category,omitempty"`
+	// CategoryID と Category はカテゴリの番号と名前。カテゴリが無ければ省く
+	CategoryID int64  `json:"category_id,omitempty"`
+	Category   string `json:"category,omitempty"`
+}
+
+// mcpCategory は、記事に付けられるカテゴリ1つです。
+type mcpCategory struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 func toMCPPost(p Post, body bool) mcpPost {
-	v := mcpPost{ID: p.ID, Title: p.Title, Published: p.Published, UpdatedAt: p.UpdatedAt.Format(mcpTimeLayout), Category: p.Category}
+	v := mcpPost{ID: p.ID, Title: p.Title, Published: p.Published, UpdatedAt: p.UpdatedAt.Format(mcpTimeLayout), CategoryID: p.CategoryID, Category: p.Category}
 	if !p.PublishedAt.IsZero() {
 		v.PublishedAt = p.PublishedAt.Format(mcpTimeLayout)
 	}
@@ -42,6 +49,16 @@ type postArgs struct {
 	Title       string `json:"title"`
 	Body        string `json:"body"`
 	PublishedAt string `json:"published_at,omitempty"`
+	// CategoryID は付けるカテゴリ。0はカテゴリなし。編集で省いた（nil）ときは今のカテゴリを変えない（NEWS-INV-17）
+	CategoryID *int64 `json:"category_id,omitempty"`
+}
+
+// category は、作成で付けるカテゴリです。省いたときは0（カテゴリなし）です。
+func (a postArgs) category() int64 {
+	if a.CategoryID == nil {
+		return 0
+	}
+	return *a.CategoryID
 }
 
 type postID struct {
@@ -84,6 +101,18 @@ func (f *Feature) targetLine(p Post) string {
 	return fmt.Sprintf("対象: #%d（%s）「%s」", p.ID, f.stateText(p), p.Title)
 }
 
+// categoryName は、確認の画面に出すカテゴリの名前です。無いカテゴリは、保存の前に断ります（NEWS-INV-15）。
+func (f *Feature) categoryName(ctx context.Context, id int64) (string, error) {
+	if id == 0 {
+		return "なし", nil
+	}
+	c, err := f.posts.Category(ctx, id)
+	if errors.Is(err, ErrNotFound) {
+		return "", features.MCPInputError{Message: "category_id のカテゴリがありません。news_categories で番号を確かめてください。"}
+	}
+	return c.Name, err
+}
+
 func changedField(name, before, after string) string {
 	if before == after {
 		return ""
@@ -95,7 +124,28 @@ func changedField(name, before, after string) string {
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
 	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"published_at":{"type":"string","description":"公開日時（2006-01-02T15:04）。空なら変えない"}`
+	createCategory := `"category_id":{"type":"integer","minimum":0,"description":"カテゴリの番号（news_categories）。省くか0ならカテゴリなし"}`
+	updateCategory := `"category_id":{"type":"integer","minimum":0,"description":"カテゴリの番号（news_categories）。0でカテゴリを外す。省くと今のカテゴリを変えない"}`
 	return []features.MCPTool{
+		{
+			Name: "news_categories", Title: "お知らせのカテゴリの一覧", Description: "記事に付けられるカテゴリを返します。新しいカテゴリは作れません。", Effect: features.MCPRead,
+			InputSchema: json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`),
+			Read: func(ctx context.Context, _ features.AgentPrincipal, args json.RawMessage) (any, error) {
+				var none struct{}
+				if err := features.MCPDecode(args, &none); err != nil {
+					return nil, err
+				}
+				list, err := f.posts.Categories(ctx)
+				if err != nil {
+					return nil, err
+				}
+				out := make([]mcpCategory, 0, len(list))
+				for _, c := range list {
+					out = append(out, mcpCategory{c.ID, c.Name})
+				}
+				return out, nil
+			},
+		},
 		{
 			Name: "news_list", Title: "お知らせの一覧", Description: "お知らせの一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"offset":{"type":"integer","minimum":0}},"additionalProperties":false}`),
@@ -136,9 +186,13 @@ func (f *Feature) MCPTools() []features.MCPTool {
 		},
 		{
 			Name: "news_create", Title: "お知らせの作成", Description: "お知らせを下書きで作成します。公開はしません。実行の前に利用者の確認があります。",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{` + fields + `},"required":["title","body"],"additionalProperties":false}`),
+			InputSchema: json.RawMessage(`{"type":"object","properties":{` + fields + `,` + createCategory + `},"required":["title","body"],"additionalProperties":false}`),
 			Prepare: func(ctx context.Context, _ features.AgentPrincipal, args json.RawMessage) (features.MCPPlan, error) {
 				a, at, canonical, err := f.checkPost(args, false)
+				if err != nil {
+					return features.MCPPlan{}, err
+				}
+				category, err := f.categoryName(ctx, a.category())
 				if err != nil {
 					return features.MCPPlan{}, err
 				}
@@ -146,6 +200,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if !at.IsZero() {
 					target = "公開日時: " + at.Format("2006-01-02 15:04")
 				}
+				target += "　カテゴリ: " + category
 				summary := features.MCPSummary("お知らせを下書きで作成します。公開はしません。", target, []string{"タイトル", "本文"},
 					"タイトル:\n"+features.MCPQuote(a.Title)+"\n本文:\n"+features.MCPQuote(a.Body))
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
@@ -155,7 +210,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return nil, err
 				}
-				id, err := f.posts.CreateWithDate(ctx, a.Title, a.Body, at)
+				id, err := f.posts.CreateWithCover(ctx, a.Title, a.Body, at, "", a.category())
 				if err != nil {
 					return nil, mcpInputError(err)
 				}
@@ -163,8 +218,8 @@ func (f *Feature) MCPTools() []features.MCPTool {
 			},
 		},
 		{
-			Name: "news_update", Title: "お知らせの編集", Description: "お知らせのタイトルと本文を置き換えます。公開状態は変えません。公開中の記事は直ちに変わり、公開日時を未来にすると予約公開になります。実行の前に利用者の確認があります。",
-			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"},` + fields + `},"required":["id","title","body"],"additionalProperties":false}`),
+			Name: "news_update", Title: "お知らせの編集", Description: "お知らせのタイトルと本文を置き換えます。category_id を渡すとカテゴリも変え、省くと変えません。公開状態は変えません。公開中の記事は直ちに変わり、公開日時を未来にすると予約公開になります。実行の前に利用者の確認があります。",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"},` + fields + `,` + updateCategory + `},"required":["id","title","body"],"additionalProperties":false}`),
 			Prepare: func(ctx context.Context, _ features.AgentPrincipal, args json.RawMessage) (features.MCPPlan, error) {
 				a, at, canonical, err := f.checkPost(args, true)
 				if err != nil {
@@ -190,6 +245,18 @@ func (f *Feature) MCPTools() []features.MCPTool {
 					changes = append(changes, "公開日時")
 					details += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
 				}
+				if a.CategoryID != nil && *a.CategoryID != p.CategoryID {
+					after, err := f.categoryName(ctx, *a.CategoryID)
+					if err != nil {
+						return features.MCPPlan{}, err
+					}
+					before := "なし"
+					if p.CategoryID != 0 {
+						before = p.Category
+					}
+					changes = append(changes, "カテゴリ")
+					details += "カテゴリ: " + before + " → " + after + "\n"
+				}
 				for _, c := range [][3]string{{"タイトル", p.Title, a.Title}, {"本文", p.Body, a.Body}} {
 					if c[1] != c[2] {
 						changes = append(changes, c[0])
@@ -208,7 +275,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if err != nil {
 					return nil, err
 				}
-				if err := f.posts.UpdateIfUnchanged(ctx, p, a.Title, a.Body, at); err != nil {
+				if err := f.posts.UpdateIfUnchanged(ctx, p, a.Title, a.Body, at, a.CategoryID); err != nil {
 					if errors.Is(err, features.ErrMCPConflict) {
 						return nil, err
 					}
@@ -230,6 +297,9 @@ func (f *Feature) checkPost(args json.RawMessage, existing bool) (postArgs, time
 	}
 	if existing != (a.ID > 0) {
 		return a, time.Time{}, nil, features.MCPInputError{Message: "id が正しくありません。"}
+	}
+	if a.CategoryID != nil && *a.CategoryID < 0 {
+		return a, time.Time{}, nil, features.MCPInputError{Message: "category_id が正しくありません。"}
 	}
 	at, err := f.parsePublishedAt(a.PublishedAt)
 	if err != nil {

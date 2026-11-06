@@ -833,7 +833,7 @@ func TestMCP_CoverConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := posts.UpdateIfUnchanged(ctx, cur, "MCP", "本文", time.Time{}); err != nil {
+	if err := posts.UpdateIfUnchanged(ctx, cur, "MCP", "本文", time.Time{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if cur, err = posts.Get(ctx, id); err != nil || cur.CoverFile != first {
@@ -842,7 +842,7 @@ func TestMCP_CoverConflict(t *testing.T) {
 	if w := fx.post(fmt.Sprintf("/admin/news/%d", id), url.Values{"title": {"MCP"}, "body": {"本文"}, "cover": {second}}); w.Code != http.StatusSeeOther {
 		t.Fatalf("change: %d", w.Code)
 	}
-	if err := posts.UpdateIfUnchanged(ctx, cur, "古い", "本文", time.Time{}); !errors.Is(err, features.ErrMCPConflict) {
+	if err := posts.UpdateIfUnchanged(ctx, cur, "古い", "本文", time.Time{}, nil); !errors.Is(err, features.ErrMCPConflict) {
 		t.Fatalf("update: %v", err)
 	}
 	if err := posts.SetPublishedIfUnchanged(ctx, cur, true); !errors.Is(err, features.ErrMCPConflict) {

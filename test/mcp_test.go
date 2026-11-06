@@ -333,6 +333,53 @@ func TestMCP_NewsAndCatalog(t *testing.T) {
 	}
 }
 
+// TestMCP_NewsCategories は、サーバーを通して、お知らせのカテゴリを一覧し、付け、省いた編集で変えず、0で外せることを確かめます。
+// カテゴリが付いた記事を公開すると、公開の絞り込みに出ます。無い番号は確認の前に断ります。
+// ユースケース: UC-MCP-3, UC-MCP-4
+// 不変条件: NEWS-INV-15, NEWS-INV-17
+func TestMCP_NewsCategories(t *testing.T) {
+	e := newMCPEnv(t)
+	ctx := context.Background()
+	posts := news.NewPostStore(e.core.DB())
+	cat, err := posts.SaveCategory(ctx, 0, "イベント")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := e.call("tools/call", "news_categories", map[string]any{"name": "news_categories"})
+	if r["isError"] != false || resultText(t, r) != `[{"id":`+strconv.FormatInt(cat, 10)+`,"name":"イベント"}]` {
+		t.Fatalf("%+v", r)
+	}
+	_, message := e.ask("news_create", map[string]any{"title": "記事", "body": "本文", "category_id": cat})
+	if !strings.Contains(strings.Split(message, "\n")[1], "カテゴリ: イベント") {
+		t.Fatalf("create must show the category: %q", message)
+	}
+	postID := resultID(t, e.run("news_create", map[string]any{"title": "記事", "body": "本文", "category_id": cat}))
+	resultID(t, e.run("news_update", map[string]any{"id": postID, "title": "直した", "body": "本文"}))
+	r = e.call("tools/call", "news_get", map[string]any{"name": "news_get", "arguments": map[string]any{"id": postID}})
+	if text := resultText(t, r); !strings.Contains(text, `"category_id":`+strconv.FormatInt(cat, 10)) || !strings.Contains(text, `"category":"イベント"`) {
+		t.Fatalf("omitting category_id must keep the category: %s", text)
+	}
+	resultID(t, e.run("news_publish", map[string]any{"id": postID}))
+	if w := e.get("/news?category=" + strconv.FormatInt(cat, 10)); w.Code != 200 || !strings.Contains(w.Body.String(), "直した") {
+		t.Fatalf("the published post must be in the category: %d", w.Code)
+	}
+	_, message = e.ask("news_update", map[string]any{"id": postID, "title": "直した", "body": "本文", "category_id": 0})
+	if !strings.Contains(message, "カテゴリ: イベント → なし") {
+		t.Fatalf("update must show the change: %q", message)
+	}
+	resultID(t, e.run("news_update", map[string]any{"id": postID, "title": "直した", "body": "本文", "category_id": 0}))
+	if p, err := posts.Get(ctx, postID); err != nil || p.CategoryID != 0 {
+		t.Fatalf("0 must clear the category: %+v %v", p, err)
+	}
+	r = e.call("tools/call", "news_create", map[string]any{"name": "news_create", "_meta": mcpCaps, "arguments": map[string]any{"title": "x", "body": "", "category_id": 999999}})
+	if r["isError"] != true || r["resultType"] == "input_required" {
+		t.Fatalf("an unknown category must be rejected before the confirmation: %+v", r)
+	}
+	if cs, _ := posts.Categories(ctx); len(cs) != 1 {
+		t.Fatalf("MCP must not create categories: %+v", cs)
+	}
+}
+
 // TestMCP_AdminControlsFeatures は、管理者だけが機能を切り替えられ、一覧に反映されることを確かめます。
 // ユースケース: UC-MCP-1, UC-MCP-2
 // 不変条件: MCP-INV-5
@@ -429,7 +476,7 @@ func TestMCP_ConditionalWritesRefuseStaleReads(t *testing.T) {
 	if err := posts.Update(ctx, postID, "管理画面", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := posts.UpdateIfUnchanged(ctx, old, "MCP", "", old.PublishedAt); !errors.Is(err, features.ErrMCPConflict) {
+	if err := posts.UpdateIfUnchanged(ctx, old, "MCP", "", old.PublishedAt, nil); !errors.Is(err, features.ErrMCPConflict) {
 		t.Fatal(err)
 	}
 	if err := posts.SetPublishedIfUnchanged(ctx, old, true); !errors.Is(err, features.ErrMCPConflict) {
