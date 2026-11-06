@@ -97,6 +97,31 @@ var linkedModules = []string{
 	"modernc.org/sqlite",
 }
 
+// pagesModules は、固定ページの機能を登録したときだけ組み込まれるモジュールです（OGPの画像を題名から作るため）。
+var pagesModules = []string{"golang.org/x/image", "golang.org/x/text"}
+
+// registersPages は、cmd/server/features.go が固定ページの機能を登録しているかを返します。
+// キット自身は登録しないが、キットから作ったサイト（make add-pages）は登録する。
+func registersPages(t *testing.T) bool {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "cmd", "server", "features.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Contains(string(b), `"minimal-web-kit/features/pages"`)
+}
+
+// serverModules は、サーバーと cmd/kit の実行ファイルに組み込まれてよい外部モジュールです。登録した機能で決まります。
+func serverModules(t *testing.T) []string {
+	t.Helper()
+	want := slices.Clone(linkedModules)
+	if registersPages(t) {
+		want = append(want, pagesModules...)
+	}
+	slices.Sort(want)
+	return slices.Compact(want)
+}
+
 // TestArchitecture_LinkedModules は、実行ファイルに組み込まれる外部モジュール（間接依存を含む）が一覧と一致することを検証します。
 // 本番の対象（Linuxのamd64・arm64）で、CGOを無効にした場合の依存を調べます。
 func TestArchitecture_LinkedModules(t *testing.T) {
@@ -119,8 +144,9 @@ func TestArchitecture_LinkedModules(t *testing.T) {
 			}
 		}
 		slices.Sort(got)
-		if !slices.Equal(got, linkedModules) {
-			t.Errorf("linux/%s: linked modules changed.\n got: %v\nwant: %v\nReview new modules (purpose, license, maintenance), then update linkedModules and README.", arch, got, linkedModules)
+		want := serverModules(t)
+		if !slices.Equal(got, want) {
+			t.Errorf("linux/%s: linked modules changed.\n got: %v\nwant: %v\nReview new modules (purpose, license, maintenance), then update linkedModules and README.", arch, got, want)
 		}
 	}
 }
@@ -352,8 +378,13 @@ func TestArchitecture_ModulesHaveNoCgo(t *testing.T) {
 // TestArchitecture_ImageDependencyStaysOptional は、golang.org/x/image が、OGPの画像を作る部品（internal/web/ogimage）を
 // 使う固定ページを登録したときだけ組み込まれ、Base・Site・Core・移行の道具には入らないことを検証します。
 func TestArchitecture_ImageDependencyStaysOptional(t *testing.T) {
-	// 移行の道具は固定ページの保存の処理を使うので入る（TestArchitecture_ImporterModules）
-	for _, pkg := range []string{"./cmd/server", "./cmd/kit", "./internal/app", "./internal/web", "./features/site", "./features/news", "./features/catalog", "./features/documents"} {
+	// 移行の道具は固定ページの保存の処理を使うので入る（TestArchitecture_ImporterModules）。
+	// サーバーは、固定ページを登録した構成（キットから作ったサイト）だけ入る（serverModules）
+	pkgs := []string{"./cmd/kit", "./internal/app", "./internal/web", "./features/site", "./features/news", "./features/catalog", "./features/documents"}
+	if !registersPages(t) {
+		pkgs = append(pkgs, "./cmd/server")
+	}
+	for _, pkg := range pkgs {
 		if slices.Contains(listDeps(t, moduleFormat, pkg), "golang.org/x/image") {
 			t.Errorf("%s links golang.org/x/image; only the OGP image renderer may use it", pkg)
 		}
