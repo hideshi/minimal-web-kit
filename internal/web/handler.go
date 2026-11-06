@@ -282,6 +282,8 @@ type Layout struct {
 	// Data は、レイアウトが必要とする値（ナビのリンク、公開URL、既定の説明文等）を data に加えます。
 	// 画面が設定済みの値は上書きしません。
 	Data func(data map[string]any)
+	// SiteURL は、公開するサイトのURL（例: https://example.com。末尾の / 無し）です。空なら絶対URLを作れません。
+	SiteURL string
 }
 
 // PublicLayout は、Siteが無いときの公開ページのレイアウトです。機能の予備のレイアウトに使います。

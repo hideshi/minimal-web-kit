@@ -29,6 +29,9 @@ func TestArchitecture_DependencyAllowedList(t *testing.T) {
 		// WordPressからの移行の道具（cmd/wpimport）だけが、本文のHTMLを読むためにimportする（2026-11-03 承認）。
 		// サーバーの実行ファイルには組み込まない（TestArchitecture_LinkedModules・TestArchitecture_HTMLParserOnlyInImporter）。
 		"golang.org/x/net": true,
+		// OGPの画像を題名から作る部品（internal/web/ogimage）だけがimportする（2026-11-06 承認。docs/plans/lp-plan.md）。
+		// 固定ページを登録した構成だけに組み込まれる（TestArchitecture_ImageDependencyStaysOptional）。
+		"golang.org/x/image": true,
 	}
 
 	lines := strings.Split(string(content), "\n")
@@ -122,10 +125,14 @@ func TestArchitecture_LinkedModules(t *testing.T) {
 	}
 }
 
+// importerOnlyModules は、移行の道具（cmd/wpimport）だけに組み込まれる外部モジュールです。HTMLを読む x/net と、
+// 固定ページの保存の処理を通じて入る x/image（OGPの画像。道具は画像を作らない）。サーバーの既定の構成には入らない。
+var importerOnlyModules = []string{"golang.org/x/image", "golang.org/x/net", "golang.org/x/text"}
+
 // TestArchitecture_ImporterModules は、移行の道具（cmd/wpimport）に組み込まれる外部モジュールが、サーバーと同じ一覧に
-// golang.org/x/net を足した物だけであることを検証します（計画10.10）。
+// importerOnlyModules を足した物だけであることを検証します（計画10.10）。サーバーと道具で期待値を分けて持ちます。
 func TestArchitecture_ImporterModules(t *testing.T) {
-	want := append(slices.Clone(linkedModules), "golang.org/x/net")
+	want := append(slices.Clone(linkedModules), importerOnlyModules...)
 	slices.Sort(want)
 	var got []string
 	for _, m := range listDeps(t, moduleFormat, "./cmd/wpimport") {
@@ -339,5 +346,44 @@ func TestArchitecture_ModulesHaveNoCgo(t *testing.T) {
 		if seen < 10 {
 			t.Fatalf("見たパッケージが少なすぎる: %d", seen)
 		}
+	}
+}
+
+// TestArchitecture_ImageDependencyStaysOptional は、golang.org/x/image が、OGPの画像を作る部品（internal/web/ogimage）を
+// 使う固定ページを登録したときだけ組み込まれ、Base・Site・Core・移行の道具には入らないことを検証します。
+func TestArchitecture_ImageDependencyStaysOptional(t *testing.T) {
+	// 移行の道具は固定ページの保存の処理を使うので入る（TestArchitecture_ImporterModules）
+	for _, pkg := range []string{"./cmd/server", "./cmd/kit", "./internal/app", "./internal/web", "./features/site", "./features/news", "./features/catalog", "./features/documents"} {
+		if slices.Contains(listDeps(t, moduleFormat, pkg), "golang.org/x/image") {
+			t.Errorf("%s links golang.org/x/image; only the OGP image renderer may use it", pkg)
+		}
+	}
+	if !slices.Contains(listDeps(t, moduleFormat, "./features/pages"), "golang.org/x/image") {
+		t.Error("features/pages should render OGP images with golang.org/x/image")
+	}
+	// import するのは ogimage だけ
+	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() && (d.Name() == ".git" || d.Name() == ".worktrees" || d.Name() == "testdata" || path == "../test/browser") {
+			return filepath.SkipDir
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasPrefix(path, "../internal/web/ogimage/") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range f.Imports {
+			if strings.HasPrefix(strings.Trim(imp.Path.Value, `"`), "golang.org/x/image") {
+				t.Errorf("%s imports %s; only internal/web/ogimage may", path, imp.Path.Value)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +26,8 @@ import (
 	"minimal-web-kit/features/site"
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
+	"minimal-web-kit/internal/web/ogimage"
+	"minimal-web-kit/internal/web/richtext"
 )
 
 type fixture struct {
@@ -464,5 +467,153 @@ func TestInit_WarnsAboutOldLPLines(t *testing.T) {
 	}
 	if strings.Contains(logs, "本文カナリア") {
 		t.Errorf("warning leaked the body: %s", logs)
+	}
+}
+
+// TestLicensesCommand は、licenses のコマンドが、組み込んだフォントの著作権表示とライセンスの全文を出すことを確かめる。
+// 不変条件: PAGES-INV-14
+func TestLicensesCommand(t *testing.T) {
+	var out bytes.Buffer
+	for _, c := range NewFeature(slog.New(slog.NewTextHandler(io.Discard, nil))).ReadOnlyCommands() {
+		if c.Name == "licenses" {
+			if err := c.Run(context.Background(), "", nil, &out); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if !strings.Contains(out.String(), "Adobe") || !strings.Contains(out.String(), "SIL OPEN FONT LICENSE Version 1.1") {
+		t.Fatalf("licenses output: %.200s", out.String())
+	}
+}
+
+// ogPath は、公開ページの og:image の、サイトのURLを除いたパスです。
+func ogPath(t *testing.T, page string) string {
+	t.Helper()
+	m := regexp.MustCompile(`<meta property="og:image" content="https://example.com([^"]*)">`).FindStringSubmatch(page)
+	if m == nil {
+		t.Fatalf("no og:image in %s", page)
+	}
+	return m[1]
+}
+
+// TestOGImage_Route は、公開中のページだけ、今の題名の版で、題名から作った画像を長くキャッシュさせて返し、
+// それ以外は404・500・503でキャッシュさせず、Cookieを読まずセッションを作らないことを確かめる。
+// 不変条件: PAGES-INV-14
+// ユースケース: UC-PAGES-8
+func TestOGImage_Route(t *testing.T) {
+	fx := setup(t)
+	id := fx.create("lp-switch", "乗り換えのご案内", "本文", "", true)
+	page := fx.get("/lp-switch", nil).Body.String()
+	path := ogPath(t, page)
+	if !regexp.MustCompile(`^/ogp/pages/lp-switch-[0-9a-f]{12}\.png$`).MatchString(path) ||
+		!strings.Contains(page, `<meta property="og:image:width" content="1200">`) || !strings.Contains(page, `<meta property="og:image:alt" content="乗り換えのご案内">`) {
+		t.Fatalf("og:image %s", path)
+	}
+	// 成功: PNG、長いキャッシュ、Cookie を付けてもセッションを作らない
+	var sessions int
+	fx.core.DB().QueryRow("SELECT COUNT(*) FROM sessions").Scan(&sessions)
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "not-a-session"})
+	req.AddCookie(fx.admin)
+	w := httptest.NewRecorder()
+	fx.routes.ServeHTTP(w, req)
+	if w.Code != http.StatusOK || w.Header().Get("Content-Type") != "image/png" || !strings.HasPrefix(w.Body.String(), "\x89PNG") ||
+		w.Header().Get("Cache-Control") != "public, max-age=31536000, immutable" || w.Header().Get("Set-Cookie") != "" {
+		t.Fatalf("image: %d %v", w.Code, w.Header())
+	}
+	var after int
+	fx.core.DB().QueryRow("SELECT COUNT(*) FROM sessions").Scan(&after)
+	if after != sessions {
+		t.Errorf("sessions %d -> %d", sessions, after)
+	}
+	// HEAD は本文なし
+	head := httptest.NewRecorder()
+	fx.routes.ServeHTTP(head, httptest.NewRequest(http.MethodHead, path, nil))
+	if head.Code != http.StatusOK || head.Body.Len() != 0 {
+		t.Errorf("HEAD: %d %d bytes", head.Code, head.Body.Len())
+	}
+	notFound := func(name, p string) {
+		t.Helper()
+		w := fx.get(p, nil)
+		if w.Code != http.StatusNotFound || strings.Contains(w.Header().Get("Cache-Control"), "immutable") || strings.HasPrefix(w.Body.String(), "\x89PNG") {
+			t.Errorf("%s: %d %s", name, w.Code, w.Header().Get("Cache-Control"))
+		}
+	}
+	notFound("版の違い", "/ogp/pages/lp-switch-000000000000.png")
+	notFound("形の違い", "/ogp/pages/lp-switch.png")
+	notFound("大文字", strings.ToUpper(path))
+	notFound("無いページ", "/ogp/pages/nothing-000000000000.png")
+	notFound("経路の外", "/ogp/x")
+	// 題名を変えると古いURLは404、新しいURLで返す
+	if w := fx.post("/admin/pages/"+strconv.FormatInt(id, 10), url.Values{"slug": {"lp-switch"}, "title": {"新しい題名"}, "body": {"本文"}}, fx.admin); w.Code != http.StatusSeeOther {
+		t.Fatalf("save: %d", w.Code)
+	}
+	notFound("古い題名", path)
+	if w := fx.get(ogPath(t, fx.get("/lp-switch", nil).Body.String()), nil); w.Code != http.StatusOK {
+		t.Errorf("new title: %d", w.Code)
+	}
+	// 非公開に戻すと404
+	newPath := ogPath(t, fx.get("/lp-switch", nil).Body.String())
+	if w := fx.post("/admin/pages/"+strconv.FormatInt(id, 10)+"/unpublish", nil, fx.admin); w.Code != http.StatusSeeOther {
+		t.Fatalf("unpublish: %d", w.Code)
+	}
+	notFound("非公開", newPath)
+	// 下書きのページの画像は返さない
+	draft := fx.create("draft-page", "下書き", "本文", "", false)
+	_ = draft
+	notFound("下書き", "/ogp/pages/draft-page-"+ogimage.Version(ogKind, "下書き", "example.com")+".png")
+	// スラッグ ogp の固定ページは公開できる（経路が取られない）
+	fx.create("ogp", "OGPの説明", "本文", "", true)
+	if w := fx.get("/ogp", nil); w.Code != http.StatusOK {
+		t.Errorf("/ogp page: %d", w.Code)
+	}
+}
+
+// TestOGImage_FailuresAndFallback は、同時に作る枠が無ければ503、DBの障害は500、フォントに無い文字の題名は
+// 自動の画像を作らずサイト共通の画像にすること、本文の画像が解決できればそれを使うことを確かめる。
+// 不変条件: PAGES-INV-14
+func TestOGImage_FailuresAndFallback(t *testing.T) {
+	fx := setup(t)
+	fx.create("lp", "乗り換えのご案内", "本文", "", true)
+	path := ogPath(t, fx.get("/lp", nil).Body.String())
+	for range ogMaxSlots {
+		fx.f.ogSlots <- struct{}{}
+	}
+	if w := fx.get(path, nil); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Header().Get("Cache-Control"), "immutable") {
+		t.Errorf("full slots: %d %s", w.Code, w.Header().Get("Cache-Control"))
+	}
+	for range ogMaxSlots {
+		<-fx.f.ogSlots
+	}
+	for range 3 { // 枠が戻っている
+		if w := fx.get(path, nil); w.Code != http.StatusOK {
+			t.Fatalf("after slots freed: %d", w.Code)
+		}
+	}
+	// フォントに無い文字の題名
+	fx.create("emoji", "絵文字😀の題名", "本文", "", true)
+	if got := ogPath(t, fx.get("/emoji", nil).Body.String()); got != "/static/img/ogp.png" {
+		t.Errorf("undrawable title uses %s", got)
+	}
+	// 本文の画像が解決できれば、その画像
+	data := map[string]any{}
+	doc := richtext.Doc{Blocks: []richtext.Block{{Kind: "image", Alt: "外観", File: "x.jpg", Src: "/media/x.jpg", Width: 1600, Height: 900}}}
+	fx.f.addOGImage(data, Page{Slug: "lp", Title: "題"}, doc)
+	if data["OGImagePath"] != "/media/x.jpg" || data["OGImageWidth"] != 1600 || data["OGImageAlt"] != "外観" {
+		t.Errorf("body image: %v", data)
+	}
+	// 解決できない画像（画像の機能が無い等）は、題名から作る画像へ
+	data = map[string]any{}
+	doc.Blocks[0].Src = ""
+	fx.f.addOGImage(data, Page{Slug: "lp", Title: "題"}, doc)
+	if p, _ := data["OGImagePath"].(string); !strings.HasPrefix(p, "/ogp/pages/lp-") {
+		t.Errorf("unresolved image: %v", data)
+	}
+	// DBの障害は500
+	if _, err := fx.core.DB().Exec("ALTER TABLE pages RENAME TO pages_gone"); err != nil {
+		t.Fatal(err)
+	}
+	if w := fx.get(path, nil); w.Code != http.StatusInternalServerError || strings.Contains(w.Header().Get("Cache-Control"), "immutable") {
+		t.Errorf("load failure: %d", w.Code)
 	}
 }

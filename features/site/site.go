@@ -172,7 +172,7 @@ func (f *Feature) HandleNotFound(w http.ResponseWriter, r *http.Request) {
 
 // Layout は、Siteのヘッダー・フッターを、Coreの画面（/privacy 等）やお知らせ機能の公開ページにも使わせます。
 func (f *Feature) Layout() web.Layout {
-	return web.Layout{FS: viewsFS, File: "views/layout.html", Data: f.layoutData}
+	return web.Layout{FS: viewsFS, File: "views/layout.html", Data: f.layoutData, SiteURL: f.siteURL}
 }
 
 // layoutData は、レイアウトが必要とする値を加えます。画面が設定済みの値は上書きしません。
@@ -180,8 +180,10 @@ func (f *Feature) layoutData(data map[string]any) {
 	data["NavLinks"] = f.currentNavLinks()
 	data["Contact"] = f.contactLink()
 	data["SiteURL"] = f.siteURL
-	data["OGImagePath"] = ogImagePath
-	data["OGImageAlt"] = ogImageAlt
+	// OGPの画像は、画面が決めていれば上書きしない（固定ページはページごとの画像を決める）。大きさも一式で決める
+	if _, ok := data["OGImagePath"]; !ok {
+		data["OGImagePath"], data["OGImageAlt"], data["OGImageWidth"], data["OGImageHeight"] = ogImagePath, ogImageAlt, 1200, 630
+	}
 	if _, ok := data["Description"]; !ok {
 		data["Description"] = description
 	}

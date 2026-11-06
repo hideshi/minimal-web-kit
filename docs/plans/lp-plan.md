@@ -226,3 +226,58 @@ Sol の判断は「高は無い。読み方の表のレビューには進んで�
 | 低 | 前のカードの並びが作った `h2` を数えるか | 本文の `## ` だけを数える（3.3節） |
 | 低 | 経路の共存の試験 | `GET /ogp/pages/{name}` だけを登録し、`/ogp` の固定ページと共存する試験（4.2節・4.4節） |
 | 低 | MCP の `pages_get` は描かずに原文を返す | 記述を直した（3.3節） |
+
+## 13. 実装の記録
+
+### 段階1（2026-11-06）
+
+- `richtext.ParseForPages` と、ヒーロー・ボタン・カードの描き方（`components.html` の `richtext`）。固定ページの保存・公開・プレビュー・画像の参照の作り直しは、`ParseForPages` に切り替えた。
+- 移行の道具で `ヒーロー\:`・`ボタン\:`・`カード\:` に逃がす。起動の時の警告（PAGES-INV-13）は、2026-11-07 0時（日本時間）より前に保存したページだけを対象にした（後から保存したLPで毎回警告しないため）。
+- `style.css` に、本文のカードの題名と説明の余白の規則を足した（ファイルは増やしていない）。
+- `make test-ui` に、LPの見本（`15b-page-lp`）を足し、1100pxと360pxで見た。
+- 守りをわざと外す確認（12か所、全部検出）:
+
+| # | 外した守り | 落ちた試験 |
+|---|---|---|
+| L1 | ヒーローは最初の空でない行だけ | `TestParseForPages_SpecExamples`（`本文⏎ヒーロー: x` 等） |
+| L2 | ボタンはリンクちょうど1つ | 同上（リンクの後ろに文字、リンク2つ） |
+| L3 | カードの区切りの `\|` はちょうど1つ | 同上 |
+| L4 | ボタンの並びは3つまで | 同上 |
+| L5 | カードの並びは12枚まで | 同上 |
+| L6 | 前に `## ` があればカードの題名は `h3` | 同上 |
+| L7 | 社内文書（`Parse`）は部品を読まない | `TestParse_LPLinesStayParagraphs` |
+| L8 | 移行の道具で前置きを逃がす | `TestConvert_Page/lp_line_start` |
+| L9 | ヒーローのあるページは題名の `h1` を出さない | `TestPublic_LPParts`（`h1` が2つ） |
+| L10 | 警告は書き方を足す前に保存したページだけ | `TestInit_WarnsAboutOldLPLines` |
+| L11 | 説明文はヒーローの導入から | `TestPublic_LPParts` |
+| L12 | プレビューのヒーローに題名を入れる | 同上 |
+
+- ファズ `FuzzRichtextPages` を20秒（約4万回）回した。
+
+### 段階2（2026-11-06）
+
+- フォント: `notofonts/noto-cjk` のタグ `Sans2.004` の `NotoSansJP-Bold.otf` を、`scripts/ogp-font-subset.sh`（fontTools 4.57.0）で JIS X 0208 と ASCII に絞った（1,541,116バイト。作り直しても同じハッシュ）。記録は `internal/web/ogimage/font/FONT.md`。LICENSE に予約フォント名の指定は無かった。
+- 部品 `internal/web/ogimage`（`Drawable`・`Version`・`Render`・`Lines`）。描き方の版は1で、題名3つの PNG のハッシュを試験に固定した。
+- 固定ページ: `GET /ogp/pages/{name}`、公開ページの `og:image`、`licenses` のコマンド（DBを開かない）。サーバーの本体に置くと既定の構成にも `x/image` が入るので、固定ページの機能のコマンドにした。
+- Site: OGPの画像は画面が決めていれば上書きしない。幅・高さも値で渡す。`web.Layout` に `SiteURL` を足し、固定ページは画像に描くホスト名をそこから取る。
+- 依存: `golang.org/x/image` は固定ページを登録した構成と移行の道具だけに入る（`TestArchitecture_ImageDependencyStaysOptional`。移行の道具は固定ページの保存の処理を通じて入るので、道具の期待値を分けた）。固定ページと管理者認証を登録した実行ファイルは 14.7MB から 17.0MB になった（Linux amd64）。
+- 守りをわざと外す確認:
+
+| # | 外した守り | 落ちた試験 |
+|---|---|---|
+| O1 | 結合文字・書式文字を描かない | **落ちない**。今のフォントにはこの種類の文字が1つも無く（fontTools で確かめた）、フォントに無い文字の確かめ（O13）が先に止める。フォントを替えた時の守りとして残す |
+| O2 | 版の入力に長さを付ける | `TestVersion`（区切り） |
+| O3 | 描き方（色）を変えて版を上げない | `TestRender_Golden` |
+| O4 | 禁則 | `TestLines_Rules` |
+| O5 | 均し | 同上 |
+| O6 | 版が今の題名と合う時だけ返す | `TestOGImage_Route`（版の違い・古い題名） |
+| O7・O7b | 同時に作る枠・枠を返す | `TestOGImage_FailuresAndFallback` |
+| O8 | 失敗の応答はキャッシュさせない | `TestOGImage_Route` |
+| O9 | Site が画面の決めた画像を上書きしない | 同上 |
+| O10 | 本文の画像を先に使う | `TestOGImage_FailuresAndFallback` |
+| O11 | HEAD は本文なし | `TestOGImage_Route` |
+| O12 | 描けない題名は共通の画像 | `TestOGImage_FailuresAndFallback` |
+| O13 | フォントに無い文字を描かない | `TestDrawable` |
+
+- O7 の最初の外し方（枠が空くまで待つ）は試験が止まらなかったので、枠の守りそのものを外す形でやり直した。
+

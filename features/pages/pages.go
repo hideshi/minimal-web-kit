@@ -9,8 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -19,6 +22,7 @@ import (
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/web"
+	"minimal-web-kit/internal/web/ogimage"
 	"minimal-web-kit/internal/web/richtext"
 )
 
@@ -50,6 +54,8 @@ type Feature struct {
 	nav       []navEntry // 公開の状態でナビの順のあるページ（予約中を含む。スナップショット。PAGES-INV-6）
 	// afterNavRead は、テストで、ナビの読み取りと交換の間に割り込むための口です。本番では nil です。
 	afterNavRead func()
+	// ogSlots は、OGPの画像を同時に作る数の枠です（PAGES-INV-14）。
+	ogSlots chan struct{}
 }
 
 // navEntry はナビの候補です。publishAt を過ぎるまでは載せません。
@@ -63,6 +69,7 @@ func NewFeature(logger *slog.Logger) *Feature {
 		logger:     logger,
 		publicPage: template.Must(web.ParsePage(web.PublicLayout(), viewsFS, "views/page.html")),
 		notFound:   http.NotFound,
+		ogSlots:    make(chan struct{}, ogMaxSlots),
 		now:        time.Now,
 		media:      features.NoMedia{},
 	}
@@ -138,6 +145,7 @@ func (f *Feature) RegisterRoutes(mux *http.ServeMux, sm *web.SessionManager) {}
 
 // RegisterIsolatedRoutes は管理画面を登録します（公開ページは受け皿で返す）。
 func (f *Feature) RegisterIsolatedRoutes(mux *web.IsolatedMux) {
+	mux.HandleFunc("GET /ogp/pages/{name}", f.handleOGImage)
 	if f.admin != nil {
 		f.registerAdmin(mux)
 	}
@@ -286,6 +294,7 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 	}
 	f.AddNavigation(data)
 	f.AddAnalytics(w, data)
+	f.addOGImage(data, p, doc)
 	if f.layout != nil && f.layout.Data != nil {
 		f.layout.Data(data)
 	}
@@ -337,4 +346,113 @@ func (f *Feature) warnLPLines(ctx context.Context) error {
 	}
 	f.logger.Warn("pages have lines that may render as LP parts; escape the colon (ボタン\\:) to keep them as text", slog.Any("page_ids", ids))
 	return nil
+}
+
+// ---- OGPの画像（docs/plans/lp-plan.md 4節） ----
+
+const (
+	ogKind     = "pages"
+	ogMaxSlots = 2
+)
+
+// ogName は、OGPの画像のファイル名 {スラッグ}-{版12桁}.png です。
+var ogName = regexp.MustCompile(`^([a-z0-9][a-z0-9-]{0,38}[a-z0-9])-([0-9a-f]{12})\.png$`)
+
+// ogHost は、OGPの画像に描くサイトのホスト名です。SITE_URL が無い構成では空で、自動の画像を作りません。
+func (f *Feature) ogHost() string {
+	if f.layout == nil || f.layout.SiteURL == "" {
+		return ""
+	}
+	u, err := url.Parse(f.layout.SiteURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
+// ogImagePath は、自動の画像のパスです。作れない（ホスト名が無い、フォントに無い文字がある）なら空です。
+func (f *Feature) ogImagePath(p Page) string {
+	host := f.ogHost()
+	if host == "" || !ogimage.Drawable(p.Title, host) {
+		return ""
+	}
+	return "/ogp/pages/" + p.Slug + "-" + ogimage.Version(ogKind, p.Title, host) + ".png"
+}
+
+// addOGImage は、公開ページのOGPの画像を決めます。本文の最初の画像が公開用に解決できればそれ、無ければ題名から作る画像、
+// どちらも無ければ何も入れない（Site の共通の画像になる）。幅・高さ・説明は一式で入れます。
+// 不変条件: PAGES-INV-14
+func (f *Feature) addOGImage(data map[string]any, p Page, doc richtext.Doc) {
+	for _, b := range doc.Blocks {
+		if b.Kind == "image" {
+			if b.Src != "" {
+				data["OGImagePath"], data["OGImageAlt"], data["OGImageWidth"], data["OGImageHeight"] = b.Src, b.Alt, b.Width, b.Height
+				return
+			}
+			break
+		}
+	}
+	if path := f.ogImagePath(p); path != "" {
+		data["OGImagePath"], data["OGImageAlt"], data["OGImageWidth"], data["OGImageHeight"] = path, p.Title, ogimage.Width, ogimage.Height
+	}
+}
+
+// handleOGImage は、公開中のページの題名からOGPの画像を作って返します。版が今の題名と合わない、公開中でない、
+// 描けない時は404。DBの障害は500、同時に作る枠が無い時は503。Cookieを読まず、セッションを作りません。
+// 成功だけ長くキャッシュさせ、失敗の応答はCoreの既定（no-store）のままにします。
+// 不変条件: PAGES-INV-14
+func (f *Feature) handleOGImage(w http.ResponseWriter, r *http.Request) {
+	m := ogName.FindStringSubmatch(r.PathValue("name"))
+	if m == nil {
+		f.notFound(w, r)
+		return
+	}
+	p, err := f.store.Published(r.Context(), m[1])
+	if errors.Is(err, ErrNotFound) {
+		f.notFound(w, r)
+		return
+	} else if err != nil {
+		f.logger.Error("pages og load failed", web.RequestIDAttr(w))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	path := f.ogImagePath(p)
+	if path == "" || path != "/ogp/pages/"+m[0] {
+		f.notFound(w, r)
+		return
+	}
+	select {
+	case f.ogSlots <- struct{}{}:
+		defer func() { <-f.ogSlots }()
+	default:
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "Service Unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	png, err := ogimage.Render(p.Title, f.ogHost())
+	if err != nil {
+		f.logger.Error("pages og render failed", web.RequestIDAttr(w))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Content-Length", strconv.Itoa(len(png)))
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	if r.Method == http.MethodHead {
+		return
+	}
+	_, _ = w.Write(png)
+}
+
+// ReadOnlyCommands は、DBを開かないコマンドです。licenses は、OGPの画像のために組み込んだフォントの著作権表示と
+// ライセンス（SIL Open Font License 1.1）の全文を出します。実行ファイルだけを配る場合に、ライセンスを一緒に示すためです。
+func (f *Feature) ReadOnlyCommands() []features.ReadOnlyCommand {
+	return []features.ReadOnlyCommand{{
+		Name:    "licenses",
+		Summary: "組み込んだフォントの著作権表示とライセンスを出す",
+		Run: func(_ context.Context, _ string, _ []string, out io.Writer) error {
+			_, err := fmt.Fprintf(out, "%s\n\n%s", ogimage.Copyright, ogimage.License)
+			return err
+		},
+	}}
 }

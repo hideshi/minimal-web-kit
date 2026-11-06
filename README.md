@@ -268,6 +268,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 
 - 本文は書き方を絞ったMarkdown（見出し2段、段落、箇条書き、番号付き、表、リンク、強調）で、キットのコードで読みます（[書き方の仕様](docs/richtext.md)）。HTMLは書けず、リンクは `https://` とサイト内のパスだけです。画像機能が有効なら、本文に画像を入れられます。添付・版の履歴はありません。
 - 切り口ごとの紹介のページ（LP）も作れます。本文の1行目の `ヒーロー: 導入の文` で最初の画面（大きな見出し・導入・ボタン）、`ボタン: [文字](/contact)` の行でボタン、`カード: 題名 | 説明` の行でカードの並びになります。見た目は `style.css` の既存の部品で、JSは使いません。この書き方を足す前に保存した本文に、`ボタン: ` 等で始まる行があると見え方が変わるので、起動の時にそのページのIDを警告のログに出します。文字のまま出すには `ボタン\:` のように書きます。
+- SNSで共有した時の画像（`og:image`）は、本文の最初の画像か、無ければ題名から自動で作る画像（`/ogp/pages/{スラッグ}-{版}.png`。1200×630）です。保存はせず、公開中のページだけ作ります。題名を変えるとURLの版が変わります。フォントに無い文字（絵文字、JISの第1・第2水準に無い漢字等）が題名にあれば、サイト共通の画像になります。題名を描くフォント（Noto Sans JP の太字を絞った物。SIL Open Font License 1.1）のライセンスは `minimal-web-kit licenses` で出せます。
 - スラッグは英小文字・数字・ハイフンで2〜40文字です。`/privacy` や `/news` など、Coreと他の機能が使う経路と同じものは使えません。公開ページは「どの経路にも当たらなかった要求」だけを受けるため、既存の経路は取られません。
 - 公開日時を保存してから「公開を予約する」を押すと、その日時から公開されます（ナビと `sitemap.xml` も）。判定は要求の時刻で行います。
 - 公開中のページは `sitemap.xml` に載ります。「ナビに出す順」を決めたページは、Siteのナビにも載ります（再起動は不要）。ナビは公開キャッシュのある画面（`/` 等）では最大60秒遅れて見えます。
@@ -384,6 +385,8 @@ CGOが要らないのは、C言語のSQLiteをGoのコードへ自動で変換�
 | `github.com/muhlemmer/gu` | 同上 | 提供機能 | Unlicense |
 | `go.opentelemetry.io/otel` 一式・`go.opentelemetry.io/auto/sdk`・`github.com/go-logr/logr`・`github.com/go-logr/stdr` | 同上。計測のAPIだけで、送信先を設定しないので外部へは送らない | 提供機能 | Apache-2.0 |
 | `golang.org/x/text` | 同上 | 提供機能 | BSD系 |
+
+固定ページの機能を登録したときだけ、OGPの画像を題名から作るために `golang.org/x/image`（直接依存。文字の描画とフォントの読み込み。BSD系）と、それが使う `golang.org/x/text`（BSD系）も組み込まれます（`TestArchitecture_ImageDependencyStaysOptional`）。日本語のフォント（約1.5MB）も組み込むため、固定ページと管理者認証を登録した実行ファイルは約17.0MBです（Linux amd64、`make build` 相当、2026-11-06。組み込む前は約14.7MB）。
 
 WordPressからの移行の道具（`cmd/wpimport`。サーバーとは別の実行ファイル）だけが、本文のHTMLを読むために `golang.org/x/net`（`html`。BSD系）を直接依存として使います。サーバーと `cmd/kit` の実行ファイルには組み込まれません（`TestArchitecture_LinkedModules`・`TestArchitecture_HTMLParserOnlyInImporter`）。
 
@@ -514,6 +517,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 │       ├── notice/        # 部品: 完了メッセージの受け渡し
 │       ├── page/          # 部品: 一覧のページ送り
 │       ├── richtext/      # 部品: 本文の記法の解析と描画
+│       ├── ogimage/       # 部品: OGPの画像を題名から作る（フォントとライセンスは font/）
 │       ├── static/        # CSS・JS・画像
 │       └── views/         # 共通のレイアウトと画面部品のテンプレート
 ├── features/
