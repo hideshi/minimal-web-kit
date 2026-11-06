@@ -437,6 +437,22 @@ func LinkParagraphs(paragraphs [][]string) [][][]Inline {
 	return out
 }
 
+// ExcerptRunes は、説明文（検索結果・SNSのカード）に使う本文の文字数です。
+const ExcerptRunes = 120
+
+// Excerpt は、リンクだけを読む本文（お知らせ・カタログ）の冒頭から説明文を作ります。リンクの記法は読んだ後の文字にし、
+// 改行や連続する空白は1つの空白にまとめ、ExcerptRunes 文字を超えたら切って「…」を付けます。本文が空なら fallback を使います。
+func Excerpt(body, fallback string) string {
+	s := strings.Join(strings.Fields(LinkPlain(body)), " ")
+	if s == "" {
+		return fallback
+	}
+	if r := []rune(s); len(r) > ExcerptRunes {
+		return string(r[:ExcerptRunes]) + "…"
+	}
+	return s
+}
+
 // LinkPlain は、本文をリンクの記法を読んだ後の文字にします（リンクは文字だけを残す）。説明文に使います。
 func LinkPlain(body string) string {
 	lines := strings.Split(body, "\n")

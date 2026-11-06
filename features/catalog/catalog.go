@@ -328,7 +328,8 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request) {
 	if !f.result(w, r, err) {
 		return
 	}
-	data := map[string]any{"Title": item.Title, "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": richtext.LinkParagraphs(form.Paragraphs(item.Body))}
+	// 説明文（検索結果・SNSのカード）は、項目の本文の冒頭から作る。本文が空なら題名（CATALOG-INV-14）
+	data := map[string]any{"Title": item.Title, "Description": richtext.Excerpt(item.Body, item.Title), "CanonicalPath": "/catalog/" + idString(id), "Item": item, "Paragraphs": richtext.LinkParagraphs(form.Paragraphs(item.Body))}
 	covers, err := f.covers(r.Context(), []Item{item})
 	if !f.result(w, r, err) {
 		return

@@ -173,6 +173,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - 公開一覧はキーワード・カテゴリID・タグID（すべてに一致）で絞り込み、20件ずつページ送りします。検索条件はURLとブラウザ履歴に残るので、秘密を入力しないでください。公開閲覧でCookieを扱わず、検索語や閲覧履歴はサーバーに保存しません。
 - 公開一覧だけhtmx 2.0.11とcatalog.jsを読み込みます。JavaScriptなしでもリンク・GETフォームで検索と移動ができ、管理操作も通常フォームです。項目の作成・編集画面のタグ選択は、Coreのコンボボックス部品で入力しながら絞り込めます（JSなしではチェックボックスの一覧）。Alpine.jsは比較試作（`experiment/catalog-tags` ブランチ、[比較計画と結果](docs/plans/catalog-ui-comparison-plan.md)）で評価し、採用していません。
 - 公開・非公開の反映遅れを避けるため、カタログでは公開キャッシュを使いません。全文LIKE検索には走査コストがあり、大規模な検索基盤は提供しません。
+- 項目の詳細ページの説明文（検索結果・SNSのカード）は、本文の冒頭から作ります（120文字まで。本文が空なら題名）。お知らせの記事と同じ作り方です。
 - カタログまたはNewsが有効な間はAuthを外せません。作者IDや操作履歴は保存せず、データは明示削除まで保持します。
 
 仕様と不変条件は [domain/catalog.md](docs/domain/catalog.md)、保存内容は[データ台帳](docs/data-inventory.md)の6節、ブラウザ依存の記録は [カタログのJavaScript](features/catalog/static/README.md) を参照してください。独自レイアウトで強化UIを使う場合は、head内に空の `{{block "page_head" .}}{{end}}` を用意します（Siteと既定レイアウトには用意済み）。

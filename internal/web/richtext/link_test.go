@@ -134,3 +134,20 @@ func FuzzLinkLine(f *testing.F) {
 		}
 	})
 }
+
+// TestExcerpt は、説明文がリンクの記法を文字にし、空白をそろえ、ExcerptRunes 文字で切り、空なら代わりの文字になることを確かめる。
+// お知らせの記事とカタログの項目の説明文に使う（CATALOG-INV-14）。
+func TestExcerpt(t *testing.T) {
+	for _, c := range []struct{ body, want string }{
+		{"[会社](/about)の\n\n  紹介", "会社の 紹介"},
+		{"[古い](http://example.com) **強**", "[古い](http://example.com) **強**"},
+		{strings.Repeat("あ", ExcerptRunes), strings.Repeat("あ", ExcerptRunes)},
+		{strings.Repeat("あ", ExcerptRunes+1), strings.Repeat("あ", ExcerptRunes) + "…"},
+		{" \n\t ", "代わり"},
+		{"", "代わり"},
+	} {
+		if got := Excerpt(c.body, "代わり"); got != c.want {
+			t.Errorf("Excerpt(%q) = %q, want %q", c.body, got, c.want)
+		}
+	}
+}

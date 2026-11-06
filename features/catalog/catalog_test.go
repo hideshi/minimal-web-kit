@@ -207,6 +207,42 @@ func TestDetailBodyLinks(t *testing.T) {
 	}
 }
 
+// TestDetailDescription は、項目の詳細ページの説明文が、項目の本文の冒頭から作られ（リンクの記法は文字、空白をそろえ、
+// 120文字で切る）、HTMLとしてエスケープされ、本文が空なら題名になり、一覧の説明文は変わらないことを確かめる。
+// 不変条件: CATALOG-INV-14
+func TestDetailDescription(t *testing.T) {
+	t.Setenv("SITE_URL", "https://example.com")
+	fx := setup(t, true)
+	meta := func(path string) (desc, og string) {
+		t.Helper()
+		body := fx.send("GET", path, nil, nil, nil).Body.String()
+		d := regexp.MustCompile(`<meta name="description" content="([^"]*)">`).FindStringSubmatch(body)
+		o := regexp.MustCompile(`<meta property="og:description" content="([^"]*)">`).FindStringSubmatch(body)
+		if d == nil || o == nil {
+			t.Fatalf("%s: no description in %s", path, body)
+		}
+		return d[1], o[1]
+	}
+	long := strings.Repeat("長", 130)
+	for _, c := range []struct{ title, body, want string }{
+		{"本文あり", "日報と備品の台帳を、\n定義から作ります。", "日報と備品の台帳を、 定義から作ります。"},
+		{"リンクあり", "詳しくは[会社案内](/about)と [外部](https://example.com) を", "詳しくは会社案内と 外部 を"},
+		{"長い本文", long, strings.Repeat("長", 120) + "…"},
+		{"本文が空", "", "本文が空"},
+		{"エスケープ", `<b>"強"</b> & x`, "&lt;b&gt;&#34;強&#34;&lt;/b&gt; &amp; x"},
+	} {
+		id := mustSave(t, fx.f.store, Input{Title: c.title, Body: c.body})
+		mustPublish(t, fx.f.store, id)
+		desc, og := meta("/catalog/" + idString(id))
+		if desc != c.want || og != c.want {
+			t.Errorf("%s: description %q og %q, want %q", c.title, desc, og, c.want)
+		}
+	}
+	if desc, _ := meta("/catalog"); desc != "公開中のカタログです。" {
+		t.Errorf("list description %q", desc)
+	}
+}
+
 func TestStoreTransactionsClassificationDeletionAndRetention(t *testing.T) {
 	fx := setup(t, false)
 	s := fx.f.store

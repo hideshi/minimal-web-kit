@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"minimal-web-kit/features"
@@ -71,21 +70,8 @@ func (f *Feature) render(w http.ResponseWriter, page string, data map[string]any
 	_, _ = buf.WriteTo(w)
 }
 
-// excerptRunes は、記事の説明文（検索結果・SNSのカード）に使う本文の文字数です。
-const excerptRunes = 120
-
-// excerpt は、本文の冒頭から説明文を作ります。リンクの記法は読んだ後の文字にし、改行や連続する空白は1つの空白にまとめます。
-// 本文が空ならタイトルを使います。
-func excerpt(body, fallback string) string {
-	s := strings.Join(strings.Fields(richtext.LinkPlain(body)), " ")
-	if s == "" {
-		return fallback
-	}
-	if r := []rune(s); len(r) > excerptRunes {
-		return string(r[:excerptRunes]) + "…"
-	}
-	return s
-}
+// excerpt は、本文の冒頭から説明文を作ります（richtext.Excerpt）。
+func excerpt(body, fallback string) string { return richtext.Excerpt(body, fallback) }
 
 // SitemapEntries は、公開中の記事と一覧を sitemap.xml に載せます（Siteが有効な場合に使われる）。
 func (f *Feature) SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error) {
