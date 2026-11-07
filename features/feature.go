@@ -601,10 +601,34 @@ func MCPSummary(action, target string, changes []string, details string) string 
 	return summary
 }
 
+// MCPの日時は、読み取りも書き込みもRFC 3339の時差付きにそろえ、AIが読んだ値をそのまま渡せるようにします（MCP-INV-14）。
+// 機能の mcp.go では日時の書式を直接書かず、次の3つを通します（test/mcp_time_test.go が確かめます）。
+
+// MCPTimeHint は、日時を受け取るツールの説明とエラーに添える書き方です。
+const MCPTimeHint = "RFC 3339 の時差付き（例: 2026-12-01T09:00:00+09:00、2026-12-01T00:00:00Z）"
+
 // MCPTime は、読み取りで返す日時の形です。機能ごとに保存の読み出し方が違ってもそろうよう、UTCのRFC 3339にします。
 // 公開ページのJSONやサイトマップと同じ形です。
 func MCPTime(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
+}
+
+// MCPParseTime は、書き込みで受け取る日時を読みます。空ならゼロ値です（変えない）。
+// 時差の無い値は、どの地域の時刻か決まらないので断ります。1970年より前も断ります（保存はUNIX秒）。
+func MCPParseTime(name, raw string) (time.Time, error) {
+	if raw == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil || t.Unix() < 0 {
+		return time.Time{}, MCPInputError{Message: name + " は " + MCPTimeHint + "で書いてください。"}
+	}
+	return t, nil
+}
+
+// MCPLocalTime は、確認の文に出す日時です。人が読むので、管理画面と同じサーバーのタイムゾーンで、地域名を添えます。
+func MCPLocalTime(t time.Time) string {
+	return t.In(time.Local).Format("2006-01-02 15:04 MST")
 }
 
 // MCPState は、状態を構成する値から、確認の照合に使うハッシュを作ります。区切りが混ざらないようJSONにします。

@@ -263,7 +263,7 @@ func TestSchedule_MCPChecksTheDate(t *testing.T) {
 		t.Errorf("unpublish after a date change: %v", err)
 	}
 
-	plan, err = tools["pages_update"].Prepare(ctx, who, args(`{"id":`+strconv.FormatInt(id, 10)+`,"slug":"mcp-page","title":"MCPの見本","body":"本文","nav_order":null,"publish_at":"2026-10-30T09:00"}`))
+	plan, err = tools["pages_update"].Prepare(ctx, who, args(`{"id":`+strconv.FormatInt(id, 10)+`,"slug":"mcp-page","title":"MCPの見本","body":"本文","nav_order":null,"publish_at":"`+time.Date(2026, 10, 30, 9, 0, 0, 0, time.Local).Format(time.RFC3339)+`"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

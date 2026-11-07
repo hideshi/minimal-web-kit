@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
-	"minimal-web-kit/internal/web/form"
 )
 
 // MCPLabel は、設定の画面に出す名前です。
@@ -63,7 +62,7 @@ type itemID struct {
 }
 
 func (a itemArgs) input() Input {
-	at, _ := form.ParseLocalDateTime(a.PublishAt) // checkItem で検査済み
+	at, _ := features.MCPParseTime("publish_at", a.PublishAt) // checkItem で検査済み
 	return Input{Title: a.Title, Body: a.Body, CategoryID: a.CategoryID, TagIDs: a.TagIDs, PublishAt: at}
 }
 
@@ -95,7 +94,7 @@ func mcpID(args json.RawMessage) (int64, error) {
 func stateLabel(item Item, now time.Time) string {
 	switch {
 	case item.Scheduled(now):
-		return "公開予約 " + item.PublishAt.Format("2006-01-02 15:04")
+		return "公開予約 " + features.MCPLocalTime(item.PublishAt)
 	case item.Published:
 		return "公開中"
 	}
@@ -126,8 +125,8 @@ func checkItem(args json.RawMessage, existing bool) (itemArgs, json.RawMessage, 
 	if existing != (a.ID > 0) {
 		return a, nil, features.MCPInputError{Message: "id が正しくありません。"}
 	}
-	if _, ok := form.ParseLocalDateTime(a.PublishAt); !ok {
-		return a, nil, features.MCPInputError{Message: "publish_at の形式が正しくありません（2006-01-02T15:04）。"}
+	if _, err := features.MCPParseTime("publish_at", a.PublishAt); err != nil {
+		return a, nil, err
 	}
 	in, err := normalize(a.input())
 	if err != nil {
@@ -155,7 +154,7 @@ func (f *Feature) tagNames(ctx context.Context, ids []int64) string {
 // MCPTools は、カタログのツールを返します。保存は管理画面と同じ検査を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"category_id":{"type":"integer","minimum":0},"tag_ids":{"type":"array","items":{"type":"integer"}},"publish_at":{"type":"string","description":"公開を始める日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない。公開中の項目を未来の日時にはできない"}`
+	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"category_id":{"type":"integer","minimum":0},"tag_ids":{"type":"array","items":{"type":"integer"}},"publish_at":{"type":"string","description":"公開を始める日時。` + features.MCPTimeHint + `。空なら変えない。公開中の項目を未来の日時にはできない"}`
 	return []features.MCPTool{
 		{
 			Name: "catalog_list", Title: "カタログの一覧", Description: "項目の一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,
@@ -227,7 +226,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				}
 				action := "カタログの項目を下書きで作成します。公開はしません。"
 				if at := a.publishAt(); !at.IsZero() {
-					action += "公開の操作をすると、" + at.Format("2006-01-02 15:04") + " から公開されます。"
+					action += "公開の操作をすると、" + features.MCPLocalTime(at) + " から公開されます。"
 				}
 				summary := features.MCPSummary(action, "カテゴリ: "+f.nameOf(ctx, "categories", a.CategoryID)+"　タグ: "+f.tagNames(ctx, a.TagIDs),
 					[]string{"タイトル", "本文"}, "タイトル:\n"+features.MCPQuote(a.Title)+"\n本文:\n"+features.MCPQuote(a.Body))
@@ -272,7 +271,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 						action += "【予約中の項目が、保存すると直ちに公開ページに出ます】"
 					}
 					changes = append(changes, "公開日時")
-					details += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
+					details += "公開日時: " + features.MCPLocalTime(at) + "\n"
 				}
 				if a.CategoryID != item.CategoryID {
 					changes = append(changes, "カテゴリ")
@@ -345,7 +344,7 @@ func (f *Feature) publishTool(name, title, description string, published bool) f
 			if published {
 				action = "カタログの項目を公開します。【だれでも見られるようになります】"
 				if item.PublishAt.After(now) {
-					action = "カタログの項目を予約公開します。公開日時: " + item.PublishAt.Format("2006-01-02 15:04")
+					action = "カタログの項目を予約公開します。公開日時: " + features.MCPLocalTime(item.PublishAt)
 				}
 			}
 			return features.MCPPlan{Summary: action + "\n" + f.targetLine(item), Canonical: canonical, State: mcpState(item)}, nil

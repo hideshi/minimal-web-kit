@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/features/auth"
@@ -201,6 +203,48 @@ func (e *mcpEnv) get(path string) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	e.routes.ServeHTTP(w, req)
 	return w
+}
+
+// TestMCP_TimesAreRFC3339 は、書き込みの日時が時差付きだけを受け、読み取りがUTCで返し、確認の文がサーバーのタイムゾーンで出ることを
+// お知らせ・カタログ・固定ページで確かめます。読んだ値をそのまま書き戻しても、日時は変わりません。
+// ユースケース: UC-MCP-3, UC-MCP-4
+// 不変条件: MCP-INV-14
+func TestMCP_TimesAreRFC3339(t *testing.T) {
+	e := newMCPEnv(t)
+	at := time.Date(2030, 12, 1, 0, 0, 0, 0, time.UTC)
+	jst := at.In(time.FixedZone("JST", 9*60*60)).Format(time.RFC3339) // 2030-12-01T09:00:00+09:00
+	for _, c := range []struct {
+		create, get, field string
+		args               map[string]any
+	}{
+		{"news_create", "news_get", "published_at", map[string]any{"title": "予約", "body": "本文"}},
+		{"catalog_create", "catalog_get", "publish_at", map[string]any{"title": "予約", "body": "本文"}},
+		{"pages_create", "pages_get", "publish_at", map[string]any{"slug": "timed", "title": "予約", "body": "本文", "nav_order": nil}},
+	} {
+		for _, bad := range []string{"2030-12-01T09:00", "2030-12-01T09:00:00", "2030-12-01", "1969-12-31T23:59:59Z"} {
+			args := maps.Clone(c.args)
+			args[c.field] = bad
+			r := e.call("tools/call", c.create, map[string]any{"name": c.create, "arguments": args, "_meta": mcpCaps})
+			if r["isError"] != true || !strings.Contains(resultText(t, r), "RFC 3339") {
+				t.Errorf("%s %s=%q: %+v", c.create, c.field, bad, r)
+			}
+		}
+		args := maps.Clone(c.args)
+		args[c.field] = jst
+		_, message := e.ask(c.create, args)
+		if !strings.Contains(message, features.MCPLocalTime(at)) {
+			t.Errorf("%s: 確認の文にサーバーのタイムゾーンの日時が無い: %s", c.create, message)
+		}
+		id := resultID(t, e.run(c.create, args))
+		r := e.call("tools/call", c.get, map[string]any{"name": c.get, "arguments": map[string]any{"id": id}})
+		var got map[string]any
+		if err := json.Unmarshal([]byte(resultText(t, r)), &got); err != nil {
+			t.Fatal(err)
+		}
+		if got[c.field] != "2030-12-01T00:00:00Z" || !strings.HasSuffix(got["updated_at"].(string), "Z") {
+			t.Errorf("%s: %s=%v updated_at=%v", c.get, c.field, got[c.field], got["updated_at"])
+		}
+	}
 }
 
 // TestMCP_PagesFollowTheAdminPath は、作成から公開までを通し、ナビの更新と検査が管理画面と同じことを確かめます。

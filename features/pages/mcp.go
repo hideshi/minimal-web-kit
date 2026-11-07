@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"minimal-web-kit/features"
+	"minimal-web-kit/internal/web/form"
 )
 
 // MCPLabel は、設定の画面に出す名前です。
@@ -49,8 +50,19 @@ type pageID struct {
 	ID int64 `json:"id"`
 }
 
+// decodePage は引数を読み、公開日時の形を確かめます。日時は時差付きで受け、管理画面と同じ入力の形に直すのは input です。
+func decodePage(args json.RawMessage) (pageArgs, error) {
+	var a pageArgs
+	if err := features.MCPDecode(args, &a); err != nil {
+		return a, err
+	}
+	_, err := features.MCPParseTime("publish_at", a.PublishAt)
+	return a, err
+}
+
 func (a pageArgs) input() Input {
-	in := Input{Slug: a.Slug, Title: a.Title, Body: a.Body, PublishAt: a.PublishAt}
+	at, _ := features.MCPParseTime("publish_at", a.PublishAt) // decodePage で検査済み
+	in := Input{Slug: a.Slug, Title: a.Title, Body: a.Body, PublishAt: form.FormatLocalDateTime(at)}
 	if a.NavOrder != nil {
 		in.NavOrder = strconv.Itoa(*a.NavOrder)
 	}
@@ -82,7 +94,7 @@ func mcpID(args json.RawMessage) (int64, error) {
 func stateLabel(p Page, now time.Time) string {
 	switch {
 	case p.Scheduled(now):
-		return "公開予約 " + p.PublishAt.Format("2006-01-02 15:04")
+		return "公開予約 " + features.MCPLocalTime(p.PublishAt)
 	case p.Published:
 		return "公開中"
 	}
@@ -104,7 +116,7 @@ func dateText(t time.Time) string {
 	if t.IsZero() {
 		return "なし"
 	}
-	return t.Format("2006-01-02 15:04")
+	return features.MCPLocalTime(t)
 }
 
 func navText(n *int) string {
@@ -117,7 +129,7 @@ func navText(n *int) string {
 // MCPTools は、固定ページのツールを返します。保存は管理画面と同じ検査とナビの更新を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"slug":{"type":"string"},"title":{"type":"string"},"body":{"type":"string","description":"本文。書き方を絞ったMarkdown（## 見出し、- 箇条書き、1. 番号付き、表、[文字](URL)、**強調**）。1行目の「ヒーロー: 導入の文」で最初の画面、「ボタン: [文字](URL)」の行でボタン、「カード: 題名 | 説明」の行でカードの並び。HTMLは書けない"},"nav_order":{"type":["integer","null"]},"publish_at":{"type":"string","description":"公開を始める日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない。公開中のページを未来の日時にはできない"}`
+	fields := `"slug":{"type":"string"},"title":{"type":"string"},"body":{"type":"string","description":"本文。書き方を絞ったMarkdown（## 見出し、- 箇条書き、1. 番号付き、表、[文字](URL)、**強調**）。1行目の「ヒーロー: 導入の文」で最初の画面、「ボタン: [文字](URL)」の行でボタン、「カード: 題名 | 説明」の行でカードの並び。HTMLは書けない"},"nav_order":{"type":["integer","null"]},"publish_at":{"type":"string","description":"公開を始める日時。` + features.MCPTimeHint + `。空なら変えない。公開中のページを未来の日時にはできない"}`
 	return []features.MCPTool{
 		{
 			Name: "pages_list", Title: "固定ページの一覧", Description: "固定ページの一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,
@@ -156,8 +168,8 @@ func (f *Feature) MCPTools() []features.MCPTool {
 			Name: "pages_create", Title: "固定ページの作成", Description: "固定ページを下書きで作成します。公開はしません。実行の前に利用者の確認があります。",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{` + fields + `},"required":["slug","title","body"],"additionalProperties":false}`),
 			Prepare: func(ctx context.Context, _ features.AgentPrincipal, args json.RawMessage) (features.MCPPlan, error) {
-				var a pageArgs
-				if err := features.MCPDecode(args, &a); err != nil {
+				a, err := decodePage(args)
+				if err != nil {
 					return features.MCPPlan{}, err
 				}
 				if a.ID != 0 {
@@ -173,15 +185,15 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				}
 				action := "固定ページを下書きで作成します。公開はしません。"
 				if !n.publishAt.IsZero() {
-					action += "公開の操作をすると、" + n.publishAt.Format("2006-01-02 15:04") + " から公開されます。"
+					action += "公開の操作をすると、" + features.MCPLocalTime(n.publishAt) + " から公開されます。"
 				}
 				summary := features.MCPSummary(action, "URL: /"+n.slug+"　ナビの順: "+navText(n.navOrder),
 					[]string{"タイトル", "本文"}, "タイトル:\n"+features.MCPQuote(n.title)+"\n本文:\n"+features.MCPQuote(n.body))
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, _ string) (any, error) {
-				var a pageArgs
-				if err := features.MCPDecode(canonical, &a); err != nil {
+				a, err := decodePage(canonical)
+				if err != nil {
 					return nil, err
 				}
 				id, err := f.save(ctx, 0, a.input())
@@ -195,8 +207,8 @@ func (f *Feature) MCPTools() []features.MCPTool {
 			Name: "pages_update", Title: "固定ページの編集", Description: "固定ページの全ての欄を置き換えます。publish_at は省くと変えません。公開状態は変えません。公開中のページは直ちに変わります。実行の前に利用者の確認があります。",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"},` + fields + `},"required":["id","slug","title","body","nav_order"],"additionalProperties":false}`),
 			Prepare: func(ctx context.Context, _ features.AgentPrincipal, args json.RawMessage) (features.MCPPlan, error) {
-				var a pageArgs
-				if err := features.MCPDecode(args, &a); err != nil {
+				a, err := decodePage(args)
+				if err != nil {
 					return features.MCPPlan{}, err
 				}
 				p, err := f.store.Get(ctx, a.ID)
@@ -241,8 +253,8 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: mcpState(p)}, nil
 			},
 			Apply: func(ctx context.Context, _ features.AgentPrincipal, canonical json.RawMessage, state string) (any, error) {
-				var a pageArgs
-				if err := features.MCPDecode(canonical, &a); err != nil {
+				a, err := decodePage(canonical)
+				if err != nil {
 					return nil, err
 				}
 				p, err := f.store.Get(ctx, a.ID)
@@ -297,7 +309,7 @@ func (f *Feature) publishTool(name, title, description string, published bool) f
 			if published {
 				action = "固定ページを公開します。【だれでも見られるようになります】"
 				if p.PublishAt.After(now) {
-					action = "固定ページを予約公開します。公開日時: " + p.PublishAt.Format("2006-01-02 15:04")
+					action = "固定ページを予約公開します。公開日時: " + features.MCPLocalTime(p.PublishAt)
 				}
 			}
 			return features.MCPPlan{Summary: action + "\n" + f.targetLine(p), Canonical: canonical, State: mcpState(p)}, nil

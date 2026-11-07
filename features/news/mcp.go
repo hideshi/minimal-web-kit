@@ -137,7 +137,7 @@ func changedField(name, before, after string) string {
 // MCPTools は、お知らせのツールを返します。保存は管理画面と同じ検査を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"published_at":{"type":"string","description":"公開日時（2006-01-02T15:04、サーバーのタイムゾーン）。空なら変えない"}`
+	fields := `"title":{"type":"string"},"body":{"type":"string","description":"プレーンテキスト。空行で段落。リンクは [文字](URL) と書く（URLは https:// か / で始まるサイト内のパス）。\\ で \\ [ ] ( ) を文字にできる"},"published_at":{"type":"string","description":"公開日時。` + features.MCPTimeHint + `。空なら変えない"}`
 	createCategory := `"category_id":{"type":"integer","minimum":0,"description":"カテゴリの番号（news_categories）。省くか0ならカテゴリなし"}`
 	updateCategory := `"category_id":{"type":"integer","minimum":0,"description":"カテゴリの番号（news_categories）。0でカテゴリを外す。省くと今のカテゴリを変えない"}`
 	return []features.MCPTool{
@@ -212,7 +212,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				}
 				target := "公開日時: 初めて公開するとき"
 				if !at.IsZero() {
-					target = "公開日時: " + at.Format("2006-01-02 15:04")
+					target = "公開日時: " + features.MCPLocalTime(at)
 				}
 				target += "　カテゴリ: " + category
 				fields := []string{"タイトル", "本文"}
@@ -266,7 +266,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				after := ""
 				if !at.IsZero() {
 					changes = append(changes, "公開日時")
-					details += "公開日時: " + at.Format("2006-01-02 15:04") + "\n"
+					details += "公開日時: " + features.MCPLocalTime(at) + "\n"
 				}
 				if a.CategoryID != nil && *a.CategoryID != p.CategoryID {
 					after, err = f.categoryName(ctx, *a.CategoryID)
@@ -329,9 +329,9 @@ func (f *Feature) checkPost(args json.RawMessage, existing bool) (postArgs, time
 	if a.CategoryID != nil && *a.CategoryID < 0 {
 		return a, time.Time{}, nil, features.MCPInputError{Message: "category_id が正しくありません。"}
 	}
-	at, err := f.parsePublishedAt(a.PublishedAt)
+	at, err := features.MCPParseTime("published_at", a.PublishedAt)
 	if err != nil {
-		return a, at, nil, mcpInputError(err)
+		return a, at, nil, err
 	}
 	if a.Title, a.Body, err = normalizePost(a.Title, a.Body); err != nil {
 		return a, at, nil, mcpInputError(err)
@@ -377,7 +377,7 @@ func (f *Feature) publishTool(name, title, description string, published bool) f
 			if published {
 				action = "お知らせを公開します。【だれでも見られるようになります】"
 				if p.PublishedAt.After(f.now()) {
-					action = "お知らせを予約公開します。公開日時: " + p.PublishedAt.In(time.Local).Format("2006-01-02 15:04")
+					action = "お知らせを予約公開します。公開日時: " + features.MCPLocalTime(p.PublishedAt)
 				}
 			}
 			return features.MCPPlan{Summary: action + "\n" + f.targetLine(p), Canonical: canonical, State: mcpState(p)}, nil
