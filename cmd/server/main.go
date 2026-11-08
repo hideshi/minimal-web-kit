@@ -6,6 +6,7 @@ import (
 
 	"minimal-web-kit/internal/app"
 	"minimal-web-kit/internal/store"
+	"minimal-web-kit/internal/web"
 )
 
 func main() {
@@ -57,6 +58,12 @@ func main() {
 		code := runCommand(os.Args[1:], featuresRegistry, s.DB(), os.Stdin, os.Stdout, os.Stderr)
 		s.Close()
 		os.Exit(code)
+	}
+
+	// サイトの名前（SITE_NAME）が不正なら、値をログに出さずに起動を止める
+	if err := web.CheckSiteName(); err != nil {
+		logger.Error("site name invalid", "reason", err.Error())
+		os.Exit(1)
 	}
 
 	srv := app.NewServer(cfg, s, featuresRegistry, logger)

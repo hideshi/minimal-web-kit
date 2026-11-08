@@ -1,6 +1,6 @@
 {{define "layout"}}{{template "public-shell" .}}{{end}}
 
-{{define "page-title"}}{{.Title}} - minimal-web-kit{{end}}
+{{define "page-title"}}{{.Title}} - {{siteName}}{{end}}
 
 {{define "site-meta"}}<meta name="description" content="{{.Description}}">
   {{if .NoIndex}}<meta name="robots" content="noindex">
@@ -9,9 +9,9 @@
   {{end}}<meta property="og:type" content="{{or .OGType "website"}}">
   {{if .PublishedTime}}<meta property="article:published_time" content="{{.PublishedTime}}">
   {{end}}
-  <meta property="og:site_name" content="minimal-web-kit">
+  <meta property="og:site_name" content="{{siteName}}">
   <meta property="og:locale" content="ja_JP">
-  <meta property="og:title" content="{{.Title}} - minimal-web-kit">
+  <meta property="og:title" content="{{.Title}} - {{siteName}}">
   <meta property="og:description" content="{{.Description}}">
   <meta property="og:image" content="{{.SiteURL}}{{.OGImagePath}}">
   <meta property="og:image:width" content="{{.OGImageWidth}}">
@@ -20,8 +20,8 @@
   <meta name="twitter:card" content="summary_large_image">
   {{end}}{{end}}
 
-{{define "site-brand"}}<div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
+{{define "site-brand"}}<div class="site-title"><a href="/" class="brand-link">{{siteName}}</a></div>
 <div class="site-subtitle">個人情報の取得と依存関係を最小限に抑える、Webサイト・業務アプリの開発基盤</div>{{end}}
 
-{{define "site-footer"}}<p>&copy; 2026 minimal-web-kit. 通常の構成に組み込まれる直接依存はSQLiteドライバだけ。公開ページはCookieなしで閲覧できます。</p>
+{{define "site-footer"}}<p>&copy; 2026 {{siteName}}. 通常の構成に組み込まれる直接依存はSQLiteドライバだけ。公開ページはCookieなしで閲覧できます。</p>
 <p><a href="/privacy">プライバシーポリシー・免責事項</a></p>{{end}}

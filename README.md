@@ -344,6 +344,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `AUTH_RP_ID` | `localhost`。WebAuthnのRP ID。`AUTH_ORIGIN` のホストか、その上位のドメイン |
 | `AUTH_ALLOW_SYNCED_PASSKEYS` | 無効。`true` のときだけ同期型のパスキーを受け入れる。`true`・`false`・空以外の値は起動時にエラー |
 | `NEWS_CORS_ORIGINS` | 未設定（許可なし）。`/api/` を別ドメインから読むことを許す接続元をカンマ区切りで指定。`*` は不可 |
+| `SITE_NAME` | `minimal-web-kit`。サイトの名前。管理画面のヘッダー・題名・フッター、公開ページの既定の題名・ヘッダー・フッター・`og:site_name`、パスキーの登録で認証器に出る名前に使う（40文字まで。空白だけ・制御文字は起動時にエラー）。Siteの `layout.html` で `site-brand` 等を書き換えたブロックはその文面のまま |
 | `SITE_URL` | 未設定。Siteを公開するURL（例: `https://example.com`）。設定するとcanonical・OGP・Xカード・`sitemap.xml` を出力する（絶対URLが必要なため） |
 | `CONTACT_FORM_URL` | 未設定。Siteのお問い合わせリンク先（外部のフォーム。`https://` のみ有効。未設定時はボタン非表示）。お問い合わせ機能と同時に有効にすると起動時にエラー |
 | `CONTACT_RETENTION_DAYS` | 90。お問い合わせの保持日数（1〜365。範囲外・数字以外は起動時にエラー） |

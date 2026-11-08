@@ -230,7 +230,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{block "page-title" .}}{{.Title}} - minimal-web-kit{{end}}</title>
+  <title>{{block "page-title" .}}{{.Title}} - {{siteName}}{{end}}</title>
   {{block "site-meta" .}}{{end}}
   {{template "static-head"}}
   {{block "page_head" .}}{{end}}
@@ -242,7 +242,7 @@
   <header>
     <div class="site-header-inner public-header">
       <div>
-        {{block "site-brand" .}}<div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>{{end}}
+        {{block "site-brand" .}}<div class="site-title"><a href="/" class="brand-link">{{siteName}}</a></div>{{end}}
       </div>
       {{template "public-menu" .}}
     </div>
@@ -254,7 +254,7 @@
 
   <footer>
     <div class="footer-inner">
-      {{block "site-footer" .}}<p>&copy; 2026 minimal-web-kit</p>
+      {{block "site-footer" .}}<p>&copy; 2026 {{siteName}}</p>
       <p><a href="/privacy">プライバシーポリシー（保存データについて）</a></p>{{end}}
     </div>
   </footer>
@@ -271,7 +271,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
-  <title>{{.Title}} - minimal-web-kit 管理画面</title>
+  <title>{{.Title}} - {{siteName}} 管理画面</title>
   {{template "static-head"}}
   {{block "script" .}}{{end}}
 </head>
@@ -281,7 +281,7 @@
   <header>
     <div class="site-header-inner">
       <div>
-        <div class="site-title"><a href="/admin" class="brand-link">minimal-web-kit</a></div>
+        <div class="site-title"><a href="/admin" class="brand-link">{{siteName}}</a></div>
         <div class="site-subtitle">管理画面</div>
       </div>
       <nav aria-label="管理画面のナビゲーション">
@@ -303,7 +303,7 @@
 
   <footer>
     <div class="footer-inner">
-      <p>&copy; 2026 minimal-web-kit</p>
+      <p>&copy; 2026 {{siteName}}</p>
     </div>
   </footer>
 </body>

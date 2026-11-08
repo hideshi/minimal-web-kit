@@ -532,7 +532,7 @@ func (f *Feature) handleRegisterBegin(w http.ResponseWriter, r *http.Request, bo
 	}
 	f.writeJSON(w, http.StatusOK, map[string]any{
 		"challenge": challenge,
-		"rp":        map[string]string{"id": f.cfg.RPID, "name": "minimal-web-kit"},
+		"rp":        map[string]string{"id": f.cfg.RPID, "name": web.SiteName()},
 		// user.name は固定の識別子、displayName は呼び名（認証器のアカウント選択に表示される）
 		"user":        map[string]string{"id": b64(target.WebAuthnUserID), "name": "account-" + strconv.FormatInt(target.AccountID, 10), "displayName": target.Name},
 		"accountName": target.Name,

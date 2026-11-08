@@ -336,6 +336,7 @@ func (h *Handler) SetLayout(layout Layout) error {
 // {{template "confirm-actions" (confirm "/admin/x/1/delete" "/admin/x/1" .CSRFToken)}}
 // asset は /static/ のファイルの版付きの URL を作る: {{asset "js/combobox.js"}}（引数は文字列だけ。解析時に実在を確かめる）
 // navCurrent はナビのリンクの aria-current の値を返す（NavCurrent を参照）
+// siteName はサイトの名前（SITE_NAME。未設定なら minimal-web-kit）を返す
 var componentFuncs = template.FuncMap{
 	"confirm": func(action, back, csrfToken string) form.Confirm {
 		return form.Confirm{Action: action, Back: back, CSRFToken: csrfToken}
@@ -358,6 +359,7 @@ var componentFuncs = template.FuncMap{
 	"hiddenField":     form.HiddenInput,
 	"asset":           AssetURL,
 	"themeStylesheet": themeStylesheet,
+	"siteName":        SiteName,
 	"navCurrent":      NavCurrent,
 }
 

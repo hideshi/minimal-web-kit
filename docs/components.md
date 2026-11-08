@@ -79,7 +79,7 @@ func (f *Feature) handleSave(w http.ResponseWriter, r *http.Request) {
 | `analytics` | `web.Analytics` | アクセス解析の同意の案内と `analytics.js`。`AddAnalytics` を呼んだ応答にだけ出る。`public-shell` がスキップリンクの直後で呼ぶので、枠を使うレイアウトでは呼ばなくてよい |
 | `list-header` | `listHeader` の戻り値 | 一覧の画面の先頭（見出し、完了の案内、操作の並び）。`primaryAction`・`linkAction` で操作を渡す。条件で変わる操作や説明の段落を挟む画面は、操作なしで呼んで、後ろに `action-bar` を置く |
 | `public-shell` | 画面のデータ | 公開ページの文書全体（`<head>`、スキップリンク、`analytics`、ヘッダー、`main`、フッター）。レイアウトは `{{define "layout"}}{{template "public-shell" .}}{{end}}` と書き、違う箇所だけブロック（`page-title`・`site-meta`・`page_head`・`site-brand`・`site-footer`）を定義する。Siteが無いときの機能のレイアウトは `web.PublicLayout()` |
-| `admin-shell` | 画面のデータ | 管理画面の文書全体。ブロックは `script` と `admin-alerts`。同梱のレイアウトが自分で `<html>` を書くとテストが落ちる |
+| `admin-shell` | 画面のデータ | 管理画面の文書全体。ブロックは `script` と `admin-alerts`。ヘッダー・題名・フッターの名前は `{{siteName}}`（環境変数 `SITE_NAME`）で、テンプレートを書き換えずに変える。同梱のレイアウトが自分で `<html>` を書くとテストが落ちる |
 | `static-head` | なし | CSSとアイコンの `<link>`（CSS 1本、アイコン3つ。サイトがテーマ `static/css/theme.css` を置いたときだけ、`style.css` の後にもう1本）。URLは中身の版付き（`?v=`）で、CSSを変えるとすぐ新しい版が読まれる。レイアウトの `<head>` で `{{template "static-head"}}` と書く。予約名で、利用側で同じ名前を定義すると解析でエラーになる |
 
 **CSSとアイコンの読み込み**: 同梱のレイアウトは、枠の部品（`public-shell`・`admin-shell`）の中の `static-head` から読み込みます。共通部品は登録されるだけでレイアウトに自動では入らないため、枠を使わない自作のレイアウトでは `<head>` に `{{template "static-head"}}` を書きます。`/static/...` を直接書いたレイアウトも動きますが、版が付かず、CSSの更新が届くまでキャッシュの期間（10分。前段のCDNが引き上げることがある）だけ遅れます。テーマも読み込まれません。`/static/` の他のファイルは、`{{asset "js/combobox.js"}}` で版付きのURLにします。`asset` の引数は文字列だけで、`/static/` に無いファイルや文字列以外の引数は、実行しない分岐の中でも解析（`web.ParseWithComponents`・`web.ParsePage`）でエラーになります。版はファイルごとの中身のSHA-256の先頭12桁で、CSSを変えてもアイコンのURLは変わりません。

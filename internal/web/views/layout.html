@@ -1,9 +1,9 @@
 {{define "layout"}}{{template "public-shell" .}}{{end}}
 
-{{define "site-brand"}}<div class="site-title"><a href="/" class="brand-link">minimal-web-kit</a></div>
+{{define "site-brand"}}<div class="site-title"><a href="/" class="brand-link">{{siteName}}</a></div>
 <div class="site-subtitle">個人情報・外部依存を最小限に抑えたWebアプリのひな形</div>{{end}}
 
-{{define "site-footer"}}<p>minimal-web-kit: 閲覧のために氏名や連絡先の登録は必要ありません。</p>
+{{define "site-footer"}}<p>{{siteName}}: 閲覧のために氏名や連絡先の登録は必要ありません。</p>
 {{if .SiteMode}}
 <p>公開ページの閲覧ではセッションCookieを使用しません。</p>
 {{else}}
