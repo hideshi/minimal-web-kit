@@ -100,23 +100,64 @@ var linkedModules = []string{
 // pagesModules は、固定ページの機能を登録したときだけ組み込まれるモジュールです（OGPの画像を題名から作るため）。
 var pagesModules = []string{"golang.org/x/image", "golang.org/x/text"}
 
-// registersPages は、cmd/server/features.go が固定ページの機能を登録しているかを返します。
-// キット自身は登録しないが、キットから作ったサイト（make add-pages）は登録する。
-func registersPages(t *testing.T) bool {
+// providerModules は、共通認証の提供機能（make add-oidcop）を登録したときだけ組み込まれるモジュールです。README の依存の表と合わせます。
+var providerModules = []string{
+	"github.com/bmatcuk/doublestar/v4",
+	"github.com/cespare/xxhash/v2",
+	"github.com/go-chi/chi/v5",
+	"github.com/go-jose/go-jose/v4",
+	"github.com/go-logr/logr",
+	"github.com/go-logr/stdr",
+	"github.com/gorilla/securecookie",
+	"github.com/muhlemmer/gu",
+	"github.com/muhlemmer/httpforwarded",
+	"github.com/rs/cors",
+	"github.com/zitadel/oidc/v3",
+	"github.com/zitadel/schema",
+	"go.opentelemetry.io/auto/sdk",
+	"go.opentelemetry.io/otel",
+	"go.opentelemetry.io/otel/metric",
+	"go.opentelemetry.io/otel/trace",
+	"golang.org/x/oauth2",
+	"golang.org/x/text",
+}
+
+// consumerModules は、共通認証の利用機能（make add-federatedauth）を登録したときだけ組み込まれるモジュールです。
+var consumerModules = []string{
+	"github.com/coreos/go-oidc/v3",
+	"github.com/go-jose/go-jose/v4",
+	"golang.org/x/oauth2",
+}
+
+const (
+	pagesImport    = "minimal-web-kit/features/pages"
+	providerImport = "minimal-web-kit/features/auth/oidcop"
+	consumerImport = "minimal-web-kit/features/federatedauth"
+)
+
+// registers は、cmd/server/features.go が importPath の機能を登録しているかを返します。
+// キット自身は固定ページと共通認証を登録しないが、キットから作ったサイト（make add-pages・make add-oidcop 等）は登録する。
+func registers(t *testing.T, importPath string) bool {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("..", "cmd", "server", "features.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return strings.Contains(string(b), `"minimal-web-kit/features/pages"`)
+	return strings.Contains(string(b), `"`+importPath+`"`)
 }
 
 // serverModules は、サーバーと cmd/kit の実行ファイルに組み込まれてよい外部モジュールです。登録した機能で決まります。
 func serverModules(t *testing.T) []string {
 	t.Helper()
 	want := slices.Clone(linkedModules)
-	if registersPages(t) {
+	if registers(t, pagesImport) {
 		want = append(want, pagesModules...)
+	}
+	if registers(t, providerImport) {
+		want = append(want, providerModules...)
+	}
+	if registers(t, consumerImport) {
+		want = append(want, consumerModules...)
 	}
 	slices.Sort(want)
 	return slices.Compact(want)
@@ -238,7 +279,12 @@ func listDeps(t *testing.T, format, pkg string) []string {
 // TestArchitecture_FederationDependenciesStayOptional は、OIDCのライブラリが、それを使う機能を登録したときだけ組み込まれることを検証します。
 // go.mod の require 行ではなく、到達するimportで決まります。提供機能と利用機能は互いに依存しません。
 func TestArchitecture_FederationDependenciesStayOptional(t *testing.T) {
-	for _, pkg := range []string{"./cmd/server", "./cmd/kit", "./features/auth", "./internal/app", "./internal/federation"} {
+	pkgs := []string{"./cmd/kit", "./features/auth", "./internal/app", "./internal/federation"}
+	// 共通認証を登録したサイトでは、サーバーに組み込まれるのは当然で、その一覧は TestArchitecture_LinkedModules が確かめる。
+	if !registers(t, providerImport) && !registers(t, consumerImport) {
+		pkgs = append(pkgs, "./cmd/server")
+	}
+	for _, pkg := range pkgs {
 		for _, m := range listDeps(t, moduleFormat, pkg) {
 			if slices.Contains(federationModules, m) {
 				t.Errorf("%s links %s; only the optional federation features may import it", pkg, m)
@@ -259,6 +305,25 @@ func TestArchitecture_FederationDependenciesStayOptional(t *testing.T) {
 	}
 	if modules := listDeps(t, moduleFormat, "./features/auth/oidcop"); !slices.Contains(modules, "github.com/zitadel/oidc/v3") {
 		t.Error("the provider no longer uses the OIDC library; update the dependency allow list")
+	}
+	// 登録したサイトで TestArchitecture_LinkedModules が使う一覧を、キットでも機能の実際の依存と突き合わせる。
+	for pkg, extra := range map[string][]string{"./features/auth/oidcop": providerModules, "./features/federatedauth": consumerModules} {
+		allowed := append(slices.Clone(linkedModules), extra...)
+		used := map[string]bool{}
+		for _, m := range listDeps(t, moduleFormat, pkg) {
+			if m == "minimal-web-kit" {
+				continue
+			}
+			used[m] = true
+			if !slices.Contains(allowed, m) {
+				t.Errorf("%s links %s; review it, then add it to the module list and README", pkg, m)
+			}
+		}
+		for _, m := range extra {
+			if !used[m] {
+				t.Errorf("%s no longer links %s; remove it from the module list and README", pkg, m)
+			}
+		}
 	}
 }
 
@@ -381,7 +446,7 @@ func TestArchitecture_ImageDependencyStaysOptional(t *testing.T) {
 	// 移行の道具は固定ページの保存の処理を使うので入る（TestArchitecture_ImporterModules）。
 	// サーバーは、固定ページを登録した構成（キットから作ったサイト）だけ入る（serverModules）
 	pkgs := []string{"./cmd/kit", "./internal/app", "./internal/web", "./features/site", "./features/news", "./features/catalog", "./features/documents"}
-	if !registersPages(t) {
+	if !registers(t, pagesImport) {
 		pkgs = append(pkgs, "./cmd/server")
 	}
 	for _, pkg := range pkgs {
