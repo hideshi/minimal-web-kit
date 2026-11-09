@@ -338,3 +338,23 @@ func TestMigrate_AddsKindColumn(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// フォームの値の期限切れ・署名の誤りで出し直すときも、選んだ種別を残す。
+// 不変条件: CONTACT-INV-8
+func TestKind_RetryKeepsChoice(t *testing.T) {
+	setKind(t, testKindOptions, "", "")
+	_, routes, _, _, clock := setup(t)
+	_, token := getForm(t, routes)
+	*clock = clock.Add(2 * time.Hour)
+	values := valid(token, "期限切れの本文")
+	values.Set("kind", "region")
+	res := submit(routes, values, "same-origin")
+	if res.Code != http.StatusBadRequest || !strings.Contains(res.Body.String(), `value="region" checked`) {
+		t.Fatalf("expired retry must keep the kind: %d", res.Code)
+	}
+	values.Set("token", "broken")
+	res = submit(routes, values, "same-origin")
+	if res.Code != http.StatusBadRequest || !strings.Contains(res.Body.String(), `value="region" checked`) {
+		t.Fatalf("bad token retry must keep the kind: %d", res.Code)
+	}
+}

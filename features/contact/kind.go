@@ -150,7 +150,7 @@ func (f *Feature) kindChoices(v contactForm) *form.Choices {
 	return c
 }
 
-// checkKind は送られた種別を検査します。無効なら読まずに空にします。選択肢に無い値と、必須の未選択は、
+// checkKind は送られた種別（v.Kind。出し直しで選択を残すため、フォームの値の判定より前に読んである）を検査します。無効なら読まずに空にします。選択肢に無い値と、必須の未選択は、
 // 入力を返して400にし、false を返します（呼び出し側はそこで終える）。
 func (f *Feature) checkKind(w http.ResponseWriter, r *http.Request, v *contactForm) bool {
 	k := f.cfg.Kind
@@ -158,7 +158,6 @@ func (f *Feature) checkKind(w http.ResponseWriter, r *http.Request, v *contactFo
 		v.Kind = ""
 		return true
 	}
-	v.Kind = r.PostForm.Get(kindField)
 	if (v.Kind == "" && !k.Required) || k.Valid(v.Kind) {
 		return true
 	}

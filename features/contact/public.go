@@ -123,7 +123,7 @@ func (f *Feature) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := f.now()
-	v := contactForm{Input: Input{Name: r.PostForm.Get("name"), ReplyTo: r.PostForm.Get("reply_to"), Body: r.PostForm.Get("body")}, Token: r.PostForm.Get("token")}
+	v := contactForm{Input: Input{Name: r.PostForm.Get("name"), ReplyTo: r.PostForm.Get("reply_to"), Body: r.PostForm.Get("body"), Kind: r.PostForm.Get(kindField)}, Token: r.PostForm.Get("token")}
 	fake := func(result string) {
 		f.logResult(w, result)
 		notice.Redirect(w, r, "/contact", "sent")
