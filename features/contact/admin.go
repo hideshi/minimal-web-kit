@@ -91,6 +91,7 @@ func (f *Feature) failed(w http.ResponseWriter, r *http.Request, err error) bool
 type messageRow struct {
 	Message
 	DeleteSoon string
+	KindLabel  string // 種別の表示名。無効なら空
 }
 
 // deleteSoon は、削除まで7日以内なら残りの日数を返します。1日に満たない分は切り上げます。
@@ -121,7 +122,8 @@ func (f *Feature) renderList(w http.ResponseWriter, r *http.Request, s features.
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
-	list, err := f.store.List(r.Context(), openOnly, pg.Limit(), pg.Offset())
+	kind := f.kindFilter(r)
+	list, err := f.store.List(r.Context(), openOnly, kind, pg.Limit(), pg.Offset())
 	if f.failed(w, r, err) {
 		return
 	}
@@ -131,10 +133,17 @@ func (f *Feature) renderList(w http.ResponseWriter, r *http.Request, s features.
 	}
 	list = page.Trim(&pg, list)
 	pg.Base, pg.Label, pg.PrevText, pg.NextText = base, "お問い合わせの一覧のページ送り", "新しい受付", "過去の受付"
+	if kind != "" {
+		pg.Params = append(pg.Params, page.Param{Name: kindField, Value: kind})
+	}
 	now := f.now()
 	rows := make([]messageRow, 0, len(list))
 	for _, m := range list {
-		rows = append(rows, messageRow{Message: m, DeleteSoon: deleteSoon(f.cfg.Retention.DeleteAt(m).Sub(now))})
+		row := messageRow{Message: m, DeleteSoon: deleteSoon(f.cfg.Retention.DeleteAt(m).Sub(now))}
+		if f.cfg.Kind.Enabled() {
+			row.KindLabel = f.cfg.Kind.LabelFor(m.Kind)
+		}
+		rows = append(rows, row)
 	}
 	data := s.PageData("お問い合わせの管理", "/admin/contact")
 	data["Messages"] = rows
@@ -146,6 +155,13 @@ func (f *Feature) renderList(w http.ResponseWriter, r *http.Request, s features.
 	data["ActiveMaxDays"] = days(f.cfg.Retention.ActiveMax)
 	data["Page"] = pg
 	data["Notice"] = adminNotices.From(r)
+	data["KindEnabled"] = f.cfg.Kind.Enabled()
+	data["KindHeading"] = f.cfg.Kind.Label
+	data["KindLinks"] = f.kindLinks(base, kind)
+	data["KindQuery"] = ""
+	if kind != "" {
+		data["KindQuery"] = "?kind=" + kind
+	}
 	f.renderAdmin(w, http.StatusOK, "admin_messages.html", data)
 }
 
@@ -160,6 +176,10 @@ func (f *Feature) renderMessage(w http.ResponseWriter, r *http.Request, s featur
 	data := s.PageData("お問い合わせ: "+m.DisplayName(), "/admin/contact")
 	data["Message"] = m
 	data["Paragraphs"] = form.Paragraphs(m.Body)
+	if f.cfg.Kind.Enabled() {
+		data["KindHeading"] = f.cfg.Kind.Label
+		data["KindLabel"] = f.cfg.Kind.LabelFor(m.Kind)
+	}
 	data["NoteField"] = field
 	data["DeleteAt"] = f.cfg.Retention.DeleteAt(m)
 	// 対応中以外にすると、受付からの保持期間で削除の時期を判定し直す

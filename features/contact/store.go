@@ -43,6 +43,7 @@ type Message struct {
 	Name, ReplyTo, Body string
 	Status              string
 	Note                string // 運営者のメモ
+	Kind                string // 種別の識別子。無効か「選ばない」なら空
 	CreatedAt           time.Time
 	LastActivityAt      time.Time // 対応中の削除の時期の起点
 }
@@ -100,6 +101,7 @@ func (p Retention) DeleteAt(m Message) time.Time {
 // Input は送られた入力です。
 type Input struct {
 	Name, ReplyTo, Body string
+	Kind                string // 種別の識別子。呼び出し側が設定の選択肢と照合してから渡す（checkKind）
 }
 
 func (Input) LogValue() slog.Value { return slog.StringValue("[contact input]") }
@@ -166,7 +168,7 @@ func (s *Store) Save(ctx context.Context, in Input, lim Limits) (int64, error) {
 	if hourly >= lim.Hourly || daily >= lim.Daily || unread >= lim.Unread {
 		return 0, ErrOverLimit
 	}
-	res, err := c.ExecContext(ctx, "INSERT INTO contact_messages (name, reply_to, body, last_activity_at, created_at) VALUES (?, ?, ?, ?, ?)", in.Name, in.ReplyTo, in.Body, now.Unix(), now.Unix())
+	res, err := c.ExecContext(ctx, "INSERT INTO contact_messages (name, reply_to, body, kind, last_activity_at, created_at) VALUES (?, ?, ?, ?, ?, ?)", in.Name, in.ReplyTo, in.Body, in.Kind, now.Unix(), now.Unix())
 	if err != nil {
 		return 0, err
 	}
@@ -180,12 +182,12 @@ func (s *Store) Save(ctx context.Context, in Input, lim Limits) (int64, error) {
 	return id, nil
 }
 
-const messageColumns = "id, name, reply_to, body, status, note, last_activity_at, created_at"
+const messageColumns = "id, name, reply_to, body, status, note, kind, last_activity_at, created_at"
 
 func scanMessage(row interface{ Scan(...any) error }) (Message, error) {
 	var m Message
 	var activity, created int64
-	if err := row.Scan(&m.ID, &m.Name, &m.ReplyTo, &m.Body, &m.Status, &m.Note, &activity, &created); err != nil {
+	if err := row.Scan(&m.ID, &m.Name, &m.ReplyTo, &m.Body, &m.Status, &m.Note, &m.Kind, &activity, &created); err != nil {
 		return m, err
 	}
 	m.LastActivityAt = time.Unix(activity, 0)
@@ -193,13 +195,13 @@ func scanMessage(row interface{ Scan(...any) error }) (Message, error) {
 	return m, nil
 }
 
-// List は新しい順に返します。openOnly なら、未読と対応中だけを返します。
-func (s *Store) List(ctx context.Context, openOnly bool, limit, offset int) ([]Message, error) {
-	where := ""
+// List は新しい順に返します。openOnly なら、未読と対応中だけを返します。kind が空でなければ、その種別だけを返します。
+func (s *Store) List(ctx context.Context, openOnly bool, kind string, limit, offset int) ([]Message, error) {
+	where := " WHERE (? = '' OR kind = ?)"
 	if openOnly {
-		where = " WHERE status IN ('unread', 'active')"
+		where += " AND status IN ('unread', 'active')"
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT "+messageColumns+" FROM contact_messages"+where+" ORDER BY id DESC LIMIT ? OFFSET ?", limit, offset)
+	rows, err := s.db.QueryContext(ctx, "SELECT "+messageColumns+" FROM contact_messages"+where+" ORDER BY id DESC LIMIT ? OFFSET ?", kind, kind, limit, offset)
 	if err != nil {
 		return nil, err
 	}

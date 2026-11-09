@@ -83,6 +83,7 @@ func (f *Feature) renderForm(w http.ResponseWriter, status int, v contactForm, p
 		"CanonicalPath": "/contact",
 		"Description":   "お問い合わせのフォームです。返信が必要な場合だけ、お名前と返信先を書いてください。",
 		"Form":          v,
+		"Kind":          f.kindChoices(v),
 		"Trap":          trapField,
 		"Error":         pageError,
 		"Notice":        sent,
@@ -146,6 +147,9 @@ func (f *Feature) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	case tokenBad:
 		retry(string(verdict), "受け付けられませんでした。内容はそのままなので、もう一度送信してください。")
+		return
+	}
+	if !f.checkKind(w, r, &v) {
 		return
 	}
 	// 入力の誤りは、元のフォームの値のまま出し直す（すぐ直して送っても「3秒未満」にならないため）

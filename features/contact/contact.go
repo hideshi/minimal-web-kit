@@ -84,8 +84,8 @@ func (f *Feature) Purge(ctx context.Context) error {
 // days は期間を日数で返します。
 func days(d time.Duration) int { return int(d / (24 * time.Hour)) }
 
-// PrivacyNotices は、プライバシーポリシーの画面に、お問い合わせで保存する情報を載せます。
-func (f *Feature) PrivacyNotices() []web.PrivacyNotice {
+// basePrivacyNotices は、プライバシーポリシーの画面に載せる、お問い合わせで保存する情報です。種別は PrivacyNotices（kind.go）が足します。
+func (f *Feature) basePrivacyNotices() []web.PrivacyNotice {
 	return []web.PrivacyNotice{{
 		Title: "お問い合わせで保存する情報",
 		Lead:  "お問い合わせのフォームから送られた次の情報を保存します。お名前と返信先は、返信が必要な場合だけ任意で書いていただくものです。IPアドレス・ブラウザの種類・Cookieは保存せず、メールも送りません。",

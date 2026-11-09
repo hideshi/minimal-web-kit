@@ -8,7 +8,8 @@
       <tr><th scope="row">状態</th><td>{{.Message.StatusLabel}}</td></tr>
       <tr><th scope="row">削除の予定</th><td>{{template "datetime" .DeleteAt}}</td></tr>
       <tr><th scope="row">お名前</th><td>{{.Message.DisplayName}}</td></tr>
-      <tr><th scope="row">返信先</th><td>{{if .Message.ReplyTo}}{{.Message.ReplyTo}}{{else}}（なし）{{end}}</td></tr>
+      {{if .KindHeading}}<tr><th scope="row">{{.KindHeading}}</th><td>{{.KindLabel}}</td></tr>
+      {{end}}<tr><th scope="row">返信先</th><td>{{if .Message.ReplyTo}}{{.Message.ReplyTo}}{{else}}（なし）{{end}}</td></tr>
     </tbody>
   </table>
 </div>

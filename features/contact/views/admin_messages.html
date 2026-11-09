@@ -1,8 +1,9 @@
 {{define "content"}}
 {{template "list-header" (listHeader "お問い合わせの管理" .Notice)}}
 <p>未読 {{.Unread}}件、対応中 {{.Active}}件。受付から{{.RetentionDays}}日で自動で削除します。対応中のものは、最後の更新から{{.RetentionDays}}日、受付から最長{{.ActiveMaxDays}}日まで残します。返信先へは、各自の手段で連絡してください（この画面からは送りません）。</p>
-<div class="action-bar">{{if .OpenOnly}}<a href="/admin/contact/all">すべてのお問い合わせを見る</a>{{else}}<a href="/admin/contact">未読と対応中だけを見る</a>{{end}}{{if .Spam}}<a href="/admin/contact/spam/delete">スパムをまとめて削除する（{{.Spam}}件）</a>{{end}}</div>
-{{if .Messages}}
+<div class="action-bar">{{if .OpenOnly}}<a href="/admin/contact/all{{.KindQuery}}">すべてのお問い合わせを見る</a>{{else}}<a href="/admin/contact{{.KindQuery}}">未読と対応中だけを見る</a>{{end}}{{if .Spam}}<a href="/admin/contact/spam/delete">スパムをまとめて削除する（{{.Spam}}件）</a>{{end}}</div>
+{{if .KindLinks}}<nav class="action-bar" aria-label="{{.KindHeading}}で絞り込む">{{.KindHeading}}: {{range .KindLinks}}<a href="{{.Href}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
+{{end}}{{if .Messages}}
 <div class="table-container">
   <table>
     <caption class="admin-caption">{{if .OpenOnly}}未読と対応中のお問い合わせ{{else}}すべてのお問い合わせ{{end}}（受付の新しい順）</caption>
@@ -11,7 +12,8 @@
         <th scope="col">受付日時</th>
         <th scope="col">状態</th>
         <th scope="col">お名前</th>
-        <th scope="col">内容</th>
+        {{if .KindEnabled}}<th scope="col">{{.KindHeading}}</th>
+        {{end}}<th scope="col">内容</th>
       </tr>
     </thead>
     <tbody>
@@ -20,7 +22,8 @@
         <td><a href="/admin/contact/{{.ID}}">{{template "datetime" .CreatedAt}}</a></td>
         <td>{{.StatusLabel}}{{if .DeleteSoon}}（{{.DeleteSoon}}）{{end}}</td>
         <td>{{.DisplayName}}</td>
-        <td>{{.Excerpt}}</td>
+        {{if $.KindEnabled}}<td>{{.KindLabel}}</td>
+        {{end}}<td>{{.Excerpt}}</td>
       </tr>
       {{end}}
     </tbody>

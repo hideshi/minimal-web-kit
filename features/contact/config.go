@@ -18,6 +18,7 @@ type Config struct {
 	Origin    string
 	Retention Retention
 	Limits    Limits
+	Kind      KindConfig // お問い合わせの種別。選択肢が無ければ無効
 }
 
 // Limits は全体の受付上限です。保存した件数で数えます（CONTACT-INV-5）。
@@ -56,6 +57,9 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.Limits.Unread, err = intSetting(getenv, "CONTACT_UNREAD_LIMIT", 500, 1, 100000); err != nil {
+		return Config{}, err
+	}
+	if cfg.Kind, err = loadKindConfig(getenv); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil

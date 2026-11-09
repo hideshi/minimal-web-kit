@@ -40,8 +40,10 @@ func migrate(db *sql.DB, logger *slog.Logger) error {
 		return err
 	}
 	if table == 0 || column > 0 {
-		_, err := db.Exec(migrationSQL)
-		return err
+		if _, err := db.Exec(migrationSQL); err != nil {
+			return err
+		}
+		return addKindColumn(db)
 	}
 
 	path, err := store.BackupBeforeMigration(context.Background(), db, "contact")
@@ -72,4 +74,19 @@ func migrate(db *sql.DB, logger *slog.Logger) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// addKindColumn は、種別の列が無い表に、空文字を既定にした列を足します。表は作り直さないため、行数によらず
+// すぐ終わります。古い実行ファイルは列名を指定して書き込むため、戻しても既定の空文字で動き続けます。
+// 不変条件: CONTACT-INV-15
+func addKindColumn(db *sql.DB) error {
+	var kind int
+	if err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('contact_messages') WHERE name = 'kind'").Scan(&kind); err != nil {
+		return err
+	}
+	if kind > 0 {
+		return nil
+	}
+	_, err := db.Exec("ALTER TABLE contact_messages ADD COLUMN kind TEXT NOT NULL DEFAULT ''")
+	return err
 }
