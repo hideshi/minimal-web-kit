@@ -1,6 +1,6 @@
 module minimal-web-kit/test/browser
 
-go 1.27.3
+go 1.27.4
 
 replace minimal-web-kit => ../..
 
