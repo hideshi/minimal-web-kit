@@ -53,6 +53,9 @@ func urlFile(t *testing.T, content string, perm os.FileMode) string {
 	if err := os.WriteFile(path, []byte(content), perm); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.Chmod(path, perm); err != nil { // umask に左右されないように
+		t.Fatal(err)
+	}
 	return path
 }
 

@@ -182,11 +182,13 @@ type Notifier struct {
 	rejectAt       int
 	lastReject     time.Time
 
-	queue  chan string
-	gone   atomic.Bool
-	logger *slog.Logger
-	stop   chan struct{}
-	done   chan struct{}
+	queue    chan string
+	gone     atomic.Bool
+	running  atomic.Bool
+	stopOnce sync.Once
+	logger   *slog.Logger
+	stop     chan struct{}
+	done     chan struct{}
 }
 
 // New は、通知を用意します。urlFile が空なら、通知は無効で nil を返します（NOTIFY-INV-5）。
@@ -210,11 +212,14 @@ func New(urlFile, site string) (*Notifier, error) {
 }
 
 func newNotifier(site, raw string, t target, base http.RoundTripper) *Notifier {
+	client := federation.Client([]string{raw}, sendTimeout, responseLimit, base)
+	// 転送には従わず、3xx の応答をそのまま受け取る。接続の失敗と区別し、送り直さない（NOTIFY-INV-2）
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	return &Notifier{
 		site:   site,
 		url:    raw,
 		target: t,
-		client: federation.Client([]string{raw}, sendTimeout, responseLimit, base),
+		client: client,
 		now:    time.Now,
 		sleep:  time.Sleep,
 		queue:  make(chan string, queueSize),
@@ -291,17 +296,39 @@ func (n *Notifier) take() [numKinds]int {
 func (n *Notifier) Start(logger *slog.Logger) {
 	n.logger = logger
 	n.digestFrom = n.now()
+	n.running.Store(true)
 	go n.loop()
 	go n.sender()
 }
 
 // Stop は、まとめ待ちの件数を送ってから止めます。待つのは stopTimeout までです。
+// 2回目以降の呼び出しと、Start の前の呼び出しは、何もしません。
 func (n *Notifier) Stop() {
-	close(n.stop)
+	n.stopOnce.Do(func() {
+		close(n.stop)
+		if !n.running.Load() {
+			return
+		}
+		select {
+		case <-n.done:
+		case <-time.After(stopTimeout):
+		}
+	})
+}
+
+// stopping は、停止の合図を受けたかを返します。
+func (n *Notifier) stopping() bool {
 	select {
-	case <-n.done:
-	case <-time.After(stopTimeout):
+	case <-n.stop:
+		return true
+	default:
+		return false
 	}
+}
+
+// elapsed は、見回りの起きる時刻の揺れ（1分ごとの ticker の遅れ）を見込んで、from から interval が過ぎたかを返します。
+func elapsed(from, now time.Time, interval time.Duration) bool {
+	return now.Sub(from) >= interval-tickInterval/2
 }
 
 func (n *Notifier) loop() {
@@ -339,17 +366,17 @@ func (n *Notifier) tick(now time.Time, final bool) {
 	for _, v := range n.rejects {
 		total += v
 	}
-	if total >= rejectLimit && (n.lastReject.IsZero() || now.Sub(n.lastReject) >= rejectWindow*time.Minute) {
+	if total >= rejectLimit && (n.lastReject.IsZero() || elapsed(n.lastReject, now, rejectWindow*time.Minute)) {
 		n.lastReject = now
 		msgs = append(msgs, fmt.Sprintf("認証の拒否が続いています（直近%d分で%d件）。覚えがなければ、管理画面とサーバーのログを確かめてください。", rejectWindow, total))
 	}
 	n.contactPending += c[kindContact]
-	if pending := n.contactPending; pending > 0 && (final || now.Sub(n.digestFrom) >= digestInterval) {
+	if pending := n.contactPending; pending > 0 && (final || elapsed(n.digestFrom, now, digestInterval)) {
 		msgs = append(msgs, fmt.Sprintf("お問い合わせの新着 %d件（%s〜%s）。スパムを含む場合があります。管理画面で確かめてください。",
 			pending, n.digestFrom.Format("15:04"), now.Format("15:04")))
 		n.contactPending = 0
 		n.digestFrom = now
-	} else if pending == 0 && now.Sub(n.digestFrom) >= digestInterval {
+	} else if pending == 0 && elapsed(n.digestFrom, now, digestInterval) {
 		n.digestFrom = now
 	}
 	for _, m := range msgs {
@@ -398,7 +425,8 @@ func (n *Notifier) send(text string) {
 				n.logger.Error("notify webhook gone")
 			}
 			return
-		case (status == http.StatusTooManyRequests || status >= 500 || status == 0) && attempt == 0:
+		case (status == http.StatusTooManyRequests || status >= 500 || status == 0) && attempt == 0 && !n.stopping():
+			// 停止の途中は送り直さない。待つ間に停止の待ち時間が尽き、残りの文まで送れなくなるため
 			n.sleep(retryDelay)
 		default:
 			n.logFailure(status)

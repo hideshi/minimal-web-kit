@@ -287,6 +287,12 @@ func TestRules_MessagesExistInCode(t *testing.T) {
 			t.Errorf("the notifier must not count its own log %q", m)
 		}
 	}
+	// 属性の条件の値（例: お問い合わせの result の saved）も、コードに文字列として在る
+	for _, r := range rules {
+		if r.attr != "" && (!strings.Contains(code, `"`+r.attr+`"`) || !strings.Contains(code, `"`+r.value+`"`)) {
+			t.Errorf("attribute %s=%s of %q is not in the code", r.attr, r.value, r.message)
+		}
+	}
 	for k := kind(0); k < numKinds; k++ {
 		if _, ok := immediate[k]; !ok && k != kindContact && k != kindAuthRejected {
 			t.Errorf("kind %d has no text", k)
@@ -407,10 +413,11 @@ func TestSend_RedirectAndFailureLogs(t *testing.T) {
 			t.Error("followed a redirect")
 		}
 	}
-	if len(rec.paths) != 2 {
-		t.Errorf("want one retry, got %d requests", len(rec.paths))
+	if len(rec.paths) != 1 {
+		t.Errorf("a redirect is not retried, got %d requests", len(rec.paths))
 	}
-	if !strings.Contains(logs.String(), "notify send failed") || strings.Contains(logs.String(), "SECRETPATH") || strings.Contains(logs.String(), srv.URL) {
+	if !strings.Contains(logs.String(), "notify send failed") || !strings.Contains(logs.String(), "status=302") ||
+		strings.Contains(logs.String(), "SECRETPATH") || strings.Contains(logs.String(), srv.URL) {
 		t.Errorf("failure log: %s", logs.String())
 	}
 
@@ -477,5 +484,55 @@ func TestNotifier_StopFlushes(t *testing.T) {
 	defer rec.mu.Unlock()
 	if len(rec.bodies) != 1 || !strings.Contains(rec.bodies[0], "新着 1件") || strings.Contains(rec.bodies[0], "起動しました") {
 		t.Errorf("stop flush: %q", rec.bodies)
+	}
+	n.Stop() // 2回目は何もしない
+}
+
+// Start の前の Stop は待たない。停止の途中は送り直さない。
+func TestNotifier_StopEdges(t *testing.T) {
+	idle := newNotifier("テスト", slackURL, slack, nil)
+	start := time.Now()
+	idle.Stop()
+	idle.Stop()
+	if d := time.Since(start); d > time.Second {
+		t.Errorf("Stop before Start waited %v", d)
+	}
+
+	rec := &recordingServer{}
+	srv := httptest.NewTLSServer(rec.handler(func(string, int) int { return http.StatusServiceUnavailable }))
+	defer srv.Close()
+	var logs bytes.Buffer
+	n := serverNotifier(t, srv, "/services/a", &logs)
+	slept := false
+	n.sleep = func(time.Duration) { slept = true }
+	close(n.stop)
+	n.send("hello")
+	if slept || len(rec.paths) != 1 || !strings.Contains(logs.String(), "status=503") {
+		t.Errorf("retried while stopping: slept=%v requests=%d logs=%s", slept, len(rec.paths), logs.String())
+	}
+}
+
+// 見回りの起きる時刻が少し早くても、1時間・10分の区切りを1回分遅らせない。
+func TestTick_ToleratesTickerJitter(t *testing.T) {
+	n, logger := testNotifier(t)
+	start := n.digestFrom
+	logger.Info("contact submission", slog.String("result", "saved"))
+	n.tick(start.Add(time.Hour-50*time.Millisecond), false)
+	if msgs := drain(n); len(msgs) != 1 {
+		t.Fatalf("digest delayed by jitter: %q", msgs)
+	}
+	for i := 0; i < 10; i++ {
+		logger.Warn("auth login rejected")
+	}
+	n.tick(start.Add(61*time.Minute), false)
+	if msgs := drain(n); len(msgs) != 1 {
+		t.Fatalf("first reject alert: %q", msgs)
+	}
+	for i := 0; i < 10; i++ {
+		logger.Warn("auth login rejected")
+	}
+	n.tick(start.Add(71*time.Minute-50*time.Millisecond), false)
+	if msgs := drain(n); len(msgs) != 1 {
+		t.Fatalf("reject alert delayed by jitter: %q", msgs)
 	}
 }

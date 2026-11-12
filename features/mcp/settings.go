@@ -158,7 +158,8 @@ func (f *Feature) handleChange(enabled bool) func(http.ResponseWriter, *http.Req
 			http.Redirect(w, r, "/admin/mcp/features/"+name+"/enable", http.StatusSeeOther) // #nosec G710 -- name は登録済みの単位の名前（unitFor で確かめた）で、行き先は自サイトの固定のパス
 			return
 		}
-		if err := f.store.set(r.Context(), name, enabled); store.Busy(err) {
+		err := f.store.set(r.Context(), name, enabled)
+		if store.Busy(err) {
 			web.WriteBusy(w)
 			return
 		} else if err != nil && !errors.Is(err, context.Canceled) {
@@ -166,7 +167,9 @@ func (f *Feature) handleChange(enabled bool) func(http.ResponseWriter, *http.Req
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		f.logger.Info("mcp setting changed", slog.String("feature", name), slog.Bool("enabled", enabled))
+		if err == nil { // 要求が取り消されて書けなかったときは記録しない（運営者への通知が数える）
+			f.logger.Info("mcp setting changed", slog.String("feature", name), slog.Bool("enabled", enabled))
+		}
 		key := "disabled"
 		if enabled {
 			key = "enabled"

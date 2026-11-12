@@ -667,10 +667,12 @@ func (f *Feature) handleLoginFinish(w http.ResponseWriter, r *http.Request, body
 	}, cred.storedCredential, cred.WebAuthnUserID)
 	// 判定の順: 署名の検証 → 署名カウンタ（複製の疑い） → アカウントの停止。停止中でも複製の疑いの検出は働かせる
 	if errors.Is(err, ErrCloneSuspected) {
+		// 無効にできたときだけ「無効にした」と記録する（運営者への通知が数える）
 		if derr := f.store.disableCredential(r.Context(), cred.ID, cred.AccountID); derr != nil {
 			f.logger.Error("auth disable passkey failed", f.requestID(w))
+		} else {
+			f.logger.Warn("auth passkey disabled", f.requestID(w), slog.Int64("account_id", cred.AccountID))
 		}
-		f.logger.Warn("auth passkey disabled", f.requestID(w), slog.Int64("account_id", cred.AccountID))
 		reject("clone_suspected")
 		return
 	}
