@@ -522,7 +522,7 @@ func verifyBundle(b bundle) error {
 	if err := regularPath(sourcePath, false); err != nil {
 		return err
 	}
-	source, err := os.ReadFile(sourcePath)
+	source, err := os.ReadFile(sourcePath) // #nosec G304 -- 開発者が手元で実行するコマンドで、パスはキットの決まったファイル。直前の regularPath で通常のファイルに限っている
 	if err != nil {
 		return err
 	}
@@ -692,7 +692,7 @@ func replaceRegistration(path string, original, updated []byte) error {
 	if err := regularPath(path, false); err != nil {
 		return err
 	}
-	current, err := os.ReadFile(path)
+	current, err := os.ReadFile(path) // #nosec G304 -- 開発者が手元で実行するコマンドで、パスはキットの決まったファイル。直前の regularPath で通常のファイルに限っている
 	if err != nil {
 		return err
 	}

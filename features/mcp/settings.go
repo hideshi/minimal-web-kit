@@ -155,7 +155,7 @@ func (f *Feature) handleChange(enabled bool) func(http.ResponseWriter, *http.Req
 		// 注意を持つ機能は、確認の画面を経る。誤操作を防ぐ確認で、権限の境界ではない
 		// 不変条件: MCP-INV-12
 		if enabled && r.PostForm.Get("confirmed") != "1" && u.notice != "" {
-			http.Redirect(w, r, "/admin/mcp/features/"+name+"/enable", http.StatusSeeOther)
+			http.Redirect(w, r, "/admin/mcp/features/"+name+"/enable", http.StatusSeeOther) // #nosec G710 -- name は登録済みの単位の名前（unitFor で確かめた）で、行き先は自サイトの固定のパス
 			return
 		}
 		if err := f.store.set(r.Context(), name, enabled); store.Busy(err) {

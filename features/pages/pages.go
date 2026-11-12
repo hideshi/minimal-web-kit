@@ -194,7 +194,7 @@ func (f *Feature) refreshNav(ctx context.Context) error {
 		}
 		return entries[i].link.Href < entries[j].link.Href
 	})
-	rows.Close() // 読み取りを先に終える（読み取りの間、書き込みを待たせない）
+	_ = rows.Close() // 読み取りを先に終える（読み取りの間、書き込みを待たせない）
 	if f.afterNavRead != nil {
 		f.afterNavRead()
 	}

@@ -123,13 +123,13 @@ func simulateConversions(ctx context.Context, q querier, p *recordsPlan, stmts m
 				var id int64
 				var v any
 				if err := rows.Scan(&id, &v); err != nil {
-					rows.Close()
+					_ = rows.Close()
 					return nil, err
 				}
 				values[id] = v
 				order = append(order, id)
 			}
-			rows.Close()
+			_ = rows.Close()
 			if err := rows.Err(); err != nil {
 				return nil, err
 			}

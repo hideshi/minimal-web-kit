@@ -90,7 +90,7 @@ func SecretFile(path string) ([]byte, error) {
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 || info.Size() > 64<<10 {
 		return nil, errors.New("federation: private file required")
 	}
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- パスは運営者が環境変数で決める鍵のファイル。直前で、通常のファイル・所有者だけが読める・64KiB以下を確かめている
 	if err != nil {
 		return nil, errors.New("federation: private file unreadable")
 	}

@@ -506,7 +506,7 @@ func (f *Feature) handleShow(w http.ResponseWriter, r *http.Request, s features.
 	d, v, err := f.store.Current(r.Context(), s.AccountID(), id)
 	if errors.Is(err, ErrNotFound) {
 		if _, err := f.store.Owned(r.Context(), s.AccountID(), id); err == nil {
-			http.Redirect(w, r, docPath(id)+"/versions", http.StatusSeeOther)
+			http.Redirect(w, r, docPath(id)+"/versions", http.StatusSeeOther) // #nosec G710 -- 行き先は自サイトの固定のパスと、検査済みの数の番号から作る
 			return
 		}
 	}

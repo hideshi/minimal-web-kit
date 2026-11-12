@@ -226,7 +226,7 @@ func rowReader(src image.Image) func(y int, dst []uint8) {
 	return func(y int, dst []uint8) {
 		for x := 0; x < b.Dx(); x++ {
 			r, g, bl, a := src.At(b.Min.X+x, b.Min.Y+y).RGBA()
-			dst[x*4], dst[x*4+1], dst[x*4+2], dst[x*4+3] = uint8(r>>8), uint8(g>>8), uint8(bl>>8), uint8(a>>8)
+			dst[x*4], dst[x*4+1], dst[x*4+2], dst[x*4+3] = uint8(r>>8), uint8(g>>8), uint8(bl>>8), uint8(a>>8) // #nosec G115 -- RGBA() の値は16ビット（0〜0xffff）なので、8ビット右に送ると必ず0〜255に収まる
 		}
 	}
 }

@@ -106,7 +106,7 @@ func execute(ctx context.Context, o options) (string, error) {
 		return "", errors.New("cannot open the WXR file")
 	}
 	exp, err := wxr.Read(f)
-	f.Close()
+	_ = f.Close() // 読み終えたファイルで、閉じる失敗は読んだ結果に影響しない
 	if err != nil {
 		return "", err
 	}

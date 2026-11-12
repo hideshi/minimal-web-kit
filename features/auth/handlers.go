@@ -148,7 +148,7 @@ func (f *Feature) currentAccount(r *http.Request) (string, sessionAccount) {
 }
 
 func (f *Feature) setAdminCookie(w http.ResponseWriter, token string) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- Secure は SECURE_COOKIE で決める（HTTPSの本番は true、手元のHTTPは false）。HttpOnly・SameSite=Strict は付けている
 		Name:     adminCookieName,
 		Value:    token,
 		Path:     "/admin",
@@ -160,7 +160,7 @@ func (f *Feature) setAdminCookie(w http.ResponseWriter, token string) {
 }
 
 func (f *Feature) clearAdminCookie(w http.ResponseWriter) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ // #nosec G124 -- 破棄のためのCookie。属性は発行と同じ（Secure は SECURE_COOKIE で決める）
 		Name:     adminCookieName,
 		Value:    "",
 		Path:     "/admin",

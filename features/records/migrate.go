@@ -41,7 +41,7 @@ func readRecordsState(ctx context.Context, q querier) (*dbState, error) {
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 		if metaTables[name] {
@@ -50,7 +50,7 @@ func readRecordsState(ctx context.Context, q querier) (*dbState, error) {
 		}
 		st.tables[name] = true
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -71,12 +71,12 @@ func readRecordsState(ctx context.Context, q querier) (*dbState, error) {
 	for rows.Next() {
 		var t, s string
 		if err := rows.Scan(&t, &s); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 		st.states[t] = s
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -420,7 +420,7 @@ func convertRecordColumn(ctx context.Context, q querier, table string, ss stepSt
 		var id int64
 		var v any
 		if err := rows.Scan(&id, &v); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return err
 		}
 		nv, ok := convertValue(c.From, c.To, v)
@@ -430,7 +430,7 @@ func convertRecordColumn(ctx context.Context, q querier, table string, ss stepSt
 		}
 		all = append(all, row{id, nv})
 	}
-	rows.Close()
+	_ = rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}

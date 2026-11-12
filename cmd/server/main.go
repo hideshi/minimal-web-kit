@@ -56,7 +56,7 @@ func main() {
 	// 引数があれば、機能が提供するサブコマンド（例: auth-setup）を実行して終了する
 	if len(os.Args) > 1 {
 		code := runCommand(os.Args[1:], featuresRegistry, s.DB(), os.Stdin, os.Stdout, os.Stderr)
-		s.Close()
+		_ = s.Close() // 終了の直前で、コマンドの結果は code で返す
 		os.Exit(code)
 	}
 

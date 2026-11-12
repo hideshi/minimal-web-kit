@@ -449,7 +449,7 @@ func (s *Store) TransferOwner(ctx context.Context, by, from, to int64, usable fu
 		for rows.Next() {
 			var p [2]int64
 			if err := rows.Scan(&p[0], &p[1]); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				return err
 			}
 			pending = append(pending, p)

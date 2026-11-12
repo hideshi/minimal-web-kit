@@ -104,7 +104,7 @@ func (c *challenges) mac(body []byte) []byte {
 func (c *challenges) issue(purpose challengePurpose) (string, error) {
 	body := make([]byte, challengeBodyLen)
 	body[0] = byte(purpose)
-	binary.BigEndian.PutUint64(body[1:9], uint64(c.now().Add(challengeTTL).Unix()))
+	binary.BigEndian.PutUint64(body[1:9], uint64(c.now().Add(challengeTTL).Unix())) // #nosec G115 -- 今の時刻より後の期限なので負にならない
 	if _, err := rand.Read(body[9:]); err != nil {
 		return "", err
 	}
@@ -121,7 +121,7 @@ func (c *challenges) check(encoded string, purpose challengePurpose) ([]byte, er
 	if !hmac.Equal(sum, c.mac(body)) || challengePurpose(body[0]) != purpose {
 		return nil, ErrChallengeInvalid
 	}
-	if c.now().Unix() >= int64(binary.BigEndian.Uint64(body[1:9])) {
+	if c.now().Unix() >= int64(binary.BigEndian.Uint64(body[1:9])) { // #nosec G115 -- 署名を確かめた後の、自分が書いた期限。範囲外なら負になり、期限切れとして断られる
 		return nil, ErrChallengeInvalid
 	}
 	return raw, nil
@@ -139,7 +139,7 @@ func (c *challenges) consume(raw []byte) error {
 			delete(c.used, k)
 		}
 	}
-	exp := time.Unix(int64(binary.BigEndian.Uint64(raw[1:9])), 0)
+	exp := time.Unix(int64(binary.BigEndian.Uint64(raw[1:9])), 0) // #nosec G115 -- 署名を確かめた後の、自分が書いた期限
 	if !now.Before(exp) {
 		return ErrChallengeInvalid
 	}

@@ -109,7 +109,7 @@ func checkRecordsHistory(prev *recordsLock, defs []RecordDef, retired []RetiredD
 
 // readLock は、定義の記録を読みます。ファイルが無ければ nil を返します。
 func readLock(path string) (*recordsLock, error) {
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) // #nosec G304 -- 開発時に台帳を作るコマンド（make records-inventory）で、パスはリポジトリの決まったファイル
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
@@ -245,7 +245,7 @@ func UpdateInventory(lockPath, inventoryPath string, defs []RecordDef, retired [
 	if err := checkRecordsHistory(prev, defs, retired); err != nil {
 		return err
 	}
-	doc, err := os.ReadFile(inventoryPath)
+	doc, err := os.ReadFile(inventoryPath) // #nosec G304 -- 開発時に台帳を作るコマンド（make records-inventory）で、パスはリポジトリの決まったファイル
 	if err != nil {
 		return err
 	}
@@ -255,16 +255,16 @@ func UpdateInventory(lockPath, inventoryPath string, defs []RecordDef, retired [
 	}
 	// 両方を一時のファイルに書き終えてから置き換え、片方だけが新しくなることを避ける
 	lockTmp, invTmp := lockPath+".tmp", inventoryPath+".tmp"
-	if err := os.WriteFile(lockTmp, encodeLock(buildLock(defs, retired, prev)), 0o644); err != nil {
+	if err := os.WriteFile(lockTmp, encodeLock(buildLock(defs, retired, prev)), 0o644); err != nil { // #nosec G306 -- リポジトリに入れる公開の文書なので、ほかの人も読める権限でよい
 		return err
 	}
-	if err := os.WriteFile(invTmp, []byte(updated), 0o644); err != nil {
-		os.Remove(lockTmp)
+	if err := os.WriteFile(invTmp, []byte(updated), 0o644); err != nil { // #nosec G306 G703 -- リポジトリに入れる公開の文書で、パスはリポジトリの決まったファイルから作る
+		_ = os.Remove(lockTmp) // 片づけで、消せなくても元の失敗を返す
 		return err
 	}
 	if err := os.Rename(lockTmp, lockPath); err != nil {
-		os.Remove(lockTmp)
-		os.Remove(invTmp)
+		_ = os.Remove(lockTmp) // 片づけで、消せなくても元の失敗を返す
+		_ = os.Remove(invTmp)
 		return err
 	}
 	return os.Rename(invTmp, inventoryPath)
@@ -289,7 +289,7 @@ func CheckInventory(lockPath, inventoryPath string, defs []RecordDef, retired []
 	if want := encodeLock(buildLock(defs, retired, prev)); !bytes.Equal(want, mustRead(lockPath)) {
 		return fmt.Errorf("%s does not match the definitions; run make records-inventory", lockPath)
 	}
-	doc, err := os.ReadFile(inventoryPath)
+	doc, err := os.ReadFile(inventoryPath) // #nosec G304 -- 開発時に台帳を作るコマンド（make records-inventory）で、パスはリポジトリの決まったファイル
 	if err != nil {
 		return err
 	}
@@ -304,6 +304,6 @@ func CheckInventory(lockPath, inventoryPath string, defs []RecordDef, retired []
 }
 
 func mustRead(path string) []byte {
-	b, _ := os.ReadFile(path)
+	b, _ := os.ReadFile(path) // #nosec G304 -- 開発時に台帳を作るコマンド（make records-inventory）で、パスはリポジトリの決まったファイル
 	return b
 }

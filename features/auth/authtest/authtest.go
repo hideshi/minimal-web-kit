@@ -54,7 +54,7 @@ func NewAccountSession(t testing.TB, db *sql.DB, role string) (*http.Cookie, int
 	); err != nil {
 		t.Fatal(err)
 	}
-	return &http.Cookie{Name: CookieName, Value: token}, accountID
+	return &http.Cookie{Name: CookieName, Value: token}, accountID // #nosec G124 -- 試験だけで使う、要求に載せるためのCookie。応答では発行しない
 }
 
 // NewCredential は、アカウントに見本のパスキーをDBに直接登録し、経路に使う識別子（credential IDのbase64url）を返します。

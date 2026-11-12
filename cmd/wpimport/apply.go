@@ -107,7 +107,7 @@ func (p *planner) countUnlisted(uploads string) {
 }
 
 func readLimited(path string) ([]byte, error) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) // #nosec G304 -- 移行の道具で、パスは実行する運営者がコマンドの引数で渡す
 	if err != nil {
 		return nil, err
 	}

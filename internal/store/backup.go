@@ -22,7 +22,7 @@ type TableCount struct {
 // 書き込み中でも WAL の内容を含む1つのファイルになり、sqlite3 コマンドは要りません。
 // 複製は個人情報を含むため、所有者だけが読める権限（0600）で作り、既にあるファイルは上書きしません。
 func Backup(ctx context.Context, db *sql.DB, path string) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600) // #nosec G304 -- バックアップの先は運営者がコマンドの引数で渡す。既存のファイルは上書きしない（O_EXCL）
 	if err != nil {
 		return fmt.Errorf("create backup file: %w", err)
 	}
@@ -76,16 +76,16 @@ func VerifyBackup(ctx context.Context, path string) ([]TableCount, error) {
 	for rows.Next() {
 		var t TableCount
 		if err := rows.Scan(&t.Name); err != nil {
-			rows.Close()
+			_ = rows.Close()
 			return nil, err
 		}
 		tables = append(tables, t)
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
+		_ = rows.Close()
 		return nil, err
 	}
-	rows.Close()
+	_ = rows.Close()
 	isKit := false
 	for i := range tables {
 		isKit = isKit || tables[i].Name == "owners"

@@ -118,7 +118,7 @@ func (sm *SessionManager) EnsureSession(w http.ResponseWriter, r *http.Request) 
 		return "", "", fmt.Errorf("create session in store: %w", err)
 	}
 
-	c := &http.Cookie{
+	c := &http.Cookie{ // #nosec G124 -- Secure は SECURE_COOKIE で決める（HTTPSの本番は true、手元のHTTPは false）。HttpOnly・SameSite は付けている
 		Name:     sessionCookieName,
 		Value:    token,
 		Path:     "/",
@@ -151,7 +151,7 @@ func GetCSRFToken(ctx context.Context) string {
 
 // ClearSessionCookie はセッションCookieを破棄します。
 func (sm *SessionManager) ClearSessionCookie(w http.ResponseWriter) {
-	c := &http.Cookie{
+	c := &http.Cookie{ // #nosec G124 -- 破棄のためのCookie。属性は発行と同じ（Secure は SECURE_COOKIE で決める）
 		Name:     sessionCookieName,
 		Value:    "",
 		Path:     "/",

@@ -198,6 +198,7 @@ func (a *agentAuth) validQuery(q url.Values) bool {
 }
 
 func (a *agentAuth) setFlowCookie(w http.ResponseWriter, value string, maxAge int) {
+	// #nosec G124 -- Secure は SECURE_COOKIE で決める（HTTPSの本番は true、手元のHTTPは false）。HttpOnly・SameSite=Strict は付けている
 	http.SetCookie(w, &http.Cookie{Name: agentFlowCookie, Value: value, Path: "/admin", MaxAge: maxAge, HttpOnly: true, Secure: a.f.cfg.SecureCookie, SameSite: http.SameSiteStrictMode})
 }
 

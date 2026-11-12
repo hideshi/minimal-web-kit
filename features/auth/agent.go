@@ -111,7 +111,7 @@ func (s *FederationStore) AgentClients(ctx context.Context) ([]features.AgentCli
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	rows.Close()
+	_ = rows.Close()
 	for i := range out {
 		if out[i].Accounts, err = s.agentAccounts(ctx, out[i].ID); err != nil {
 			return nil, err

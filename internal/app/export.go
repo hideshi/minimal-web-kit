@@ -205,10 +205,10 @@ func writeExport(dir string, files map[string][]byte) error {
 	}
 	for name, body := range files {
 		path := filepath.Join(dir, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { // #nosec G301 -- 静的書き出しは公開するファイルで、Webサーバーが読める権限が要る
 			return err
 		}
-		if err := os.WriteFile(path, body, 0o644); err != nil {
+		if err := os.WriteFile(path, body, 0o644); err != nil { // #nosec G306 -- 静的書き出しは公開するファイルで、Webサーバーが読める権限が要る
 			return err
 		}
 	}

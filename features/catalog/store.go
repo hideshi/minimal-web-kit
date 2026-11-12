@@ -474,7 +474,7 @@ func (s *Store) List(ctx context.Context, public bool, f Filter, limit, offset i
 		where, args = filterSQL(f, s.now())
 	}
 	args = append(args, limit, offset)
-	rows, err := s.db.QueryContext(ctx, "SELECT "+itemColumns+itemFrom+where+" ORDER BY i.id DESC LIMIT ? OFFSET ?", args...)
+	rows, err := s.db.QueryContext(ctx, "SELECT "+itemColumns+itemFrom+where+" ORDER BY i.id DESC LIMIT ? OFFSET ?", args...) // #nosec G701 -- 連結するのは固定の部品だけで、値は ? で渡す（test/sql_static_test.go）
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +543,7 @@ func (s *Store) ClassificationUsages(ctx context.Context, kind string) ([]Classi
 	if kind == "tags" {
 		count = "SELECT COUNT(*) FROM catalog_item_tags it WHERE it.tag_id=c.id"
 	}
-	rows, err := s.db.QueryContext(ctx, "SELECT c.id,c.name,("+count+") FROM "+table+" c ORDER BY c.name,c.id")
+	rows, err := s.db.QueryContext(ctx, "SELECT c.id,c.name,("+count+") FROM "+table+" c ORDER BY c.name,c.id") // #nosec G202 -- 表の名前は classificationTable が固定の文字列から選ぶ（test/sql_static_test.go）
 	if err != nil {
 		return nil, err
 	}
@@ -599,7 +599,7 @@ func (s *Store) SaveClassification(ctx context.Context, kind string, id int64, n
 			return ErrDuplicateName
 		}
 		if id == 0 {
-			res, err := c.ExecContext(ctx, "INSERT INTO "+table+"(name) VALUES(?)", name)
+			res, err := c.ExecContext(ctx, "INSERT INTO "+table+"(name) VALUES(?)", name) // #nosec G202 -- 表の名前は classificationTable が固定の文字列から選び、値は ? で渡す（test/sql_static_test.go）
 			if err != nil {
 				return err
 			}

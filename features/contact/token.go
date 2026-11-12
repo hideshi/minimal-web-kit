@@ -52,7 +52,7 @@ func (t *tokens) sign(payload []byte) []byte {
 // issue は、now に発行したフォームの値を返します。
 func (t *tokens) issue(now time.Time) string {
 	payload := make([]byte, 8+nonceSize)
-	binary.BigEndian.PutUint64(payload, uint64(now.Unix()))
+	binary.BigEndian.PutUint64(payload, uint64(now.Unix())) // #nosec G115 -- 今の時刻（1970年より後）なので負にならない
 	if _, err := rand.Read(payload[8:]); err != nil {
 		panic(err)
 	}
@@ -69,7 +69,7 @@ func (t *tokens) check(value string, now time.Time) (nonce string, v verdict) {
 	if !hmac.Equal(sum, t.sign(payload)) {
 		return "", tokenBad
 	}
-	issued := time.Unix(int64(binary.BigEndian.Uint64(payload)), 0)
+	issued := time.Unix(int64(binary.BigEndian.Uint64(payload)), 0) // #nosec G115 -- 署名を確かめた後の、自分が書いた時刻。範囲外でも期限の判定で断られる
 	age := now.Sub(issued)
 	switch {
 	case age > tokenMaxAge || age < -time.Minute:

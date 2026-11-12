@@ -39,7 +39,7 @@ func NewSQLiteStore(dbPath string) (*SQLiteStore, error) {
 		}
 
 		if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-			f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_RDWR, 0600)
+			f, err := os.OpenFile(dbPath, os.O_CREATE|os.O_RDWR, 0600) // #nosec G304 -- DBの場所は運営者が環境変数（DB_PATH）で決める
 			if err != nil {
 				return nil, fmt.Errorf("create db file with 0600: %w", err)
 			}
