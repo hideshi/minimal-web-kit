@@ -138,6 +138,26 @@ example.com {
 - **戻し方**: `SECURE_COOKIE` を外すとヘッダーが付かなくなりますが、それだけではブラウザは忘れません。前段（プロキシやCloudflare）で `Strict-Transport-Security: max-age=0` をHTTPSの応答に付けると、次にHTTPSで訪れたブラウザから忘れます。一度だけ訪れて、その後来ない人のブラウザには届かず、期間が切れるまで残ります。
 - 前段でもHSTSを付けている場合は、どちらか一方にします（値が違うと、どちらが効くかがブラウザ任せになります）。
 
+### 管理画面へのアクセス元を絞る（任意）
+
+管理画面（`/admin/...`）はパスキーで守っていますが、インターネットから画面には届きます。前段で、管理画面に届く人を絞ると、守りが重なります（例: Cloudflare Access（Zero Trust）で `/admin/*` にログインを求める、ファイアウォールやWAFで接続元のIPアドレスを限る）。設定の手順は、使うサービスの公式の案内に従ってください（[Cloudflare Access のアプリケーションの追加](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)）。
+
+- **絞るのは `/admin/*` だけにします。** ホスト全体を絞ると、公開ページと、下の表の機械が使う経路が止まります。
+- 絞る前に、システム管理者が絞った後も入れることを確かめます。入れなくなったら、前段の設定を外して戻します（アプリの設定とDBは変わりません）。
+- `/admin/*` を絞ると、絞った前段のログインを通れない人は、管理画面に入れません。次の表の「ほかのサイトの利用者が通る」経路を使っていれば、その人たちも前段のログインを通れるようにします。
+
+| 経路 | 使う人・物 | 絞ってよいか |
+|---|---|---|
+| `/admin/oidc/authorize`・`/admin/oidc/continue`・`/admin/oidc/approve` | 共通認証の連携先のサイトでログインする人のブラウザ（共通認証の提供機能） | 連携先の利用者も前段を通れるなら、絞ってよい |
+| `/admin/sso/start`・`/admin/sso/callback` | このサイトの管理画面に、認証基盤でログインする人のブラウザ（共通認証の利用機能） | 絞ってよい（管理画面の利用者と同じ人） |
+| `/admin/agent/authorize`・`/admin/agent/continue`・`/admin/agent/approve` | AIエージェントの接続に同意する人のブラウザ（MCP） | 同意する人が前段を通れるなら、絞ってよい |
+| `/oidc/token`・`/oidc/check`・`/oidc/keys` | 連携先のサーバー（共通認証の提供機能） | **絞らない**。サーバーどうしの通信で、前段のログインを通れない |
+| `/agent/token`・`/mcp` | AIエージェントのクライアント（MCP） | **絞らない**。トークンで守っている |
+| `/.well-known/openid-configuration`・`/.well-known/oauth-authorization-server`・`/.well-known/oauth-protected-resource`・`/.well-known/oauth-protected-resource/mcp` | 連携先のサーバー、AIエージェントのクライアント | **絞らない**。公開の設定情報 |
+| `/api/news`・`/api/news/{id}` | ほかのサイト（お知らせ機能のJSON） | **絞らない**。公開の記事だけを返す |
+
+この表は、機械やほかのサイトが使う経路を、ソースの登録と照らして `test/deploy_routes_test.go` が確かめます。
+
 MCPを有効にする場合、サーバーは `Host` を `AUTH_ORIGIN` のホストと比べます。上の設定はそのまま通ります。nginxでは `proxy_set_header Host $host;` が要ります（既定の書き換えでは `/mcp` が403になります）。
 
 ## 7. システム管理者のパスキーの初回登録（管理者認証・お知らせ機能を有効にした場合）
