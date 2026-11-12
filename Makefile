@@ -1,4 +1,4 @@
-.PHONY: all build run test test-ui lint verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-media remove-media add-documents remove-documents add-mcp remove-mcp add-oidcop remove-oidcop add-federatedauth remove-federatedauth add-analytics remove-analytics records-inventory add-records remove-records
+.PHONY: all build run test test-ui lint sbom verify vuln hooks clean add-site remove-site add-auth remove-auth add-news remove-news auth-setup auth-recover add-catalog remove-catalog add-contact remove-contact add-pages remove-pages add-media remove-media add-documents remove-documents add-mcp remove-mcp add-oidcop remove-oidcop add-federatedauth remove-federatedauth add-analytics remove-analytics records-inventory add-records remove-records
 
 BIN_NAME := minimal-web-kit
 
@@ -24,6 +24,17 @@ verify:
 #   秘密値の混入は、GitHubのシークレットスキャンとプッシュの保護で止める。
 STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@v0.8.2
 GOSEC := go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+
+# ソフトウェア部品表（SBOM、CycloneDX のJSON）を、ビルドした実行ファイルから作る。道具は版を固定して go run で動かす。
+# 有効な機能で組み込まれる部品が変わるので、ソースではなく、配備する実行ファイルそのものから作る（SBOM_BIN で指定できる）。
+# 同じ実行ファイルからは同じ中身になるよう、通し番号と時刻を入れない。htmx とSQLite本体は入らない（skills/minimal-web-kit-vuln）。
+CYCLONEDX := go run github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.12.0
+SBOM_BIN ?= bin/$(BIN_NAME)
+
+sbom:
+	@test -x "$(SBOM_BIN)" || { echo "$(SBOM_BIN) がありません。先に make build を実行してください" >&2; exit 1; }
+	$(CYCLONEDX) bin -json -noserial -notimestamp -output "$(SBOM_BIN).cdx.json" "$(SBOM_BIN)"
+	@echo "$(SBOM_BIN).cdx.json"
 
 lint:
 	$(STATICCHECK) ./...

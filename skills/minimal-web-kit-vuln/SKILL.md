@@ -22,7 +22,7 @@ description: minimal-web-kitとそこから作ったアプリの、Go本体・�
 | Goの依存 | `make vuln`、下のGitHubの勧告 | 本体はソース、`test/browser` はテストの実行ファイルで調べる。後者は本番に入らない。間接依存も見る |
 | SQLite本体 | `go test -v -run TestSQLiteVersion ./internal/store` の版と、[SQLiteのCVEの一覧](https://www.sqlite.org/cves.html) | `modernc.org/sqlite` に変換されて入っている。`govulncheck` では見えない。これはソースの版で、本番の版の証明ではない |
 | 同梱のファイル | `features/catalog/static/README.md` の版と、GitHubの勧告（npmの `htmx.org`） | `govulncheck` では見えない。カタログの公開一覧でだけ読み込む。他の同梱のJS・CSSは自前で、フォントは同梱していない。増えたらここに足す |
-| 本番の実行ファイル | `go version -m <ファイル>`、`govulncheck -mode=binary <ファイル>` | **版の照合だけで、呼び出し経路は分からない。** 経路は、同じ版のソースと構成で別に調べる |
+| 本番の実行ファイル | `go version -m <ファイル>`、`govulncheck -mode=binary <ファイル>`、配備のときに残した部品表（`make sbom`） | **版の照合だけで、呼び出し経路は分からない。** 経路は、同じ版のソースと構成で別に調べる。部品表のGoの版は、部品ではなく `cdx:gomod:build:env:GOVERSION` にある。htmx とSQLite本体は部品表に入らない |
 | 開発とCI | `.github/workflows/` のアクションの告知、Chrome、`govulncheck`・`staticcheck`・`gosec` の版（`Makefile`） | 本番には入らない。ハッシュでの固定は、既知の脆弱性の確認の代わりにならない。Goを急いで上げて静的解析の道具が未対応なら、CIの `lint` のジョブだけが落ちる。テストと `make vuln` が通れば配備を止めず、道具の対応版を待って上げる |
 | サーバーと前段 | OSの更新、リバースプロキシ、トンネル等 | キットの外。アプリの手順書で扱う |
 

@@ -309,6 +309,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `make build` | CGO無効で `bin/minimal-web-kit` を作成 |
 | `make test` | `go test -race -v ./...` で全テストを実行 |
 | `make verify` | `go mod verify` と `go vet ./...` を実行 |
+| `make sbom` | ビルドした実行ファイル（既定は `bin/minimal-web-kit`、`SBOM_BIN=` で指定）から、ソフトウェア部品表（CycloneDX のJSON）を `<実行ファイル>.cdx.json` に作る。有効な機能で組み込まれる部品が変わるため、配備する実行ファイルそのものから作る。道具（`cyclonedx-gomod`）は版を固定して `go run` で動かし、`go.mod` には足さない。同じ実行ファイルからは同じ中身になる。Goの版は部品ではなく `cdx:gomod:build:env:GOVERSION` に入る。同梱のhtmxとSQLite本体（Goのコードへ変換されたもの）は入らない |
 | `make lint` | 静的解析（`staticcheck` と、セキュリティの `gosec`）を実行する。道具は版を固定して `go run` で動かし、`go.mod` には足さない。指摘を外すときは、行ごとに規則の番号と理由を書く（`test/lint_suppress_test.go` が確かめる）。CIでは別のジョブで走る |
 | `make hooks` | プッシュの前に、Goが古ければ警告する（止めない。クローンごとに1回） |
 | `go build -o bin/wpimport ./cmd/wpimport` | WordPressの書き出し（WXR）とアップロードのフォルダから、お知らせ・固定ページ・画像へ移す道具を作る。サーバーとは別の実行ファイルで、外部へ通信しない。稼働DBは読むだけで、別の作業DBに下書きとして取り込み、報告とCloudflareの一括転送のCSVを書く。移るもの・移らないものと手順は [docs/deploy.md](docs/deploy.md) の「WordPressからの移行」 |
