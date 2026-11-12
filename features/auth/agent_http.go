@@ -360,6 +360,8 @@ func (a *agentAuth) approve(w http.ResponseWriter, r *http.Request, s features.A
 		a.fail(w, http.StatusBadRequest, "接続の要求が正しくありません。")
 		return
 	}
+	// 承認の保存と戻り先の作成がどちらも済んだときだけ記録する。クライアントや戻り先は出さない（運営者への通知が数える）
+	a.f.logger.Info("auth agent approved", web.RequestIDAttr(w))
 	a.setFlowCookie(w, "", -1)
 	a.returnTo(w, location)
 }

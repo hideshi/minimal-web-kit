@@ -326,6 +326,10 @@ func TestAgentHTTP_AuthorizeToToken(t *testing.T) {
 	if err != nil || back.Query().Get("state") != "state-state" || back.Query().Get("iss") != "http://localhost:8080" {
 		t.Fatal(back, err)
 	}
+	// 運営者への通知が数える記録。クライアントと戻り先は出さない
+	if logs := a.fx.logs.String(); strings.Count(logs, "auth agent approved") != 1 || strings.Contains(logs, a.client.ID) || strings.Contains(logs, agentRedirect) {
+		t.Fatalf("approval log: %s", logs)
+	}
 	form := url.Values{"grant_type": {"authorization_code"}, "code": {back.Query().Get("code")}, "redirect_uri": {agentRedirect}, "code_verifier": {agentVerifier}, "client_id": {a.client.ID}, "resource": {agentResource}}
 	tok := httptest.NewRequest(http.MethodPost, "/agent/token", strings.NewReader(form.Encode()))
 	tok.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -474,6 +478,9 @@ func TestAgentHTTP_ApprovesOnlyTheShownRequest(t *testing.T) {
 	h.ServeHTTP(rec, post)
 	if rec.Code != 400 || rec.Header().Get("Refresh") != "" {
 		t.Fatal(rec.Code, rec.Header())
+	}
+	if strings.Contains(a.fx.logs.String(), "auth agent approved") {
+		t.Fatal("a rejected approval was logged as approved")
 	}
 	var issued int
 	if err := a.fx.db.QueryRow("SELECT COUNT(*) FROM auth_agent_requests WHERE code_hash IS NOT NULL").Scan(&issued); err != nil || issued != 0 {

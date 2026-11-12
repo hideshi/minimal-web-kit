@@ -361,8 +361,36 @@ SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go r
 - **前段のレート制限（推奨）**: アプリはIPアドレスを扱わないため、IPごとの連打は前段で抑えます。Cloudflareの無料プランのレート制限のルールは、1つだけ・条件はパスだけ（GETとPOSTを区別できない）・数える時間と止める時間は10秒です（2026-10-29に公式の資料で確認）。条件を `/contact` で始まるパスに限り、「同じIPから10秒に5回まで」のように掛けると、連打を少し抑えられます。
 - **保持期間とバックアップ**: お問い合わせは受付から `CONTACT_RETENTION_DAYS`（既定90日）で消えます。対応中のものは最長 `CONTACT_ACTIVE_MAX_DAYS`（既定365日）まで残ります。8節の複製には、その複製の保持期間のあいだ残ります。プライバシーポリシーの雛形の表（自動で載る）に加え、サイト独自の説明で、合わせた最長の期間を書いてください。
 - **効き目の確認**: 公開後しばらく、ログの `contact submission` の `result`（`saved`・`honeypot`・`too_fast`・`expired`・`bad_token`・`replayed`・`invalid_*`・`over_limit`）の件数を見ます。`honeypot` が人の送信らしい時間帯に多ければ、自動入力で見えない欄が埋まっている可能性があります。
-- **通知はありません**: 管理画面の受信箱を定期的に見てください。保持期間を過ぎると、未読のままでも消えます。
+- **到着に気づく**: 既定では通知が無いので、管理画面の受信箱を定期的に見てください。保持期間を過ぎると、未読のままでも消えます。Slack・Discord で新着の件数を受け取るなら、「運営者への通知」を設定します。
 - 外部のCAPTCHA（Cloudflare Turnstile等）は、上の対策で防げなくなったときの最後の手段です。外部のスクリプトとJavaScriptが要るため、承認境界3・4に当たります。
+
+## 運営者への通知（任意）
+
+お問い合わせの新着や、パスキー・アカウントの変更などを、Slack か Discord で受け取ります。送るのはサイト名・出来事の種類・件数・時刻だけです（[仕様](domain/notify.md)）。複数のサイトで同じ URL を使えば、1つのチャンネルに集まります。
+
+1. Webhook を作る。Slack は、Slack のアプリの「Incoming Webhooks」を有効にし、投稿するチャンネルを選んで URL（`https://hooks.slack.com/services/…`）を得ます。Discord は、チャンネルの設定の「連携サービス」→「ウェブフック」で URL（`https://discord.com/api/webhooks/…`）を得ます。URL を知る人は誰でもそのチャンネルに投稿できるので、秘密として扱います。
+2. URL をファイルに置く。チャットや履歴に URL を残さないよう、エディタで書きます。
+
+   ```sh
+   sudo install -m 0600 -o mwk -g mwk /dev/null /etc/minimal-web-kit/notify-webhook-url
+   sudoedit /etc/minimal-web-kit/notify-webhook-url   # URL を1行で書く
+   ```
+
+3. `/etc/minimal-web-kit/env` に足して、再起動する。`SITE_NAME` が無いと起動しません（同じチャンネルでサイトを見分けるため）。
+
+   ```sh
+   NOTIFY_WEBHOOK_URL_FILE=/etc/minimal-web-kit/notify-webhook-url
+   SITE_NAME=サイトの名前
+   ```
+
+4. 確かめる。再起動から約1分後に「[サイトの名前] 起動しました。」が届きます。届かなければ、`journalctl -u minimal-web-kit` で `notify send failed`（応答のコードか `connection`）と `notify webhook gone`（URL が消された。再起動まで送らない）を探します。URL の形や権限が違えば、起動の時点で `notify setup failed` で止まります。
+
+- **届くもの**: お問い合わせの新着（1時間ごと。スパムを含むことがある）、パスキーの登録・削除・無効化、アカウントの作成・削除・権限の変更・停止・再開、登録URLの発行、AIエージェントの接続の承認、MCPの設定の変更、認証の拒否の連続（10分に10件以上）、予期しない停止、起動。覚えのない操作の通知が来たら、管理画面とログを確かめてください。
+- **送信の通信**: サーバーから `hooks.slack.com` か `discord.com` へ HTTPS で送ります。外向きの通信を絞っている場合は許可します。環境変数のプロキシの設定（`HTTPS_PROXY`）に従います。
+- **停止の時間**: 停止のときは、まとめ待ちの件数を最大5秒かけて送ります。処理中のリクエストを待つ時間（最大10秒）と合わせて、systemd の停止の待ち時間（既定90秒）に収まります。強制終了では、まとめ待ちの件数（最大1時間分）が失われます。お問い合わせ自体はDBに残ります。
+- **外部に残るもの**: サイト名、出来事の種類と件数、時刻が、Slack・Discord に残ります。個人の情報は送らないので、プライバシーポリシーの変更は通常要りません。
+- **止める**: `NOTIFY_WEBHOOK_URL_FILE` の行を消して再起動します。URL が漏れたら、Slack・Discord の側で Webhook を消して作り直し、ファイルを書き換えて再起動します。
+- **サブコマンド**（`auth-recover`・`agent-client` 等）の操作は知らせません。
 
 ## WordPressからの移行
 

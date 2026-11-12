@@ -24,6 +24,16 @@ func SiteName() string {
 	return name
 }
 
+// ConfiguredSiteName は、SITE_NAME が設定されていて使える値なら、それを返します。未設定か不正なら空です。
+// 既定の名前では足りない場面（複数のサイトの通知を1か所で見分ける等）に使います。
+func ConfiguredSiteName() string {
+	name, err := siteNameFromEnv()
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
 // CheckSiteName は、SITE_NAME が設定されていれば、使える値かを確かめます。エラーに値を含めません。
 func CheckSiteName() error {
 	_, err := siteNameFromEnv()

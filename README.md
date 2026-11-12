@@ -295,6 +295,16 @@ minimal-web-kit federated-account -sub <sub> -role admin
 - 全体の上限は `MEDIA_TOTAL_LIMIT_MB`（既定300）です。写真が大量に増えるサイトには向きません。運用の注意は[デプロイの手順](docs/deploy.md)の「画像を使う場合」にあります。
 - 仕様と不変条件は [domain/media.md](docs/domain/media.md)、保存内容は[データ台帳](docs/data-inventory.md)の12節にあります。
 
+### 運営者への通知（Slack・Discord）
+
+複数のサイトを運営するとき、お問い合わせの到着や管理者の認証に関わる出来事に、1つのチャンネルで気づけます。同梱機能の登録は要らず、`NOTIFY_WEBHOOK_URL_FILE` を設定したときだけ動きます。設定しなければ、外へ通信しません。
+
+- 送り先は、Slack の Incoming Webhook か Discord の Webhook のどちらか1つです。URL は、所有者だけが読めるファイルに1行で書きます。違う形の URL は起動時にエラーです。
+- 知らせるのは、お問い合わせの新着（1時間ごとにまとめる）、パスキー・アカウント・登録URL・AIエージェントの接続・MCPの設定の変更、認証の拒否の連続、予期しない停止、起動です。
+- 送る文は、サイト名・出来事の種類・件数・時刻だけです。お問い合わせの本文や返信先、アカウント、IPアドレスは送りません。読む・対応するのは各サイトの管理画面です。
+- 通知を有効にするときは `SITE_NAME` が必要です（同じチャンネルでサイトを見分けるため）。
+- 出来事は、各機能のログから決まった名前で拾います。仕様と不変条件は [domain/notify.md](docs/domain/notify.md)、設定の手順は [docs/deploy.md](docs/deploy.md) の「運営者への通知」にあります。
+
 ### 切り替えコマンドの保護範囲
 
 `features/` の `site`・`news`・`auth`・`catalog`・`contact`・`pages`・`media`・`analytics`・`documents`・`mcp`・`federatedauth` は同梱機能用の予約ディレクトリです。自作機能には別名を使用してください。コマンドは各機能の本体のファイル（`site.go` 等）の冒頭の識別コメント（例: `// minimal-web-kit: bundled-feature site`）と登録ファイルの構造を確認します。識別できない同名ディレクトリ、シンボリックリンク、マーカーの欠落・重複、部分的な登録、別名import等は書き換えずに拒否します。識別コメントは同梱元の目印で、真正性や未改変を証明するものではありません。
@@ -356,6 +366,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `ANALYTICS_GA4_ID` | 未設定。GA4の測定ID（`G-` で始まる）。アクセス解析の機能を有効にしたときに必要 |
 | `CONTACT_KIND_OPTIONS` / `CONTACT_KIND_LABEL` / `CONTACT_KIND_REQUIRED` | 未設定 / `お問い合わせの種別` / `false`。お問い合わせの種別の選択肢・見出し・必須（[お問い合わせ機能](#お問い合わせ機能)）。選択肢が無ければ無効。誤りは起動時にエラー |
 | `CONTACT_HOURLY_LIMIT` / `CONTACT_DAILY_LIMIT` / `CONTACT_UNREAD_LIMIT` | 20 / 100 / 500。お問い合わせの全体の受付上限（保存した件数で数える） |
+| `NOTIFY_WEBHOOK_URL_FILE` | 未設定（通知しない）。Slack・Discord の Webhook の URL を書いた、所有者だけが読めるファイルのパス（[運営者への通知](#運営者への通知slackdiscord)）。設定するときは `SITE_NAME` も必須。誤りは起動時にエラー |
 | `OIDC_` で始まる変数 | 共通認証の設定。「[共通認証](#共通認証自社の別システムでのログイン)」を参照 |
 
 `make build` はテンプレート・CSS・JS・マイグレーションを埋め込んだ単一実行ファイルを作ります。対象OS・CPUに合わせたビルドが必要で、サイズはGoバージョン・構成・対象環境により変わります。SQLiteのデータはバイナリの外に保存されます。
@@ -520,6 +531,7 @@ OwnerIDはブラウザ単位の無記名の識別子で、セッション発行�
 ├── internal/
 │   ├── app/               # 設定・サーバー管理
 │   ├── federation/        # 共通認証の照会の契約と通信の守り
+│   ├── notify/            # 運営者への通知（Slack・Discord の Webhook）
 │   ├── store/             # メモリ・SQLite・Coreマイグレーション
 │   └── web/               # SSR・セッション・CSRF・ログ・CSS
 │       ├── form/          # 部品: 入力の検査（文章・1行の値・整数）と入力欄の値

@@ -26,6 +26,8 @@ var unresolvedRoutesOK = map[string]int{
 	"../internal/web/handler.go": 3,
 	// カタログの公開一覧で読み込む同梱のJS（/catalog/static/ の2つ）を、名前の一覧から登録する
 	"../features/catalog/catalog.go": 1,
+	// 経路ではなく、ログの出力（slog.Handler の Handle）を内側へ渡す呼び出し
+	"../internal/notify/notify.go": 1,
 }
 
 // routePatterns は、Goのファイルの中の Handle・HandleFunc・HandleUpload の最初の引数（経路）を集めます。

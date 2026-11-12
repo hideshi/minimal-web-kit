@@ -14,6 +14,8 @@ type Config struct {
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
+	// NotifyWebhookURLFile は、運営者への通知の Webhook の URL を書いたファイルです。空なら通知しません（docs/domain/notify.md）。
+	NotifyWebhookURLFile string
 }
 
 func LoadConfig() *Config {
@@ -43,5 +45,7 @@ func LoadConfig() *Config {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
+
+		NotifyWebhookURLFile: os.Getenv("NOTIFY_WEBHOOK_URL_FILE"),
 	}
 }
