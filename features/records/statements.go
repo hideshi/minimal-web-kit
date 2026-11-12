@@ -137,11 +137,10 @@ func buildCRUD(k *kindStatements, d RecordDef, st func(parts ...string) recordsS
 	q := quoteIdent
 	t := q(k.table)
 	k.columns = sc.columns
-	var names, marks, sets []string
+	var names, sets []string
 	for _, c := range sc.columns {
 		col := q(fieldColumn(c.name))
 		names = append(names, col)
-		marks = append(marks, "?")
 		sets = append(sets, col+" = ?")
 		switch c.typ {
 		case Text, LongText:

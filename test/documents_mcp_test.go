@@ -107,10 +107,7 @@ func (e *mcpEnv) raw(method, name string, params map[string]any) (int, string) {
 func TestDocumentsMCP_ToolsAreFixed(t *testing.T) {
 	e := newMCPEnv(t)
 	e.enableDocuments()
-	var got []string
-	for _, name := range e.as(e.account("user")).toolNames() {
-		got = append(got, name)
-	}
+	got := e.as(e.account("user")).toolNames()
 	want := []string{"documents_accounts", "documents_approvals", "documents_create", "documents_folders", "documents_list", "documents_mine", "documents_publish",
 		"documents_read", "documents_request_approval", "documents_revise", "documents_update", "documents_version"}
 	if !slices.Equal(got, want) {

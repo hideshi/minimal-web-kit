@@ -187,11 +187,6 @@ func (s *Store) Delete(ctx context.Context, id string) error {
 	})
 }
 
-func idOf(file string) string {
-	id, _, _ := strings.Cut(file, ".")
-	return id
-}
-
 // replaceRefs は、呼び出し元のトランザクションの中で参照を置き換えます。トランザクションは始めません。
 func replaceRefs(ctx context.Context, c *sql.Conn, owner, key string, files []string) error {
 	if _, err := c.ExecContext(ctx, "DELETE FROM media_refs WHERE owner = ? AND ref_key = ?", owner, key); err != nil {

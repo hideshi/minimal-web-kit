@@ -296,11 +296,11 @@ func relayTarget(t *testing.T, res *http.Response, body string) string {
 // beginLogin は、Bのログインを始めて認可要求のURLを返します。
 func (p *fedPair) beginLogin(t *testing.T, br *fedBrowser) string {
 	t.Helper()
-	res, body := br.do(http.MethodGet, p.b.origin+"/admin/login", nil)
+	res, _ := br.do(http.MethodGet, p.b.origin+"/admin/login", nil)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("login page: %d", res.StatusCode)
 	}
-	res, body = br.do(http.MethodPost, p.b.origin+"/admin/sso/start", url.Values{"next": {"/admin/notes"}})
+	res, body := br.do(http.MethodPost, p.b.origin+"/admin/sso/start", url.Values{"next": {"/admin/notes"}})
 	return relayTarget(t, res, body)
 }
 
@@ -379,7 +379,7 @@ func TestFederatedAuth_LoginThenStopRejectsNextRequest(t *testing.T) {
 	br.setCookie(p.a.origin, adminCookie)
 	p.login(t, br)
 
-	res, body := br.do(http.MethodGet, p.b.origin+"/admin/notes", nil)
+	_, body := br.do(http.MethodGet, p.b.origin+"/admin/notes", nil)
 	if !strings.Contains(body, "role=site_admin") {
 		t.Fatalf("Aの管理者がBの管理者になった: %s", body)
 	}
@@ -390,6 +390,7 @@ func TestFederatedAuth_LoginThenStopRejectsNextRequest(t *testing.T) {
 	if _, public := br.do(http.MethodGet, p.b.origin+"/privacy", nil); strings.Contains(public, "管理画面の利用者について保存する情報") {
 		t.Fatal("the public policy must not show the internal notice")
 	}
+	var res *http.Response
 	if res, _ = br.do(http.MethodGet, p.b.origin+"/admin/notes/settings", nil); res.StatusCode != http.StatusForbidden {
 		t.Fatalf("member at admin page: %d", res.StatusCode)
 	}
@@ -543,10 +544,10 @@ func TestFederatedAuth_UnavailableKeepsSession(t *testing.T) {
 	p := newFedPair(t)
 	br, _, _ := p.member(t)
 	p.login(t, br)
-	res, body := br.do(http.MethodGet, p.b.origin+"/admin/notes", nil)
+	_, body := br.do(http.MethodGet, p.b.origin+"/admin/notes", nil)
 	csrf := csrfField.FindStringSubmatch(body)[1]
 	p.a.down.Store(true)
-	res, _ = br.do(http.MethodPost, p.b.origin+"/admin/notes", url.Values{"csrf_token": {csrf}})
+	res, _ := br.do(http.MethodPost, p.b.origin+"/admin/notes", url.Values{"csrf_token": {csrf}})
 	if res.StatusCode != http.StatusServiceUnavailable || p.notes.saved.Load() != 0 {
 		t.Fatalf("while down: %d saved=%d", res.StatusCode, p.notes.saved.Load())
 	}

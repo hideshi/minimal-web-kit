@@ -120,7 +120,6 @@ const PlaceholderAlt = "画像の説明を書いてください"
 
 var (
 	reHeadingStart = regexp.MustCompile(`^#`)
-	reListStart    = regexp.MustCompile(`^(-|[0-9]{1,9}\.) `)
 	reNumberStart  = regexp.MustCompile(`^([0-9]{1,9})\. `)
 )
 
