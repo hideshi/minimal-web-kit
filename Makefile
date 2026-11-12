@@ -17,6 +17,19 @@ verify:
 	go mod verify
 	go vet ./...
 
+# 静的解析（SAST）。道具は版を固定して実行し、go.mod には足さない。版の更新は skills/minimal-web-kit-vuln の「開発とCI」。
+# 行ごとの除外は、規則の番号と理由が要る（staticcheck は //lint:ignore <番号> <理由>、gosec は #nosec <番号> -- <理由>）。
+# 規則ごと外すときは、ここか staticcheck.conf に理由を書く。test/lint_suppress_test.go が確かめる。
+# gosec の G101: 名前（token・secret 等）から秘密値の直書きを推測する規則で、このキットでは画面の文言の表しか当たらない。
+#   秘密値の混入は、GitHubのシークレットスキャンとプッシュの保護で止める。
+STATICCHECK := go run honnef.co/go/tools/cmd/staticcheck@v0.8.2
+GOSEC := go run github.com/securego/gosec/v2/cmd/gosec@v2.30.0
+
+lint:
+	$(STATICCHECK) ./...
+	cd test/browser && $(STATICCHECK) ./...
+	$(GOSEC) -quiet -nosec-require-rules -nosec-require-justification -exclude=G101 -exclude-dir=.worktrees ./...
+
 # 既知の脆弱性を調べる（道具は版を固定して実行し、go.mod には足さない）。手順は skills/minimal-web-kit-vuln
 # test/browser はファイルが全部テストなので、ソースの検査では依存を見ない。テストの実行ファイルを作って検査する。
 # 片方が失敗しても、もう片方を実行し、最後に失敗を返す。

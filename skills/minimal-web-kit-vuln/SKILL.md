@@ -23,7 +23,7 @@ description: minimal-web-kitとそこから作ったアプリの、Go本体・�
 | SQLite本体 | `go test -v -run TestSQLiteVersion ./internal/store` の版と、[SQLiteのCVEの一覧](https://www.sqlite.org/cves.html) | `modernc.org/sqlite` に変換されて入っている。`govulncheck` では見えない。これはソースの版で、本番の版の証明ではない |
 | 同梱のファイル | `features/catalog/static/README.md` の版と、GitHubの勧告（npmの `htmx.org`） | `govulncheck` では見えない。カタログの公開一覧でだけ読み込む。他の同梱のJS・CSSは自前で、フォントは同梱していない。増えたらここに足す |
 | 本番の実行ファイル | `go version -m <ファイル>`、`govulncheck -mode=binary <ファイル>` | **版の照合だけで、呼び出し経路は分からない。** 経路は、同じ版のソースと構成で別に調べる |
-| 開発とCI | `.github/workflows/` のアクションの告知、Chrome、`govulncheck` の版 | 本番には入らない。ハッシュでの固定は、既知の脆弱性の確認の代わりにならない |
+| 開発とCI | `.github/workflows/` のアクションの告知、Chrome、`govulncheck`・`staticcheck`・`gosec` の版（`Makefile`） | 本番には入らない。ハッシュでの固定は、既知の脆弱性の確認の代わりにならない。Goを急いで上げて静的解析の道具が未対応なら、CIの `lint` のジョブだけが落ちる。テストと `make vuln` が通れば配備を止めず、道具の対応版を待って上げる |
 | サーバーと前段 | OSの更新、リバースプロキシ、トンネル等 | キットの外。アプリの手順書で扱う |
 
 `make vuln` の `DB updated` の日時を報告する。データベースには遅れがあり、日時が新しくても、個別の告知が入っているとは限らない。直接依存と主な間接依存は次でも確かめる。
@@ -78,7 +78,7 @@ go list -m -u -f '{{if and (not .Indirect) .Update}}{{.Path}} {{.Version}} -> {{
    ```
 
    `replace` があっても、`test/browser` の選択版は別に決まる。両方で `go list -m <モジュール>` の版を確かめる。`go.mod` の `go` 行と `toolchain` 行、`go version` の実際の版、CIの版も見る。READMEの前提の版も直す。`go.mod` の差分を読み、直接依存が増えていないか、間接依存の増減を確かめる。
-3. **確かめる**: `go test -race ./...`、`make verify`、`make test-ui`、`make vuln`。詳しい確認は `minimal-web-kit-audit` に従う。
+3. **確かめる**: `go test -race ./...`、`make verify`、`make lint`、`make test-ui`、`make vuln`。詳しい確認は `minimal-web-kit-audit` に従う。
 4. **検査に頼れない変更**: 暗号・認証・解析の部品の更新では、変更履歴を読み、拒否の条件や既定値の変更が無いかを確かめる。共通認証は `test/federated_auth_test.go` が守る。
 5. **SQLiteと保存処理の更新**: ドライバやSQLite本体の更新では、既存のDBの複製で読み書きを確かめる。結果は `minimal-web-kit-deploy` の戻し方の判断に渡す。
 6. **htmxを更新するとき**: `features/catalog/static/README.md` の手順に従う（ハッシュ、ライセンス、差分、検証のテスト）。CSP・通信・戻る進むをブラウザで確かめる。読み込むファイルや画面を増やすなら、境界4・5に当たる。
