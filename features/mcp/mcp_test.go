@@ -708,3 +708,24 @@ func TestUnits_DeclarationsAreChecked(t *testing.T) {
 type noticeSplitFeature struct{ splitFeature }
 
 func (d *noticeSplitFeature) MCPEnableNotice() string { return "全体の注意" }
+
+// 設定を書けたときだけ「変更した」と記録する。要求が取り消されて書けなかったときは記録しない（運営者への通知が数える）。
+func TestSettingChange_LoggedOnlyWhenWritten(t *testing.T) {
+	e := newEnv(t)
+	post := func(ctx context.Context) {
+		r := httptest.NewRequest(http.MethodPost, "/admin/mcp/demo/disable", nil).WithContext(ctx)
+		r.SetPathValue("feature", "demo")
+		r.PostForm = map[string][]string{}
+		e.f.handleChange(false)(httptest.NewRecorder(), r, nil)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	post(ctx)
+	if strings.Contains(e.logs.String(), "mcp setting changed") {
+		t.Fatalf("a canceled write was logged as changed: %s", e.logs.String())
+	}
+	post(context.Background())
+	if strings.Count(e.logs.String(), "mcp setting changed") != 1 {
+		t.Fatalf("a written change must be logged once: %s", e.logs.String())
+	}
+}

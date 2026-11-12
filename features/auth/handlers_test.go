@@ -308,6 +308,33 @@ func TestAdmin_CloneSuspectedDisablesAndRevokes(t *testing.T) {
 	}
 }
 
+// 複製の疑いでパスキーを無効にできなかったときは、「無効にした」と記録しない（運営者への通知が数える）。
+func TestAdmin_CloneDisableFailureIsNotLoggedAsDisabled(t *testing.T) {
+	fx := newFixture(t)
+	ctx := context.Background()
+	token, _ := Setup(ctx, fx.db, time.Now())
+	a := newFakeAuthenticator(t, algES256)
+	if rec := fx.registerViaHTTP(t, a, token); rec.Code != http.StatusOK {
+		t.Fatal(rec.Body.String())
+	}
+	userID := fx.userID(t, 1)
+	if rec := fx.loginViaHTTP(t, a, userID); rec.Code != http.StatusOK {
+		t.Fatal(rec.Body.String())
+	}
+	// 無効にする更新だけを失敗させる
+	if _, err := fx.db.Exec(`CREATE TRIGGER fail_disable BEFORE UPDATE OF disabled_at ON auth_credentials BEGIN SELECT RAISE(ABORT, 'test'); END`); err != nil {
+		t.Fatal(err)
+	}
+	a.count = 0
+	if rec := fx.loginViaHTTP(t, a, userID); rec.Code != http.StatusUnauthorized {
+		t.Fatalf("clone login: %d", rec.Code)
+	}
+	logs := fx.logs.String()
+	if !strings.Contains(logs, "auth disable passkey failed") || strings.Contains(logs, "auth passkey disabled") {
+		t.Fatalf("a failed disable must not be logged as disabled: %s", logs)
+	}
+}
+
 // 不変条件: AUTH-INV-13
 func TestAdmin_LoginRejectsUnknownCredentialAndLogsNoSecrets(t *testing.T) {
 	fx := newFixture(t)

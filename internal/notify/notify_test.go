@@ -259,6 +259,7 @@ func TestTick_RejectThreshold(t *testing.T) {
 // 不変条件: NOTIFY-INV-6, NOTIFY-INV-8
 func TestRules_MessagesExistInCode(t *testing.T) {
 	var src strings.Builder
+	var files []string
 	for _, dir := range []string{"../../features", "../../internal"} {
 		err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -272,6 +273,7 @@ func TestRules_MessagesExistInCode(t *testing.T) {
 				return err
 			}
 			src.Write(b)
+			files = append(files, string(b))
 			return nil
 		})
 		if err != nil {
@@ -287,10 +289,20 @@ func TestRules_MessagesExistInCode(t *testing.T) {
 			t.Errorf("the notifier must not count its own log %q", m)
 		}
 	}
-	// 属性の条件の値（例: お問い合わせの result の saved）も、コードに文字列として在る
+	// 属性の条件の名前と値（例: お問い合わせの result の saved）も、そのログを出すファイルに文字列として在る。
+	// 値は他の機能でも使う語なので、全体ではなく、ログの名前と同じファイルで探す
 	for _, r := range rules {
-		if r.attr != "" && (!strings.Contains(code, `"`+r.attr+`"`) || !strings.Contains(code, `"`+r.value+`"`)) {
-			t.Errorf("attribute %s=%s of %q is not in the code", r.attr, r.value, r.message)
+		if r.attr == "" {
+			continue
+		}
+		found := false
+		for _, f := range files {
+			if strings.Contains(f, `"`+r.message+`"`) && strings.Contains(f, `"`+r.attr+`"`) && strings.Contains(f, `"`+r.value+`"`) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("attribute %s=%s of %q is not in the file that logs it", r.attr, r.value, r.message)
 		}
 	}
 	for k := kind(0); k < numKinds; k++ {
@@ -509,6 +521,23 @@ func TestNotifier_StopEdges(t *testing.T) {
 	n.send("hello")
 	if slept || len(rec.paths) != 1 || !strings.Contains(logs.String(), "status=503") {
 		t.Errorf("retried while stopping: slept=%v requests=%d logs=%s", slept, len(rec.paths), logs.String())
+	}
+
+	// 送り直しの待ちの最中に停止の合図が来たら、待ちをやめて送り直さない
+	rec2 := &recordingServer{}
+	srv2 := httptest.NewTLSServer(rec2.handler(func(string, int) int { return http.StatusServiceUnavailable }))
+	defer srv2.Close()
+	logs.Reset()
+	m := newNotifier("テスト", srv2.URL+"/services/a", slack, srv2.Client().Transport)
+	m.logger = slog.New(m.Handler(slog.NewTextHandler(&logs, nil)))
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		close(m.stop)
+	}()
+	began := time.Now()
+	m.send("hello") // 本物の待ち（5秒）を使う
+	if d := time.Since(began); d > 2*time.Second || len(rec2.paths) != 1 || !strings.Contains(logs.String(), "status=503") {
+		t.Errorf("stop during the retry wait: took %v, requests=%d logs=%s", d, len(rec2.paths), logs.String())
 	}
 }
 

@@ -215,17 +215,26 @@ func newNotifier(site, raw string, t target, base http.RoundTripper) *Notifier {
 	client := federation.Client([]string{raw}, sendTimeout, responseLimit, base)
 	// 転送には従わず、3xx の応答をそのまま受け取る。接続の失敗と区別し、送り直さない（NOTIFY-INV-2）
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &Notifier{
+	n := &Notifier{
 		site:   site,
 		url:    raw,
 		target: t,
 		client: client,
 		now:    time.Now,
-		sleep:  time.Sleep,
 		queue:  make(chan string, queueSize),
 		stop:   make(chan struct{}),
 		done:   make(chan struct{}),
 	}
+	// 送り直しの待ちは、停止の合図で打ち切る
+	n.sleep = func(d time.Duration) {
+		timer := time.NewTimer(d)
+		defer timer.Stop()
+		select {
+		case <-n.stop:
+		case <-timer.C:
+		}
+	}
+	return n
 }
 
 // Handler は、next を包んで、拾うログを数える slog.Handler を返します。
@@ -426,8 +435,13 @@ func (n *Notifier) send(text string) {
 			}
 			return
 		case (status == http.StatusTooManyRequests || status >= 500 || status == 0) && attempt == 0 && !n.stopping():
-			// 停止の途中は送り直さない。待つ間に停止の待ち時間が尽き、残りの文まで送れなくなるため
+			// 停止の途中は送り直さない。待つ間に停止の待ち時間が尽き、残りの文まで送れなくなるため。
+			// 待っている最中に停止の合図が来たら、待ちをやめて送り直さない
 			n.sleep(retryDelay)
+			if n.stopping() {
+				n.logFailure(status)
+				return
+			}
 		default:
 			n.logFailure(status)
 			return
