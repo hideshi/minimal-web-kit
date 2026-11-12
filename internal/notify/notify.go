@@ -182,12 +182,11 @@ type Notifier struct {
 	rejectAt       int
 	lastReject     time.Time
 
-	queue   chan string
-	gone    atomic.Bool
-	logger  *slog.Logger
-	stop    chan struct{}
-	stopped chan struct{}
-	done    chan struct{}
+	queue  chan string
+	gone   atomic.Bool
+	logger *slog.Logger
+	stop   chan struct{}
+	done   chan struct{}
 }
 
 // New は、通知を用意します。urlFile が空なら、通知は無効で nil を返します（NOTIFY-INV-5）。
@@ -212,16 +211,15 @@ func New(urlFile, site string) (*Notifier, error) {
 
 func newNotifier(site, raw string, t target, base http.RoundTripper) *Notifier {
 	return &Notifier{
-		site:    site,
-		url:     raw,
-		target:  t,
-		client:  federation.Client([]string{raw}, sendTimeout, responseLimit, base),
-		now:     time.Now,
-		sleep:   time.Sleep,
-		queue:   make(chan string, queueSize),
-		stop:    make(chan struct{}),
-		stopped: make(chan struct{}),
-		done:    make(chan struct{}),
+		site:   site,
+		url:    raw,
+		target: t,
+		client: federation.Client([]string{raw}, sendTimeout, responseLimit, base),
+		now:    time.Now,
+		sleep:  time.Sleep,
+		queue:  make(chan string, queueSize),
+		stop:   make(chan struct{}),
+		done:   make(chan struct{}),
 	}
 }
 
