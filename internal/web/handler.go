@@ -200,6 +200,9 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 	handler = AccessLog(h.logger)(rootMux)
 	handler = maxBytesByRoute(rootMux, bodyLimits, defaultMaxBody)(handler)
 	handler = SecurityHeaders(handler)
+	if h.sm != nil && h.sm.secureFlag {
+		handler = HSTS(handler)
+	}
 	handler = Recoverer(h.logger)(handler)
 	handler = RequestID(handler)
 

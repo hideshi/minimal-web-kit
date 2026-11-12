@@ -128,6 +128,16 @@ example.com {
   - **確かめ方**: 配備の前後で、HTMLの中のCSSのURL（`?v=` の値）が変わり、新しいURLが新しい中身を返すことを確かめます。古い版のURLにも今の中身を返す作りのため、同じ稼働版に違う `v` を送って中身を比べても確かめられません。
 - **前段がページを書き換える機能に注意してください。** Cloudflareの Email Address Obfuscation（登録時に自動でオン）は、HTMLのメールアドレスを書き換えて、復元用のJavaScriptを差し込みます。このキットのCSPではそのJavaScriptが動かないため、書き換えられたメールアドレスは人にも「[email protected]」と見えます。管理画面の応答には `Cache-Control: no-transform` を付けているため、書き換えられません（受信箱の返信先などはそのまま読めます）。公開ページは書き換えの対象のままなので、メールアドレスは訪問者にも読めなくなります。公開ページにメールアドレスを載せず、お問い合わせのフォームを案内してください。Rocket Loader・Zaraz・Web Analyticsの自動挿入も、CSPで動かないため使いません。
 
+### HSTS（`Strict-Transport-Security`）
+
+`SECURE_COOKIE=true` のとき、アプリはすべての応答に `Strict-Transport-Security: max-age=31536000`（1年）を付けます。ブラウザは一度受け取ると、期間中そのホスト名にHTTPSだけで接続します。`includeSubDomains` と `preload` は付けません（同じドメインのほかのホストに効かせないため）。
+
+- **一度覚えたブラウザは、期間中HTTPで開けず、証明書の警告も押し切れなくなります。** 有効にする前に、次を確かめてください。
+  - 証明書が自動で更新される（Caddy、Cloudflareの証明書等）。
+  - 同じホスト名で、HTTPだけの別のサービス（別のポートの管理ツール等）を動かしていない。HSTSはポートを問わずホスト名に効きます。
+- **戻し方**: `SECURE_COOKIE` を外すとヘッダーが付かなくなりますが、それだけではブラウザは忘れません。前段（プロキシやCloudflare）で `Strict-Transport-Security: max-age=0` をHTTPSの応答に付けると、次にHTTPSで訪れたブラウザから忘れます。一度だけ訪れて、その後来ない人のブラウザには届かず、期間が切れるまで残ります。
+- 前段でもHSTSを付けている場合は、どちらか一方にします（値が違うと、どちらが効くかがブラウザ任せになります）。
+
 MCPを有効にする場合、サーバーは `Host` を `AUTH_ORIGIN` のホストと比べます。上の設定はそのまま通ります。nginxでは `proxy_set_header Host $host;` が要ります（既定の書き換えでは `/mcp` が403になります）。
 
 ## 7. システム管理者のパスキーの初回登録（管理者認証・お知らせ機能を有効にした場合）
@@ -271,6 +281,7 @@ sudo systemctl restart minimal-web-kit
 
 - `https://example.com/` が表示され、`http://` はHTTPSへ転送される。
 - Cookieが発行される画面（Base版の画面、管理画面のログイン後）で、Cookieに `Secure` が付いている（ブラウザの開発者ツールで確認）。
+- `curl -sI https://example.com/` の応答に `Strict-Transport-Security: max-age=31536000` が1つだけある（6節のHSTS）。
 - `http://<サーバーのIP>:8080/` に外部から接続できない。
 - 管理者認証を有効にした場合、パスキーで登録・ログインできる。お知らせ機能を有効にした場合、`/news` と `/api/news` が表示される。
 - DBのディレクトリが `mwk` 以外から読めない（`ls -ld /var/lib/minimal-web-kit`）。
@@ -295,7 +306,7 @@ SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go r
 | `favicon.ico`、`static/img/favicon.svg` 等 | ブラウザのタブ等に出るアイコン |
 | `robots.txt`、`sitemap.xml` | 検索エンジン向け。`sitemap.xml` は `SITE_URL` を設定した場合だけ |
 | `404.html` | 存在しないパスに返すページ。Cloudflare Workersでは `wrangler.jsonc` の `assets.not_found_handling` を `"404-page"` にすると使われます |
-| `_headers` | Goのサーバーと同じセキュリティヘッダー（CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）を全経路に付ける設定 |
+| `_headers` | Goのサーバーと同じセキュリティヘッダー（CSP、`X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`）を全経路に付ける設定。HSTSは含めません（配信サービスのHTTPSの設定で付けます。6節のHSTSの注意と同じ） |
 
 - お知らせ機能等、セッションや管理画面を使う機能が有効な場合は、静的にできないため書き出しを拒否します。
 - 書き出し先に、この処理が作るもの以外のファイルがある場合も拒否します（上書き・削除しません）。

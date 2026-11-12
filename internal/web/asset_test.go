@@ -37,6 +37,33 @@ func TestAsset_URLUsesContentHash(t *testing.T) {
 	}
 }
 
+// HTTPSで公開している（SECURE_COOKIE=true）ときだけ、どの応答にもHSTSを付けること。
+// 独立経路と、見つからない経路の応答にも付く。手元のHTTPでは付けない。
+func TestRoutes_HSTSOnlyWhenSecure(t *testing.T) {
+	for _, secure := range []bool{true, false} {
+		s := store.NewMemoryStore()
+		h, err := NewHandler(s, NewSessionManager(s, secure), slog.New(slog.NewTextHandler(io.Discard, nil)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		routes, err := h.RoutesWithIsolated(nil, nil, func(mux *IsolatedMux) {
+			mux.Handle("/isolated", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		current, _ := AssetURL("css/style.css")
+		for _, path := range []string{"/", "/privacy", current, "/isolated", "/no-such-page"} {
+			rec := httptest.NewRecorder()
+			routes.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+			got := rec.Header().Get("Strict-Transport-Security")
+			if want := map[bool]string{true: "max-age=31536000", false: ""}[secure]; got != want {
+				t.Errorf("secure=%v %s: Strict-Transport-Security = %q, want %q", secure, path, got, want)
+			}
+		}
+	}
+}
+
 // 版が一致すれば1年・immutable、版なし・古い版は短いキャッシュで返すこと。
 func TestAsset_StaticCacheByVersion(t *testing.T) {
 	s := store.NewMemoryStore()

@@ -92,6 +92,20 @@ func SecurityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// hstsValue は、HTTPSで公開しているときに返す Strict-Transport-Security の値です（1年）。
+// includeSubDomains と preload は付けません。同じドメインのほかのホストにまで効いてしまうためです。
+const hstsValue = "max-age=31536000"
+
+// HSTS は、ブラウザに次からHTTPSだけで接続させるヘッダーを付けます。
+// SECURE_COOKIE=true（HTTPSで公開している）のときだけ使います。手元のHTTPでは付けません。
+// 一度覚えたブラウザは期間中HTTPで開けず、証明書の警告も押し切れなくなります。戻し方は docs/deploy.md。
+func HSTS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Strict-Transport-Security", hstsValue)
+		next.ServeHTTP(w, r)
+	})
+}
+
 // maxBytesByRoute は、リクエスト本文のサイズを経路ごとに制限するミドルウェアです（DoS防止）。limits に無い経路は def です。
 // 本文を読むハンドラの内側からは緩められないため、最も外側で決めます。
 func maxBytesByRoute(mux *http.ServeMux, limits map[string]int64, def int64) func(http.Handler) http.Handler {

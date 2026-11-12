@@ -341,7 +341,7 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `PORT` | `8080`。`ADDR` 未設定時に `127.0.0.1:<PORT>` で待受 |
 | `ADDR` | 未設定。設定時は待受アドレス全体を指定し、`PORT` より優先 |
 | `DB_PATH` | `data/app.db`。SQLiteの保存先 |
-| `SECURE_COOKIE` | `true` の場合のみCookieのSecure属性を有効化。既定は無効 |
+| `SECURE_COOKIE` | `true` の場合のみCookieのSecure属性を有効化し、すべての応答にHSTS（`Strict-Transport-Security: max-age=31536000`）を付ける。HTTPSで公開するときに設定する。既定は無効。HSTSの注意と戻し方は [docs/deploy.md](docs/deploy.md) の6節 |
 | `AUTH_ORIGIN` | `http://localhost:8080`。管理画面を公開するオリジン（WebAuthnの検証と登録URLに使用）。httpは `localhost` だけ。httpsなら `SECURE_COOKIE=true` が必須 |
 | `AUTH_RP_ID` | `localhost`。WebAuthnのRP ID。`AUTH_ORIGIN` のホストか、その上位のドメイン |
 | `AUTH_ALLOW_SYNCED_PASSKEYS` | 無効。`true` のときだけ同期型のパスキーを受け入れる。`true`・`false`・空以外の値は起動時にエラー |
