@@ -349,6 +349,40 @@ func TestKeySet_RefetchGap(t *testing.T) {
 	}
 }
 
+// IDトークンはコンパクト形式だけを受け付け、同じ鍵で正しく署名したJSON形式のJWSは断ること。
+func TestKeySet_RejectsJSONSerialization(t *testing.T) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jwk := jose.JSONWebKey{Key: &key.PublicKey, KeyID: "known", Algorithm: "ES256", Use: "sig"}
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		federation.JSON(w, 200, jose.JSONWebKeySet{Keys: []jose.JSONWebKey{jwk}})
+	}))
+	defer srv.Close()
+	url := srv.URL + "/keys"
+	k := &keySet{url: url, client: federation.Client([]string{url}, time.Second, 64<<10, srv.Client().Transport), now: time.Now}
+	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.ES256, Key: key}, (&jose.SignerOptions{}).WithHeader("kid", "known"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	object, err := signer.Sign([]byte("payload"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	compact, err := object.CompactSerialize()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := k.VerifySignature(ctx, compact); err != nil {
+		t.Fatalf("compact rejected: %v", err)
+	}
+	if _, err := k.VerifySignature(ctx, object.FullSerialize()); err == nil {
+		t.Fatal("JSON serialization accepted")
+	}
+}
+
 // exchange は、署名が正しくても、issuer・audience・nonce・期限・世代・at_hash が合わないIDトークンを拒否すること。
 //
 // 不変条件: FEDAUTH-INV-3

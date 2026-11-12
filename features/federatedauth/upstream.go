@@ -222,7 +222,8 @@ type keySet struct {
 
 // VerifySignature は、ES256の署名を検証して中身を返します。
 func (k *keySet) VerifySignature(ctx context.Context, jwt string) ([]byte, error) {
-	sig, err := jose.ParseSigned(jwt, []jose.SignatureAlgorithm{jose.ES256})
+	// IDトークンはコンパクト形式だけを受け付ける（JSON形式のJWSは断る）
+	sig, err := jose.ParseSignedCompact(jwt, []jose.SignatureAlgorithm{jose.ES256})
 	if err != nil || len(sig.Signatures) != 1 {
 		return nil, errIdentity
 	}

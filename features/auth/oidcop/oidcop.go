@@ -98,7 +98,7 @@ func (f *Feature) Init(db *sql.DB) error {
 	f.store = auth.NewFederationStore(db)
 	f.sdk = &storage{store: f.store, signing: signing, public: public}
 	config := &op.Config{CryptoKey: [32]byte(crypto), CodeMethodS256: true, SupportedScopes: []string{"openid"}}
-	f.provider, err = op.NewOpenIDProvider(f.cfg.Issuer, config, f.sdk,
+	f.provider, err = op.NewProvider(config, f.sdk, op.StaticIssuer(f.cfg.Issuer),
 		op.WithCustomAuthEndpoint(op.NewEndpoint("/admin/oidc/authorize")),
 		op.WithCustomTokenEndpoint(op.NewEndpoint("/oidc/token")),
 		op.WithCustomKeysEndpoint(op.NewEndpoint("/oidc/keys")),
@@ -288,7 +288,13 @@ func (f *Feature) authorize(w http.ResponseWriter, r *http.Request) {
 		f.fail(w, http.StatusBadRequest, "ログインの要求が正しくありません。")
 		return
 	}
-	if _, err := op.ValidateAuthRequest(ctx, req, f.sdk, f.provider.IDTokenHintVerifier(ctx)); err != nil {
+	// 連携先を1回だけ引いて検証する。引けない（未登録・停止・照会の失敗）ときも、前と同じく400にする
+	client, err := f.sdk.GetClientByClientID(ctx, req.ClientID)
+	if err != nil {
+		f.fail(w, http.StatusBadRequest, "ログインの要求が正しくありません。")
+		return
+	}
+	if _, err := op.ValidateAuthRequestClient(ctx, req, client, f.provider.IDTokenHintVerifier(ctx)); err != nil {
 		f.fail(w, http.StatusBadRequest, "ログインの要求が正しくありません。")
 		return
 	}
