@@ -1,5 +1,6 @@
 // webauthn.js: 管理者認証の画面だけで読み込む、承認済みの唯一のJavaScriptです。
 // ブラウザのWebAuthn APIを呼び、結果をサーバーへ渡すだけで、判定はすべてサーバーが行います。
+// 端末へのパスキーの状態の知らせ（Signal API）も、サーバーが許した値と場面でだけ行います。
 "use strict";
 
 (function () {
@@ -51,9 +52,69 @@
       data = {};
     }
     if (!res.ok) {
-      throw new Error(data.message || "処理に失敗しました。もう一度お試しください。");
+      var err = new Error(data.message || "処理に失敗しました。もう一度お試しください。");
+      // 知らせるかは、状態コードではなく本文の符号で判定する（前段の404で外させないため）
+      err.code = typeof data.error === "string" ? data.error : "";
+      throw err;
     }
     return data;
+  }
+
+  // --- 端末へのパスキーの状態の知らせ（Signal API） ---
+  // 関数が無いブラウザでは何もしない。失敗しても画面の動きを変えない。
+
+  function isB64url(value) {
+    return typeof value === "string" && /^[A-Za-z0-9_-]+$/.test(value);
+  }
+
+  function isRpId(value) {
+    return typeof value === "string" && /^[A-Za-z0-9.-]+$/.test(value);
+  }
+
+  async function settle(promise) {
+    // 知らせの完了を待ちすぎて、移動を止めない
+    var timer;
+    var timeout = new Promise(function (resolve) {
+      timer = setTimeout(resolve, 1000);
+    });
+    try {
+      await Promise.race([promise, timeout]);
+    } catch (e) {
+      // 握りつぶす
+    }
+    clearTimeout(timer);
+  }
+
+  async function signalUnknown(rpId, credentialId) {
+    if (typeof PublicKeyCredential.signalUnknownCredential !== "function" || !isRpId(rpId) || !isB64url(credentialId)) {
+      return;
+    }
+    try {
+      await settle(PublicKeyCredential.signalUnknownCredential({ rpId: rpId, credentialId: credentialId }));
+    } catch (e) {
+      // 握りつぶす
+    }
+  }
+
+  // signalAccepted は、本人の有効なパスキーの一覧を知らせる。空の一覧は「全部外せ」と同じなので、決して渡さない
+  async function signalAccepted(accepted) {
+    if (typeof PublicKeyCredential.signalAllAcceptedCredentials !== "function" || !accepted) {
+      return;
+    }
+    var ids = accepted.credentialIds;
+    if (!isRpId(accepted.rpId) || !isB64url(accepted.userId) ||
+        !Array.isArray(ids) || ids.length === 0 || !ids.every(isB64url)) {
+      return;
+    }
+    try {
+      await settle(PublicKeyCredential.signalAllAcceptedCredentials({
+        rpId: accepted.rpId,
+        userId: accepted.userId,
+        allAcceptedCredentialIds: ids
+      }));
+    } catch (e) {
+      // 握りつぶす
+    }
   }
 
   function browserError(err) {
@@ -83,6 +144,8 @@
     options.excludeCredentials = options.excludeCredentials.map(function (c) {
       return { type: c.type, id: toBuffer(c.id) };
     });
+    var mayForget = options.signalUnknown === true;
+    delete options.signalUnknown;
     var credential = await navigator.credentials.create({ publicKey: options });
     var response = credential.response;
     if (typeof response.getPublicKey !== "function" || typeof response.getAuthenticatorData !== "function") {
@@ -92,15 +155,26 @@
     if (!publicKey) {
       throw new Error("この認証器の鍵の種類には対応していません。別の認証器を使ってください。");
     }
-    var result = await post("/admin/webauthn/register/finish", {
-      token: token,
-      label: label,
-      rawId: toB64url(credential.rawId),
-      clientDataJSON: toB64url(response.clientDataJSON),
-      authenticatorData: toB64url(response.getAuthenticatorData()),
-      publicKey: toB64url(publicKey),
-      publicKeyAlgorithm: response.getPublicKeyAlgorithm()
-    }, csrfToken);
+    var rawId = toB64url(credential.rawId);
+    var result;
+    try {
+      result = await post("/admin/webauthn/register/finish", {
+        token: token,
+        label: label,
+        rawId: rawId,
+        clientDataJSON: toB64url(response.clientDataJSON),
+        authenticatorData: toB64url(response.getAuthenticatorData()),
+        publicKey: toB64url(publicKey),
+        publicKeyAlgorithm: response.getPublicKeyAlgorithm()
+      }, csrfToken);
+    } catch (err) {
+      // 同期型を断ったときだけ、端末に残ったパスキーを外させる。
+      // credential_exists（登録済みの認証器）では、本物を外させるので決して知らせない
+      if (mayForget && err.code === "synced_credential") {
+        await signalUnknown(options.rp.id, rawId);
+      }
+      throw err;
+    }
     location.href = result.next;
   }
 
@@ -128,6 +202,14 @@
   // パスキー管理画面: ログイン中にパスキーを追加する
   var addForm = document.getElementById("passkey-add-form");
   if (addForm) {
+    // サーバーが埋め込んだときだけ、本人の有効なパスキーの一覧を端末へ知らせる
+    if (addForm.dataset.credentialIds) {
+      signalAccepted({
+        rpId: addForm.dataset.rpId,
+        userId: addForm.dataset.userId,
+        credentialIds: addForm.dataset.credentialIds.split(" ")
+      });
+    }
     addForm.hidden = false;
     addForm.addEventListener("submit", async function (event) {
       event.preventDefault();
@@ -150,13 +232,24 @@
         options.challenge = toBuffer(options.challenge);
         var credential = await navigator.credentials.get({ publicKey: options });
         var response = credential.response;
-        var result = await post("/admin/webauthn/login/finish", {
-          rawId: toB64url(credential.rawId),
-          clientDataJSON: toB64url(response.clientDataJSON),
-          authenticatorData: toB64url(response.authenticatorData),
-          signature: toB64url(response.signature),
-          userHandle: response.userHandle ? toB64url(response.userHandle) : null
-        });
+        var rawId = toB64url(credential.rawId);
+        var result;
+        try {
+          result = await post("/admin/webauthn/login/finish", {
+            rawId: rawId,
+            clientDataJSON: toB64url(response.clientDataJSON),
+            authenticatorData: toB64url(response.authenticatorData),
+            signature: toB64url(response.signature),
+            userHandle: response.userHandle ? toB64url(response.userHandle) : null
+          });
+        } catch (err) {
+          // サーバーが「無い」と答えたときだけ、端末にそのパスキーを外させる
+          if (err.code === "credential_unknown") {
+            await signalUnknown(options.rpId, rawId);
+          }
+          throw err;
+        }
+        await signalAccepted(result.accepted);
         location.href = result.next;
       } catch (err) {
         show(browserError(err));

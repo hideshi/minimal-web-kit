@@ -2,6 +2,7 @@ package auth
 
 import (
 	"bytes"
+	"context"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -49,8 +50,10 @@ var errorMessages = map[string]string{
 	"label_invalid":         "端末名は1〜50文字で入力してください。",
 	"registration_rejected": "登録できませんでした。ページを開き直して、もう一度お試しください。",
 	"login_rejected":        "このパスキーではログインできません。別のパスキーでログインするか、システム管理者に登録URLを発行し直してもらってください。",
-	"internal_error":        "処理に失敗しました。もう一度お試しください。",
-	"busy":                  "一時的に処理できませんでした。少し待ってから、もう一度お試しください。",
+	// credential_unknown は、端末にそのパスキーを外させる合図。文言は login_rejected と同じにする
+	"credential_unknown": "このパスキーではログインできません。別のパスキーでログインするか、システム管理者に登録URLを発行し直してもらってください。",
+	"internal_error":     "処理に失敗しました。もう一度お試しください。",
+	"busy":               "一時的に処理できませんでした。少し待ってから、もう一度お試しください。",
 }
 
 func parseTemplates() map[string]*template.Template {
@@ -545,6 +548,8 @@ func (f *Feature) handleRegisterBegin(w http.ResponseWriter, r *http.Request, bo
 		"attestation":            "none",
 		"timeout":                webauthnTimeout,
 		"excludeCredentials":     exclude,
+		// 同期型を断ったとき、端末に残ったパスキーを外させてよいか（AUTH-INV-29 と同じ設定の条件）。JSは create に渡す前に取り除く
+		"signalUnknown": f.cfg.signalAllowed(),
 	})
 }
 
@@ -654,8 +659,16 @@ func (f *Feature) handleLoginFinish(w http.ResponseWriter, r *http.Request, body
 		f.writeError(w, http.StatusUnauthorized, "login_rejected")
 	}
 	cred, err := f.store.getCredential(r.Context(), req.RawID)
-	if err != nil {
-		reject("credential_unavailable")
+	switch {
+	case errors.Is(err, ErrCredentialUnavailable):
+		f.rejectUnknownCredential(w, r)
+		return
+	case errors.Is(err, ErrCredentialCorrupt):
+		reject("credential_corrupt")
+		return
+	case err != nil:
+		// DBの失敗を「無い」と見せない。端末からパスキーを外させないため（AUTH-INV-29）
+		f.loadPasskeyFailed(w, err)
 		return
 	}
 	count, err := verifyAssertion(f.rp(), f.challenges, assertionResponse{
@@ -701,7 +714,64 @@ func (f *Feature) handleLoginFinish(w http.ResponseWriter, r *http.Request, body
 	if f.loginNext != nil {
 		next = f.loginNext(r)
 	}
-	f.writeJSON(w, http.StatusOK, map[string]string{"next": next})
+	resp := map[string]any{"next": next}
+	// 署名を確かめた本人にだけ、有効なパスキーの一覧を渡し、端末の表示を揃えさせる。
+	// 一覧を読めなくてもログインは成功させ、知らせだけを省く
+	if signal, ok := f.acceptedSignal(r, cred.AccountID); ok {
+		resp["accepted"] = signal
+	}
+	f.writeJSON(w, http.StatusOK, resp)
+}
+
+// passkeySignal は、端末の表示を揃えるために渡す、本人の有効なパスキーの一覧です（AUTH-INV-30）。
+type passkeySignal struct {
+	RPID          string   `json:"rpId"`
+	UserID        string   `json:"userId"`
+	CredentialIDs []string `json:"credentialIds"`
+}
+
+// acceptedSignal は、本人の有効なパスキーの一覧を返します。知らせてよい設定でないとき、一覧が空のとき、読めなかったときは false です。
+// 空の一覧は「全部外せ」と同じ意味になるため渡しません（AUTH-INV-30）。
+func (f *Feature) acceptedSignal(r *http.Request, accountID int64) (passkeySignal, bool) {
+	if !f.cfg.signalAllowed() {
+		return passkeySignal{}, false
+	}
+	userID, ids, err := f.store.acceptedCredentials(r.Context(), accountID)
+	if err != nil || len(ids) == 0 || len(userID) == 0 {
+		return passkeySignal{}, false
+	}
+	s := passkeySignal{RPID: f.cfg.RPID, UserID: b64(userID)}
+	for _, id := range ids {
+		s.CredentialIDs = append(s.CredentialIDs, b64(id))
+	}
+	return s, true
+}
+
+// loadPasskeyFailed は、ログインでパスキーを読めなかったときに、500（競合なら503）を返します。
+// 利用者が要求を取り消した（切断した）だけなら、障害として記録しない。
+func (f *Feature) loadPasskeyFailed(w http.ResponseWriter, err error) {
+	if !errors.Is(err, context.Canceled) {
+		f.logger.Error("auth load passkey failed", f.requestID(w))
+	}
+	f.writeStoreError(w, err)
+}
+
+// rejectUnknownCredential は、見つからない・無効のパスキーでのログインを断ります。
+// 知らせてよい設定で、DBに有効なパスキーがあるときだけ 404 の credential_unknown を返し、端末にそのパスキーを外させる（AUTH-INV-29）。
+func (f *Feature) rejectUnknownCredential(w http.ResponseWriter, r *http.Request) {
+	status, code := http.StatusUnauthorized, "login_rejected"
+	if f.cfg.signalAllowed() {
+		ok, err := f.store.hasActiveCredential(r.Context())
+		if err != nil {
+			f.loadPasskeyFailed(w, err)
+			return
+		}
+		if ok {
+			status, code = http.StatusNotFound, "credential_unknown"
+		}
+	}
+	f.logger.Warn("auth login rejected", f.requestID(w), slog.String("reason", "credential_unavailable"))
+	f.writeError(w, status, code)
 }
 
 // verificationReason はログに記録する固定の理由を返します（値は含めない）。

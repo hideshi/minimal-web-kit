@@ -28,6 +28,9 @@ var (
 	ErrCredentialExists = errors.New("auth: credential already registered")
 	// ErrCredentialUnavailable はパスキーが存在しない、または無効化済みであることを示します。
 	ErrCredentialUnavailable = errors.New("auth: credential unavailable")
+	// ErrCredentialCorrupt はパスキーの行が壊れている（署名カウンタが範囲外）ことを示します。
+	// 「無い」とは区別し、端末へ「無い」と知らせない（AUTH-INV-29）。
+	ErrCredentialCorrupt = errors.New("auth: credential row corrupt")
 	// ErrSignCountConflict は並行ログインにより署名カウンタを更新できなかったことを示します。
 	ErrSignCountConflict = errors.New("auth: sign count update conflict")
 	// ErrAlreadySetUp は有効なパスキーが登録済みのため、初回登録の手順を使えないことを示します。
@@ -266,7 +269,7 @@ func (s *adminStore) getCredential(ctx context.Context, id []byte) (loginCredent
 		return loginCredential{}, err
 	}
 	if count < 0 || count > int64(^uint32(0)) {
-		return loginCredential{}, ErrCredentialUnavailable
+		return loginCredential{}, ErrCredentialCorrupt
 	}
 	c.SignCount = uint32(count)
 	c.AccountDisabled = accountDisabledAt.Valid
@@ -389,6 +392,37 @@ func (s *adminStore) credentialIDs(ctx context.Context, accountID int64) ([][]by
 		ids = append(ids, id)
 	}
 	return ids, rows.Err()
+}
+
+// acceptedCredentials は、端末へ知らせる、アカウントの webauthn_user_id と有効なパスキーのIDの一覧を返します。
+// 本人の account_id で絞り、無効化済みは含めません（AUTH-INV-3、AUTH-INV-30）。有効なパスキーが無ければ、空の一覧を返します。
+func (s *adminStore) acceptedCredentials(ctx context.Context, accountID int64) ([]byte, [][]byte, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT a.webauthn_user_id, c.id FROM auth_accounts a
+		 JOIN auth_credentials c ON c.account_id = a.id AND c.disabled_at IS NULL
+		 WHERE a.id = ? ORDER BY c.created_at, c.id`, accountID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	var userID []byte
+	var ids [][]byte
+	for rows.Next() {
+		var id []byte
+		if err := rows.Scan(&userID, &id); err != nil {
+			return nil, nil, err
+		}
+		ids = append(ids, id)
+	}
+	return userID, ids, rows.Err()
+}
+
+// hasActiveCredential は、DBに有効なパスキーが1件以上あるかを返します（AUTH-INV-29）。
+// 空のDBや、全体の復旧から登録し直すまでの間は、端末へ「無い」と知らせない。
+func (s *adminStore) hasActiveCredential(ctx context.Context) (bool, error) {
+	var ok bool
+	err := s.db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM auth_credentials WHERE disabled_at IS NULL)").Scan(&ok)
+	return ok, err
 }
 
 // getCredentialInfo は、アカウントのパスキーを返します。他のアカウントのパスキーなら ErrNotFound です。

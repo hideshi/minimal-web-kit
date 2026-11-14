@@ -46,7 +46,7 @@
   <p class="alert alert-warning">パスキーの追加にはJavaScriptが必要です。ブラウザの設定でJavaScriptを有効にしてください。</p>
 </noscript>
 
-<form id="passkey-add-form" class="card" hidden>
+<form id="passkey-add-form" class="card" hidden{{with .Accepted}} data-rp-id="{{.RPID}}" data-user-id="{{.UserID}}" data-credential-ids="{{$.AcceptedIDs}}"{{end}}>
   <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
   {{template "field" .LabelField}}
   <button type="submit" class="btn btn-primary">パスキーを追加する</button>

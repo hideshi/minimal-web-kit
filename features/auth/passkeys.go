@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
@@ -60,6 +61,11 @@ func (f *Feature) renderPasskeys(w http.ResponseWriter, r *http.Request, s sessi
 		if !c.Disabled() {
 			active++
 		}
+	}
+	// 端末の表示を揃えるための、本人の有効なパスキーの一覧（AUTH-INV-30）。読めなければ埋め込まず、画面は出す
+	if signal, ok := f.acceptedSignal(r, s.accountID); ok {
+		data["Accepted"] = signal
+		data["AcceptedIDs"] = strings.Join(signal.CredentialIDs, " ")
 	}
 	data["LabelField"] = labelField("予備のセキュリティキー")
 	data["Credentials"] = creds

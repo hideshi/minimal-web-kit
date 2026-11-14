@@ -154,6 +154,14 @@ func federatedSites(t *testing.T) (aOrigin, bOrigin string, aDB *sql.DB, fed *au
 // newFederatedBrowser は、a.test・b.test をループバックへ向け、仮想の認証器を持つChromeを起動します。
 func newFederatedBrowser(t *testing.T) *browser {
 	t.Helper()
+	b := newWebAuthnBrowser(t)
+	b.addAuthenticator(t, false)
+	return b
+}
+
+// newWebAuthnBrowser は、a.test・b.test をループバックへ向け、仮想の認証器を使えるChromeを起動します（認証器は足さない）。
+func newWebAuthnBrowser(t *testing.T) *browser {
+	t.Helper()
 	opts := append(chromedp.DefaultExecAllocatorOptions[:], chromedp.ExecPath(chromePath(t)), chromedp.UserDataDir(t.TempDir()),
 		chromedp.Flag("host-resolver-rules", "MAP a.test 127.0.0.1,MAP b.test 127.0.0.1"),
 		chromedp.Flag("ignore-certificate-errors", true))
@@ -178,16 +186,26 @@ func newFederatedBrowser(t *testing.T) *browser {
 		}
 	}()
 	b.do(t, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
-		if _, err := cdp.Call(ctx, target, webauthn.Enable, webauthn.EnableParams{}); err != nil {
-			return err
-		}
-		_, err := cdp.Call(ctx, target, webauthn.AddVirtualAuthenticator, webauthn.AddVirtualAuthenticatorParams{Options: &webauthn.VirtualAuthenticatorOptions{
-			Protocol: webauthn.AuthenticatorProtocolCtap2, Transport: webauthn.AuthenticatorTransportInternal,
-			HasResidentKey: true, HasUserVerification: true, IsUserVerified: true, AutomaticPresenceSimulation: true,
-		}})
+		_, err := cdp.Call(ctx, target, webauthn.Enable, webauthn.EnableParams{})
 		return err
 	}))
 	return b
+}
+
+// addAuthenticator は、仮想の認証器を足して、そのIDを返します。synced なら同期型（BE=1・BS=1）のパスキーを作ります。
+func (b *browser) addAuthenticator(t *testing.T, synced bool) webauthn.AuthenticatorID {
+	t.Helper()
+	var id webauthn.AuthenticatorID
+	b.do(t, chromedp.Func(func(ctx context.Context, target *chromedp.Target) error {
+		res, err := cdp.Call(ctx, target, webauthn.AddVirtualAuthenticator, webauthn.AddVirtualAuthenticatorParams{Options: &webauthn.VirtualAuthenticatorOptions{
+			Protocol: webauthn.AuthenticatorProtocolCtap2, Transport: webauthn.AuthenticatorTransportInternal,
+			HasResidentKey: true, HasUserVerification: true, IsUserVerified: true, AutomaticPresenceSimulation: true,
+			DefaultBackupEligibility: synced, DefaultBackupState: synced,
+		}})
+		id = res.AuthenticatorID
+		return err
+	}))
+	return id
 }
 
 func (b *browser) waitLong(t *testing.T, expr string) {

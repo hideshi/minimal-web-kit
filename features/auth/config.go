@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"strings"
 
 	"minimal-web-kit/internal/web/guard"
@@ -65,6 +66,19 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// signalAllowed は、端末へパスキーの状態を知らせてよい設定かを返します（AUTH-INV-29）。
+// RP ID がオリジンのホストと完全に一致し、localhost（*.localhost を含む）でないときだけ許します。
+// 上位ドメインや localhost は、別のDBを持つサイトや環境と共有されうるため、
+// 「無い」と知らせると、そちらで有効なパスキーを端末から外させます。
+// ポートだけ違う環境（本番と検証）は見分けられないので、文書で案内します。
+func (c Config) signalAllowed() bool {
+	if c.RPID == "localhost" || strings.HasSuffix(c.RPID, ".localhost") {
+		return false
+	}
+	u, err := url.Parse(c.Origin)
+	return err == nil && u.Hostname() == c.RPID
 }
 
 // validateRPID は、RP IDがドメイン名で、オリジンのホストと同一かその上位ドメインであることを確認します。
