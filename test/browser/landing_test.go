@@ -4,7 +4,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chromedp/chromedp"
@@ -16,7 +18,15 @@ import (
 )
 
 // トップの主のボタンと補助のボタンの、左右の端がそろっていることを確かめる。
+// キットの紹介ページの部品を見るので、トップを書き換えて印 kit-landing を消したサイトでは検査しない（test/landing_test.go と同じ）。
 func TestLanding_HeroButtonsAlign(t *testing.T) {
+	page, err := os.ReadFile("../../features/site/views/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), "<!-- kit-landing:") {
+		t.Skip("the top page is not the kit's landing page")
+	}
 	core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
