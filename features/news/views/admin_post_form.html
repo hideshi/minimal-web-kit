@@ -27,5 +27,15 @@
 {{template "publish-actions" (publishActions $toggle (printf "/admin/news/%v/delete" .Post.ID))}}
 {{end}}
 
+{{with .Line}}
+<h2>LINE での知らせ</h2>
+{{if .Done}}<p>{{template "datetime" .SentAt}} に、LINE の友だちに知らせました。</p>
+{{else if .Unknown}}<p>LINE に届いたかが分からないまま、送り直せる期限を過ぎました。LINE 公式アカウントの管理画面か、友だちのトークで確かめてください。届いていなければ、LINE 公式アカウントの管理画面から送ってください。キットからは送りません。</p>
+{{else if .Pending}}<p>前回は、LINE が受け付けたかが分かりませんでした。{{template "datetime" .Deadline}} より前にもう一度送ると、同じ文面と同じ鍵で送り直します（届いていても重なりません）。</p>
+{{else if not .Public}}<p>公開ページに出ている記事だけを、LINE 公式アカウントの友だちに知らせられます。</p>
+{{end}}
+{{if .CanSend}}<p><a href="/admin/news/{{.PostID}}/line">LINE で知らせる</a></p>{{end}}
+{{end}}
+
 <p><a href="/admin/news">お知らせの一覧へ戻る</a></p>
 {{end}}

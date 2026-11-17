@@ -118,16 +118,18 @@
 {{define "image-pager"}}{{if or .Prev .Next}}<div class="action-bar">{{if .Prev}}<button type="submit" class="btn btn-secondary" name="{{.PageName}}" value="{{.Prev}}"{{with .FormAction}} formaction="{{.}}"{{end}} formnovalidate>新しい画像を見る</button>{{end}}{{if .Next}}<button type="submit" class="btn btn-secondary" name="{{.PageName}}" value="{{.Next}}"{{with .FormAction}} formaction="{{.}}"{{end}} formnovalidate>古い画像を見る</button>{{end}}</div>{{end}}{{end}}
 
 {{/*
-  削除の確認画面の操作の並び。引数は form.Confirm。
-  送信は btn-danger のボタン（Submit、既定は「削除する」）、取り消しは btn-secondary の「削除せずに戻る」
+  削除の確認画面と、取り消せない操作の確認画面の操作の並び。引数は form.Confirm。
+  送信は btn-danger のボタン（Submit、既定は「削除する」。Primary なら btn-primary）、
+  取り消しは btn-secondary の「削除せずに戻る」（BackText で変える）
 */}}
 {{define "confirm-actions"}}
 <div class="action-bar">
   <form method="post" action="{{.Action}}" class="inline-form">
     <input type="hidden" name="csrf_token" value="{{.CSRFToken}}">
-    <button type="submit" class="btn btn-danger">{{or .Submit "削除する"}}</button>
+    {{range .Hidden}}<input type="hidden" name="{{.Name}}" value="{{.Value}}">{{end}}
+    <button type="submit" class="btn {{if .Primary}}btn-primary{{else}}btn-danger{{end}}">{{or .Submit "削除する"}}</button>
   </form>
-  <a href="{{.Back}}" class="btn btn-secondary">削除せずに戻る</a>
+  <a href="{{.Back}}" class="btn btn-secondary">{{or .BackText "削除せずに戻る"}}</a>
 </div>
 {{end}}
 

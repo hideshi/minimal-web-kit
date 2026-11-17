@@ -75,6 +75,15 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	t.Helper()
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")
+	// LINE での知らせの画面を集めるため、設定を有効にする（送信の見本は置かない。LINE へは送らない）
+	secret := filepath.Join(t.TempDir(), "line-secret")
+	if err := os.WriteFile(secret, []byte("sample-secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SITE_URL", "https://example.com")
+	t.Setenv("SITE_NAME", "見本のサイト")
+	t.Setenv("LINE_CHANNEL_ID", "1234567890")
+	t.Setenv("LINE_CHANNEL_SECRET_FILE", secret)
 	core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -340,6 +349,7 @@ const (
 	kindForm    = "作成・編集"
 	kindDetail  = "詳細"
 	kindConfirm = "削除の確認"
+	kindAct     = "取り消せない操作の確認"
 	kindOther   = "型の外"
 )
 
@@ -363,6 +373,7 @@ var adminSamples = []adminSample{
 	{"GET /admin/news/{id}", "/admin/news/{post_published}", "site_admin", "admin_post_form.html", kindForm},
 	{"GET /admin/news/{id}", "/admin/news/{post_scheduled}", "admin", "admin_post_form.html", kindForm},
 	{"GET /admin/news/{id}/delete", "/admin/news/{post_draft}/delete", "admin", "admin_post_delete.html", kindConfirm},
+	{"GET /admin/news/{id}/line", "/admin/news/{post_published}/line", "site_admin", "admin_post_line.html", kindAct},
 	{"GET /admin/news-categories", "/admin/news-categories", "site_admin", "admin_categories.html", kindListAdd},
 	{"GET /admin/news-categories/{id}", "/admin/news-categories/{news_category}", "admin", "admin_category.html", kindForm},
 	{"GET /admin/news-categories/{id}/delete", "/admin/news-categories/{news_category}/delete", "admin", "admin_category.html", kindConfirm},
@@ -697,6 +708,32 @@ func checkAdminPage(doc *node, kind string) []string {
 		}
 		if !ok {
 			add("削除の確認に、btn-danger の送信ボタンと「削除せずに戻る」（btn-secondary）を並べた action-bar が無い")
+		}
+	case kindAct:
+		if h1 := doc.find("h1"); len(h1) != 1 || !strings.HasSuffix(h1[0].textContent(), "の確認") {
+			add("取り消せない操作の確認の h1 が「〜の確認」でない")
+		}
+		ok := false
+		for _, bar := range doc.find("div") {
+			if !bar.has("action-bar") {
+				continue
+			}
+			var primary, danger, back int
+			bar.walk(func(n *node) {
+				if n.name == "button" && n.has("btn-primary") {
+					primary++
+				}
+				if n.name == "button" && n.has("btn-danger") {
+					danger++
+				}
+				if n.name == "a" && n.has("btn-secondary") && strings.HasSuffix(n.textContent(), "ずに戻る") && n.textContent() != "削除せずに戻る" {
+					back++
+				}
+			})
+			ok = ok || (primary == 1 && danger == 0 && back == 1)
+		}
+		if !ok {
+			add("取り消せない操作の確認に、btn-primary の送信ボタンと「〜ずに戻る」（btn-secondary）を並べた action-bar が無い")
 		}
 	case kindList, kindListAdd:
 		hasEmpty := false

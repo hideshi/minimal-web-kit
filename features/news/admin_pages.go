@@ -24,6 +24,7 @@ var adminNotices = notice.Messages{
 	"published":   "お知らせを公開しました。",
 	"unpublished": "お知らせを非公開（下書き）に戻しました。",
 	"deleted":     "お知らせを削除しました。",
+	"line_sent":   "LINE の友だちに知らせました。",
 	// カテゴリの管理
 	"category_saved":   "カテゴリを保存しました。",
 	"category_deleted": "カテゴリを削除しました。",
@@ -239,7 +240,7 @@ func (f *Feature) handleEditPostPage(w http.ResponseWriter, r *http.Request, s f
 	data["Post"] = adminLocalTime(p)
 	data["Form"] = formFromPost(p)
 	setNotice(data, r)
-	if f.addCover(w, r, data, formFromPost(p)) {
+	if f.addCover(w, r, data, formFromPost(p)) && f.addLine(w, r, data, p) {
 		f.renderAdmin(w, "admin_post_form.html", data)
 	}
 }
@@ -356,6 +357,7 @@ func (f *Feature) registerPostAdminRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("GET /admin/news/{id}/delete", f.admin.Page(f.handleDeletePostPage))
 	mux.HandleFunc("POST /admin/news/{id}/delete", f.admin.Form(f.handleDeletePost))
 	f.registerCategoryAdminRoutes(mux)
+	f.registerLineRoutes(mux)
 }
 
 // writeFailed は、書き込みの失敗の応答を書きます。競合は再試行できるので503にします。

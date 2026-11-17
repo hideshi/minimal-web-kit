@@ -189,6 +189,15 @@ type Confirm struct {
 	Back      string // 「削除せずに戻る」の行き先
 	CSRFToken string
 	Submit    string // 送信ボタンの文言。空なら「削除する」
+	// 以下は、削除でない取り消せない操作の確認（例: LINE での知らせ）に使う
+	BackText string   // 戻るリンクの文言。空なら「削除せずに戻る」。「〜ずに戻る」の形にする
+	Primary  bool     // 送信ボタンを btn-primary にする（既定は btn-danger）
+	Hidden   []Hidden // 送信に添える固定の値（例: 確認した文面のハッシュ）
+}
+
+// Hidden は、フォームに添える隠しの値です。利用者の入力ではなく、サーバーが作った値だけを入れます。
+type Hidden struct {
+	Name, Value string
 }
 
 // Combobox は、共通の画面部品 "combobox"（入力で候補を絞り込み、複数を選ぶ部品）に渡す値です。

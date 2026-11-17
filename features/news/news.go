@@ -36,6 +36,10 @@ type Feature struct {
 	adminPages  map[string]*template.Template
 	layout      *web.Layout
 	now         func() time.Time
+	// LINE での知らせ。設定が無ければ line は nil（NEWS-INV-25）
+	line   *lineClient
+	lines  *lineStore
+	newKey func() (string, error)
 }
 
 func NewFeature(logger *slog.Logger) *Feature {
@@ -98,6 +102,11 @@ func (f *Feature) Init(db *sql.DB) error {
 	f.cfg = cfg
 	f.db = db
 	f.posts = NewPostStore(db)
+	f.lines = &lineStore{db: db, now: func() time.Time { return f.now() }}
+	f.newKey = newRetryKey
+	if cfg.Line != nil {
+		f.line = newLineClient(cfg.Line)
+	}
 	return nil
 }
 

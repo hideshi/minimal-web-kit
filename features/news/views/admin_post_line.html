@@ -1,0 +1,13 @@
+{{define "content"}}
+<h1>{{.Title}}</h1>
+
+{{template "error" .Error}}
+
+<p>次の文面を、LINE 公式アカウントの友だち全員に送ります。送ると取り消せません。1つの記事で送れるのは1回だけです。友だちの人数ぶん、LINE の月の通数を使います。</p>
+{{if .Retry}}<p>前回は、LINE が受け付けたかが分かりませんでした。同じ文面と同じ鍵で送り直すので、届いていても重なりません。</p>{{end}}
+{{if .Stored}}<p>送る文面は、最初に送ろうとしたときのままです。後から題名を直しても変わりません。</p>{{end}}
+
+<p class="card">{{range $i, $line := .Lines}}{{if $i}}<br>{{end}}{{$line}}{{end}}</p>
+
+{{template "confirm-actions" .Confirm}}
+{{end}}

@@ -58,7 +58,7 @@ func NewFeature(logger *slog.Logger) *Feature {
 		// 設定値は記録せず、未設定・不正の区別のみを固定メッセージで通知する
 		logger.Warn("contact form url is not configured; contact button is hidden")
 	}
-	siteURL, ok := siteURLFromEnv()
+	siteURL, ok := web.SiteURLFromEnv()
 	if !ok {
 		logger.Warn("site url is invalid; canonical, OGP and sitemap are disabled")
 	}
@@ -68,21 +68,6 @@ func NewFeature(logger *slog.Logger) *Feature {
 		contactFormURL: contactURL,
 		siteURL:        siteURL,
 	}
-}
-
-// siteURLFromEnv は SITE_URL（公開するサイトのURL）を検証し、末尾の / を除いて返します。
-// canonical・OGP・sitemap.xml の絶対URLに使います。未設定なら空文字、不正なら ok=false を返します。
-func siteURLFromEnv() (string, bool) {
-	raw := os.Getenv("SITE_URL")
-	if raw == "" {
-		return "", true
-	}
-	u, err := url.Parse(raw)
-	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || u.User != nil ||
-		u.RawQuery != "" || u.Fragment != "" || strings.TrimSuffix(u.Path, "/") != "" {
-		return "", false
-	}
-	return u.Scheme + "://" + u.Host, true
 }
 
 // contactFormURLFromEnv は CONTACT_FORM_URL を検証して返します。

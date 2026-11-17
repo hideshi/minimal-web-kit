@@ -156,6 +156,21 @@ func TestComponents_ConfirmActions(t *testing.T) {
 	if got := renderComponent(t, `{{template "confirm-actions" .}}`, form.Confirm{Submit: "停止する"}); !strings.Contains(got, ">停止する</button>") {
 		t.Fatalf("submit label: %s", got)
 	}
+	// 削除でない取り消せない操作: 主操作のボタン、戻るの文言、エスケープした隠しの値
+	got = renderComponent(t, `{{template "confirm-actions" .}}`, form.Confirm{Action: "/admin/x/1/line", Back: "/admin/x/1", Submit: "送る", BackText: "送らずに戻る", Primary: true,
+		Hidden: []form.Hidden{{Name: "digest", Value: `a"b`}}})
+	for _, want := range []string{
+		`<input type="hidden" name="digest" value="a&#34;b">`,
+		`<button type="submit" class="btn btn-primary">送る</button>`,
+		`<a href="/admin/x/1" class="btn btn-secondary">送らずに戻る</a>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	if strings.Contains(got, "btn-danger") {
+		t.Errorf("primary confirm must not use btn-danger: %s", got)
+	}
 }
 
 func TestComponents_PostButton(t *testing.T) {

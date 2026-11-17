@@ -401,6 +401,37 @@ SITE_URL=https://example.com CONTACT_FORM_URL=https://forms.example.com/... go r
 - **止める**: `NOTIFY_WEBHOOK_URL_FILE` の行を消して再起動します。URL が漏れたら、Slack・Discord の側で Webhook を消して作り直し、ファイルを書き換えて再起動します。
 - **サブコマンド**（`auth-recover`・`agent-client` 等）の操作は知らせません。
 
+## お知らせの LINE での知らせ（任意）
+
+公開中のお知らせの題名と URL を、LINE 公式アカウントの友だち全員に一斉送信します。管理画面の記事の編集の画面から、確認の画面で文面を見てから、1記事に1回だけ送ります（[仕様](domain/news.md) の NEWS-INV-19〜25）。
+
+1. LINE 公式アカウントで Messaging API を有効にし、LINE Developers コンソールのそのチャネルで、チャネル ID とチャネルシークレットを確かめる（画面の名前は LINE の側で変わることがあります）。チャネルシークレットを知る人は誰でもトークンを発行して友だち全員に送れるので、秘密として扱います。キットは送るたびに15分有効のトークンを発行して使い捨て、長期のチャネルアクセストークンは使いません。
+2. チャネルシークレットをファイルに置く。チャットや履歴に残さないよう、エディタで書きます。
+
+   ```sh
+   sudo install -m 0600 -o mwk -g mwk /dev/null /etc/minimal-web-kit/line-channel-secret
+   sudoedit /etc/minimal-web-kit/line-channel-secret   # チャネルシークレットを1行で書く
+   ```
+
+3. `/etc/minimal-web-kit/env` に足して、再起動する。`SITE_URL`（記事の URL を作る）と `SITE_NAME`（文面の先頭に出す）が無いと起動しません。
+
+   ```sh
+   LINE_CHANNEL_ID=チャネルID（数字）
+   LINE_CHANNEL_SECRET_FILE=/etc/minimal-web-kit/line-channel-secret
+   SITE_URL=https://example.com
+   SITE_NAME=サイトの名前
+   ```
+
+4. 確かめる。公開中の記事の編集の画面に「LINE で知らせる」が出ます。試すときは、友だちが自分だけの LINE 公式アカウントで送ってください（取り消せません）。`journalctl -u minimal-web-kit` の `news line broadcast` の `result` で結果が分かります（`sent`・`already_accepted` は送信済み、`token_failed` はチャネル ID かシークレットの誤りか通信の失敗、`rejected`・`rate_limited` は LINE が断った、`uncertain` は受け付けたか分からない）。設定の形や権限が違えば、起動の時点で止まります。
+
+- **送るもの**: サイト名・題名・記事の URL の1通だけです。本文・画像は送りません。通知は毎回届きます。送った文面は取り消せず、LINE の側と友だちのトークに残ります。
+- **通数**: 友だちの人数ぶん、LINE 公式アカウントの月の通数を使います（ブロックした人は数えない）。上限を超えると LINE が断り、送られません。プランと通数は LINE 公式アカウントの管理画面で確かめます。
+- **結果が分からないとき**: 時間切れや LINE の障害で結果が分からなければ、記事の編集の画面に期限（最初の送信から23時間）が出ます。その前にもう一度送ると、同じ鍵で送り直すので重なりません。期限を過ぎたら、キットからは送りません。LINE 公式アカウントの管理画面か友だちのトークで確かめ、届いていなければ LINE の管理画面から送ってください。
+- **送信の通信**: サーバーから `api.line.me` へ HTTPS で送ります（トークンの発行と一斉送信の2つの URL だけ）。外向きの通信を絞っている場合は許可します。環境変数のプロキシの設定（`HTTPS_PROXY`）に従います。
+- **個別のやり取り**: キットは個別の送信・友だちの管理・リッチメニューを扱いません。LINE 公式アカウントの管理画面かアプリのチャットで行います。
+- **プライバシーポリシー**: キットは友だちの情報を受け取りません。LINE 公式アカウントを運営すること自体の説明（友だちの情報を LINE が扱うこと等）は、運営者が自分のポリシーで書きます。
+- **止める**: `LINE_CHANNEL_ID` と `LINE_CHANNEL_SECRET_FILE` の行を消して再起動します。送った記録はDBに残ります。チャネルシークレットが漏れたら、LINE Developers コンソールで発行し直し、ファイルを書き換えて再起動します。発行済みのトークンは取り消せませんが、15分で切れます。
+
 ## WordPressからの移行
 
 `cmd/wpimport` は、WordPressの書き出し（WXR）と、手元に取ったアップロードのフォルダから、お知らせ・固定ページ・画像へ移す道具です。サーバーとは別の実行ファイルで、外部へ通信しません。設計と決めたことは [wordpress-import-plan.md](plans/wordpress-import-plan.md)。

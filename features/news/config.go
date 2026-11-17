@@ -12,6 +12,8 @@ import (
 type Config struct {
 	// CORSOrigins は読み取りAPIを読める別オリジンの一覧です。空なら許可しません。
 	CORSOrigins []string
+	// Line は LINE での知らせの設定です。nil なら無効で、画面も送る操作も出さない（NEWS-INV-25）。
+	Line *lineConfig
 }
 
 // LoadConfig は環境変数から設定を読み込み、検証します。
@@ -33,5 +35,10 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		}
 		cfg.CORSOrigins = append(cfg.CORSOrigins, o)
 	}
+	line, err := loadLineConfig(getenv)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.Line = line
 	return cfg, nil
 }
