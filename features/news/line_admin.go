@@ -15,22 +15,23 @@ import (
 	"minimal-web-kit/internal/web/notice"
 )
 
-// LINE での知らせの画面と送信。仕様は docs/domain/news.md（NEWS-INV-19〜25）。
+// LINEでの一斉配信の画面と送信。仕様は docs/domain/news.md（NEWS-INV-19〜25）。
 
 // 送信の結果の文。応答の本文やエラーの文は出さない（NEWS-INV-24）。
+// 利用者が読む文なので、どういう状態か・もう一度配信できるか・配信したら何が起きるかを、技術の言葉を使わずに書く。
 const (
-	lineMsgToken     = "LINE のトークンを発行できませんでした。チャネル ID とチャネルシークレットの設定と、サーバーの通信を確かめてください。記事は送っていません。"
-	lineMsgRejected  = "LINE が送信を断りました。チャネルの設定（Messaging API が有効か等）を確かめてください。記事は送っていません。"
-	lineMsgLimited   = "LINE の送信の上限（1時間の回数か、月の通数）に当たりました。記事は送っていません。時間をおくか、LINE 公式アカウントの管理画面で通数を確かめてください。"
-	lineMsgUncertain = "LINE が受け付けたかが分かりませんでした。下の期限までにもう一度送ると、同じ文面と同じ鍵で送り直します（届いていても重なりません）。"
-	lineMsgRecord    = "LINE への送信の結果を記録できませんでした。下の期限までにもう一度送ると、同じ鍵で確かめます（重なりません）。"
-	lineMsgNotPublic = "公開ページに出ていない記事は、LINE で知らせられません。"
-	lineMsgSent      = "この記事は、もう LINE で知らせています。"
-	lineMsgUnknown   = "この記事は、LINE に届いたかが分からないまま、送り直せる期限を過ぎました。キットからは送りません。"
-	lineMsgChanged   = "確認の画面を開いた後に、送る文面が変わりました。文面を確かめてから送ってください。"
+	lineMsgToken     = "LINE につながらなかったため、配信していません。チャネル ID・チャネルシークレットの設定と、サーバーの通信を確かめてから、もう一度配信してください。"
+	lineMsgRejected  = "LINE が配信を断ったため、配信していません。LINE 公式アカウントの Messaging API の設定を確かめてから、もう一度配信してください。"
+	lineMsgLimited   = "LINE の配信の上限（1時間の回数か、月の通数）に当たったため、配信していません。時間をおくか、LINE 公式アカウントの管理画面で通数を確かめてから、もう一度配信してください。"
+	lineMsgUncertain = "LINE から結果が返ってこなかったため、友だちに届いたかどうか分かりません。下の「LINEで一斉配信」に出ている期限までなら、もう一度配信できます。すでに届いていても、同じメッセージが2通届くことはありません。"
+	lineMsgRecord    = "LINE への配信は行いましたが、その結果をこのサイトに記録できませんでした。友だちに届いている可能性があります。下の「LINEで一斉配信」に出ている期限までに、もう一度配信してください。届いていれば2通目は送られず、記録だけが配信済みになります。届いていなければ、そこで配信されます。"
+	lineMsgNotPublic = "公開ページに出ていない記事は、LINEで一斉配信できません。"
+	lineMsgSent      = "この記事は、もうLINEで一斉配信しています。1つの記事で配信できるのは1回だけです。"
+	lineMsgUnknown   = "この記事は、友だちに届いたかどうか分からないまま、もう一度配信できる期限を過ぎたため、配信できません。"
+	lineMsgChanged   = "確認の画面を開いた後に、配信する文面が変わりました。文面を確かめてから配信してください。"
 )
 
-// lineView は、編集の画面に出す LINE での知らせの状況です。
+// lineView は、編集の画面に出す LINEでの一斉配信の状況です。
 type lineView struct {
 	PostID   int64
 	State    lineState
@@ -46,7 +47,7 @@ func (v lineView) Done() bool    { return v.State == lineDone }
 func (v lineView) Pending() bool { return v.State == linePending }
 func (v lineView) Unknown() bool { return v.State == lineUnknown }
 
-// registerLineRoutes は、LINE での知らせの経路を登録します。設定が無ければ登録しません（NEWS-INV-25）。
+// registerLineRoutes は、LINEでの一斉配信の経路を登録します。設定が無ければ登録しません（NEWS-INV-25）。
 // 確認の画面（GET）と送信（POST）だけで、サイト管理者以上の Page・Form で守ります。GET では送りません（NEWS-INV-23）。
 func (f *Feature) registerLineRoutes(mux *web.IsolatedMux) {
 	if f.line == nil {
@@ -56,7 +57,7 @@ func (f *Feature) registerLineRoutes(mux *web.IsolatedMux) {
 	mux.HandleFunc("POST /admin/news/{id}/line", f.admin.Form(f.handleLineSend))
 }
 
-// addLine は、設定があれば、編集の画面に LINE での知らせの状況を加えます。
+// addLine は、設定があれば、編集の画面に LINEでの一斉配信の状況を加えます。
 func (f *Feature) addLine(w http.ResponseWriter, r *http.Request, data map[string]any, p Post) bool {
 	if f.line == nil {
 		return true
@@ -116,7 +117,7 @@ func (f *Feature) renderLineConfirm(w http.ResponseWriter, r *http.Request, s fe
 		return
 	}
 	back := "/admin/news/" + strconv.FormatInt(id, 10)
-	data := f.pageData(s, "LINE での知らせの確認")
+	data := f.pageData(s, "LINEでの一斉配信の確認")
 	data["Post"] = p
 	data["Lines"] = strings.Split(msg, "\n")
 	data["Stored"] = rec != nil
@@ -124,7 +125,7 @@ func (f *Feature) renderLineConfirm(w http.ResponseWriter, r *http.Request, s fe
 	data["Error"] = errMsg
 	data["Confirm"] = form.Confirm{
 		Action: back + "/line", Back: back, CSRFToken: s.CSRFToken(),
-		Submit: "LINE で送る", BackText: "送らずに戻る", Primary: true,
+		Submit: "一斉配信する", BackText: "配信せずに戻る", Primary: true,
 		Hidden: []form.Hidden{{Name: "digest", Value: lineDigest(msg)}},
 	}
 	f.renderAdminStatus(w, status, "admin_post_line.html", data)

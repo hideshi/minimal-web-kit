@@ -36,7 +36,7 @@ type Feature struct {
 	adminPages  map[string]*template.Template
 	layout      *web.Layout
 	now         func() time.Time
-	// LINE での知らせ。設定が無ければ line は nil（NEWS-INV-25）
+	// LINEでの一斉配信。設定が無ければ line は nil（NEWS-INV-25）
 	line   *lineClient
 	lines  *lineStore
 	newKey func() (string, error)

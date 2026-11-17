@@ -285,6 +285,7 @@ var contrastPairs = []contrastPair{
 	{fg: []string{"--color-on-primary"}, bg: []string{"--color-primary", "--color-primary-hover"}, min: 4.5, where: "主ボタン・バッジ・カードの矢印・選択中の候補"},
 	{fg: []string{"--color-on-primary"}, bg: []string{"--color-primary", "--color-primary-hover"}, min: 4.5, alpha: 0.95, where: "主ボタンの補足の文字（.btn-sub-text）"},
 	{fg: []string{"--color-on-danger"}, bg: []string{"--color-danger", "--color-danger-hover"}, min: 4.5, where: "削除ボタン"},
+	{fg: []string{"--brand-on-line"}, bg: []string{"--brand-line", "--brand-line-hover"}, min: 4.5, where: "LINE で一斉配信するボタン"},
 	{fg: []string{"--color-danger-hover"}, bg: []string{"--color-bg", "--color-surface"}, min: 4.5, where: "エラーの文字と入力欄の枠"},
 	{fg: []string{"--color-text"}, bg: []string{"--color-secondary-hover-surface", "--color-warning-surface"}, min: 4.5, where: "副ボタン・注意書き"},
 	{fg: []string{"--color-border-input"}, bg: []string{"--color-bg", "--color-surface"}, min: 3, where: "入力欄の枠"},

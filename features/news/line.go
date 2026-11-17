@@ -22,8 +22,8 @@ import (
 	"minimal-web-kit/internal/web"
 )
 
-// LINE での知らせ（公開中の記事の題名と URL を、LINE 公式アカウントの友だち全員へ一斉送信する）。
-// 仕様は docs/domain/news.md の「LINE での知らせの状態」と NEWS-INV-19〜25。
+// LINEでの一斉配信（公開中の記事の題名と URL を、LINE 公式アカウントの友だち全員へ一斉送信する）。
+// 仕様は docs/domain/news.md の「LINEでの一斉配信の状態」と NEWS-INV-19〜25。
 
 const (
 	lineTokenURL      = "https://api.line.me/oauth2/v3/token"
@@ -43,7 +43,7 @@ func (lineSecret) LogValue() slog.Value { return slog.StringValue("[REDACTED]") 
 func (lineSecret) String() string       { return "[REDACTED]" }
 func (lineSecret) GoString() string     { return "[REDACTED]" }
 
-// lineConfig は LINE での知らせの設定です。
+// lineConfig は LINEでの一斉配信の設定です。
 type lineConfig struct {
 	ChannelID string
 	Secret    lineSecret

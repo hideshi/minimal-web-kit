@@ -157,12 +157,12 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `/api/news`、`/api/news/{id}` | 公開中のお知らせのJSON（`limit`・`offset`）。別ドメインからの読み取り（CORS）は `NEWS_CORS_ORIGINS` で許可した接続元だけで、既定は許可なしです |
 | `/admin/news` | お知らせの作成・編集・公開・予約公開・削除 |
 | `/admin/news-categories` | お知らせのカテゴリの追加・改名・削除 |
-| `/admin/news/{id}/line` | 公開中の記事を LINE の友だちに知らせる確認の画面と送信（設定したサイトだけ） |
+| `/admin/news/{id}/line` | 公開中の記事を LINE の友だちに一斉配信する確認の画面と送信（設定したサイトだけ） |
 
 - 本文はプレーンテキスト（HTMLは文字として表示）です。行の中に `[文字](URL)` と書くとリンクになります（URLは `https://` か `/` で始まるサイト内のパス。[本文の書き方](docs/richtext.md) 7節）。APIは本文を記法の文字のまま返します。画像機能が有効なら、代表画像を1枚付けられます。
 - 記事にはカテゴリを1つ付けられます（お知らせ専用で、カタログの分類とは共有しません）。公開の一覧の絞り込みに出るのは、公開中の記事を持つカテゴリだけです。APIの項目にカテゴリは含めません。MCPが有効なら、AIエージェントからも記事にカテゴリを付け外しできます（カテゴリの追加・改名・削除は管理画面だけ）。
 - 公開日時に未来の日時を指定して公開すると、その日時まで公開ページとAPIに表示しません（予約公開）。時刻はサーバーのタイムゾーン（`TZ`）で扱います。
-- `LINE_CHANNEL_ID` と `LINE_CHANNEL_SECRET_FILE` を設定すると、公開中の記事を LINE 公式アカウントの友だち全員に知らせられます（一斉送信）。送るのはサイト名・題名・記事の URL だけで、管理画面の確認の画面で文面を見てから、1記事に1回だけ送れます（サイト管理者以上）。自動では送らず、AIエージェント（MCP）からも送れません。個別の送信、友だちの管理、リッチメニューは扱いません。設定しなければ、LINE へ通信しません。設定の手順は [docs/deploy.md](docs/deploy.md) の「お知らせの LINE での知らせ」にあります。
+- `LINE_CHANNEL_ID` と `LINE_CHANNEL_SECRET_FILE` を設定すると、公開中の記事を LINE 公式アカウントの友だち全員に一斉配信できます。配信するのはサイト名・題名・記事の URL だけで、管理画面の確認の画面で文面を見てから、1記事に1回だけ配信できます（サイト管理者以上）。自動では配信せず、AIエージェント（MCP）からも配信できません。個別の送信、友だちの管理、リッチメニューは扱いません。設定しなければ、LINE へ通信しません。設定の手順は [docs/deploy.md](docs/deploy.md) の「お知らせのLINEでの一斉配信」にあります。
 - 記事は匿名のOwnerIDに紐づけず、30日の自動削除の対象外です。保存するデータは[取得・保存データ台帳](docs/data-inventory.md)の5節にあります。用語・状態・不変条件・権限の正本は [docs/domain/news.md](docs/domain/news.md)（ドメインモデル）、設計の経緯は [docs/plans/cms-plan.md](docs/plans/cms-plan.md) にあります。
 - `make remove-news` で登録を外しても、DBのデータは残ります。
 - 旧称は「CMS」（`features/cms`）です。旧版から更新する場合は、`cmd/server/features.go` の `minimal-web-kit/features/cms` を `minimal-web-kit/features/news` に、`cms.NewFeature` を `news.NewFeature` に書き換えます。設定の `CMS_CORS_ORIGINS` は `NEWS_CORS_ORIGINS` に改名しました（旧名が残っていると起動を止めます）。表 `cms_posts` は起動時に、記事とIDの採番を残したまま `news_posts` に名前を変えます。管理画面のURLは `/admin/posts` から `/admin/news` に変わりました。
@@ -360,9 +360,9 @@ minimal-web-kit federated-account -sub <sub> -role admin
 | `AUTH_RP_ID` | `localhost`。WebAuthnのRP ID。`AUTH_ORIGIN` のホストか、その上位のドメイン |
 | `AUTH_ALLOW_SYNCED_PASSKEYS` | 無効。`true` のときだけ同期型のパスキーを受け入れる。`true`・`false`・空以外の値は起動時にエラー |
 | `NEWS_CORS_ORIGINS` | 未設定（許可なし）。`/api/` を別ドメインから読むことを許す接続元をカンマ区切りで指定。`*` は不可 |
-| `LINE_CHANNEL_ID` / `LINE_CHANNEL_SECRET_FILE` | 未設定（LINE で知らせない）。LINE の Messaging API のチャネル ID（数字）と、チャネルシークレットを1行で書いた、所有者だけが読めるファイルのパス（[お知らせ機能](#お知らせ機能)）。両方そろえて設定し、`SITE_URL` と `SITE_NAME` も必須。誤りは起動時にエラー |
+| `LINE_CHANNEL_ID` / `LINE_CHANNEL_SECRET_FILE` | 未設定（LINEで一斉配信しない）。LINE の Messaging API のチャネル ID（数字）と、チャネルシークレットを1行で書いた、所有者だけが読めるファイルのパス（[お知らせ機能](#お知らせ機能)）。両方そろえて設定し、`SITE_URL` と `SITE_NAME` も必須。誤りは起動時にエラー |
 | `SITE_NAME` | `minimal-web-kit`。サイトの名前。管理画面のヘッダー・題名・フッター、公開ページの既定の題名・ヘッダー・フッター・`og:site_name`、パスキーの登録で認証器に出る名前に使う（40文字まで。空白だけ・制御文字は起動時にエラー）。Siteの `layout.html` で `site-brand` 等を書き換えたブロックはその文面のまま |
-| `SITE_URL` | 未設定。Siteを公開するURL（例: `https://example.com`）。設定するとcanonical・OGP・Xカード・`sitemap.xml` を出力する（絶対URLが必要なため）。LINE で知らせる記事の URL にも使う |
+| `SITE_URL` | 未設定。Siteを公開するURL（例: `https://example.com`）。設定するとcanonical・OGP・Xカード・`sitemap.xml` を出力する（絶対URLが必要なため）。LINEで一斉配信する記事の URL にも使う |
 | `CONTACT_FORM_URL` | 未設定。Siteのお問い合わせリンク先（外部のフォーム。`https://` のみ有効。未設定時はボタン非表示）。お問い合わせ機能と同時に有効にすると起動時にエラー |
 | `CONTACT_RETENTION_DAYS` | 90。お問い合わせの保持日数（1〜365。範囲外・数字以外は起動時にエラー） |
 | `CONTACT_ACTIVE_MAX_DAYS` | 365。対応中のお問い合わせを受付から残す上限の日数（`CONTACT_RETENTION_DAYS` 以上、365以下。同じ値にすると延長は効かない。範囲外は起動時にエラー） |

@@ -24,7 +24,7 @@ var adminNotices = notice.Messages{
 	"published":   "お知らせを公開しました。",
 	"unpublished": "お知らせを非公開（下書き）に戻しました。",
 	"deleted":     "お知らせを削除しました。",
-	"line_sent":   "LINE の友だちに知らせました。",
+	"line_sent":   "LINEで一斉配信しました。",
 	// カテゴリの管理
 	"category_saved":   "カテゴリを保存しました。",
 	"category_deleted": "カテゴリを削除しました。",

@@ -122,7 +122,7 @@ func (fl *fakeLine) last() fakeBroadcast {
 	return fl.broadcasts[len(fl.broadcasts)-1]
 }
 
-// setLineEnv は、LINE での知らせを有効にする環境変数とシークレットのファイルを用意します。
+// setLineEnv は、LINEでの一斉配信を有効にする環境変数とシークレットのファイルを用意します。
 func setLineEnv(t *testing.T) {
 	t.Helper()
 	file := filepath.Join(t.TempDir(), "line-secret")
@@ -141,7 +141,7 @@ type lineFixture struct {
 	cookie *http.Cookie
 }
 
-// newLineFixture は、LINE での知らせを有効にし、送り先を偽の送り先に差し替えた構成を作ります。
+// newLineFixture は、LINEでの一斉配信を有効にし、送り先を偽の送り先に差し替えた構成を作ります。
 func newLineFixture(t *testing.T) *lineFixture {
 	t.Helper()
 	setLineEnv(t)
@@ -187,8 +187,8 @@ func TestLine_SendOnce(t *testing.T) {
 	id := lf.publish(t, "春の<b>セール</b>", "本文のカナリア BODYOFPOST")
 
 	edit := lf.do(t, http.MethodGet, lf.path(id), nil, lf.cookie)
-	if edit.Code != http.StatusOK || !strings.Contains(edit.Body.String(), `href="`+lf.path(id)+`/line"`) {
-		t.Fatalf("edit page must link to the LINE confirmation: %d", edit.Code)
+	if edit.Code != http.StatusOK || !strings.Contains(edit.Body.String(), `<a href="`+lf.path(id)+`/line" class="btn btn-line">LINEで一斉配信する</a>`) {
+		t.Fatalf("edit page must show the LINE button: %d", edit.Code)
 	}
 	digest, page := lf.confirm(t, id)
 	want := "見本の店のお知らせ\n春の<b>セール</b>\nhttps://example.com/news/" + strconv.FormatInt(id, 10)
@@ -236,7 +236,7 @@ func TestLine_SendOnce(t *testing.T) {
 		t.Fatalf("confirm page of a sent post: %d", rec.Code)
 	}
 	edit = lf.do(t, http.MethodGet, lf.path(id), nil, lf.cookie)
-	if strings.Contains(edit.Body.String(), `href="`+lf.path(id)+`/line"`) || !strings.Contains(edit.Body.String(), "LINE の友だちに知らせました") {
+	if strings.Contains(edit.Body.String(), `href="`+lf.path(id)+`/line"`) || !strings.Contains(edit.Body.String(), "LINEで一斉配信しました") {
 		t.Fatal("edit page of a sent post must not link to sending again")
 	}
 }

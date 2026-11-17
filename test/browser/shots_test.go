@@ -30,7 +30,7 @@ import (
 func TestAdminScreenshots(t *testing.T) {
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")
-	// LINE での知らせの画面を撮るため、設定を有効にする（送信はしない。LINE へは通信しない）
+	// LINEでの一斉配信の画面を撮るため、設定を有効にする（送信はしない。LINE へは通信しない）
 	lineSecret := filepath.Join(t.TempDir(), "line-secret")
 	if err := os.WriteFile(lineSecret, []byte("sample-secret\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -137,7 +137,7 @@ func TestAdminScreenshots(t *testing.T) {
 	shoot("08b-news-categories", "/admin/news-categories")
 	shoot("08c-news-public-list", "/news")
 	shoot("08d-news-public-show", fmt.Sprintf("/news/%d", post))
-	// LINE での知らせ: 確認の画面と、送った後・結果が分からないときの編集の画面
+	// LINEでの一斉配信: 確認の画面と、送った後・結果が分からないときの編集の画面
 	shoot("08e-news-line-confirm", fmt.Sprintf("/admin/news/%d/line", post))
 	now := time.Now().Unix()
 	for _, s := range []struct {

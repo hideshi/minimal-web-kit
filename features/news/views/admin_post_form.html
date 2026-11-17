@@ -28,13 +28,15 @@
 {{end}}
 
 {{with .Line}}
-<h2>LINE での知らせ</h2>
-{{if .Done}}<p>{{template "datetime" .SentAt}} に、LINE の友だちに知らせました。</p>
-{{else if .Unknown}}<p>LINE に届いたかが分からないまま、送り直せる期限を過ぎました。LINE 公式アカウントの管理画面か、友だちのトークで確かめてください。届いていなければ、LINE 公式アカウントの管理画面から送ってください。キットからは送りません。</p>
-{{else if .Pending}}<p>前回は、LINE が受け付けたかが分かりませんでした。{{template "datetime" .Deadline}} より前にもう一度送ると、同じ文面と同じ鍵で送り直します（届いていても重なりません）。</p>
-{{else if not .Public}}<p>公開ページに出ている記事だけを、LINE 公式アカウントの友だちに知らせられます。</p>
+<h2>LINEで一斉配信</h2>
+{{if .Done}}<p>{{template "datetime" .SentAt}} に、LINEで一斉配信しました。</p>
+{{else if .Unknown}}<p>前回の一斉配信は、友だちに届いたかどうか分からないまま、もう一度配信できる期限（最初の配信から23時間）を過ぎました。期限を過ぎると、同じメッセージが2通届くのを防げないため、この画面からは配信できません。</p>
+<p>自分の LINE で LINE 公式アカウントの友だちになっていれば、トークに届いているかで確かめられます。届いていなければ、LINE 公式アカウントのアプリか管理画面から配信してください。</p>
+{{else if .Pending}}<p>前回の一斉配信は、LINE から結果が返ってこなかったため、友だちに届いたかどうか分かりません（通信の時間切れや LINE 側の不具合などで起きます）。</p>
+<p>{{template "datetime" .Deadline}} までなら、もう一度配信できます。すでに届いていた場合は LINE が2回目を止めるので、同じメッセージが2通届くことはありません。届いていなかった場合は、ここで配信されます。</p>
+{{else if not .Public}}<p>公開ページに出ている記事だけを、LINEで一斉配信できます。</p>
 {{end}}
-{{if .CanSend}}<p><a href="/admin/news/{{.PostID}}/line">LINE で知らせる</a></p>{{end}}
+{{if .CanSend}}<div class="action-bar"><a href="/admin/news/{{.PostID}}/line" class="btn btn-line">LINEで一斉配信する</a></div>{{end}}
 {{end}}
 
 <p><a href="/admin/news">お知らせの一覧へ戻る</a></p>

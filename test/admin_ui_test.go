@@ -75,7 +75,7 @@ func setupAdminUI(t *testing.T, full bool) *adminUI {
 	t.Helper()
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")
-	// LINE での知らせの画面を集めるため、設定を有効にする（送信の見本は置かない。LINE へは送らない）
+	// LINEでの一斉配信の画面を集めるため、設定を有効にする（送信の見本は置かない。LINE へは送らない）
 	secret := filepath.Join(t.TempDir(), "line-secret")
 	if err := os.WriteFile(secret, []byte("sample-secret\n"), 0o600); err != nil {
 		t.Fatal(err)

@@ -7,7 +7,7 @@ import (
 )
 
 // SiteURLFromEnv は SITE_URL（公開するサイトのURL）を検証し、末尾の / を除いて返します。
-// canonical・OGP・sitemap.xml と、外へ送る記事の URL（LINE での知らせ）の絶対URLに使います。
+// canonical・OGP・sitemap.xml と、外へ送る記事の URL（LINEでの一斉配信）の絶対URLに使います。
 // 未設定なら空文字、不正なら ok=false を返します。
 func SiteURLFromEnv() (string, bool) {
 	raw := os.Getenv("SITE_URL")

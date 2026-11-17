@@ -189,7 +189,7 @@ type Confirm struct {
 	Back      string // 「削除せずに戻る」の行き先
 	CSRFToken string
 	Submit    string // 送信ボタンの文言。空なら「削除する」
-	// 以下は、削除でない取り消せない操作の確認（例: LINE での知らせ）に使う
+	// 以下は、削除でない取り消せない操作の確認（例: LINEでの一斉配信）に使う
 	BackText string   // 戻るリンクの文言。空なら「削除せずに戻る」。「〜ずに戻る」の形にする
 	Primary  bool     // 送信ボタンを btn-primary にする（既定は btn-danger）
 	Hidden   []Hidden // 送信に添える固定の値（例: 確認した文面のハッシュ）
