@@ -30,6 +30,15 @@ import (
 func TestAdminScreenshots(t *testing.T) {
 	t.Setenv("AUTH_ORIGIN", "")
 	t.Setenv("AUTH_RP_ID", "")
+	// LINE での知らせの画面を撮るため、設定を有効にする（送信はしない。LINE へは通信しない）
+	lineSecret := filepath.Join(t.TempDir(), "line-secret")
+	if err := os.WriteFile(lineSecret, []byte("sample-secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SITE_URL", "https://example.com")
+	t.Setenv("SITE_NAME", "見本のサイト")
+	t.Setenv("LINE_CHANNEL_ID", "1234567890")
+	t.Setenv("LINE_CHANNEL_SECRET_FILE", lineSecret)
 	core, err := store.NewSQLiteStore(filepath.Join(t.TempDir(), "app.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -128,6 +137,22 @@ func TestAdminScreenshots(t *testing.T) {
 	shoot("08b-news-categories", "/admin/news-categories")
 	shoot("08c-news-public-list", "/news")
 	shoot("08d-news-public-show", fmt.Sprintf("/news/%d", post))
+	// LINE での知らせ: 確認の画面と、送った後・結果が分からないときの編集の画面
+	shoot("08e-news-line-confirm", fmt.Sprintf("/admin/news/%d/line", post))
+	now := time.Now().Unix()
+	for _, s := range []struct {
+		name, title string
+		sent        any
+		uncertain   int
+	}{{"08f-news-line-sent", "LINEで知らせたお知らせ", now, 0}, {"08g-news-line-pending", "LINEに届いたか分からないお知らせ", nil, 1}} {
+		id, _ := posts.Create(ctx, s.title, "本文")
+		_ = posts.Publish(ctx, id)
+		if _, err := db.Exec("INSERT INTO news_line_broadcasts (post_id, retry_key, message, key_first_sent_at, in_flight, uncertain, created_at, sent_at) VALUES (?, 'k', 'm', ?, 0, ?, ?, ?)",
+			id, now, s.uncertain, now, s.sent); err != nil {
+			t.Fatal(err)
+		}
+		shoot(s.name, fmt.Sprintf("/admin/news/%d", id))
+	}
 	shoot("09-account-detail", fmt.Sprintf("/admin/accounts/%d", other))
 	shoot("10-passkeys", "/admin/passkeys")
 	inbox := contact.NewStore(db)
