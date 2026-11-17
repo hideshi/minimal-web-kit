@@ -2,6 +2,9 @@ package news
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -208,7 +211,16 @@ func TestLine_SendOnce(t *testing.T) {
 	if got.Auth != "Bearer "+lineTokenCanary || !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`).MatchString(got.Key) {
 		t.Fatalf("broadcast headers: %+v", got)
 	}
-	if !strings.Contains(got.Body, `"type":"text"`) || strings.Contains(got.Body, "BODYOFPOST") || strings.Contains(got.Body, "notificationDisabled") {
+	// 送る本文は、テキスト1通で、確認の画面で見せた文面と完全に一致する（通知を消す指定は付けない）
+	var sentBody struct {
+		Messages []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"messages"`
+		NotificationDisabled *bool `json:"notificationDisabled"`
+	}
+	if err := json.Unmarshal([]byte(got.Body), &sentBody); err != nil || len(sentBody.Messages) != 1 ||
+		sentBody.Messages[0].Type != "text" || sentBody.Messages[0].Text != want || sentBody.NotificationDisabled != nil {
 		t.Fatalf("broadcast body: %s", got.Body)
 	}
 	if r := lf.record(t, id); r == nil || r.SentAt == 0 || r.InFlight != 0 || r.Message != want {
@@ -471,7 +483,8 @@ func TestLine_ConcurrentSendsShareTheKey(t *testing.T) {
 func TestLineStore_RetryWindowAndKeyRotation(t *testing.T) {
 	lf := newLineFixture(t)
 	ctx := context.Background()
-	base := time.Now()
+	// 記事を公開した時刻（秒）より後にする。同じ秒の境目で、公開前と判定されないように
+	base := time.Now().Add(time.Minute)
 	now := base
 	st := &lineStore{db: lf.db, now: func() time.Time { return now }}
 	keys := 0
@@ -513,7 +526,10 @@ func TestLineStore_RetryWindowAndKeyRotation(t *testing.T) {
 	// 受け付けたかもしれない要求の後は、断られても鍵を変えず、23時間を過ぎたら送らない
 	now = base
 	uncertain := lf.publish(t, "分からない", "")
-	u1, _ := prepare(uncertain)
+	u1, err := prepare(uncertain)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_ = st.finish(ctx, uncertain, lineUncertain)
 	now = base.Add(time.Hour)
 	u2, err := prepare(uncertain)
@@ -562,8 +578,13 @@ func TestLine_Permissions(t *testing.T) {
 	if rec := lf.do(t, http.MethodGet, path, nil, user); rec.Code == http.StatusOK {
 		t.Errorf("GET by a general user: %d", rec.Code)
 	}
-	if rec := lf.postForm(t, path, url.Values{"digest": {digest}}, "same-origin", user); rec.Code == http.StatusSeeOther {
-		t.Errorf("POST by a general user: %d", rec.Code)
+	// 一般ユーザー自身の有効なCSRFトークンを付けて、ロールの検査まで届かせる
+	userForm := url.Values{"digest": {digest}, "csrf_token": {authtest.CSRFToken(t, lf.routes, "/admin/passkeys", user)}}
+	if rec := lf.postForm(t, path, userForm, "same-origin", user); rec.Code != http.StatusForbidden {
+		t.Errorf("POST by a general user with a valid CSRF token: %d", rec.Code)
+	}
+	if lf.record(t, id) != nil {
+		t.Error("a general user must not create a record")
 	}
 	if tokens, sent := lf.line.count(); tokens != 0 || sent != 0 {
 		t.Fatalf("rejected requests must not contact LINE: %d %d", tokens, sent)
@@ -696,5 +717,116 @@ func TestLineConfig_Validation(t *testing.T) {
 	}
 	if s := lineSecret(lineSecretCanary); strings.Contains(s.String(), lineSecretCanary) || strings.Contains(s.LogValue().String(), lineSecretCanary) {
 		t.Error("the secret must be redacted when printed")
+	}
+}
+
+// 不変条件: NEWS-INV-20
+func TestLineStore_ConcurrentFirstPrepareCreatesOneRecord(t *testing.T) {
+	lf := newLineFixture(t)
+	ctx := context.Background()
+	id := lf.publish(t, "題名", "")
+	p, err := lf.posts.Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, _ := lineMessage(lf.feature.cfg.Line, p)
+	// 記録の無い記事に、送る前の書き込みを同時に始める。行の作成は1つだけ通り、他は保存済みの鍵を使う
+	const n = 8
+	keys := make([]string, n)
+	errs := make([]error, n)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for i := range n {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			rec, err := lf.feature.lines.prepare(ctx, lf.feature.cfg.Line, id, lineDigest(msg), func() (string, error) {
+				return "key-" + strconv.Itoa(i), nil
+			})
+			keys[i], errs[i] = rec.Key, err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	for i := range n {
+		if errs[i] != nil {
+			t.Fatalf("prepare %d: %v", i, errs[i])
+		}
+		if keys[i] != keys[0] {
+			t.Fatalf("all requests must use the stored key: %v", keys)
+		}
+	}
+	r := lf.record(t, id)
+	if r.Key != keys[0] || r.InFlight != n {
+		t.Fatalf("record: %+v", r)
+	}
+}
+
+// lineTransport は、LINE の偽の通信路です。一斉送信の応答と、通信の失敗を差し込みます。
+type lineTransport struct {
+	broadcast func(*http.Request) (*http.Response, error)
+}
+
+func (lt lineTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	if strings.HasSuffix(r.URL.Path, "/oauth2/v3/token") {
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Request: r,
+			Body: io.NopCloser(strings.NewReader(`{"token_type":"Bearer","access_token":"` + lineTokenCanary + `"}`))}, nil
+	}
+	return lt.broadcast(r)
+}
+
+// failingBody は、読むと失敗する応答の本文です。
+type failingBody struct{}
+
+func (failingBody) Read([]byte) (int, error) { return 0, errors.New("read failed " + lineBodyCanary) }
+func (failingBody) Close() error             { return nil }
+
+// 不変条件: NEWS-INV-21, NEWS-INV-24
+func TestLine_TransportErrorsAndUnreadableBodies(t *testing.T) {
+	lf := newLineFixture(t)
+	cfg := lf.feature.cfg.Line
+	const tokenURL, broadcastURL = "https://line.test/oauth2/v3/token", "https://line.test/v2/bot/message/broadcast"
+	respond := func(status int, header http.Header) func(*http.Request) (*http.Response, error) {
+		return func(r *http.Request) (*http.Response, error) {
+			if header == nil {
+				header = http.Header{}
+			}
+			return &http.Response{StatusCode: status, Header: header, Body: failingBody{}, Request: r}, nil
+		}
+	}
+	// 本文を読めなくても、状態コードと見出しで分ける
+	for _, c := range []struct {
+		status int
+		header http.Header
+		want   lineOutcome
+	}{
+		{http.StatusOK, nil, lineSent},
+		{http.StatusConflict, http.Header{"X-Line-Accepted-Request-Id": {"r"}}, lineAlreadyAccepted},
+		{http.StatusTooManyRequests, nil, lineRateLimited},
+		{http.StatusInternalServerError, nil, lineUncertain},
+	} {
+		client := newLineClientAt(cfg, tokenURL, broadcastURL, lineTransport{broadcast: respond(c.status, c.header)})
+		if got := client.broadcast(context.Background(), "t", "k", "m"); got != c.want {
+			t.Errorf("status %d with an unreadable body: %s, want %s", c.status, got, c.want)
+		}
+	}
+
+	// 通信の失敗の文（送り先やカナリアを含む）は、受け付けたかもしれないとして扱い、ログにも画面にも出さない
+	lf.feature.line = newLineClientAt(cfg, tokenURL, broadcastURL, lineTransport{broadcast: func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("dial tcp line.test: connection reset " + lineBodyCanary)
+	}})
+	id := lf.publish(t, "題名", "")
+	digest, _ := lf.confirm(t, id)
+	rec := lf.send(t, id, digest)
+	if rec.Code != http.StatusBadGateway || lf.record(t, id).state(time.Now()) != linePending {
+		t.Fatalf("transport error: %d", rec.Code)
+	}
+	for _, out := range []string{rec.Body.String(), lf.logs.String()} {
+		for _, canary := range []string{lineBodyCanary, lineTokenCanary, "line.test", "connection reset"} {
+			if strings.Contains(out, canary) {
+				t.Errorf("%q leaked into a response or the log", canary)
+			}
+		}
 	}
 }
