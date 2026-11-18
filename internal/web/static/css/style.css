@@ -26,10 +26,11 @@
   --color-focus-outer: #ffd700;
 
   /* 外部サービスのブランドの色。テーマでは差し替えない（--color- の変数ではない）。
-     LINE の緑の上の文字は、白だと対比が足りない（約2.3:1）ため、黒に近い色にする */
-  --brand-line: #06c755;
-  --brand-line-hover: #05a64b;
-  --brand-on-line: #111111;
+     LINE の緑（#06c755）に白い文字は対比が足りない（約2.3:1）。見慣れた「緑に白い文字」を保つため、
+     緑を暗くして白い文字との対比を4.5:1以上にする（LINE の正しい緑ではない） */
+  --brand-line: #00873c;
+  --brand-line-hover: #006b30;
+  --brand-on-line: #ffffff;
 
   --shadow-menu: 0 0.25rem 0.5rem rgb(0 0 0 / 12%); /* 狭い画面のメニューの影 */
 
@@ -594,7 +595,7 @@ a.btn:hover {
   color: var(--color-on-danger);
 }
 
-/* LINE で一斉配信するボタン（お知らせの編集の画面）。LINE のブランドの緑 */
+/* LINE で一斉配信するボタン（お知らせの編集の画面）。LINE の緑を暗くした地に白い文字 */
 .btn-line {
   background-color: var(--brand-line);
   color: var(--brand-on-line);
