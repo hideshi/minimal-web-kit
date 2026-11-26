@@ -129,7 +129,7 @@ func navText(n *int) string {
 // MCPTools は、固定ページのツールを返します。保存は管理画面と同じ検査とナビの更新を通ります。
 func (f *Feature) MCPTools() []features.MCPTool {
 	id := json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"],"additionalProperties":false}`)
-	fields := `"slug":{"type":"string"},"title":{"type":"string"},"body":{"type":"string","description":"本文。書き方を絞ったMarkdown（## 見出し、- 箇条書き、1. 番号付き、表、[文字](URL)、**強調**）。1行目の「ヒーロー: 導入の文」で最初の画面、「ボタン: [文字](URL)」の行でボタン、「カード: 題名 | 説明」の行でカードの並び。HTMLは書けない"},"nav_order":{"type":["integer","null"]},"publish_at":{"type":"string","description":"公開を始める日時。` + features.MCPTimeHint + `。空なら変えない。公開中のページを未来の日時にはできない"}`
+	fields := `"slug":{"type":"string"},"title":{"type":"string"},"body":{"type":"string","description":"本文。書き方を絞ったMarkdown（## 見出し、- 箇条書き、1. 番号付き、表、[文字](URL)、**強調**）。1行目の「ヒーロー: 導入の文」で最初の画面、「ボタン: [文字](URL)」の行でボタン、「カード: 題名 | 説明」の行でカードの並び。「質問: 問い」の次の行に「答え: 答え」でよくある質問、「お知らせ: カテゴリの名前 | 件数」（1〜10。カテゴリは省ける）で最新のお知らせ、「お問い合わせ: ボタンの文」でお問い合わせのボタン、「引用: 本文 | 出典」、「帯: 見出し | 説明」の直後の「ボタン: 」の行で締めの帯、「手順: 題名 | 説明」で手順、見出しの末尾の「 {#名前}」で飛び先（同じページへは [文字](#名前)）、「目次: ラベル」で目次。HTMLは書けない"},"nav_order":{"type":["integer","null"]},"publish_at":{"type":"string","description":"公開を始める日時。` + features.MCPTimeHint + `。空なら変えない。公開中のページを未来の日時にはできない"}`
 	return []features.MCPTool{
 		{
 			Name: "pages_list", Title: "固定ページの一覧", Description: "固定ページの一覧を返します。下書きを含みます。本文は含みません。", Effect: features.MCPRead,
@@ -187,6 +187,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if !n.publishAt.IsZero() {
 					action += "公開の操作をすると、" + features.MCPLocalTime(n.publishAt) + " から公開されます。"
 				}
+				action += f.mcpNotes(ctx, n.slug, n.body)
 				summary := features.MCPSummary(action, "URL: /"+n.slug+"　ナビの順: "+navText(n.navOrder),
 					[]string{"タイトル", "本文"}, "タイトル:\n"+features.MCPQuote(n.title)+"\n本文:\n"+features.MCPQuote(n.body))
 				return features.MCPPlan{Summary: summary, Canonical: canonical, State: "new"}, nil
@@ -237,6 +238,7 @@ func (f *Feature) MCPTools() []features.MCPTool {
 				if n.slug != p.Slug {
 					action += "【URLが変わります】"
 				}
+				action += f.mcpNotes(ctx, n.slug, n.body)
 				var changes []string
 				details := ""
 				newAt := dateText(p.PublishAt)

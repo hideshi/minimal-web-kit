@@ -169,6 +169,11 @@ func TestAdminScreenshots(t *testing.T) {
 	lp, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "lp-switch", Title: "WordPress から、手間とリスクの少ないホームページへ", Body: "ヒーロー: 会社案内やお知らせが中心のホームページを、必要な機能だけで作り、運用する仕組みです。更新や管理の手間と、情報漏えいのリスクを減らします。\nボタン: [ご相談・お問い合わせ](/contact)\nボタン: [機能の一覧を見る](/about)\n\n## 乗り換えると変わること\nカード: 預かる情報が少ない | 氏名や連絡先を初期設定では集めません。漏れて困る情報が最初から少なくなります。\nカード: 更新する部品が少ない | アプリの更新は、実行ファイル1つを置き換えるだけです。\nカード: 足しても崩れにくい | 機能を足して決まりと食い違うと、公開前の自動の検査で止まります。\n\n## 記事は引き継げます\nカード: 移るもの | お知らせ・固定ページ・画像を下書きとして移します。\nカード: 移らないもの | テーマとプラグインの見た目と機能は作り直します。\n\nボタン: [ご相談・お問い合わせ](/contact)"}, nil)
 	_ = pageStore.SetPublished(ctx, lp, true)
 	shoot("15b-page-lp", "/lp-switch")
+	// トップページ等の部品（紹介サイトのトップを、固定ページの部品だけで書き直したもの。docs/plans/home-page-plan.md 8節）
+	home, _ := pageStore.Save(ctx, 0, pages.Input{Slug: "home-parts", Title: "集めない。増やさない。テストで守る。", Body: "ヒーロー: 個人情報と依存を最小にしたWebアプリを、AIと一緒に安全に作るためのGoのひな形です。\nボタン: [GitHubでキットを入手する](https://github.com/hideshi/minimal-web-kit)\nボタン: [特長を見る](#features)\n\n目次: このページの目次\n\n## 特長 {#features}\nカード: 集めない | 氏名や連絡先を初期設定では集めません。\nカード: 増やさない | 直接の依存は SQLite のドライバだけです。\nカード: テストで守る | 決まりは文書に書くだけでなく、テストで確かめます。\n\n## お客様の声 {#voices}\n引用: 管理画面が分かりやすく、更新を自分たちで続けられています。 | 小売業 Aさん\n\n## 仕組み {#how-it-works}\n手順: 要件を確かめる | 目的、保存するデータ、増える依存を確かめます。\n手順: 同梱機能とGoで作る | 必要な機能をコマンドで組み込みます。\n手順: 検査で守る | 決まりから外れると、公開前の検査で止まります。\n\n## よくある質問 {#faq}\n質問: JavaScriptは必要ですか？\n答え: いいえ、不要です。公開ページはJavaScriptが無効な環境でも閲覧できます。\n質問: どこに置けますか？\n答え: 小さなVPS1台で動きます。詳しくは[仕組み](#how-it-works)をご覧ください。\n\n## お知らせ {#news}\nお知らせ: 3\n\n帯: まず手元で動かしてみる | リポジトリをクローンし、make run で起動できます。\nボタン: [GitHubでキットを入手する](https://github.com/hideshi/minimal-web-kit)\n\n## お問い合わせ {#contact}\nお問い合わせ: お問い合わせフォームを開く"}, nil)
+	_ = pageStore.SetPublished(ctx, home, true)
+	shoot("15c-page-home-parts", "/home-parts")
+	shoot("15d-page-home-parts-form", fmt.Sprintf("/admin/pages/%d", home))
 	// 公開一覧の絞り込み（タグ20個。狭い画面での折り返しを見る）
 	for i, name := range []string{"新築", "リフォーム", "木造", "鉄骨", "省エネ", "断熱", "耐震", "バリアフリー", "店舗", "オフィス", "住宅", "倉庫", "外構", "内装", "水回り", "屋根", "外壁", "太陽光", "蓄電池", "地域材"} {
 		tagID, _ := items.SaveClassification(ctx, "tags", 0, name)

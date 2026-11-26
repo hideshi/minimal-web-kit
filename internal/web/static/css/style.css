@@ -435,7 +435,8 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   border-radius: var(--radius-card);
 }
 
-.cta-banner h2 {
+.cta-banner h2,
+.cta-banner h3 {
   font-size: 1.3rem;
   margin-top: 0;
   margin-bottom: var(--space-xs);
@@ -451,6 +452,43 @@ h3 { font-size: 1.1rem; margin-top: var(--space-md); margin-bottom: var(--space-
   justify-content: center;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+/* 引用・お客様の声（固定ページの本文の「引用: 」の行） */
+.quote {
+  margin: var(--space-md) 0;
+  padding: var(--space-sm) var(--space-md);
+  border-left: 5px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+
+.quote blockquote {
+  margin: 0;
+}
+
+.quote figcaption {
+  margin-top: var(--space-xs);
+  font-size: 0.9rem;
+  color: var(--color-text-sub);
+}
+
+/* 最新のお知らせ（固定ページの本文の「お知らせ: 」の行） */
+.news-latest {
+  list-style: none;
+  padding-left: 0;
+  margin-block: var(--space-sm);
+}
+
+.news-latest li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-md);
+  padding-block: var(--space-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.news-latest time {
+  color: var(--color-text-sub);
 }
 
 /* フォームとコントロール */

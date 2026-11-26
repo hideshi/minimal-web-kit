@@ -18,6 +18,7 @@ import (
 	"minimal-web-kit/internal/federation"
 	"minimal-web-kit/internal/web"
 	"minimal-web-kit/internal/web/form"
+	"minimal-web-kit/internal/web/richtext"
 )
 
 // Feature は独立した業務機能モジュールを表すインターフェースです。
@@ -132,6 +133,35 @@ type RouteCheckConsumer interface {
 type ContactLinkFeature interface {
 	Feature
 	ContactLink() (link web.ContactLink, ok bool)
+}
+
+// NewsList は、本文のお知らせの一覧に渡す公開の記事です（docs/domain/news.md 6節）。
+// Found は、カテゴリの名前があったか（空のカテゴリなら常に真）。ListPath は一覧へのパスで、記事が0件なら空です。
+type NewsList struct {
+	Items    []richtext.NewsItem
+	ListPath string
+	Found    bool
+}
+
+// NewsListFeature は、公開の記事の新着を渡す機能（お知らせ）が実装します。category が空なら全部の記事です。
+// 記事は公開の一覧と同じ条件と並びで選びます（NEWS-INV-16）。
+type NewsListFeature interface {
+	Feature
+	LatestPublished(ctx context.Context, category string, n int) (NewsList, error)
+}
+
+// NewsListConsumer は、本文にお知らせの一覧を描く機能（固定ページ）が実装します。お知らせの機能が無ければ呼ばれません。
+type NewsListConsumer interface {
+	Feature
+	SetNewsList(list func(ctx context.Context, category string, n int) (NewsList, error))
+}
+
+// HomePageFeature は、トップページ（GET /）を描ける機能（固定ページ）が実装します（docs/domain/pages.md の PAGES-INV-15）。
+// HomeSlug が空なら、トップページの指定は無い。ServeHomePage は、描いたら真を返し、描かなかったら何も書かずに偽を返します。
+type HomePageFeature interface {
+	Feature
+	HomeSlug() string
+	ServeHomePage(w http.ResponseWriter, r *http.Request) bool
 }
 
 // ContactLinkConsumer は、お問い合わせへのボタン等を描く機能（例: Site）が実装します。申告が無ければ呼ばれません。

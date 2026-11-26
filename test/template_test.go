@@ -48,6 +48,29 @@ func TestJavaScript_OnlyApprovedFile(t *testing.T) {
 	}
 }
 
+// TestTemplates_NoSecIDs は、キットのテンプレートの id が sec- で始まらないことを検証します。固定ページの本文の見出しの飛び先は
+// sec-名前 の id になるので、公開のレイアウト・管理画面のプレビュー（編集のフォームと同じ文書）・共通の部品の id と重ならないためです。
+// 不変条件: PAGES-INV-19
+func TestTemplates_NoSecIDs(t *testing.T) {
+	files, _ := filepath.Glob("../internal/web/views/*.html")
+	featureFiles, _ := featureViews()
+	id := regexp.MustCompile(`\bid="\s*sec-|\bid="\{\{[^}]*\}\}sec-`)
+	checked := 0
+	for _, file := range append(files, featureFiles...) {
+		b, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checked++
+		if id.Match(b) {
+			t.Errorf("%s uses an id starting with sec-, which is reserved for heading anchors in page bodies", file)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no templates checked")
+	}
+}
+
 // TestTemplate_StaticAssetsUseAsset は、同梱のテンプレートが /static/ を直接書かず、版付きの URL（共通部品 static-head か
 // {{asset "..."}}）で読み込むことを検証します。直接書くと、CSS を更新しても古い版がキャッシュに残るためです。
 func TestTemplate_StaticAssetsUseAsset(t *testing.T) {

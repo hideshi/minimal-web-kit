@@ -449,18 +449,23 @@ func TestPublic_LPParts(t *testing.T) {
 
 // TestInit_WarnsAboutOldLPLines は、本文がLPの部品として描かれるページのIDだけを起動の時に警告し、本文を出さず、
 // 部品にならない行（形の合わない行、逃がした行）だけのページは警告しないことを確かめる。
-// 不変条件: PAGES-INV-13
+// トップページ等の部品・見出しの飛び先・#名前 のリンクとして描かれるページも、同じく警告する。
+// 不変条件: PAGES-INV-13, PAGES-INV-21
 func TestInit_WarnsAboutOldLPLines(t *testing.T) {
 	fx := setup(t)
 	card := fx.create("old", "古い", "前置き\nカード: 本文カナリア | 説明", "", false)
 	hero := fx.create("hero", "ヒーロー", "ヒーロー: 導入", "", false)
-	fx.create("plain", "部品にならない", "カード: 区切りの無い行\nボタン\\: [a](/a)\n本文\nヒーロー: 2行目", "", false)
+	fx.create("plain", "部品にならない", "カード: 区切りの無い行\nボタン\\: [a](/a)\n本文\nヒーロー: 2行目\n質問: 答えが無い\n## 見出し {\\#esc}\n[a](/a#b)", "", false)
+	faq := fx.create("faq", "質問", "質問: a\n答え: b", "", false)
+	anchor := fx.create("anchor", "飛び先", "## 見出し {#top-1}", "", false)
+	link := fx.create("link", "リンク", "- [上へ](#top-1)", "", false)
+	banner := fx.create("banner", "帯", "帯: a | b", "", false)
 	fx.logs.Reset()
 	if err := fx.f.Init(fx.core.DB()); err != nil {
 		t.Fatal(err)
 	}
 	logs := fx.logs.String()
-	if want := fmt.Sprintf("page_ids=\"[%d %d]\"", card, hero); !strings.Contains(logs, want) {
+	if want := fmt.Sprintf("page_ids=\"[%d %d %d %d %d %d]\"", card, hero, faq, anchor, link, banner); !strings.Contains(logs, want) {
 		t.Errorf("warning lacks %s: %s", want, logs)
 	}
 	if strings.Contains(logs, "本文カナリア") {

@@ -32,7 +32,48 @@ type Handler struct {
 	contact  *ContactLink
 	fallback http.Handler
 	taken    func(path string) bool
+	// home は、トップページを固定ページで描く関数です（HOME_PAGE_SLUG があるときだけ。docs/domain/pages.md の PAGES-INV-15）
+	home func(w http.ResponseWriter, r *http.Request) bool
 }
+
+// SetHome は、GET / で先に試す関数を設定します。描かなかったら（偽）、今のトップ（独自のトップかBase）を返します。
+// 設定すると、/ はセッションを通さず、中身によらず no-store で返します（PAGES-INV-16）。経路を作る前に呼びます。
+func (h *Handler) SetHome(serve func(w http.ResponseWriter, r *http.Request) bool) { h.home = serve }
+
+// homeRoot は、トップページの固定ページを先に試し、描かなければ root を返します。応答は no-store にします。
+func homeRoot(serve func(w http.ResponseWriter, r *http.Request) bool, root http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		nw := &noStoreWriter{ResponseWriter: w}
+		if serve(nw, r) {
+			return
+		}
+		root(nw, r)
+	}
+}
+
+// noStoreWriter は、最初の書き出しの時点で Cache-Control を no-store に設定し直します。
+// 下の処理（Siteの PublicCache 等）が先に public を設定しても、上書きされます。
+type noStoreWriter struct {
+	http.ResponseWriter
+	wrote bool
+}
+
+func (w *noStoreWriter) WriteHeader(code int) {
+	if !w.wrote {
+		w.wrote = true
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *noStoreWriter) Write(b []byte) (int, error) {
+	if !w.wrote {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *noStoreWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // corePages はCoreが描画する画面です。
 var corePages = []string{"index.html", "privacy.html", "confirm_delete.html"}
@@ -114,11 +155,15 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 	appMux := http.NewServeMux()
 
 	// ルートパス（GET /）：Featureが独自トップ画面を提供する場合はそれを使い、なければBaseデフォルト画面
-	if rootHandler != nil {
-		appMux.HandleFunc("GET /{$}", rootHandler)
-	} else {
-		appMux.HandleFunc("GET /{$}", h.handleIndex)
+	// トップページの指定があれば、先に固定ページを試す。/privacy の扱いは、今の独自トップの有無（rootHandler）だけで決める
+	root := rootHandler
+	if root == nil {
+		root = h.handleIndex
 	}
+	if h.home != nil {
+		root = homeRoot(h.home, root)
+	}
+	appMux.HandleFunc("GET /{$}", root)
 
 	// Coreルート
 	appMux.HandleFunc("GET /privacy", func(w http.ResponseWriter, r *http.Request) {
@@ -136,8 +181,9 @@ func (h *Handler) RoutesWithIsolated(rootHandler http.HandlerFunc, registerFeatu
 	sessionHandler := h.sm.ResolveOwner(appHandler)
 	appHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Siteの公開ページは既存Cookieも照合せず、アクセス時刻も更新しない。
-		if rootHandler != nil && (r.Method == http.MethodGet || r.Method == http.MethodHead) &&
-			(r.URL.Path == "/" || r.URL.Path == "/privacy") {
+		// トップページの指定があるときは、/ も同じく照合しない（PAGES-INV-16）
+		get := r.Method == http.MethodGet || r.Method == http.MethodHead
+		if get && ((rootHandler != nil && (r.URL.Path == "/" || r.URL.Path == "/privacy")) || (h.home != nil && r.URL.Path == "/")) {
 			appMux.ServeHTTP(w, r)
 			return
 		}

@@ -11,6 +11,8 @@
 | ナビの順 | `nav_order` | ナビに出す順の小さい順に並べ、同じ順ならURLの順にする。順が空のページはナビに出さない |
 | 公開予約 | `Scheduled` | 公開の状態で、公開日時（`publish_at`）がまだ来ていないページ。公開ページとナビには出さない |
 | 受け皿 | `FallbackFeature` | Coreと機能のどの経路にも当たらなかったGET・HEADを受ける口。固定ページの公開ページはここで返す |
+| トップページ | `HOME_PAGE_SLUG` | 環境変数で指定した1件。公開中なら `/` に出す。指定が無ければ、`/` は今のトップ（Siteか、Coreの確認用の画面） |
+| 飛び先 | `anchorPrefix` | 見出しの末尾の `{#名前}` で付ける、ページの中の位置。`id` は `sec-名前`（[richtext.md](../richtext.md) の2.4節） |
 
 ## 2. 概念と関係
 
@@ -48,7 +50,7 @@ stateDiagram-v2
 | PAGES-INV-2 | 本文は構造に読んでから部品で描き、利用者の入力をHTMLとして出さない。リンクは richtext.md 5節の許可のものだけ | `ParseWithImages`・`HandleFallback` |
 | PAGES-INV-3 | スラッグは決まった形で、登録済みの経路・固定の予約語と重ならず、重複しない | `normalize`・`reservedSlugs`・`uniqueError`・`UNIQUE` |
 | PAGES-INV-4 | 管理操作は管理者認証の Page・Form で守り、変更はPOSTだけ | `registerAdmin`（`Page`・`Form`） |
-| PAGES-INV-5 | 公開ページはCookieを発行・照合しない。固定ページを有効にしても、Coreと機能の経路は取られない | `HandleFallback`・`RegisterIsolatedRoutes` |
+| PAGES-INV-5 | 公開ページはCookieを発行・照合しない。固定ページを有効にしても、Coreと機能の経路は取られない。トップページとして `/` に出すときも同じで、新しい経路は足さない（`/{スラッグ}` の転送は PAGES-INV-17） | `HandleFallback`・`RegisterIsolatedRoutes`・`ServeHomePage` |
 | PAGES-INV-6 | ナビとsitemapに出るのは公開日時を過ぎた公開中のページだけで、予約中のページは公開日時を過ぎた後の最初の描画からナビに載る。ナビの作り直しは直列に行い、古い読み取りが新しい結果を上書きしない。変更は再起動なしで反映される。作り直しに失敗したら、古いリンクを残さず固定ページのリンクをナビから外し、定期のGCか次の変更で戻す | `DynamicNavLinks`・`rebuildMu`・`refreshNav`・`afterChange`・`Purge`・`SitemapEntries` |
 | PAGES-INV-7 | ページはCoreのセッションの破棄やマイグレーションの再実行で消えない | `migration.sql`（所有者の列を持たない） |
 | PAGES-INV-8 | タイトル・本文・スラッグをログに出さない | `Page.LogValue`・`Input.LogValue` |
@@ -57,6 +59,13 @@ stateDiagram-v2
 | PAGES-INV-12 | 本文の最初の空でない行がヒーローの行なら、ページの題名をヒーローの見出しとして描き、題名の `h1` は1つだけにする。説明文（`description`）はヒーローの導入から作る。ボタンは本文のリンクと同じURLの許可を通り、同じタブで開く。社内文書の本文では、LPの部品の行は段落のまま（[richtext.md](../richtext.md) の2.2節） | `ParseForPages`・`page.html`・`description` |
 | PAGES-INV-13 | 本文がLPの部品（ヒーロー・ボタン・カード）として描かれるページがあれば、起動の時にページのIDだけを警告のログに出す（本文は出さず、何も変えない）。部品の読み方を足す前の版から上げたサイトで、見え方が変わったページに気づくため。意図して部品を使うページも毎回出る | `warnLPLines`・`LPPartPages` |
 | PAGES-INV-14 | 公開ページの `og:image` は、本文の最初の画像が公開用に解決できればその画像、無ければ題名から作る画像（`/ogp/pages/{スラッグ}-{版}.png`）、作れなければ（`SITE_URL` が無い、フォントに無い文字がある）サイト共通の画像。幅・高さ・説明は一式で決める。画像の経路は、今公開中のページで版が今の題名と合う時だけ PNG を返して長くキャッシュさせ、それ以外は404（DBの障害は500、同時に作る枠の2つが埋まっていれば503）で、失敗はキャッシュさせない。Cookieを読まず、セッションを作らない。保存しない。組み込んだフォントのライセンスは `licenses` のコマンドで出す | `addOGImage`・`handleOGImage`・`ogimage` |
+| PAGES-INV-15 | `HOME_PAGE_SLUG` のページが公開中（予約の時刻を過ぎている）のときだけ `/` に出す。無い・下書き・予約中と、描けない失敗（読み取り・本文の上限・画像の解決・描画）のときは、今のトップ（Siteか、Coreの確認用の画面）を返し、500にしない。失敗は `page_id` と固定の分類だけを記録する。指定の形がスラッグに合わない・固定ページの機能が無い・既存の経路に当たるときは起動を止める | `ServeHomePage`・`homeRoot`・`checkHomeSlug` |
+| PAGES-INV-16 | 指定があるとき、`/`（GET・HEAD）はCookieを照合も発行も削除もせず、中身によらず `Cache-Control: no-store` で返す。`/privacy` の扱いは指定で変わらない | `homeRoot`・`noStoreWriter`・`Routes` |
+| PAGES-INV-17 | トップページの `/{スラッグ}` は、公開中なら `/` へ302で転送し、`no-store` を付ける。公開でなければ今のとおり404。`CanonicalPath` は `/`。`sitemap.xml` を返す構成（Siteがあり、`SITE_URL` がある）では、そのページの項目を `/` の1件にまとめる。ナビの行き先も `/` | `HandleFallback`・`SitemapEntries`・`DynamicNavLinks` |
+| PAGES-INV-18 | 本文のお知らせの一覧は、お知らせの公開の一覧と同じ条件（状態と公開日時）と並びで選ぶ。公開の記事の無いカテゴリと、無い名前のカテゴリは、公開ページで同じ表示（「お知らせはまだありません。」、一覧へのリンク無し）にし、番号を出さない。読み取りの失敗は、そのブロックだけを省く | `LatestPublished`・`newsBlock` |
+| PAGES-INV-19 | 見出しの飛び先の `id` は `sec-` の接頭辞つきで、1ページに同じ名前は1度だけ付く。キットのテンプレートの `id` は `sec-` で始めない。目次の中の見出しは平文で描く | `ParseForPages`・`anchorPrefix` |
+| PAGES-INV-20 | お問い合わせのボタンの行き先は、サイトのお問い合わせの設定（`ContactLink`）だけから決め、本文にURLを書かせない。外部のフォームは新しいタブで開き、そのことを文で伝える | `SetContactLink`・`page.html` |
+| PAGES-INV-21 | 本文が2.3節の部品・飛び先・帯に取り込まれるボタン・`#名前` のリンクのどれかとして描かれるページがあれば、起動の時にIDだけを警告のログに出す（PAGES-INV-13 と同じ扱い） | `warnLPLines`・`LPPartPages` |
 | PAGES-INV-11 | 空欄の保存は公開日時を変えない。公開ページに出ているページを未来の日時にする保存は、保存のトランザクションの中の今の行と時刻で判定して拒否する。非公開に戻すと公開日時を消す。予約中に過去の日時を保存すると、その保存で公開になり、そのことを利用者に伝える。MCPの照合は公開日時も含める | `checkPublishAt`・`SetPublishedIfUnchanged` |
 
 ## 5. 権限
@@ -71,7 +80,9 @@ stateDiagram-v2
 - 管理者認証（`features/auth`）の `features.Admin` の口だけを使う。`make add-pages` で管理者認証も有効になり、固定ページが有効な間は `make remove-auth` できない。
 - 公開ページは、Coreと他の機能のどの経路にも当たらなかった要求だけを受け皿（`FallbackFeature`）で受ける。スラッグが登録済みの経路と重ならないかは、配線から受け取る関数（`RouteCheckConsumer`）で確かめる。
 - Siteが有効なら、Siteのヘッダー・フッターで描き（`LayoutConsumer`）、無いページにはSiteの404を返す（`NotFoundConsumer`）。公開中でナビに出す順を決めたページはナビに載る（`DynamicNavLinkFeature`）。`sitemap.xml` には、順の有無にかかわらず公開中のページを載せる（`SitemapFeature`）。
-- お知らせ・カタログとはデータを共有しない。本文を読む部品（`internal/web/richtext`）はCoreにあり、お知らせ・カタログの本文はリンクの記法だけを同じ部品で読む（[本文の書き方](../richtext.md) 7節）。
+- お知らせの公開の一覧を、本文の「お知らせ」の行のために、Coreの口（`NewsListFeature`・`NewsListConsumer`）を通して読む（書かない）。お知らせの機能を直接読み込まない。お問い合わせの行き先は、Siteと同じく `ContactLinkConsumer` で受け取る。
+- トップページの指定があるとき、Coreは `/` で先に `HomePageFeature`（固定ページ）を試し、描かなければ今のトップに戻す。
+- カタログとはデータを共有しない。本文を読む部品（`internal/web/richtext`）はCoreにあり、お知らせ・カタログの本文はリンクの記法だけを同じ部品で読む（[本文の書き方](../richtext.md) 7節）。
 - HTTPの外の道具（移行の道具 `cmd/wpimport` 等）は、`Import`（管理画面と同じ `save` を通す下書きの作成）、`CheckSlug`・`Slugs`（取り込む前のスラッグの確かめ）を使う。SQLを直接書かない。
 - 画像機能が有効なら、本文に画像の行を書ける（[画像の仕様](media.md)、[本文の書き方](../richtext.md)）。編集の画面のボタンで本文の末尾に足し、プレビューは管理者の経路で描く。画像機能が無い構成では、画像の行は説明の文字として描く。
 
@@ -80,6 +91,9 @@ stateDiagram-v2
 - ファイルの添付、HTMLの直接入力、2階層以上のURL、版の履歴、公開の終了日時、ページごとのレイアウトの選択。
 - 予約公開の時刻ちょうどの反映。トップ等と `sitemap.xml` の公開キャッシュ（60秒）の間は、前のナビが見えることがある。一度公開した画像は、非公開に戻してもCDNとブラウザに最長1日残りうる。題名から作るOGPの画像（`/ogp/pages/…`）は1年キャッシュさせるので、非公開に戻した後や題名を変えた後も、古いURLの画像はCDN・ブラウザ・SNSに最長1年残りうる（サーバーは404を返す）。
 - スラッグを変えたときの旧URLからの転送、検索結果用の説明文の列（本文の冒頭から作る）。
+- トップページを管理画面で選ぶこと（環境変数で指定する）。Siteが無い構成の `sitemap.xml`（今もSiteだけが返す）。
+- 本文のお知らせの一覧は、カテゴリを名前で指す。カテゴリの名前を変えると何も指さなくなり、消した名前を別のカテゴリに付けると、本文を変えなくてもそのカテゴリの記事が出る。
+- 動画・地図・SNSの埋め込み、カルーセル、予約の部品（外への通信かJSが要る）。
 - 静的書き出し（固定ページを有効にすると `export-static` は使えない）。
 - 作者・操作の記録、ページごとの権限・承認の流れ。
 - Markdownとの完全な互換、リンク先の外部サイトの安全（本文で読む規則と許すリンクは [richtext.md](../richtext.md)）。

@@ -77,7 +77,8 @@ func renderPage(b block, r *Result) string {
 			}
 			line = append(line, l...)
 		}
-		return marker + pageInlines(line, false)
+		// 末尾の「 {#名前}」が見出しの飛び先に読まれないよう、# を逃がす（docs/richtext.md 2.4節）
+		return marker + escapeAnchor(pageInlines(line, false))
 	case "ul", "ol":
 		var lines []string
 		for i, item := range b.items {
@@ -138,13 +139,27 @@ func escapeLineStart(line string) string {
 	case strings.HasPrefix(line, "表: "):
 		return "表\\:" + line[len("表:"):]
 	}
-	// 固定ページのLPの部品の行（docs/richtext.md 2.2節）の前置きも、コロンを逃がして段落の行にする
-	for _, prefix := range []string{"ヒーロー", "ボタン", "カード"} {
+	// 固定ページの部品の行（docs/richtext.md 2.2節・2.3節）の前置きも、コロンを逃がして段落の行にする
+	for _, prefix := range pagePrefixes {
 		if strings.HasPrefix(line, prefix+": ") {
 			return prefix + "\\:" + line[len(prefix+":"):]
 		}
 	}
 	return line
+}
+
+// pagePrefixes は、固定ページの本文で部品として読まれる行の前置き（コロンの前）です。
+var pagePrefixes = []string{"ヒーロー", "ボタン", "カード", "質問", "答え", "お知らせ", "お問い合わせ", "引用", "帯", "手順", "目次"}
+
+// anchorEnd は、見出しの末尾の飛び先の指定の形です（docs/richtext.md 2.4節。名前の形は問わず、広めに逃がす）。
+var anchorEnd = regexp.MustCompile(` \{#([^{}]*)\}$`)
+
+// escapeAnchor は、見出しの末尾の「 {#…}」を「 {\#…}」にして、飛び先に読まれないようにします。
+func escapeAnchor(s string) string {
+	if m := anchorEnd.FindStringSubmatchIndex(s); m != nil {
+		return s[:m[0]] + ` {\#` + s[m[2]:m[3]] + "}"
+	}
+	return s
 }
 
 // pageInlines は、文字の並びを richtext の書き方にします。cell なら | も逃がします。

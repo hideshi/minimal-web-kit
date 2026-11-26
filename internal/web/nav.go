@@ -64,6 +64,9 @@ func (s *AnalyticsSlot) AddAnalytics(w http.ResponseWriter, data map[string]any)
 func (n *PublicNavigation) SetNavLinks(links func() []NavLink) { n.links = links }
 func (n *PublicNavigation) SetContactLink(link ContactLink)    { n.contact = &link }
 
+// ContactTarget は、受け取ったお問い合わせの行き先です。無ければ nil です。
+func (n *PublicNavigation) ContactTarget() *ContactLink { return n.contact }
+
 // AddNavigation は、公開画面の本文を描く前に呼びます。
 func (n *PublicNavigation) AddNavigation(data map[string]any) {
 	if n.links != nil {

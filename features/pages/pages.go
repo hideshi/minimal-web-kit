@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
@@ -56,6 +57,10 @@ type Feature struct {
 	afterNavRead func()
 	// ogSlots は、OGPの画像を同時に作る数の枠です（PAGES-INV-14）。
 	ogSlots chan struct{}
+	// homeSlug は、トップページに使うページ（HOME_PAGE_SLUG）。空なら指定は無い（PAGES-INV-15）
+	homeSlug string
+	// newsList は、本文のお知らせの一覧の記事を読む口。お知らせの機能が無ければ nil（PAGES-INV-18）
+	newsList func(ctx context.Context, category string, n int) (features.NewsList, error)
 }
 
 // navEntry はナビの候補です。publishAt を過ぎるまでは載せません。
@@ -72,6 +77,7 @@ func NewFeature(logger *slog.Logger) *Feature {
 		ogSlots:    make(chan struct{}, ogMaxSlots),
 		now:        time.Now,
 		media:      features.NoMedia{},
+		homeSlug:   os.Getenv("HOME_PAGE_SLUG"),
 	}
 }
 
@@ -118,6 +124,9 @@ func (f *Feature) Name() string { return "pages" }
 
 // Init はマイグレーションを適用し、ナビのスナップショットを作ります。
 func (f *Feature) Init(db *sql.DB) error {
+	if f.homeSlug != "" && !slugPattern.MatchString(f.homeSlug) {
+		return fmt.Errorf("HOME_PAGE_SLUG %q is not a page URL (lowercase letters, digits and hyphens, 2-40 characters)", f.homeSlug)
+	}
 	if _, err := db.Exec(migrationSQL); err != nil {
 		return fmt.Errorf("pages migration: %w", err)
 	}
@@ -182,7 +191,7 @@ func (f *Feature) refreshNav(ctx context.Context) error {
 		if err := rows.Scan(&e.link.Href, &e.link.Label, &e.order, &e.publishAt); err != nil {
 			return err
 		}
-		e.link.Href = "/" + e.link.Href
+		e.link.Href = f.homePath(e.link.Href) // トップページのナビの行き先は /（PAGES-INV-17）
 		entries = append(entries, e)
 	}
 	if err := rows.Err(); err != nil {
@@ -247,7 +256,8 @@ func (f *Feature) SitemapEntries(ctx context.Context) ([]web.SitemapEntry, error
 		if err := rows.Scan(&slug, &at); err != nil {
 			return nil, err
 		}
-		out = append(out, web.SitemapEntry{Path: "/" + slug, LastMod: time.Unix(at, 0)})
+		// トップページは / の1件にまとめる（Siteが同じパスを1つにする。PAGES-INV-17）
+		out = append(out, web.SitemapEntry{Path: f.homePath(slug), LastMod: time.Unix(at, 0)})
 	}
 	return out, rows.Err()
 }
@@ -270,24 +280,52 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+	if f.isHome(p.Slug) {
+		// トップページは / だけに出す。設定を外した後にブラウザに残らないよう、一時的な転送にする（PAGES-INV-17）
+		w.Header().Set("Cache-Control", "no-store, max-age=0")
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	buf, err := f.render(r.Context(), w, p, "/"+p.Slug)
+	if err != nil {
+		f.logger.Error("pages render failed", slog.Int64("page_id", p.ID), slog.String("stage", err.Error()), web.RequestIDAttr(w))
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	// 公開・非公開をすぐ反映するため、公開キャッシュは使わない（Coreの既定の no-store のまま）
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = buf.WriteTo(w)
+}
+
+// renderStage は、公開ページを描けなかった段階です。ログには、この固定の分類だけを出します（本文・題名は出さない）。
+type renderStage string
+
+func (s renderStage) Error() string { return string(s) }
+
+const (
+	stageBody   renderStage = "body"
+	stageImages renderStage = "images"
+	stageRender renderStage = "render"
+)
+
+// render は、公開中のページを描いた応答の本文を作ります。書き出す前に作るので、失敗しても応答は書きかけにならない。
+// canonical は、そのページの正規のパス（トップページなら /）。
+func (f *Feature) render(ctx context.Context, w http.ResponseWriter, p Page, canonical string) (*bytes.Buffer, error) {
 	doc, err := richtext.ParseForPages(p.Body)
 	if err != nil {
 		// 保存のときに検査しているため、ここには来ない想定
-		f.logger.Error("pages body over limit", slog.Int64("page_id", p.ID))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+		return nil, stageBody
 	}
 	if doc.Hero != nil {
 		doc.Hero.Title = p.Title
 	}
-	if err := f.resolveImages(r.Context(), &doc, false); err != nil {
-		f.logger.Error("pages images failed", web.RequestIDAttr(w))
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+	if err := f.resolveImages(ctx, &doc, false); err != nil {
+		return nil, stageImages
 	}
+	f.resolveParts(ctx, &doc, p.ID, false)
 	data := map[string]any{
 		"Title":         p.Title,
-		"CanonicalPath": "/" + p.Slug,
+		"CanonicalPath": canonical,
 		"Description":   description(doc, p.Title),
 		"Page":          p,
 		"Doc":           doc,
@@ -300,13 +338,9 @@ func (f *Feature) HandleFallback(w http.ResponseWriter, r *http.Request) {
 	}
 	var buf bytes.Buffer
 	if err := f.publicPage.ExecuteTemplate(&buf, "layout", data); err != nil {
-		f.logger.Error("pages render failed")
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+		return nil, stageRender
 	}
-	// 公開・非公開をすぐ反映するため、公開キャッシュは使わない（Coreの既定の no-store のまま）
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = buf.WriteTo(w)
+	return &buf, nil
 }
 
 // description は、検索結果等に出す説明文を、ヒーローの導入か、無ければ本文の最初の段落から作ります（120文字まで）。
@@ -345,7 +379,7 @@ func (f *Feature) warnLPLines(ctx context.Context) error {
 	if err != nil || len(ids) == 0 {
 		return err
 	}
-	f.logger.Warn("pages render LP parts (hero, buttons, cards); if a page was written before LP parts existed, check it and escape the colon (ボタン\\:) to keep a line as text", slog.Any("page_ids", ids))
+	f.logger.Warn("pages render LP parts (hero, buttons, cards, FAQ, news, contact, quote, banner, steps, contents, heading anchors, #links); if a page was written before these parts existed, check it and escape the colon (ボタン\\:) or the anchor ({\\#name}) to keep a line as text", slog.Any("page_ids", ids))
 	return nil
 }
 

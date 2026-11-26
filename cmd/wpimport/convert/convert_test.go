@@ -70,6 +70,8 @@ func TestConvert_Page(t *testing.T) {
 		{"escape", `<p>[注] C:\temp と **星** と a*b</p>`, `\[注] C:\\temp と \*\*星\*\* と a*b`},
 		{"line start", "<p># 番号</p><p>- 項目</p><p>1. 一</p><p>| 縦</p><p>表: 説明</p>", "\\# 番号\n\n\\- 項目\n\n1\\. 一\n\n\\| 縦\n\n表\\: 説明"},
 		{"lp line start", `<p>ヒーロー: 導入</p><p>ボタン: <a href="/a">押す</a></p><p>カード: 題 | 説明</p>`, "ヒーロー\\: 導入\n\nボタン\\: [押す](/a)\n\nカード\\: 題 | 説明"},
+		{"home line start", "<p>質問: 問い<br>答え: 答え</p><p>お知らせ: 3</p><p>お問い合わせ: 相談</p><p>引用: 声</p><p>帯: 題 | 説明</p><p>手順: 題 | 説明</p><p>目次: 目次</p>", "質問\\: 問い\n答え\\: 答え\n\nお知らせ\\: 3\n\nお問い合わせ\\: 相談\n\n引用\\: 声\n\n帯\\: 題 | 説明\n\n手順\\: 題 | 説明\n\n目次\\: 目次"},
+		{"heading anchor", "<h2>特長 {#features}</h2>", "## 特長 {\\#features}"},
 		{"image", `<p>前</p><figure><img src="x" alt="店の外観" class="wp-image-30"></figure><p>後</p>`, "前\n\n![店の外観](/media/" + fileA + ")\n\n後"},
 		{"image in li", `<ul><li>a</li><li><img class="wp-image-31" alt="図"></li><li>b</li></ul>`, "- a\n\n![図](/media/" + fileB + ")\n\n- b"},
 		{"image in text", `<p>前<img class="wp-image-30" alt="絵">後</p>`, "前\n\n![絵](/media/" + fileA + ")\n\n後"},

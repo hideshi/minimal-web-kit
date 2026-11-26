@@ -107,6 +107,8 @@ func (f *Feature) handleList(w http.ResponseWriter, r *http.Request, s features.
 type pageForm struct {
 	Input
 	Invalid string
+	// Warnings は、本文の部品についての書く人への警告です（無いカテゴリ、お問い合わせの行き先が無い、重なる飛び先等）
+	Warnings []string
 }
 
 func (v pageForm) err(names ...string) string { return fieldErrors.For(v.Invalid, names...) }
@@ -139,6 +141,7 @@ func (f *Feature) formPage(w http.ResponseWriter, r *http.Request, s features.Ad
 	data["Page"] = p
 	data["Form"] = v
 	data["Now"] = f.now()
+	data["IsHome"] = f.isHome(p.Slug) || (v.Slug != "" && f.isHome(v.Slug))
 	data["Preview"] = preview
 	data["Notice"] = messages.From(r)
 	if f.media.Enabled() {
@@ -173,7 +176,7 @@ func (f *Feature) handleEdit(w http.ResponseWriter, r *http.Request, s features.
 	if p.NavOrder != nil {
 		in.NavOrder = strconv.Itoa(*p.NavOrder)
 	}
-	f.formPage(w, r, s, p, pageForm{Input: in}, http.StatusOK, nil)
+	f.formPage(w, r, s, p, pageForm{Input: in, Warnings: f.bodyWarnings(r.Context(), p.Body)}, http.StatusOK, nil)
 }
 
 // handleSave は作成・更新します。プレビューのボタン（formaction）は handlePreview に送られます。
@@ -257,7 +260,8 @@ func (f *Feature) handlePreview(w http.ResponseWriter, r *http.Request, s featur
 	if f.failed(w, r, f.resolveImages(r.Context(), &doc, true)) {
 		return
 	}
-	f.formPage(w, r, s, p, pageForm{Input: in}, http.StatusOK, &doc)
+	warnings := f.resolveParts(r.Context(), &doc, p.ID, true)
+	f.formPage(w, r, s, p, pageForm{Input: in, Warnings: warnings}, http.StatusOK, &doc)
 }
 
 // appendImage は、本文の末尾に画像の行を足します。見やすさのため、前に空行を1つ置きます。

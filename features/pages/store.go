@@ -382,7 +382,9 @@ func (s *Store) LPPartPages(ctx context.Context) ([]int64, error) {
 	return out, rows.Err()
 }
 
-// hasLPParts は、本文がヒーロー・ボタン・カードのどれかとして描かれるかを返します。
+// hasLPParts は、本文が部品（ヒーロー・ボタン・カードと、トップページ等の部品）・見出しの飛び先・#名前 のリンクの
+// どれかとして描かれるかを返します（PAGES-INV-13・PAGES-INV-21）。描いた結果の構造で決めるので、帯に取り込まれるボタンや、
+// リンクだけが変わる本文も拾います。
 func hasLPParts(body string) bool {
 	doc, err := richtext.ParseForPages(body)
 	if err != nil {
@@ -391,8 +393,47 @@ func hasLPParts(body string) bool {
 	if doc.Hero != nil {
 		return true
 	}
+	anchorLink := func(xs []richtext.Inline) bool {
+		for _, x := range xs {
+			if x.Kind == "link" && strings.HasPrefix(x.Href, "#") {
+				return true
+			}
+		}
+		return false
+	}
 	for _, b := range doc.Blocks {
-		if b.Kind == "buttons" || b.Kind == "cards" {
+		switch b.Kind {
+		case "h2", "h3":
+			if b.ID != "" || anchorLink(b.Inlines) {
+				return true
+			}
+		case "p":
+			for _, l := range b.Lines {
+				if anchorLink(l) {
+					return true
+				}
+			}
+		case "ul", "ol":
+			for _, l := range b.Items {
+				if anchorLink(l) {
+					return true
+				}
+			}
+		case "table":
+			for _, c := range b.Head {
+				if anchorLink(c) {
+					return true
+				}
+			}
+			for _, row := range b.Rows {
+				for _, c := range row {
+					if anchorLink(c) {
+						return true
+					}
+				}
+			}
+		case "image":
+		default: // ボタン・カード・トップページ等の部品
 			return true
 		}
 	}

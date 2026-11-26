@@ -1,9 +1,11 @@
 package app
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
@@ -112,6 +114,26 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 			for _, f := range reg.All() {
 				if c, ok := f.(features.ContactLinkConsumer); ok {
 					c.SetContactLink(*link)
+				}
+			}
+		}
+	}
+
+	// 公開の記事の新着を、本文にお知らせの一覧を描く機能（固定ページ）に配る。提供は1つまで
+	{
+		var provider features.NewsListFeature
+		for _, f := range reg.All() {
+			if p, ok := f.(features.NewsListFeature); ok {
+				if provider != nil {
+					return nil, fmt.Errorf("news list is provided by both %s and %s", provider.Name(), f.Name())
+				}
+				provider = p
+			}
+		}
+		if provider != nil {
+			for _, f := range reg.All() {
+				if c, ok := f.(features.NewsListConsumer); ok {
+					c.SetNewsList(provider.LatestPublished)
 				}
 			}
 		}
@@ -314,6 +336,16 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 		}
 	}
 
+	// トップページを固定ページで描く（HOME_PAGE_SLUG）
+	home, err := homePage(reg)
+	if err != nil {
+		logger.Error("home page", slog.String("error", err.Error()))
+		return nil, err
+	}
+	if home != nil {
+		handler.SetHome(home.ServeHomePage)
+	}
+
 	// ルーティング構築
 	httpHandler, err := handler.RoutesWithIsolated(rootHandler, func(mux *http.ServeMux, sm *web.SessionManager) {
 		{
@@ -338,5 +370,34 @@ func BuildRoutes(st store.SessionStore, reg *features.Registry, secureCookie boo
 			c.SetRouteTaken(handler.RouteTaken)
 		}
 	}
+	if err := checkHomeSlug(home, handler.RouteTaken); err != nil {
+		return nil, err
+	}
 	return httpHandler, nil
+}
+
+// homePage は、トップページの指定（HOME_PAGE_SLUG）を描く機能を返します。指定が無ければ nil です。
+// 指定があるのに、描く機能（固定ページ）が無ければ起動を止めます（PAGES-INV-15）。
+func homePage(reg *features.Registry) (features.HomePageFeature, error) {
+	for _, f := range reg.All() {
+		if h, ok := f.(features.HomePageFeature); ok && h.HomeSlug() != "" {
+			return h, nil
+		}
+	}
+	if os.Getenv("HOME_PAGE_SLUG") != "" {
+		return nil, errors.New("HOME_PAGE_SLUG is set but the pages feature is not enabled; run make add-pages or unset it")
+	}
+	return nil, nil
+}
+
+// checkHomeSlug は、トップページのスラッグが既存の経路（/privacy 等）に当たらないかを確かめます（PAGES-INV-15）。
+// 当たると、そのページは /{スラッグ} で公開されず、/ だけに出ることになり、設定の誤りに気づけないため起動を止めます。
+func checkHomeSlug(home features.HomePageFeature, taken func(path string) bool) error {
+	if home == nil {
+		return nil
+	}
+	if slug := home.HomeSlug(); taken("/" + slug) {
+		return fmt.Errorf("HOME_PAGE_SLUG %q is already used by another route; choose another page", slug)
+	}
+	return nil
 }

@@ -1,6 +1,8 @@
 {{define "content"}}
 <h1>{{.Title}}</h1>{{template "notice" .Notice}}{{template "error" .Error}}
-{{if .Page.ID}}<p>状態: {{if .Page.Scheduled .Now}}公開予約（{{template "datetime" .Page.PublishAt}}から公開されます）{{else if .Page.Published}}公開中（<a href="/{{.Page.Slug}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
+{{if .Page.ID}}<p>状態: {{if .Page.Scheduled .Now}}公開予約（{{template "datetime" .Page.PublishAt}}から公開されます）{{else if .Page.Published}}公開中（<a href="{{if .IsHome}}/{{else}}/{{.Page.Slug}}{{end}}">公開ページを見る</a>）{{else}}下書き{{end}}</p>{{end}}
+{{if .IsHome}}<p class="alert alert-info">このページはトップページとして / に出ます（HOME_PAGE_SLUG）。公開中のときだけ表示され、それ以外はいつものトップページが出ます。</p>{{end}}
+{{with .Form.Warnings}}<div class="alert alert-warning" role="status"><p>本文の部品について確かめてください。</p><ul>{{range .}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
 {{if .Preview}}
 <section class="card page-preview" aria-labelledby="preview-title">
   <h2 id="preview-title">プレビュー（保存していません）</h2>
@@ -23,7 +25,14 @@
       <li>最初の画面（ヒーロー）: 本文の1行目に「ヒーロー: 導入の文」。題名が大きな見出しになり、直後の「ボタン: 」の行（3つまで）がその下に並びます</li>
       <li>ボタン: 行全体を「ボタン: [文字](/contact)」。続けて書いたボタンは横に並び、最初の1つが目立つボタンになります</li>
       <li>カード: 「カード: 題名 | 説明」を続けて書くと、カードが並びます（3枚・6枚なら3列、ほかは2列）</li>
-      <li>記号をそのまま出すには、前に「\」を付けます（例: \*\*、ボタン\: …）。HTMLは書けません</li>
+      <li>よくある質問: 「質問: 問い」の次の行に「答え: 答え」。続けて書くと並びます（開いて読む形）</li>
+      <li>最新のお知らせ: 「お知らせ: 3」で新着3件、「お知らせ: カテゴリの名前 | 3」でそのカテゴリの新着（1〜10件）</li>
+      <li>お問い合わせのボタン: 「お問い合わせ: ボタンの文」。行き先はサイトの設定で決まります</li>
+      <li>引用・お客様の声: 「引用: 本文」か「引用: 本文 | 出典」</li>
+      <li>締めの帯: 「帯: 見出し | 説明」。直後の「ボタン: 」の行（3つまで）が帯に並びます</li>
+      <li>手順: 「手順: 題名 | 説明」を続けて書くと、STEP 1・2…と並びます</li>
+      <li>飛び先と目次: 見出しの末尾に「 {#features}」（英小文字・数字・ハイフン）。同じページへは [文字](#features)、別のページからは [文字](/about#sec-features)。「目次: このページの目次」の行に、飛び先のある大きな見出しが並びます</li>
+      <li>記号をそのまま出すには、前に「\」を付けます（例: \*\*、ボタン\: …、{\#features}）。HTMLは書けません</li>
       {{if .MediaPager}}<li>画像: 下の「画像を挿入」のボタンで本文の末尾に足します。行全体が ![説明](/media/…) の形で、説明は必須です。画像は記事を公開すると公開されます</li>{{end}}
     </ul>
   </details>

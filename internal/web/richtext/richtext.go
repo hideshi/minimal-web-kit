@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 )
@@ -71,19 +73,58 @@ type Block struct {
 	Heading string   // カードの題名の見出し（"h2" か "h3"）
 	Grid    string   // カードの並びのクラス（"grid-2" か "grid-3"）
 	Title   string   // ヒーローの見出しに描くページの題名。読む処理は入れず、描く側が入れる
+
+	// ---- トップページ等の部品（docs/richtext.md 2.3節・2.4節。ParseForPages だけ） ----
+	// よくある質問（"faq"）と手順の並び（"steps"）は Cards に、質問=Title・答え=Body、題名=Title・説明=Body を持つ。
+	// 締めの帯（"cta"）は Cards[0] に見出しと説明、Buttons にボタンを持つ。引用（"quote"）は Inlines に本文、Source に出典。
+	ID           string     // 見出しの飛び先の id（"sec-名前"）。無ければ空
+	Label        string     // お問い合わせのボタンの文（"contact"）・目次のラベル（"toc"）。平文
+	Source       []Inline   // 引用の出典
+	Toc          []TocEntry // 目次（"toc"）の項目
+	NewsCategory string     // お知らせの一覧（"news"）のカテゴリの名前。空なら全部
+	NewsCount    int        // お知らせの一覧の件数（1〜MaxNews）
+	// 次は読む処理は入れず、描く側（固定ページ）が入れる。NewsReady が偽のお知らせの一覧と、ContactHref が空のお問い合わせのボタンは描かない
+	NewsReady       bool
+	NewsItems       []NewsItem
+	NewsList        string // 一覧へのパス。0件なら空
+	ContactHref     string
+	ContactExternal bool
 }
 
-// Card はカード1枚です。
+// Card はカード1枚です。手順の並びでは、Step に並びの中の順（1から）を持ちます。
 type Card struct {
 	Title []Inline
 	Body  []Inline
+	Step  int
+}
+
+// TocEntry は目次の項目1つです。ID は "sec-名前"、Text は見出しの平文です。
+type TocEntry struct {
+	ID   string
+	Text string
+}
+
+// NewsItem は、本文のお知らせの一覧に描く記事1件です（描く側が入れる）。
+type NewsItem struct {
+	Title string
+	Href  string
+	Date  time.Time
 }
 
 // Doc は読んだ本文です。
 type Doc struct {
 	Blocks []Block
 	Hero   *Block // ヒーロー（ParseForPages で、本文の最初の空でない行が当たった時だけ）。導入は Inlines、ボタンは Buttons
+	// DuplicateAnchors は、2度目以降に出てきた飛び先の名前です（重ねず、出てきた順）。保存の画面とMCPの警告に使います
+	DuplicateAnchors []string
 }
+
+// MaxNews・MaxFAQ・MaxSteps は、お知らせの一覧の件数と、よくある質問・手順の1つの並びの数です（ParseForPages）。
+const (
+	MaxNews  = 10
+	MaxFAQ   = 12
+	MaxSteps = 12
+)
 
 // Images は、本文の画像のファイル名を、重ねずに出てくる順で返します。
 func (d Doc) Images() []string {
@@ -151,7 +192,16 @@ func parse(body string, images, lp bool) (Doc, error) {
 	lastHeading := ""
 	tables, imageCount := 0, 0
 	first := true  // まだ空でない行を読んでいない（ヒーローは最初の空でない行だけ）
-	sawH2 := false // 本文の ## の見出しが既にある（カードの題名の見出しの階層）
+	sawH2 := false // 本文の ## の見出しが既にある（カード・帯・手順の題名の見出しの階層）
+	heading := func() string {
+		if sawH2 {
+			return "h3"
+		}
+		return "h2"
+	}
+	read := func(ts []token) []Inline { return readInlines(ts, lp) } // 固定ページだけ #名前 のリンクを読む
+	anchors, dupes := map[string]bool{}, map[string]bool{}
+	toc := -1 // 目次のブロックの位置（本文に1つだけ）
 	for i := 0; i < len(lines); i++ {
 		line := lines[i]
 		isFirst := first && line != ""
@@ -168,27 +218,50 @@ func parse(body string, images, lp bool) (Doc, error) {
 		var button Inline
 		var card Card
 		isHero, isButton, isCard := false, false, false
+		var part homePart
 		if lp {
 			if isFirst {
 				heroLead, isHero = heroLine(line)
 			}
 			button, isButton = buttonLine(line)
 			card, isCard = cardLine(line)
+			if !isHero && !isButton && !isCard && kind == "" {
+				next := ""
+				if i+1 < len(lines) {
+					next = lines[i+1]
+				}
+				part = homeLine(line, next, toc >= 0)
+			}
 		}
 		switch {
 		case line == "":
 			closeBlock()
 		case kind != "":
 			closeBlock()
-			inl := inlines(trimTokens(lex(line[len(kind)+1:]))) // "## " は3バイト、"### " は4バイト
-			doc.Blocks = append(doc.Blocks, Block{Kind: kind, Inlines: inl})
+			rest := line[len(kind)+1:] // "## " は3バイト、"### " は4バイト
+			id := ""
+			if lp {
+				if text, name, ok := anchorSplit(rest); ok {
+					if anchors[name] {
+						if !dupes[name] {
+							dupes[name] = true
+							doc.DuplicateAnchors = append(doc.DuplicateAnchors, name)
+						}
+					} else {
+						anchors[name] = true
+						rest, id = text, anchorPrefix+name
+					}
+				}
+			}
+			inl := read(trimTokens(lex(rest)))
+			doc.Blocks = append(doc.Blocks, Block{Kind: kind, Inlines: inl, ID: id})
 			lastHeading = Plain(inl)
 			sawH2 = sawH2 || kind == "h2"
 		case strings.HasPrefix(line, "表: ") && len(line) > len("表: ") && i+2 < len(lines) && isTableStart(lines[i+1], lines[i+2]):
 			closeBlock()
 			caption := joinTokens(lex(strings.TrimSpace(strings.TrimPrefix(line, "表: "))))
 			tables++
-			b, next, err := parseTable(lines, i+1, caption, tables, lastHeading)
+			b, next, err := parseTable(lines, i+1, caption, tables, lastHeading, read)
 			if err != nil {
 				return Doc{}, err
 			}
@@ -197,7 +270,7 @@ func parse(body string, images, lp bool) (Doc, error) {
 		case i+1 < len(lines) && isTableStart(line, lines[i+1]):
 			closeBlock()
 			tables++
-			b, next, err := parseTable(lines, i, "", tables, lastHeading)
+			b, next, err := parseTable(lines, i, "", tables, lastHeading, read)
 			if err != nil {
 				return Doc{}, err
 			}
@@ -213,8 +286,8 @@ func parse(body string, images, lp bool) (Doc, error) {
 			closeBlock()
 			cur = &Block{Kind: "hero", Inlines: heroLead}
 		case isButton:
-			// ヒーローの直後か、ボタンの並びの途中なら続ける。上限を超えたら新しい並びを始める（入力を捨てない）
-			if cur == nil || (cur.Kind != "hero" && cur.Kind != "buttons") || len(cur.Buttons) >= MaxButtons {
+			// ヒーロー・帯の直後か、ボタンの並びの途中なら続ける。上限を超えたら新しい並びを始める（入力を捨てない）
+			if cur == nil || (cur.Kind != "hero" && cur.Kind != "buttons" && cur.Kind != "cta") || len(cur.Buttons) >= MaxButtons {
 				closeBlock()
 				cur = &Block{Kind: "buttons"}
 			}
@@ -222,33 +295,62 @@ func parse(body string, images, lp bool) (Doc, error) {
 		case isCard:
 			if cur == nil || cur.Kind != "cards" || len(cur.Cards) >= MaxCards {
 				closeBlock()
-				cur = &Block{Kind: "cards", Heading: "h2"}
-				if sawH2 {
-					cur.Heading = "h3"
-				}
+				cur = &Block{Kind: "cards", Heading: heading()}
 			}
 			cur.Cards = append(cur.Cards, card)
+		case part.kind == "faq":
+			if cur == nil || cur.Kind != "faq" || len(cur.Cards) >= MaxFAQ {
+				closeBlock()
+				cur = &Block{Kind: "faq"}
+			}
+			cur.Cards = append(cur.Cards, part.card)
+			i++ // 答えの行も読んだ
+		case part.kind == "steps":
+			if cur == nil || cur.Kind != "steps" || len(cur.Cards) >= MaxSteps {
+				closeBlock()
+				cur = &Block{Kind: "steps", Heading: heading()}
+			}
+			part.card.Step = len(cur.Cards) + 1
+			cur.Cards = append(cur.Cards, part.card)
+		case part.kind == "cta":
+			closeBlock()
+			cur = &Block{Kind: "cta", Heading: heading(), Cards: []Card{part.card}}
+		case part.kind != "":
+			closeBlock()
+			b := part.block
+			if b.Kind == "toc" {
+				toc = len(doc.Blocks)
+			}
+			doc.Blocks = append(doc.Blocks, b)
 		case ul != "":
 			if cur == nil || cur.Kind != "ul" {
 				closeBlock()
 				cur = &Block{Kind: "ul"}
 			}
-			cur.Items = append(cur.Items, inlines(trimTokens(lex(ul))))
+			cur.Items = append(cur.Items, read(trimTokens(lex(ul))))
 		case ol != "":
 			if cur == nil || cur.Kind != "ol" {
 				closeBlock()
 				cur = &Block{Kind: "ol"}
 			}
-			cur.Items = append(cur.Items, inlines(trimTokens(lex(ol))))
+			cur.Items = append(cur.Items, read(trimTokens(lex(ol))))
 		default:
 			if cur == nil || cur.Kind != "p" {
 				closeBlock()
 				cur = &Block{Kind: "p"}
 			}
-			cur.Lines = append(cur.Lines, inlines(lex(line)))
+			cur.Lines = append(cur.Lines, read(lex(line)))
 		}
 	}
 	closeBlock()
+	if toc >= 0 {
+		// 目次は、本文で飛び先の付いた h2 を出てくる順に並べる（見出しは1回だけ見る）
+		for _, b := range doc.Blocks {
+			if b.Kind == "h2" && b.ID != "" {
+				doc.Blocks[toc].Toc = append(doc.Blocks[toc].Toc, TocEntry{ID: b.ID, Text: Plain(b.Inlines)})
+			}
+		}
+	}
 	return doc, nil
 }
 
@@ -320,7 +422,7 @@ func heroLine(line string) ([]Inline, bool) {
 	if len(ts) == 0 {
 		return nil, false
 	}
-	return inlines(ts), true
+	return readInlines(ts, true), true
 }
 
 // buttonLine は、前置きの後ろが、前後の空白を除いてリンクちょうど1つなら、そのリンクを返します。
@@ -328,7 +430,7 @@ func buttonLine(line string) (Inline, bool) {
 	if !strings.HasPrefix(line, buttonPrefix) {
 		return Inline{}, false
 	}
-	inl := inlines(trimTokens(lex(line[len(buttonPrefix):])))
+	inl := readInlines(trimTokens(lex(line[len(buttonPrefix):])), true)
 	if len(inl) != 1 || inl[0].Kind != "link" {
 		return Inline{}, false
 	}
@@ -341,24 +443,207 @@ func cardLine(line string) (Card, bool) {
 	if !strings.HasPrefix(line, cardPrefix) {
 		return Card{}, false
 	}
-	ts := lex(line[len(cardPrefix):])
+	title, body, ok := splitPair(lex(line[len(cardPrefix):]))
+	if !ok {
+		return Card{}, false
+	}
+	return Card{Title: readInlines(title, true), Body: readInlines(body, true)}, true
+}
+
+// splitPair は、並びに記号の | がちょうど1つあり、前と後ろが（前後の空白を除いて）どちらも空でなければ、その2つを返します。
+// 区切りは走査の記号の | で数え、強調・リンクを読む前に分けます（リンクの文字やURLの中の | も数える）。
+func splitPair(ts []token) (before, after []token, ok bool) {
 	at := -1
 	for i, t := range ts {
 		if t.sym && t.r == '|' {
 			if at >= 0 {
-				return Card{}, false
+				return nil, nil, false
 			}
 			at = i
 		}
 	}
 	if at < 0 {
-		return Card{}, false
+		return nil, nil, false
 	}
-	title, body := trimTokens(ts[:at]), trimTokens(ts[at+1:])
-	if len(title) == 0 || len(body) == 0 {
-		return Card{}, false
+	before, after = trimTokens(ts[:at]), trimTokens(ts[at+1:])
+	if len(before) == 0 || len(after) == 0 {
+		return nil, nil, false
 	}
-	return Card{Title: inlines(title), Body: inlines(body)}, true
+	return before, after, true
+}
+
+// ---- トップページ等の部品の行（docs/richtext.md 2.3節・2.4節。ParseForPages だけ） ----
+
+const (
+	questionPrefix = "質問: "
+	answerPrefix   = "答え: "
+	newsPrefix     = "お知らせ: "
+	contactPrefix  = "お問い合わせ: "
+	quotePrefix    = "引用: "
+	ctaPrefix      = "帯: "
+	stepPrefix     = "手順: "
+	tocPrefix      = "目次: "
+	// anchorPrefix は、見出しの飛び先の id の接頭辞です。キットのテンプレートの id は、これで始めません（PAGES-INV-19）。
+	anchorPrefix = "sec-"
+)
+
+// HomePrefixes は、トップページ等の部品の行の前置きです（起動時の警告と、移行の道具の逃がしに使う）。
+var HomePrefixes = []string{questionPrefix, answerPrefix, newsPrefix, contactPrefix, quotePrefix, ctaPrefix, stepPrefix, tocPrefix}
+
+// homePart は、トップページ等の部品の行を読んだ結果です。kind が空なら当たらない（段落等）。
+// "faq"・"steps"・"cta" は並びに足すので card を、ほかは1行で閉じるので block を使う。
+type homePart struct {
+	kind  string
+	card  Card
+	block Block
+}
+
+// homeLine は、行がトップページ等の部品の形なら読みます。next は次の整えた行（質問の答え）、hasToc は既に目次があるか。
+func homeLine(line, next string, hasToc bool) homePart {
+	switch {
+	case strings.HasPrefix(line, questionPrefix):
+		q := trimTokens(lex(line[len(questionPrefix):]))
+		a, ok := answer(next)
+		if len(q) == 0 || !ok {
+			return homePart{}
+		}
+		return homePart{kind: "faq", card: Card{Title: readInlines(q, true), Body: a}}
+	case strings.HasPrefix(line, newsPrefix):
+		category, count, ok := newsSpec(lex(line[len(newsPrefix):]))
+		if !ok {
+			return homePart{}
+		}
+		return homePart{kind: "news", block: Block{Kind: "news", NewsCategory: category, NewsCount: count}}
+	case strings.HasPrefix(line, contactPrefix):
+		ts := trimTokens(lex(line[len(contactPrefix):]))
+		if len(ts) == 0 {
+			return homePart{}
+		}
+		return homePart{kind: "contact", block: Block{Kind: "contact", Label: joinTokens(ts)}}
+	case strings.HasPrefix(line, quotePrefix):
+		ts := lex(line[len(quotePrefix):])
+		pipes := 0
+		for _, t := range ts {
+			if t.sym && t.r == '|' {
+				pipes++
+			}
+		}
+		switch pipes {
+		case 0:
+			body := trimTokens(ts)
+			if len(body) == 0 {
+				return homePart{}
+			}
+			return homePart{kind: "quote", block: Block{Kind: "quote", Inlines: readInlines(body, true)}}
+		case 1:
+			body, source, ok := splitPair(ts)
+			if !ok {
+				return homePart{}
+			}
+			return homePart{kind: "quote", block: Block{Kind: "quote", Inlines: readInlines(body, true), Source: readInlines(source, true)}}
+		}
+		return homePart{}
+	case strings.HasPrefix(line, ctaPrefix), strings.HasPrefix(line, stepPrefix):
+		kind, prefix := "cta", ctaPrefix
+		if strings.HasPrefix(line, stepPrefix) {
+			kind, prefix = "steps", stepPrefix
+		}
+		title, body, ok := splitPair(lex(line[len(prefix):]))
+		if !ok {
+			return homePart{}
+		}
+		// 題名は見出しに描くので、リンクを読まず文字にする（強調は読む）
+		return homePart{kind: kind, card: Card{Title: readInlines(noLinks(title), true), Body: readInlines(body, true)}}
+	case strings.HasPrefix(line, tocPrefix) && !hasToc:
+		ts := trimTokens(lex(line[len(tocPrefix):]))
+		if len(ts) == 0 {
+			return homePart{}
+		}
+		return homePart{kind: "toc", block: Block{Kind: "toc", Label: joinTokens(ts)}}
+	}
+	return homePart{}
+}
+
+// answer は、行が答えの形なら答えを返します。
+func answer(line string) ([]Inline, bool) {
+	if !strings.HasPrefix(line, answerPrefix) {
+		return nil, false
+	}
+	ts := trimTokens(lex(line[len(answerPrefix):]))
+	if len(ts) == 0 {
+		return nil, false
+	}
+	return readInlines(ts, true), true
+}
+
+// newsSpec は、お知らせの行の後ろ（件数だけか、カテゴリの名前 | 件数）を読みます。
+func newsSpec(ts []token) (category string, count int, ok bool) {
+	countTokens := trimTokens(ts)
+	pipes := 0
+	for _, t := range ts {
+		if t.sym && t.r == '|' {
+			pipes++
+		}
+	}
+	switch pipes {
+	case 0:
+	case 1:
+		name, n, pairOK := splitPair(ts)
+		if !pairOK {
+			return "", 0, false
+		}
+		category, countTokens = joinTokens(name), n
+	default:
+		return "", 0, false
+	}
+	for _, t := range countTokens {
+		if t.sym || t.escaped {
+			return "", 0, false
+		}
+	}
+	s := joinTokens(countTokens)
+	if !newsCount.MatchString(s) {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 1 || n > MaxNews {
+		return "", 0, false
+	}
+	return category, n, true
+}
+
+var newsCount = regexp.MustCompile(`^[1-9][0-9]?$`)
+
+// noLinks は、リンクの記号（[ ] ( )）を文字にした並びです。見出しに描く題名に使います（強調の記号は残す）。
+func noLinks(ts []token) []token {
+	out := make([]token, len(ts))
+	for i, t := range ts {
+		if t.sym && strings.ContainsRune("[]()", t.r) {
+			t.sym = false
+		}
+		out[i] = t
+	}
+	return out
+}
+
+// anchorName は、飛び先の名前の形です（固定ページのスラッグと同じ）。
+var anchorName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,38}[a-z0-9]$`)
+
+// anchorSplit は、見出しの行（"## " の後ろ）の末尾が「 {#名前}」なら、それを除いた残りと名前を返します。
+// 走査の前の生の文字で見るので、{\#名前} は当たらない。残りが空白だけなら当たらない。
+func anchorSplit(rest string) (text, name string, ok bool) {
+	if !strings.HasSuffix(rest, "}") {
+		return "", "", false
+	}
+	at := strings.LastIndex(rest, " {#")
+	if at < 0 {
+		return "", "", false
+	}
+	name = rest[at+len(" {#") : len(rest)-1]
+	if !anchorName.MatchString(name) || strings.TrimFunc(rest[:at], unicode.IsSpace) == "" {
+		return "", "", false
+	}
+	return rest[:at], name, true
 }
 
 // headingLevel は、見出しの行なら "h2"・"h3" を返します（docs/richtext.md 2節の順2）。
@@ -527,7 +812,7 @@ func isTableStart(line, next string) bool {
 }
 
 // parseTable は、lines[start] から始まる表を読み、表の次の行の位置を返します。
-func parseTable(lines []string, start int, caption string, n int, heading string) (Block, int, error) {
+func parseTable(lines []string, start int, caption string, n int, heading string, inlines func([]token) []Inline) (Block, int, error) {
 	head := cells(lines[start])
 	if len(head) > MaxColumns {
 		return Block{}, 0, LimitError{fmt.Sprintf("table %d has more than %d columns", n, MaxColumns)}
@@ -563,7 +848,10 @@ func parseTable(lines []string, start int, caption string, n int, heading string
 // ---- 文字の並び（docs/richtext.md 4節） ----
 
 // inlines は記号の並びを、文字・強調・リンクに読みます。探索は事前に作る表を引くだけで、時間は長さに比例します。
-func inlines(ts []token) []Inline {
+func inlines(ts []token) []Inline { return readInlines(ts, false) }
+
+// readInlines は inlines に、固定ページの本文だけで読むリンクの #名前（docs/richtext.md 5節）を加えます（anchors が真のとき）。
+func readInlines(ts []token, anchors bool) []Inline {
 	n := len(ts)
 	nextClose := func(r rune) []int {
 		next := make([]int, n+1)
@@ -625,7 +913,7 @@ func inlines(ts []token) []Inline {
 				if k := nextParen[j+2]; k >= 0 && k-(j+2) <= maxURL && nextBad[j+2] >= k && !blank(ts[i+1:j]) {
 					href, done := urlOK[j]
 					if !done {
-						href = tokenURL(ts[j+2 : k])
+						href = tokenURL(ts[j+2:k], anchors)
 						urlOK[j] = href
 					}
 					if href != "" {
@@ -666,9 +954,15 @@ func Plain(in []Inline) string {
 
 // tokenURL は、URLの文字種の検査（nextBad）を通った並びを検査します。サイト内のパスは先頭の2文字だけで決まるため、
 // 組み立てるのは許可するときと、https:// の外部のときだけにする（多数の [ が同じ ) を共有しても速い）。
-func tokenURL(ts []token) string {
+func tokenURL(ts []token, anchors bool) string {
 	switch {
 	case len(ts) == 0:
+		return ""
+	case anchors && ts[0].r == '#':
+		// 同じ本文の飛び先。名前の形に完全一致するときだけ、描く id（sec-名前）へのリンクにする
+		if name := joinTokens(ts[1:]); anchorName.MatchString(name) {
+			return "#" + anchorPrefix + name
+		}
 		return ""
 	case ts[0].r == '/' && (len(ts) == 1 || ts[1].r != '/'):
 		return joinTokens(ts)
