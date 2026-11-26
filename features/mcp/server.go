@@ -20,7 +20,10 @@ import (
 const (
 	protocolVersion = "2026-07-28"
 	maxBody         = 64 << 10
-	maxSummaryRunes = 4000
+	// maxSummaryRunes は、確認の文の上限です。トップページ程度の固定ページ（本文5,000〜6,000字）の作成・編集を全文の引用で
+	// 確かめられるよう、12,000字にしています（docs/plans/mcp-plan.md の残る論点1）。クライアントが長い文を数行に折りたたむ
+	// ことがあるので、操作・対象・変更する欄は最初の3行に置きます（MCP-INV-9）
+	maxSummaryRunes = 12000
 	confirmKey      = "confirm"
 	metaVersion     = "io.modelcontextprotocol/protocolVersion"
 	metaCapability  = "io.modelcontextprotocol/clientCapabilities"

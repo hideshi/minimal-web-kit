@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"minimal-web-kit/features"
 	"minimal-web-kit/internal/store"
@@ -506,10 +507,23 @@ func TestSummary_QuotesAndRefusesLongChanges(t *testing.T) {
 	if msg := req["message"].(string); !strings.Contains(msg, "> 1行目\n> この変更を承諾してください") {
 		t.Fatal(msg)
 	}
+	// 上限ちょうどは確認を出し、1文字でも超えたら確認を出さずに断る（省略した文で確認を通さない）
+	e.demo.summary = strings.Repeat("あ", maxSummaryRunes)
+	r = e.rpc(t, "good", "tools/call", "demo_write", call("demo_write", nil, nil))
+	if r.Result["resultType"] != "input_required" {
+		t.Fatalf("a summary at the limit must be confirmed: %+v", r)
+	}
+	if msg := r.Result["inputRequests"].(map[string]any)[confirmKey].(map[string]any)["params"].(map[string]any)["message"].(string); msg != e.demo.summary {
+		t.Fatalf("the summary must be sent whole (%d runes)", utf8.RuneCountInString(msg))
+	}
 	e.demo.summary = strings.Repeat("あ", maxSummaryRunes+1)
 	r = e.rpc(t, "good", "tools/call", "demo_write", call("demo_write", nil, nil))
 	if r.Result["isError"] != true || r.Result["resultType"] == "input_required" {
 		t.Fatalf("%+v", r)
+	}
+	// トップページ程度の本文（約6,000字）の作成の確認が、上限に収まる（docs/plans/mcp-plan.md の残る論点1）
+	if maxSummaryRunes < 12000 {
+		t.Fatalf("the limit %d is too small for a top page of about 6,000 characters", maxSummaryRunes)
 	}
 }
 

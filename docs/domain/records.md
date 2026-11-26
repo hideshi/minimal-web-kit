@@ -98,7 +98,7 @@ stateDiagram-v2
 | RECORDS-INV-8 | 起動の時、手順の記録が定義の手順より短い種類は、足りない手順を番号の順に1つずつ当てる。全部の種類の手順と、手順の記録・種類の記録の書き込みを、1つのトランザクションで行い、途中で失敗したら何も変えずに起動を止める。既にあった表に壊す手順を1つでも当てる起動では、その前に1つの複製を作り、複製に失敗したら当てずに止める。その起動で作った表への手順と、追加だけの起動では複製を作らない。2回起動しても何も変わらない | `planRecordsMigration`・`applyRecordsMigration` |
 | RECORDS-INV-9 | 定義の記録と台帳の節は定義から生成する。定義の記録の手順の文字列の一覧が、今の定義の手順の先頭と一致しない、または今の手順より長い（適用済みの手順の変更・削除）、やめた種類が消えた、定義の記録にある種類が定義の一覧からもやめた種類からも消えた、のどれかなら、生成を止める。定義の記録・台帳の節が今の定義から作ったものと違えば、テストが落ちる | `checkRecordsHistory`・`renderRecordsInventory` |
 | RECORDS-INV-10 | アカウントの停止・削除で記録は消えない。削除済みの所有者の記録は、システム管理者が、種類と所有者ごとの件数だけを見て、確認の画面を経てまとめて消せる。対象は `AllReadWrite` 以外の種類で、確認の画面で選んだ種類と所有者だけ。実行の時にアカウントの一覧を読み直し、削除済みであることを確かめる。本文は見せない。アカウントの一覧の取得に失敗したら止める。停止中の所有者の記録はまとめて消せない | `purgeDeletedOwnerRecords`・`deletedOwnerCounts` |
-| RECORDS-INV-11 | MCPの権限は接続したアカウント本人のもの。削除はできない。確認の文は `MCPSummary` で組み立て、値は `MCPQuote` で全文を引用する（4,000字の上限は MCP-INV-9 の共通の決まり） | `recordsMCPTools`・`recordsSummary` |
+| RECORDS-INV-11 | MCPの権限は接続したアカウント本人のもの。削除はできない。確認の文は `MCPSummary` で組み立て、値は `MCPQuote` で全文を引用する（12,000字の上限は MCP-INV-9 の共通の決まり） | `recordsMCPTools`・`recordsSummary` |
 | RECORDS-INV-12 | やめた種類と、今の定義に無い列の値は、画面とMCPに出さない | `visibleRecordFields` |
 | RECORDS-INV-13 | 記録の値、絞り込みの語、変換できない行の値は、ログと確認のコマンドの出力に出さない。確認のコマンドは種類・項目・行のIDだけを出す | `recordsCheckReport`・`logRecordsMigration` |
 | RECORDS-INV-14 | 確認のコマンドは、DBを読むだけの接続で開き、表と行を変えない | `runRecordsCheck` |
