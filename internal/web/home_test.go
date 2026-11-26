@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"io"
+	"sync/atomic"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +12,17 @@ import (
 
 	"minimal-web-kit/internal/store"
 )
+
+// countingStore は、セッションの照合（GetSessionOwner）の数を数えます。
+type countingStore struct {
+	store.SessionStore
+	lookups atomic.Int64
+}
+
+func (s *countingStore) GetSessionOwner(ctx context.Context, tokenHash string) (store.OwnerID, error) {
+	s.lookups.Add(1)
+	return s.SessionStore.GetSessionOwner(ctx, tokenHash)
+}
 
 // TestRoutes_HomeRoot は、トップページの指定があるとき、/ で先に固定ページを試し、描かなければ今のトップ（独自のトップかBase）を返し、
 // どちらでも / はセッションを照合も発行もせず、下の処理が公開キャッシュを付けても no-store で返し、/privacy の扱いは変えないことを確かめる。
@@ -27,7 +40,7 @@ func TestRoutes_HomeRoot(t *testing.T) {
 		{"page without site", false, true, "固定ページ"},
 		{"base fallback", false, false, "セッション未発行"},
 	} {
-		s := store.NewMemoryStore()
+		s := &countingStore{SessionStore: store.NewMemoryStore()}
 		sm := NewSessionManager(s, false)
 		h, err := NewHandler(s, sm, logger)
 		if err != nil {
@@ -49,10 +62,10 @@ func TestRoutes_HomeRoot(t *testing.T) {
 		}
 		routes := h.Routes(root, nil)
 
-		// 既存のセッションCookieを付けても、照合・発行・削除をしない
+		// 既存のセッションCookie（今の名前）を付けても、照合・発行・削除をしない。照合したかはストアの読み取りの数で見る
 		for _, method := range []string{http.MethodGet, http.MethodHead} {
 			req := httptest.NewRequest(method, "/", nil)
-			req.AddCookie(&http.Cookie{Name: "session_id", Value: "not-a-session"})
+			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: "not-a-session"})
 			rec := httptest.NewRecorder()
 			routes.ServeHTTP(rec, req)
 			if rec.Code != http.StatusOK {
@@ -67,6 +80,9 @@ func TestRoutes_HomeRoot(t *testing.T) {
 			if sc := rec.Header().Values("Set-Cookie"); len(sc) != 0 {
 				t.Errorf("%s %s: Set-Cookie %v", c.name, method, sc)
 			}
+		}
+		if n := s.lookups.Load(); n != 0 {
+			t.Errorf("%s: / looked up the session %d times", c.name, n)
 		}
 
 		// /privacy は、指定の有無で変わらない（独自のトップがあるときだけセッションを通さない）

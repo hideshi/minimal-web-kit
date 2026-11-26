@@ -2,6 +2,7 @@ package pages
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -41,6 +42,33 @@ func (f *Feature) ServeHomePage(w http.ResponseWriter, r *http.Request) bool {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = buf.WriteTo(w)
 	return true
+}
+
+// warnHome は、トップページの指定があるのに、そのページが無い・下書き・予約中なら、起動の時に警告します（PAGES-INV-15）。
+// 起動は止めない（公開の前に設定してよい）。ログには固定の状態の分類とページのIDだけを出し、題名・本文・スラッグは出さない。
+func (f *Feature) warnHome(ctx context.Context) error {
+	if f.homeSlug == "" {
+		return nil
+	}
+	var id, publishAt int64
+	var status string
+	err := f.store.db.QueryRowContext(ctx, "SELECT id, status, COALESCE(publish_at, 0) FROM pages WHERE slug = ?", f.homeSlug).Scan(&id, &status, &publishAt)
+	state := ""
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		f.logger.Warn("pages home page not shown; the current top page is used until it is published", slog.String("state", "missing"))
+		return nil
+	case err != nil:
+		return err
+	case status != "published":
+		state = "draft"
+	case publishAt > f.now().Unix():
+		state = "scheduled"
+	default:
+		return nil
+	}
+	f.logger.Warn("pages home page not shown; the current top page is used until it is published", slog.String("state", state), slog.Int64("page_id", id))
+	return nil
 }
 
 // homePath は、ページの公開のパスです。トップページなら / です。

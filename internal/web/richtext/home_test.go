@@ -189,7 +189,8 @@ func TestParse_HomePartsAreText(t *testing.T) {
 	}
 }
 
-// TestParseForPages_HomeLinearTime は、部品・飛び先・目次の多い本文でも、読む時間が入力の長さに比例することを確かめる。
+// TestParseForPages_HomeLinearTime は、部品・飛び先・目次の多い長い本文を、決まった時間（1秒）の中で読めることを確かめる
+// （処理の時間の回帰の検査。比例することそのものは BenchmarkParseForPages_Home の大きさ別の結果で見る）。
 func TestParseForPages_HomeLinearTime(t *testing.T) {
 	for name, body := range map[string]string{
 		"faq":         repeatLines("質問: a\n答え: b", 10000),
@@ -208,5 +209,23 @@ func TestParseForPages_HomeLinearTime(t *testing.T) {
 		if d := time.Since(start); d > time.Second {
 			t.Errorf("%s took %v", name, d)
 		}
+	}
+}
+
+// BenchmarkParseForPages_Home は、部品・飛び先・目次の多い本文を、大きさを変えて読みます。
+// 大きさが4倍になったとき、1回あたりの時間がおよそ4倍（二乗なら16倍）になることを、結果を並べて見る。
+// 例: go test -run XXX -bench ParseForPages_Home ./internal/web/richtext/
+func BenchmarkParseForPages_Home(b *testing.B) {
+	unit := "目次: x\n## a {#b-c}\n質問: a\n答え: [b](#b-c)\n手順: a | b\n帯: a | b\nボタン: [x](/x)\n引用: a | b\nお知らせ: c | 3\n"
+	for _, n := range []int{250, 1000, 4000} {
+		body := strings.Repeat(unit, n)
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			b.SetBytes(int64(len(body)))
+			for b.Loop() {
+				if _, err := ParseForPages(body); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }

@@ -145,6 +145,9 @@ func (f *Feature) Init(db *sql.DB) error {
 	if err := f.warnLPLines(context.Background()); err != nil {
 		return fmt.Errorf("pages lp check: %w", err)
 	}
+	if err := f.warnHome(context.Background()); err != nil {
+		return fmt.Errorf("pages home check: %w", err)
+	}
 	f.rebuildMu.Lock()
 	defer f.rebuildMu.Unlock()
 	return f.refreshNav(context.Background())

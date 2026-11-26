@@ -26,6 +26,51 @@ const siteTopMark = `class="hero-links"` // Siteのトップだけにある部�
 
 func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 
+func (fx *fixture) exec(query string, args ...any) {
+	fx.t.Helper()
+	if _, err := fx.core.DB().Exec(query, args...); err != nil {
+		fx.t.Fatal(err)
+	}
+}
+
+// failingMedia は、画像の解決に失敗する画像機能です。
+type failingMedia struct{ features.NoMedia }
+
+func (failingMedia) Images(context.Context, []string) (map[string]features.MediaImage, error) {
+	return nil, errors.New("media down")
+}
+
+// TestHome_StartupWarning は、トップページの指定のページが無い・下書き・予約中なら、起動の時に状態の分類とIDだけを警告し、
+// 公開中なら警告しないことを確かめる（起動は止めない）。
+// 不変条件: PAGES-INV-15
+func TestHome_StartupWarning(t *testing.T) {
+	t.Setenv("HOME_PAGE_SLUG", "home")
+	fx := setup(t)
+	initLogs := func() string {
+		t.Helper()
+		fx.logs.Reset()
+		if err := fx.f.Init(fx.core.DB()); err != nil {
+			t.Fatal(err)
+		}
+		return fx.logs.String()
+	}
+	if logs := initLogs(); !strings.Contains(logs, "pages home page not shown") || !strings.Contains(logs, "state=missing") {
+		t.Errorf("missing: %s", logs)
+	}
+	id := fx.create("home", "題名カナリア", "本文カナリア", "", false)
+	if logs := initLogs(); !strings.Contains(logs, "state=draft") || !strings.Contains(logs, "page_id="+itoa(id)) || strings.Contains(logs, "カナリア") || strings.Contains(logs, "slug") {
+		t.Errorf("draft: %s", logs)
+	}
+	fx.exec("UPDATE pages SET status = 'published', publish_at = ? WHERE id = ?", fx.clock.Add(time.Hour).Unix(), id)
+	if logs := initLogs(); !strings.Contains(logs, "state=scheduled") {
+		t.Errorf("scheduled: %s", logs)
+	}
+	fx.exec("UPDATE pages SET publish_at = NULL WHERE id = ?", id)
+	if logs := initLogs(); strings.Contains(logs, "pages home page not shown") {
+		t.Errorf("published: %s", logs)
+	}
+}
+
 func (fx *fixture) head(path string, cookie *http.Cookie) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodHead, path, nil)
 	if cookie != nil {
@@ -86,6 +131,39 @@ func TestHome_ServedOnlyWhenPublished(t *testing.T) {
 		t.Errorf("render failure log: %s", logs)
 	}
 	fx.f.publicPage = saved
+
+	// ほかの描けない失敗（ページの読み取り・本文の上限・画像の解決）も、今のトップに戻す。ログに本文・題名を出さない
+	for _, c := range []struct {
+		name, log    string
+		break_, heal func()
+	}{
+		{"load", "pages home load failed",
+			func() { fx.exec("ALTER TABLE pages RENAME TO pages_moved") },
+			func() { fx.exec("ALTER TABLE pages_moved RENAME TO pages") }},
+		{"body", "stage=body",
+			func() {
+				fx.exec("UPDATE pages SET body = ? WHERE id = ?", strings.Repeat("![a](/media/0123456789abcdef0123456789abcdef.jpg)\n", richtext.MaxImages+1), id)
+			},
+			func() { fx.exec("UPDATE pages SET body = ? WHERE id = ?", "ヒーロー: トップの本文", id) }},
+		{"images", "stage=images",
+			func() {
+				fx.exec("UPDATE pages SET body = ? WHERE id = ?", "ヒーロー: トップの本文\n\n![a](/media/0123456789abcdef0123456789abcdef.jpg)", id)
+				fx.f.SetMedia(failingMedia{})
+			},
+			func() {
+				fx.f.SetMedia(features.NoMedia{})
+				fx.exec("UPDATE pages SET body = ? WHERE id = ?", "ヒーロー: トップの本文", id)
+			}},
+	} {
+		c.break_()
+		fx.logs.Reset()
+		checkRoot(false)
+		if logs := fx.logs.String(); !strings.Contains(logs, c.log) || strings.Contains(logs, "トップの本文") || strings.Contains(logs, "ようこそ") {
+			t.Errorf("%s failure log: %s", c.name, logs)
+		}
+		c.heal()
+		checkRoot(true)
+	}
 
 	// /privacy の表示とキャッシュは、指定で変わらない（Siteの公開キャッシュのまま、Cookieを発行しない）
 	if w := fx.get("/privacy", nil); w.Code != http.StatusOK || w.Header().Get("Cache-Control") != "public, max-age=60" || len(w.Header().Values("Set-Cookie")) != 0 {
