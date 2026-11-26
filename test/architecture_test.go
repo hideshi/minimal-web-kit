@@ -116,6 +116,7 @@ var providerModules = []string{
 	"github.com/zitadel/schema",
 	"go.opentelemetry.io/auto/sdk",
 	"go.opentelemetry.io/otel",
+	"go.opentelemetry.io/otel/log",
 	"go.opentelemetry.io/otel/metric",
 	"go.opentelemetry.io/otel/trace",
 	"golang.org/x/oauth2",
